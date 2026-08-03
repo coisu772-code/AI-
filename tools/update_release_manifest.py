@@ -78,6 +78,17 @@ def main() -> int:
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    index_path = ROOT / "release-manifests" / "version-index.json"
+    if index_path.is_file():
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+        for entry in index.get("versions", []):
+            entry_path = ROOT / "release-manifests" / entry["manifest"]
+            if not entry_path.is_file():
+                raise FileNotFoundError(entry_path)
+            entry_manifest = json.loads(entry_path.read_text(encoding="utf-8"))
+            entry["manifestContentHash"] = entry_manifest["contentHash"]
+            entry["manifestFileSha256"] = hashlib.sha256(entry_path.read_bytes()).hexdigest()
+        index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Updated {manifest_path.name}: {manifest['contentHash']}")
     return 0
 

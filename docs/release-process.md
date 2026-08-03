@@ -1,25 +1,31 @@
-# 发布流程与门禁
+# Release Candidate 发布流程与门禁
 
-阶段 1 只准备本地候选。未经用户明确确认，不创建远端仓库、不推送、不创建或发布 GitHub Release。
+`0.8.0-rc.1` 当前只形成本地候选。未经用户明确授权，不 push、不打 tag、不创建 GitHub Release，也不把草案清单改成 published。
 
-## 本地候选门禁
+## 本地 RC 门
 
-1. 更新有效契约夹具的内容哈希。
-2. 更新统一发布清单中的目录哈希、大小和清单自身哈希。
-3. 运行 `tools/Test-Stage1.ps1`。
-4. 确认发布清单仍是 `draft`，且未包含凭据、数据库、用户资料或媒体。
-5. 确认现有控制中心、工坊和发布中心只作为外部兼容基线，没有被复制或改写。
+1. 更新当前插件、服务、项目版本和 `release-v0.8.0-rc.1.json`。
+2. 运行 `tools/update_release_manifest.py`，再验证 canonical manifest hash 和四类内置工件目录 hash。
+3. 连续运行阶段1–8脚本和全仓单元测试；阶段2注入正式发布中心只读 CLI 时，真实数据库前后 hash 必须不变。
+4. 用 `tools/Build-ReleaseCandidate.ps1` 构建两次 ZIP，确认 SHA-256 完全一致。
+5. 验证 ZIP 内部 `RC-ASSET-MANIFEST.json`、外部 `SHA256SUMS.txt`、路径穿越／重复项、Unicode／空格路径和敏感信息扫描。
+6. 核对安装、旧版升级、故意失败自动回滚、修复、卸载保留数据、备份、恢复和新任务重新绑定频道。
+7. 核对三市场 recorded synthetic 链，所有真实上传／Studio 字段必须保持 false 或 null。
+8. 核对 `final-acceptance-approval-checklist-v0.8.0-rc.1.json` 六个外部门全部 `executed=false`。
 
-目录工件的 SHA-256 采用跨平台稳定规则：对 `.cmd/.json/.md/.ps1/.txt/.yaml/.yml` 先按 UTF-8 文本读取，移除 UTF-8 BOM，并把 CRLF/CR 统一为 LF；其他文件保持原始字节。随后把每个文件记录为 `正斜杠相对路径<TAB>规范化字节数<TAB>文件SHA-256<LF>`，按相对路径的 Unicode 序数排序后拼接，再计算整体 SHA-256。目录哈希不依赖操作系统换行或 Windows 区域排序。
+## ZIP 可复现规则
 
-## 获得用户授权后的远端步骤
+ZIP 项按 Unicode 序数路径排序，统一使用 `2026-08-04T00:00:00` 固定时间、UTF-8 名称、固定权限和 Deflate 9。文本移除 UTF-8 BOM并统一 LF；二进制保持原字节。阶段验证报告不进入普通安装 ZIP，避免本地证据路径和构建结果形成自引用。相同工作树构建两次必须得到相同 SHA-256。
 
-1. 在用户确认的 GitHub 账户创建 `novel-manga-production` 仓库。
-2. 推送已审查的本地提交。
-3. 将发布清单 `gitCommit` 写为真实 40 位提交 SHA。
-4. 重新计算工件与清单哈希并再次跑完整验证。
-5. 创建 `v0.1.0-beta.2` GitHub 预发布，上传明确列入清单的工件。
-6. 在一台没有项目源码的干净 Windows 环境验证安装、Codex 重启和新任务入口。
-7. 只有上述验证通过后，才把清单状态改为 `published` 并发布 Release。
+目录工件仍使用 `relative/path<TAB>normalized-size<TAB>sha256<LF>` 排序聚合规则。Release manifest 自身使用 `canonical-json-v1`，移除 `contentHash` 后按 key 排序、紧凑 UTF-8 JSON 求 SHA-256。
 
-远端动作需要单独授权；“本地阶段 1 完成”不等于“已发布”。
+## 获得一次性最终验收授权后
+
+1. 运行 `tools/Test-FinalAcceptancePrerequisites.ps1 -ReleaseCandidateZip <RC> -AsJson`，状态必须是 `READY_FOR_USER_AUTHORIZATION`。
+2. 按 `docs/final-live-acceptance-runbook-v0.8.0-rc.1.md` 在干净 Windows 测试机和指定私密测试频道执行真实闭环。
+3. 取得真实 Publication Receipt v1、video ID、目标频道回读和公开数据快照；owner Analytics 没有独立授权时保持 `AUTH_REQUIRED`。
+4. 把真实证据追加到阶段8报告。任一真实门未通过时不得把完整 MVP 改为 GO。
+5. 用户再次核对最终提交和 RC SHA-256 后，才允许 push、创建 `v0.8.0-rc.1` tag 和 GitHub prerelease。
+6. GitHub Actions 必须重新跑仓库验证、构建同 hash 资产并上传 ZIP 与 `SHA256SUMS.txt`。Release 页面先保持 prerelease；干净机器 GitHub 下载安装复验通过后再决定是否发布稳定版。
+
+两套正式 EXE、用户频道库、凭据、数据库、项目、媒体和日志从不进入 GitHub 资产。正式程序覆盖、OAuth、上传、迁移和长期学习分别受机器审批表约束，不能由 Release 授权推定。

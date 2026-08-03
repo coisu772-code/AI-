@@ -14,7 +14,7 @@ PLUGIN_NAME = "ai-video-channel-production"
 MARKETPLACE_NAME = "novel-manga-production"
 PLUGIN_ROOT = ROOT / "plugins" / PLUGIN_NAME
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-CURRENT_PRODUCT_VERSION = "0.7.0-dev.1"
+CURRENT_PRODUCT_VERSION = "0.8.0-rc.1"
 
 EXPECTED_SKILLS = {
     "channel-production",
@@ -105,7 +105,7 @@ def validate_plugin() -> list[str]:
     if plugin.get("name") != PLUGIN_NAME or not NAME_PATTERN.fullmatch(plugin.get("name", "")):
         errors.append("plugin name is invalid")
     if plugin.get("version") != CURRENT_PRODUCT_VERSION:
-        errors.append(f"plugin version must be {CURRENT_PRODUCT_VERSION} for the stage 7 candidate")
+        errors.append(f"plugin version must be {CURRENT_PRODUCT_VERSION} for the Stage8 release candidate")
     if plugin.get("skills") != "./skills/":
         errors.append("plugin skills path must be ./skills/")
     if plugin.get("mcpServers") != "./.mcp.json":

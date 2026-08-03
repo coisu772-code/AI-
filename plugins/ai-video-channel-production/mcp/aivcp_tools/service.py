@@ -25,7 +25,7 @@ from .workshop_bridge import WorkshopBridge
 
 
 LOCAL_TOOL_PROTOCOL_VERSION = "1.0.0"
-SERVICE_VERSION = "0.7.0-dev.1"
+SERVICE_VERSION = "0.8.0-rc.1"
 
 
 def default_data_root(plugin_root: Path | None = None) -> Path:
@@ -36,6 +36,13 @@ def default_data_root(plugin_root: Path | None = None) -> Path:
         resolved = plugin_root.resolve()
         current = resolved.parents[1] if len(resolved.parents) > 1 else None
         if current and current.name == "current" and (current / "install-state.json").is_file():
+            try:
+                state = json.loads((current / "install-state.json").read_text(encoding="utf-8-sig"))
+            except (OSError, json.JSONDecodeError):
+                state = {}
+            configured_root = state.get("userDataRoot") if isinstance(state, dict) else None
+            if isinstance(configured_root, str) and configured_root.strip():
+                return Path(configured_root).expanduser().resolve()
             return current.parent / "data"
     local = os.environ.get("LOCALAPPDATA")
     if local:

@@ -1,6 +1,6 @@
 @echo off
 setlocal
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Install-AIVideoChannelProduction.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Install-AIVideoChannelProduction.ps1" -RuntimeMode Online
 if errorlevel 1 (
   echo Installation failed. Review the message above.
   pause

@@ -34,6 +34,7 @@ try {
 
     if (-not $SkipInstallSmoke) {
         $smokeRoot = [System.IO.Path]::GetFullPath((Join-Path $root ".stage1-smoke"))
+        $smokeDataRoot = [System.IO.Path]::GetFullPath((Join-Path $root ".stage1-smoke-data"))
         $expectedSmokeRoot = [System.IO.Path]::GetFullPath((Join-Path $root ".stage1-smoke"))
         if ($smokeRoot -ne $expectedSmokeRoot -or -not $smokeRoot.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) {
             throw "Unexpected smoke-test path; refusing cleanup: $smokeRoot"
@@ -41,11 +42,12 @@ try {
         if (Test-Path -LiteralPath $smokeRoot) {
             Remove-Item -LiteralPath $smokeRoot -Recurse -Force
         }
-        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "installer\Install-AIVideoChannelProduction.ps1") -InstallRoot $smokeRoot -SkipCodexRegistration
+        if (Test-Path -LiteralPath $smokeDataRoot) { Remove-Item -LiteralPath $smokeDataRoot -Recurse -Force }
+        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "installer\Install-AIVideoChannelProduction.ps1") -InstallRoot $smokeRoot -DataRoot $smokeDataRoot -SkipCodexRegistration
         if ($LASTEXITCODE -ne 0) { throw "Local installation smoke test failed." }
-        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "installer\Install-AIVideoChannelProduction.ps1") -InstallRoot $smokeRoot -SkipCodexRegistration
+        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "installer\Install-AIVideoChannelProduction.ps1") -InstallRoot $smokeRoot -DataRoot $smokeDataRoot -SkipCodexRegistration
         if ($LASTEXITCODE -ne 0) { throw "Idempotent installation smoke test failed." }
-        & (Join-Path $root "installer\Upgrade-AIVideoChannelProduction.ps1") -SourceRoot $root -InstallRoot $smokeRoot -SkipCodexRegistration
+        & (Join-Path $root "installer\Upgrade-AIVideoChannelProduction.ps1") -SourceRoot $root -InstallRoot $smokeRoot -DataRoot $smokeDataRoot -SkipCodexRegistration
         $backup = Get-ChildItem -LiteralPath (Join-Path $smokeRoot "backups") -Directory | Select-Object -First 1
         if ($null -eq $backup) { throw "Upgrade did not preserve a rollback backup." }
         & (Join-Path $root "installer\Rollback-AIVideoChannelProduction.ps1") -InstallRoot $smokeRoot -BackupName $backup.Name -SkipCodexRegistration -Confirm:$false
@@ -57,6 +59,8 @@ try {
         if ($LASTEXITCODE -ne 0 -or (Test-Path -LiteralPath $smokeRoot)) {
             throw "Local uninstall smoke test failed."
         }
+        if (-not (Test-Path -LiteralPath $smokeDataRoot -PathType Container)) { throw "Uninstall did not preserve isolated user data." }
+        Remove-Item -LiteralPath $smokeDataRoot -Recurse -Force
     }
 
     if (-not $SkipCodexLoadSmoke) {

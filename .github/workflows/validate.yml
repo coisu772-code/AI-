@@ -15,6 +15,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-      - name: Validate phase 1 release skeleton
+      - name: Validate repository and release candidate unit surface
         shell: pwsh
-        run: .\tools\Test-Stage1.ps1 -SkipCodexLoadSmoke
+        run: |
+          .\tools\Test-Stage1.ps1 -SkipCodexLoadSmoke
+          uv run python -m unittest -q tests.test_stage8_release_candidate

@@ -7,6 +7,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "Common.ps1")
 . (Join-Path $PSScriptRoot "CodexCli.ps1")
 
 $installFull = [System.IO.Path]::GetFullPath($InstallRoot)
@@ -59,11 +60,16 @@ if ($PSCmdlet.ShouldProcess($currentPath, "Rollback to $($candidate.Name)")) {
         throw
     }
 
+    $candidateDataProperty = $candidateState.PSObject.Properties["userDataRoot"]
+    $restoredDataRoot = if ($null -ne $candidateDataProperty) { [string]$candidateDataProperty.Value } else { Get-AivcpDefaultDataRoot $installFull }
+    $candidateReleaseProperty = $candidateState.PSObject.Properties["releaseManifestContentHash"]
     [ordered]@{
-        schemaVersion = "1.0.0"
+        schemaVersion = "1.1.0"
         productId = "ai-video-channel-production"
         activeVersion = [string]$candidateState.productVersion
         activeRoot = "current"
+        userDataRoot = $restoredDataRoot
+        releaseManifestContentHash = if ($null -ne $candidateReleaseProperty) { [string]$candidateReleaseProperty.Value } else { $null }
     } | ConvertTo-Json | Set-Content -LiteralPath $marker -Encoding UTF8
 
     if (-not $SkipCodexRegistration) {

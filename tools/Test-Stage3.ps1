@@ -56,7 +56,7 @@ try {
     }
     New-Item -ItemType Directory -Path $isolated -Force | Out-Null
     $installRoot = Join-Path $isolated "install"
-    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "installer\Install-AIVideoChannelProduction.ps1") -SourceRoot $root -InstallRoot $installRoot -SkipCodexRegistration
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "installer\Install-AIVideoChannelProduction.ps1") -SourceRoot $root -InstallRoot $installRoot -DataRoot (Join-Path $isolated "data") -SkipCodexRegistration
     if ($LASTEXITCODE -ne 0) { throw "Stage 3 candidate installation failed." }
 
     $installed = Join-Path $installRoot "current"

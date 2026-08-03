@@ -1,72 +1,118 @@
-# Windows 安装、升级、回滚与卸载
+# Windows 安装、更新、修复、回滚、备份与卸载
 
-## 前提
+本文适用于“AI 视频频道生产系统”`0.8.0-rc.1`。本地 RC 尚未发布到 GitHub；远端最新版仍是 `0.1.0-beta.2`。
 
-- Windows PowerShell 5.1 或 PowerShell 7；
-- Codex CLI 已安装并能运行；
-- 从可信发布来源取得完整仓库或 Release 包，并核对发布清单中的 SHA-256。
+## 下载后先核对
 
-默认程序目录是 `%LOCALAPPDATA%\AI Video Channel Production`。程序目录不用于保存频道资料、凭据、项目或媒体。
-
-## 安装
-
-在包根目录运行：
+Release 应包含 `ai-video-channel-production-v0.8.0-rc.1-windows.zip` 和 `SHA256SUMS.txt`。在下载目录运行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\installer\Install-AIVideoChannelProduction.ps1
+Get-FileHash .\ai-video-channel-production-v0.8.0-rc.1-windows.zip -Algorithm SHA256
 ```
 
-安装器先复制到临时目录，校验插件目录指纹，再切换 `current`。之后注册本地 marketplace 和插件。重启 Codex 并新建任务后生效。
+结果必须与 `SHA256SUMS.txt` 完全一致。解压后，安装器还会按 `release-v0.8.0-rc.1.json` 再核对插件、安装器、契约和本地工具服务的目录 SHA-256；任一不符就停止，不切换当前版本。
 
-如只验证文件、不修改 Codex 用户配置：
+## 联网一键安装
+
+已安装 Codex 和 `uv` 时，双击 `installer\install.cmd`。它会创建独立 Python 运行环境、安装锁定范围内的依赖、执行健康检查、原子切换程序版本并注册 Codex 插件。
+
+默认位置：
+
+- 程序：`%LOCALAPPDATA%\AI Video Channel Production\current`
+- 用户数据：`%LOCALAPPDATA%\AI Video Channel Production Data`
+
+两者分开。频道资料、项目、媒体、报告和学习记录不放在 `current` 中。
+
+命令行入口：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\installer\Install-AIVideoChannelProduction.ps1 -InstallRoot .\.stage1-smoke -SkipCodexRegistration
+powershell -NoProfile -ExecutionPolicy Bypass -File .\installer\Install-AIVideoChannelProduction.ps1 -RuntimeMode Online
 ```
 
-相同版本重复安装是幂等的；`-Force` 会把当前版本移入 `backups` 后重新安装。
+## 断网安装
 
-## 升级
-
-下载并核验新版本，在当前包根目录运行：
+先在一台同为 Windows x64、可以联网的准备机生成 wheelhouse：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\installer\Upgrade-AIVideoChannelProduction.ps1 -SourceRoot <新版本解压目录>
+powershell -NoProfile -ExecutionPolicy Bypass -File .\installer\Build-OfflineWheelhouse.ps1 -OutputRoot D:\AIVCP-Wheelhouse
 ```
 
-升级只替换程序文件，旧 `current` 会成为带时间戳的备份。阶段 1 不迁移用户数据。
-
-阶段5候选升级后可运行健康检查：
+把原 RC 解压目录和整个 wheelhouse 一起复制到断网电脑，核对 `WHEELHOUSE-SHA256SUMS.txt`，再运行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\installer\Test-AIVideoChannelProductionHealth.ps1 -AsJson
+powershell -NoProfile -ExecutionPolicy Bypass -File .\installer\Install-AIVideoChannelProduction.ps1 `
+  -RuntimeMode Offline `
+  -OfflineWheelhouseRoot D:\AIVCP-Wheelhouse
 ```
 
-通过结果必须显示 7 个 Skills、20 个阶段4／5内容与制作工具，并分别确认内容能力和 Production Package `2.1` 能力。健康检查不启动正式工坊生产、不创建真实任务、不读取用户项目，也不调用 OAuth 或上传。
+`Offline` 模式给依赖安装器加上断网硬门，不会悄悄改走网络。断网电脑仍需已有兼容 Python 或由 `uv` 已准备好的 Python；正式 Release 如另附离线 Python 运行时，其 SHA-256 也必须加入 Release 资产清单。
 
-安装器只部署分发插件、契约与本地工具，不覆盖 `Z 漫剧工坊.exe`。如需启用正式 2.1 工坊，必须另行审核、构建、备份和部署；缺少实际 2.1 适配桥时非合成制作任务会安全失败。
+## 重复安装与更新
 
-## 回滚
-
-列出默认安装目录下的 `backups`，然后运行：
+相同版本、相同插件指纹的重复安装是幂等操作，不创建多余备份。更新新包时运行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\installer\Rollback-AIVideoChannelProduction.ps1 -BackupName <备份目录名>
+powershell -NoProfile -ExecutionPolicy Bypass -File .\installer\Upgrade-AIVideoChannelProduction.ps1 `
+  -SourceRoot <新版本解压目录> `
+  -RuntimeMode Online
 ```
 
-不指定 `-BackupName` 时选择最新备份。脚本只接受带本产品安装标记的目录；当前版本会先保存为 `pre-rollback-*`。
+旧 `current` 会先移动到 `backups`，新版本完成静态／动态健康检查和 Codex 注册后才算成功。复制、健康检查或注册失败时，安装器自动恢复先前 `current` 和安装标记。旧版把数据放在程序目录 `data` 时，升级会继续引用原位置，不自动迁移；真正迁移必须另行批准。
 
-## 卸载
+## 修复
+
+从可信来源重新下载同版本或更新版本并核对 SHA-256，然后运行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\installer\Uninstall-AIVideoChannelProduction.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\installer\Repair-AIVideoChannelProduction.ps1 `
+  -SourceRoot <已核对的解压目录> `
+  -RuntimeMode Online
 ```
 
-卸载器先核对产品标记，再移除插件注册和程序目录。它不定位、不删除频道资料库、凭据、项目、成片或工作区数据。若只希望移除程序文件且不改 Codex 配置，可加 `-SkipCodexRemoval`。
+修复复用事务式安装，只替换程序与运行时，不改用户数据。源包本身损坏时不要用损坏的 `current` 自修复。
 
-## 失败处理
+## 手动回滚
 
-- 插件或 marketplace 注册失败时，已安装文件会保留，并明确报错；修复 Codex CLI 后可重复安装。
-- 升级复制或校验失败时，临时目录会删除，原 `current` 不变。
-- 切换后注册失败时，可使用备份回滚；不会自动删除用户资料。
-- 安装目录缺少正确产品标记时，卸载与回滚都会拒绝递归操作。
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\installer\Rollback-AIVideoChannelProduction.ps1 `
+  -BackupName <backups 下的版本目录名>
+```
+
+不指定名称时选择最新备份。回滚只接受带本产品 `install-state.json` 的目录，当前版本先保存为 `pre-rollback-*`。用户数据路径随目标安装状态恢复，但不移动或覆盖数据。
+
+## 用户数据备份与恢复
+
+备份：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\installer\Backup-AIVideoChannelProductionData.ps1 `
+  -DestinationRoot D:\AIVCP-Backups
+```
+
+备份包含文件级 SHA-256、聚合 payload hash 和旁路 `.sha256`。发现疑似密钥／Token 文件名或目录重解析点时会拒绝打包。备份可能包含私有频道资料，请只保存在用户控制的位置，不要上传 GitHub。
+
+恢复到空数据目录：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\installer\Restore-AIVideoChannelProductionData.ps1 `
+  -ArchivePath <.aivcp-backup.zip> `
+  -DataRoot <新数据目录>
+```
+
+恢复先检查 ZIP 路径穿越、重复项、文件大小、逐文件 SHA-256 和聚合 hash，再原子切换。目标非空时默认拒绝；显式使用 `-ReplaceExisting` 时，原目录会先改名为 `pre-restore-*` 保留，不直接删除。
+
+## 卸载并保留数据
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\installer\Uninstall-AIVideoChannelProduction.ps1
+```
+
+新安装的数据目录在程序目录外，卸载只删除程序、运行时、程序备份和 Codex 注册。兼容旧版的原位 `data` 会被单独保留，并留下 `uninstalled-user-data.json`。卸载结束还会再次确认数据根存在。
+
+## 健康与安全检查
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\installer\Test-AIVideoChannelProductionHealth.ps1 -AsJson
+```
+
+通过结果必须显示 9 个 Skills、32 个本地工具、内容／制作／数据能力健康，并保持 `oauth=not_called`、`upload=not_called`、Analytics `AUTH_REQUIRED`、Token 未读取、长期学习未写入。安装包不包含 EXE、数据库、用户媒体、日志、密钥或 Token；新漫剧工坊和 YouTube 发布中心始终作为外部审批资产，安装器不会覆盖它们。

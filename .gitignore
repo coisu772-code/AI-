@@ -1,6 +1,7 @@
 # Build and local validation outputs
 dist/
 .stage1-smoke/
+.stage1-smoke-data/
 .stage1-codex-home/
 .stage2-isolated/
 .stage3-isolated/
@@ -8,6 +9,8 @@ dist/
 .stage5-plugin-isolated/
 .stage5-output-isolated/
 .stage6-r3-source/
+.stage7-output-isolated/
+.stage8-isolated/
 .github-install-smoke/
 .release-tools/
 node_modules/

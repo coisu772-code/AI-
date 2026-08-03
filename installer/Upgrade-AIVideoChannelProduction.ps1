@@ -3,6 +3,11 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$SourceRoot,
     [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "AI Video Channel Production"),
+    [string]$DataRoot,
+    [ValidateSet("Existing", "Online", "Offline")]
+    [string]$RuntimeMode = "Existing",
+    [string]$PythonExecutable,
+    [string]$OfflineWheelhouseRoot,
     [switch]$SkipCodexRegistration
 )
 
@@ -15,8 +20,10 @@ if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {
 }
 
 try {
-    & $installer -SourceRoot $SourceRoot -InstallRoot $InstallRoot -SkipCodexRegistration:$SkipCodexRegistration -Force
+    & $installer -SourceRoot $SourceRoot -InstallRoot $InstallRoot -DataRoot $DataRoot `
+        -RuntimeMode $RuntimeMode -PythonExecutable $PythonExecutable -OfflineWheelhouseRoot $OfflineWheelhouseRoot `
+        -SkipCodexRegistration:$SkipCodexRegistration -Force
 }
 catch {
-    throw "Upgrade failed. The previous current version remains available in backups. $($_.Exception.Message)"
+    throw "Upgrade failed. The previous active version was restored automatically. $($_.Exception.Message)"
 }

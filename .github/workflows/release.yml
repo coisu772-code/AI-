@@ -3,7 +3,7 @@ name: beta-release
 on:
   push:
     tags:
-      - "v*-beta.*"
+      - "v0.8.0-rc.1"
 
 permissions:
   contents: write
@@ -16,22 +16,25 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-      - name: Validate tagged source
+      - name: Validate tagged source and RC safety
         shell: pwsh
-        run: .\tools\Test-Stage1.ps1 -SkipCodexLoadSmoke
+        run: |
+          if ("v$((Get-Content .\plugins\ai-video-channel-production\.codex-plugin\plugin.json -Raw | ConvertFrom-Json).version)" -ne "${{ github.ref_name }}") { throw "Tag and plugin version differ." }
+          .\tools\Test-Stage1.ps1 -SkipCodexLoadSmoke
+          uv run python -m unittest -q tests.test_stage8_release_candidate
       - name: Build release assets
         shell: pwsh
-        run: .\tools\Build-BetaRelease.ps1
+        run: .\tools\Build-ReleaseCandidate.ps1
       - name: Publish GitHub prerelease
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${{ github.ref_name }}" `
-            .\dist\ai-video-channel-production-v0.1.0-beta.2.zip `
-            .\dist\SHA256SUMS.txt `
+            .\dist\v0.8.0-rc.1\ai-video-channel-production-v0.8.0-rc.1-windows.zip `
+            .\dist\v0.8.0-rc.1\SHA256SUMS.txt `
             --verify-tag `
             --prerelease `
             --latest=false `
             --title "AI 视频频道生产系统 ${{ github.ref_name }}" `
-            --notes-file .\docs\release-notes-v0.1.0-beta.2.md
+            --notes-file .\docs\release-notes-v0.8.0-rc.1.md

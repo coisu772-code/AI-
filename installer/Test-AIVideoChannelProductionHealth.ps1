@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "AI Video Channel Production"),
+    [string]$DataRoot,
     [string]$PluginRoot,
     [switch]$SkipServiceCheck,
     [switch]$AsJson
@@ -8,6 +9,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "Common.ps1")
 
 $requiredSkills = @(
     "channel-production",
@@ -64,6 +66,14 @@ if ([string]::IsNullOrWhiteSpace($PluginRoot)) {
         throw "Installation health check failed: install-state.json is missing."
     }
     $installState = Get-Content -LiteralPath $installStatePath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $stateDataProperty = $installState.PSObject.Properties["userDataRoot"]
+    if ($null -ne $stateDataProperty -and -not [string]::IsNullOrWhiteSpace([string]$stateDataProperty.Value)) {
+        $installedDataRoot = Resolve-AivcpFullPath ([string]$stateDataProperty.Value)
+        if (-not [string]::IsNullOrWhiteSpace($DataRoot) -and $installedDataRoot -ne (Resolve-AivcpFullPath $DataRoot)) {
+            throw "Installation health check failed: configured user data root differs from install state."
+        }
+        $DataRoot = $installedDataRoot
+    }
 }
 
 $pluginFull = [System.IO.Path]::GetFullPath($PluginRoot)
@@ -116,7 +126,7 @@ $contentCapabilitiesChecked = $false
 $productionCapabilitiesChecked = $false
 $dataCenterCapabilitiesChecked = $false
 if (-not $SkipServiceCheck) {
-    $healthDataRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("aivcp-stage7-health-" + [guid]::NewGuid().ToString("N"))
+    $healthDataRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("aivcp-rc-health-" + [guid]::NewGuid().ToString("N"))
     $hadDataRoot = Test-Path Env:AIVCP_DATA_ROOT
     $previousDataRoot = $env:AIVCP_DATA_ROOT
     $hadNetworkExecution = Test-Path Env:AIVCP_NETWORK_EXECUTION
@@ -129,11 +139,55 @@ if (-not $SkipServiceCheck) {
     if (-not (Test-Path -LiteralPath $startScript -PathType Leaf)) {
         throw "Installation health check failed: local tool launcher is missing."
     }
-    $request = '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
-    $responseText = $request | powershell -NoProfile -ExecutionPolicy Bypass -File $startScript | Out-String
-    if ($LASTEXITCODE -ne 0) {
-        throw "Installation health check failed: local tool service did not start."
+    $serverScript = Join-Path $pluginFull "mcp\server.py"
+    function Invoke-AivcpHealthRequest([string]$RequestText) {
+        $configuredPython = [Environment]::GetEnvironmentVariable("AIVCP_PYTHON", "Process")
+        $installedPython = [System.IO.Path]::GetFullPath((Join-Path $pluginFull "..\..\runtime\python\Scripts\python.exe"))
+        $legacyPython = Join-Path $env:LOCALAPPDATA "AI Video Channel Production\runtime\python\python.exe"
+        $fileName = $null
+        $argumentText = $null
+        if (-not [string]::IsNullOrWhiteSpace($configuredPython) -and (Test-Path -LiteralPath $configuredPython -PathType Leaf)) {
+            $fileName = $configuredPython
+            $argumentText = '"' + $serverScript.Replace('"', '\"') + '" mcp'
+        }
+        elseif (Test-Path -LiteralPath $installedPython -PathType Leaf) {
+            $fileName = $installedPython
+            $argumentText = '"' + $serverScript.Replace('"', '\"') + '" mcp'
+        }
+        elseif (Test-Path -LiteralPath $legacyPython -PathType Leaf) {
+            $fileName = $legacyPython
+            $argumentText = '"' + $serverScript.Replace('"', '\"') + '" mcp'
+        }
+        else {
+            $uv = Get-Command uv -ErrorAction SilentlyContinue
+            if ($null -eq $uv) { throw "Installation health check failed: no compatible Python runtime or uv was found." }
+            $fileName = $uv.Source
+            $argumentText = 'run --no-project python "' + $serverScript.Replace('"', '\"') + '" mcp'
+        }
+        $info = New-Object System.Diagnostics.ProcessStartInfo
+        $info.FileName = $fileName
+        $info.Arguments = $argumentText
+        $info.WorkingDirectory = $pluginFull
+        $info.UseShellExecute = $false
+        $info.CreateNoWindow = $true
+        $info.RedirectStandardInput = $true
+        $info.RedirectStandardOutput = $true
+        $info.RedirectStandardError = $true
+        $info.StandardOutputEncoding = [System.Text.UTF8Encoding]::new($false)
+        $info.StandardErrorEncoding = [System.Text.UTF8Encoding]::new($false)
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $info
+        if (-not $process.Start()) { throw "Installation health check failed: local tool service process did not start." }
+        $process.StandardInput.WriteLine($RequestText)
+        $process.StandardInput.Close()
+        $stdout = $process.StandardOutput.ReadToEnd()
+        $stderr = $process.StandardError.ReadToEnd()
+        $process.WaitForExit()
+        if ($process.ExitCode -ne 0) { throw "Installation health check failed: local tool service exited with $($process.ExitCode): $($stderr.Substring(0, [Math]::Min(400, $stderr.Length)))" }
+        return $stdout
     }
+    $request = '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+    $responseText = Invoke-AivcpHealthRequest $request
     $response = $responseText | ConvertFrom-Json
     $toolNames = @($response.result.tools | ForEach-Object { [string]$_.name })
     foreach ($toolName in $requiredContentTools) {
@@ -142,10 +196,7 @@ if (-not $SkipServiceCheck) {
         }
     }
     $capabilityRequest = '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"content_capabilities","arguments":{}}}'
-    $capabilityResponseText = $capabilityRequest | powershell -NoProfile -ExecutionPolicy Bypass -File $startScript | Out-String
-    if ($LASTEXITCODE -ne 0) {
-        throw "Installation health check failed: content capabilities call did not complete."
-    }
+    $capabilityResponseText = Invoke-AivcpHealthRequest $capabilityRequest
     $capabilityResponse = $capabilityResponseText | ConvertFrom-Json
     $capabilityPayload = $capabilityResponse.result.structuredContent
     if ($null -eq $capabilityPayload -or -not [bool]$capabilityPayload.ok -or $null -eq $capabilityPayload.result) {
@@ -153,10 +204,7 @@ if (-not $SkipServiceCheck) {
     }
     $contentCapabilitiesChecked = $true
     $productionRequest = '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"production_capabilities","arguments":{}}}'
-    $productionResponseText = $productionRequest | powershell -NoProfile -ExecutionPolicy Bypass -File $startScript | Out-String
-    if ($LASTEXITCODE -ne 0) {
-        throw "Installation health check failed: production capabilities call did not complete."
-    }
+    $productionResponseText = Invoke-AivcpHealthRequest $productionRequest
     $productionResponse = $productionResponseText | ConvertFrom-Json
     $productionPayload = $productionResponse.result.structuredContent
     if ($null -eq $productionPayload -or -not [bool]$productionPayload.ok -or [string]$productionPayload.result.contracts.productionPackage -ne "2.1") {
@@ -164,10 +212,7 @@ if (-not $SkipServiceCheck) {
     }
     $productionCapabilitiesChecked = $true
     $dataRequest = '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"data_center_capabilities","arguments":{}}}'
-    $dataResponseText = $dataRequest | powershell -NoProfile -ExecutionPolicy Bypass -File $startScript | Out-String
-    if ($LASTEXITCODE -ne 0) {
-        throw "Installation health check failed: data-center capabilities call did not complete."
-    }
+    $dataResponseText = Invoke-AivcpHealthRequest $dataRequest
     $dataResponse = $dataResponseText | ConvertFrom-Json
     $dataCapabilityPayload = $dataResponse.result.structuredContent
     if ($null -eq $dataCapabilityPayload -or -not [bool]$dataCapabilityPayload.ok -or $null -eq $dataCapabilityPayload.result) {
@@ -208,6 +253,11 @@ $result = [ordered]@{
     contentCapabilitiesChecked = $contentCapabilitiesChecked
     productionCapabilitiesChecked = $productionCapabilitiesChecked
     dataCenterCapabilitiesChecked = $dataCenterCapabilitiesChecked
+    userDataRoot = if ([string]::IsNullOrWhiteSpace($DataRoot)) { $null } else { Resolve-AivcpFullPath $DataRoot }
+    userDataSeparatedFromActiveProgram = if ([string]::IsNullOrWhiteSpace($DataRoot)) { $null } else {
+        $activeProgram = Resolve-AivcpFullPath (Join-Path (Resolve-AivcpFullPath $InstallRoot) "current")
+        -not (Resolve-AivcpFullPath $DataRoot).StartsWith(($activeProgram.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar), [System.StringComparison]::OrdinalIgnoreCase)
+    }
     boundaries = [ordered]@{
         workshop = "not_called"
         oauth = "not_called"

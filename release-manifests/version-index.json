@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "1.0.0",
+  "productId": "ai-video-channel-production",
+  "productName": "AI 视频频道生产系统",
+  "currentReleaseCandidate": "0.8.0-rc.1",
+  "publishedVersion": "0.1.0-beta.2",
+  "versions": [
+    {
+      "version": "0.1.0-beta.2",
+      "status": "published",
+      "gitTag": "v0.1.0-beta.2",
+      "manifest": "release-v0.1.0-beta.2.json",
+      "manifestContentHash": "1939acc373fe74010da04bab95ac12f2f15483623a1ba960663149c27b2819ee",
+      "manifestFileSha256": "9eea16dd74d42eef2b76e6e6f4a39ff99becae4f5b632618097280af9d4a1d4c"
+    },
+    {
+      "version": "0.2.0-dev.1",
+      "status": "local-history",
+      "manifest": "release-v0.2.0-dev.1.json",
+      "manifestContentHash": "8ed7d8ff9d261be35832e1280674ee9344597019ef41065c94d8e9786e0c01fa",
+      "manifestFileSha256": "ecdf5d967a9e7432383ce0eb6ffbbb8f7685719d4020dbb395073cadc709e2fb"
+    },
+    {
+      "version": "0.3.0-dev.1",
+      "status": "local-history",
+      "manifest": "release-v0.3.0-dev.1.json",
+      "manifestContentHash": "18f26a3198d79ed26779cdcb718d063ba251c97fd61fa3aebaa3b04ae89b297f",
+      "manifestFileSha256": "daac078c67bb313f572bb554ba24a0896419cc73c778941d298d50787caf859c"
+    },
+    {
+      "version": "0.4.0-dev.1",
+      "status": "local-history",
+      "manifest": "release-v0.4.0-dev.1.json",
+      "manifestContentHash": "77e93a256f46b21809edfc40e9a0b55ea2459024a6325d89927a1b41f9f6b217",
+      "manifestFileSha256": "ffcd4aa7df1b6708f6d7b1004f672d4d49e4dc726fb9dbc44cb2e13ad0d20f28"
+    },
+    {
+      "version": "0.5.0-dev.1",
+      "status": "local-history",
+      "manifest": "release-v0.5.0-dev.1.json",
+      "manifestContentHash": "ae864ea5cb57744daf14525367db1f18b92edf8e3dacf3f931a9bb471a0ec803",
+      "manifestFileSha256": "75322b349003388fc8726f9713d080a8dac4182073e8d3c4325b578c9426e6eb"
+    },
+    {
+      "version": "0.6.0-dev.1",
+      "status": "local-history",
+      "manifest": "release-v0.6.0-dev.1.json",
+      "manifestContentHash": "620cf9fe1851521d5bb2fd9bd358ce6ade0059925b1e1c38353d91412fe4a3bf",
+      "manifestFileSha256": "f0f854960328021446cb4b656e61cb90c42f242d296e2847fa4854c4d0e6e287"
+    },
+    {
+      "version": "0.7.0-dev.1",
+      "status": "local-history",
+      "manifest": "release-v0.7.0-dev.1.json",
+      "manifestContentHash": "a61c4ff9976923ad3a3c08a1bc6fa30778d59dc6a6573d4bd1760197e893e3ae",
+      "manifestFileSha256": "db5305a1e7815ef300c88ee14821fd96f1b584cb003ea6297c7e80dba8d3448b"
+    },
+    {
+      "version": "0.8.0-rc.1",
+      "status": "local-release-candidate",
+      "manifest": "release-v0.8.0-rc.1.json",
+      "remotePublished": false,
+      "manifestContentHash": "062b0a49087f6f50a92586d8cbc950b0bed190f49fd18479cc345f66871b2a8f",
+      "manifestFileSha256": "6b59b984060f538441dd3dc7dcfda29216ac89de16638c88a44739ad6ecaf5cb"
+    }
+  ]
+}

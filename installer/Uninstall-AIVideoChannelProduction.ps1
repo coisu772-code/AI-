@@ -6,33 +6,53 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "Common.ps1")
 . (Join-Path $PSScriptRoot "CodexCli.ps1")
 
-$installFull = [System.IO.Path]::GetFullPath($InstallRoot)
-$marker = Join-Path $installFull "installation.json"
-if (-not (Test-Path -LiteralPath $marker -PathType Leaf)) {
-    throw "Installation marker is missing; refusing recursive removal: $installFull"
+$installFull = Test-AivcpSafeRoot $InstallRoot "InstallRoot"
+$installation = Get-AivcpInstallation $installFull
+$dataProperty = $installation.PSObject.Properties["userDataRoot"]
+$dataFull = if ($null -ne $dataProperty -and -not [string]::IsNullOrWhiteSpace([string]$dataProperty.Value)) {
+    Resolve-AivcpFullPath ([string]$dataProperty.Value)
 }
-$installation = Get-Content -LiteralPath $marker -Raw -Encoding UTF8 | ConvertFrom-Json
-if ([string]$installation.productId -ne "ai-video-channel-production") {
-    throw "Installation marker does not belong to this product."
-}
-if ($installFull -eq [System.IO.Path]::GetPathRoot($installFull) -or $installFull.Length -lt 12) {
-    throw "InstallRoot is too broad; refusing removal: $installFull"
+else {
+    Get-AivcpDefaultDataRoot $installFull
 }
 
 if (-not $SkipCodexRemoval) {
     $codex = Get-CompatibleCodexPluginCli
     if ($null -eq $codex) {
-        throw "A Codex CLI with plugin remove support was not found. Re-run with -SkipCodexRemoval to remove program files only."
+        throw "A compatible Codex CLI was not found. Re-run with -SkipCodexRemoval to remove program files only."
     }
-    & $codex plugin remove "ai-video-channel-production" --marketplace "novel-manga-production"
+    & $codex plugin remove "ai-video-channel-production" --marketplace "novel-manga-production" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Codex plugin removal failed." }
-    & $codex plugin marketplace remove "novel-manga-production"
+    & $codex plugin marketplace remove "novel-manga-production" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Codex marketplace removal failed." }
 }
 
-if ($PSCmdlet.ShouldProcess($installFull, "Remove program files only")) {
-    Remove-Item -LiteralPath $installFull -Recurse -Force
-    Write-Output "Program files removed. Channel data and credentials were not targeted."
+if ($PSCmdlet.ShouldProcess($installFull, "Remove program files and preserve user data")) {
+    $installPrefix = $installFull.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+    $dataInsideInstall = $dataFull.StartsWith($installPrefix, [System.StringComparison]::OrdinalIgnoreCase)
+    if ($dataInsideInstall) {
+        $relativeData = Get-AivcpRelativePath $installFull $dataFull
+        $topDataName = ($relativeData -split "[/\\]")[0]
+        foreach ($item in Get-ChildItem -LiteralPath $installFull -Force) {
+            if ($item.Name -eq $topDataName) { continue }
+            Remove-Item -LiteralPath $item.FullName -Recurse -Force
+        }
+        [ordered]@{
+            schemaVersion = "1.0.0"
+            productId = "ai-video-channel-production"
+            status = "PROGRAM_UNINSTALLED_USER_DATA_PRESERVED"
+            userDataRoot = $dataFull
+            uninstalledAt = (Get-Date).ToUniversalTime().ToString("o")
+        } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $installFull "uninstalled-user-data.json") -Encoding UTF8
+    }
+    else {
+        Remove-Item -LiteralPath $installFull -Recurse -Force
+    }
+    if (-not (Test-Path -LiteralPath $dataFull -PathType Container)) {
+        throw "Program removal completed, but the configured user data root is unexpectedly missing: $dataFull"
+    }
+    Write-Output "Program files removed. User data preserved at $dataFull"
 }

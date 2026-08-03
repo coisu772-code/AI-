@@ -1,7 +1,7 @@
 {
   "name": "ai-video-channel-production",
-  "version": "0.7.0-dev.1",
-  "description": "AI 视频频道生产系统的 Codex 工作流入口、内容闭环、安全制作、本地发布准备与频道隔离数据复盘。",
+  "version": "0.8.0-rc.1",
+  "description": "AI 视频频道生产系统的可安装 RC：频道建库、资料、内容、制作、本地发布准备、数据复盘与安全生命周期。",
   "author": {
     "name": "coisu772-code",
     "url": "https://github.com/coisu772-code"
@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "AI 视频频道生产系统",
     "shortDescription": "频道建库、内容生产、制作、发布与数据流程的统一入口。",
-    "longDescription": "以 Codex Skills 驱动七大中心工作流，并通过安全本地工具和版本化契约连接频道资料库、新漫剧工坊与 YouTube 发布中心。阶段7本地开发树新增 Publication Receipt 后的视频注册、公开／导入数据适配、版本化快照和报告、频道学习建议确认门；Analytics 默认未授权，不接触 Token、不发起 OAuth，真实上传、真实 video ID、发布回执、私有 Analytics 数据和长期学习写回仍需外部明确批准。",
+    "longDescription": "以 Codex Skills 驱动频道生产工作流，并通过安全本地工具和版本化契约连接频道资料库、新漫剧工坊与 YouTube 发布中心。0.8.0 RC 增加隔离安装、升级、自动回滚、修复、卸载保留数据、备份恢复和三市场离线验收；Analytics 默认未授权，不接触 Token、不发起 OAuth，真实上传、真实 video ID、发布回执、私有 Analytics 数据和长期学习写回仍需外部明确批准。",
     "developerName": "coisu772-code",
     "category": "Creative",
     "capabilities": [

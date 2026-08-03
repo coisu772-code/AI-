@@ -38,6 +38,15 @@ PRIVATE_KEY_MARKERS = (
     b"-----BEGIN RSA " + b"PRIVATE KEY-----",
     b"-----BEGIN OPENSSH " + b"PRIVATE KEY-----",
 )
+SENSITIVE_TEXT = (
+    re.compile(rb"\bya29\.[A-Za-z0-9_-]{40,}"),
+    re.compile(rb"\bAIza[0-9A-Za-z_-]{30,}"),
+    re.compile(rb"\bGOCSPX-[A-Za-z0-9_-]{20,}"),
+    re.compile(rb"\bAKIA[0-9A-Z]{16}\b"),
+    re.compile(rb"\bgh[pousr]_[A-Za-z0-9]{30,}\b"),
+    re.compile(rb"\bgithub_pat_[A-Za-z0-9_]{50,}\b"),
+    re.compile(rb"\bsk-[A-Za-z0-9_-]{20,}\b"),
+)
 
 
 def repository_files() -> list[Path]:
@@ -65,6 +74,8 @@ def check_repository_safety() -> list[str]:
         content = path.read_bytes()
         if any(marker in content for marker in PRIVATE_KEY_MARKERS):
             errors.append(f"private key material detected: {relative}")
+        if any(pattern.search(content) for pattern in SENSITIVE_TEXT):
+            errors.append(f"sensitive material signature detected: {relative}")
     return errors
 
 

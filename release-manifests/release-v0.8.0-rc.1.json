@@ -1,0 +1,131 @@
+{
+  "manifestVersion": "1.0.0",
+  "productId": "ai-video-channel-production",
+  "productName": "AI 视频频道生产系统",
+  "productVersion": "0.8.0-rc.1",
+  "releaseChannel": "beta",
+  "releaseStatus": "draft",
+  "generatedAt": "2026-08-03T22:25:56Z",
+  "repository": "https://github.com/coisu772-code/AI-/",
+  "gitCommit": null,
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "contentHash": "062b0a49087f6f50a92586d8cbc950b0bed190f49fd18479cc345f66871b2a8f",
+  "schemaVersions": {
+    "channel-profile": "1.0.0",
+    "production-profile": "1.0.0",
+    "source-package": "1.0.0",
+    "topic-package": "1.0.0",
+    "manuscript-package": "1.0.0",
+    "publishing-asset-package": "1.0.0",
+    "production-result-package": "1.0.0",
+    "publish-intent": "1.0.0",
+    "publication-receipt": "1.0.0",
+    "analytics-snapshot": "1.0.0"
+  },
+  "protocolVersions": {
+    "contractExchange": "1.0.0",
+    "localToolService": "1.0.0",
+    "installerState": "1.1.0"
+  },
+  "components": [
+    {
+      "componentId": "codex-plugin",
+      "version": "0.8.0-rc.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.8.0-rc.1",
+      "maximumProductVersion": "0.8.0-rc.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "plugins/ai-video-channel-production",
+          "sha256": "105a59bfc3c3c928005937be8cea43f5c5e0229d3819ba6252ac4255386c23d3",
+          "sizeBytes": 769161
+        }
+      ],
+      "notes": "九个 Skills、三十二个本地工具，以及阶段2至7已经冻结的系统管理、资料、内容、制作、本地发布与数据能力。"
+    },
+    {
+      "componentId": "windows-installer",
+      "version": "0.8.0-rc.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.8.0-rc.1",
+      "maximumProductVersion": "0.8.0-rc.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "installer",
+          "sha256": "101b4abc5c6186b4a2103dab06816e9b371b2948a73652a448390fd6ac68cffc",
+          "sizeBytes": 57160
+        }
+      ],
+      "notes": "在线／离线运行时策略、隔离安装、幂等重装、旧版升级、事务式自动回滚、修复、卸载保留数据和校验式备份恢复。"
+    },
+    {
+      "componentId": "cross-center-contracts",
+      "version": "1.2.0",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.8.0-rc.1",
+      "maximumProductVersion": "0.8.0-rc.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "contracts",
+          "sha256": "b5106f8cf4ff67b4ff3fefec7d7b70d95b43863cf8d3b06ef418e99c822c20ca",
+          "sizeBytes": 272420
+        }
+      ],
+      "notes": "十类跨中心 v1 契约、Production Package v2.1、Publish Package v2、Metric Catalog 和 YouTube constraints catalog。"
+    },
+    {
+      "componentId": "local-tool-service",
+      "version": "0.8.0-rc.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.8.0-rc.1",
+      "maximumProductVersion": "0.8.0-rc.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "plugins/ai-video-channel-production/mcp",
+          "sha256": "e54d2bc290e7ca18ad0e37463dd8654ba0e6f5e429551efa76c064b27ce3b1f7",
+          "sizeBytes": 674933
+        }
+      ],
+      "notes": "本地持久化、哈希链、幂等、重启恢复、频道隔离和所有外部网络动作关闭的确定性服务。"
+    },
+    {
+      "componentId": "control-center",
+      "version": "0.11.0",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.8.0-rc.1",
+      "maximumProductVersion": "0.8.0-rc.1",
+      "artifacts": [],
+      "notes": "外部兼容基线；RC不迁移正式用户数据，也不写长期频道学习。"
+    },
+    {
+      "componentId": "workshop",
+      "version": "2.1.0-stage5",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.8.0-rc.1",
+      "maximumProductVersion": "0.8.0-rc.1",
+      "artifacts": [],
+      "notes": "正式程序是外部审批资产；RC验收只使用隔离桥和清楚标注的合成真实媒体，不覆盖正式 EXE。"
+    },
+    {
+      "componentId": "publisher-center",
+      "version": "0.2.0-stage6",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.8.0-rc.1",
+      "maximumProductVersion": "0.8.0-rc.1",
+      "artifacts": [],
+      "notes": "正式程序和真实频道授权是外部审批资产；RC只读取正式只读频道接口并生成本地发布包，不执行 OAuth 或上传。"
+    }
+  ]
+}

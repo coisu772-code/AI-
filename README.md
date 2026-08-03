@@ -1,8 +1,29 @@
 # AI 视频频道生产系统
 
-这是面向普通用户安装的 GitHub 发布仓库骨架。产品通过 Codex 插件组织工作流，通过本地工具和独立桌面程序执行确定性动作。
+这是面向普通用户安装的 GitHub 分发仓库。产品通过 Codex 插件组织工作流，通过本地工具和独立桌面程序执行确定性动作。
 
-当前版本为阶段 1 Beta `0.1.0-beta.2`，只交付：
+## 本地 Release Candidate
+
+当前工作树为 `0.8.0-rc.1` 本地发布候选，已经把阶段2–7的频道、资料、内容、制作、本地发布和数据闭环封装为可安装产品，并增加：
+
+- 联网一键安装与断网 wheelhouse 安装；
+- 从已发布 `0.1.0-beta.2` 升级、幂等重装、自动失败回滚、修复和手动回滚；
+- 程序与用户数据分离、卸载保留数据、校验式备份／恢复；
+- 日文、中文、英文三市场 recorded synthetic 端到端验收；
+- 可复现 RC ZIP、文件级清单、SHA-256、安全扫描和机器可读审批门。
+
+本地 RC 是 **GO**；完整 MVP 仍是 **WAITING / AUTH_REQUIRED**。本轮没有 GitHub push/tag/Release，没有覆盖正式工坊或发布中心，没有 OAuth、真实上传、真实 Publication Receipt／Studio 数据、用户数据迁移或长期频道学习写回。远端公开版本仍为 `v0.1.0-beta.2`。
+
+安装与验收入口：
+
+- 普通安装：解压 RC 后双击 `installer\install.cmd`。
+- 完整生命周期说明：`docs/install-upgrade-rollback-uninstall.md`。
+- 最终真实验收审批表：`docs/final-acceptance-approval-checklist-v0.8.0-rc.1.json`。
+- 本地阶段8验收：`tools/Test-Stage8.ps1`（源码仓库使用，不随普通安装包分发）。
+
+## 已发布 Beta 历史
+
+当前 GitHub 已发布版本为阶段 1 Beta `0.1.0-beta.2`，只交付：
 
 - Codex 插件与 marketplace 骨架。
 - 总入口和频道建库入口 Skills。
@@ -38,7 +59,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage2.ps1 -Pub
 在仓库根目录运行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\installer\Install-AIVideoChannelProduction.ps1 -InstallRoot .\.stage1-smoke -SkipCodexRegistration
+powershell -ExecutionPolicy Bypass -File .\installer\Install-AIVideoChannelProduction.ps1 -InstallRoot .\.stage1-smoke -DataRoot .\.stage1-smoke-data -SkipCodexRegistration
 ```
 
 完整验收会在隔离目录中执行插件发现、安装、升级、回滚、卸载与 Codex 加载，不修改真实 Codex 用户配置：

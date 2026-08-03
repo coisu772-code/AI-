@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0.0",
+  "productId": "ai-video-channel-production",
+  "productVersion": "0.8.0-rc.1",
+  "combinedGateId": "final-mvp-live-acceptance-v1",
+  "overallStatus": "AUTH_REQUIRED",
+  "operationsExecutedByStage8": false,
+  "gates": [
+    {"id": "github-push-tag-release", "status": "WAITING_AUTHORIZATION", "externalMutation": true, "executed": false, "requiredApproval": "GitHub push、tag 与 Release"},
+    {"id": "formal-program-install-or-overwrite", "status": "NO-GO", "externalMutation": true, "executed": false, "requiredApproval": "覆盖或安装正式工坊／发布中心程序"},
+    {"id": "google-youtube-oauth", "status": "AUTH_REQUIRED", "externalMutation": true, "executed": false, "requiredApproval": "Google／YouTube OAuth 与最小 scope"},
+    {"id": "real-youtube-upload", "status": "AUTH_REQUIRED", "externalMutation": true, "executed": false, "requiredApproval": "向指定测试频道上传一次私密测试视频"},
+    {"id": "user-data-migration", "status": "AUTH_REQUIRED", "externalMutation": true, "executed": false, "requiredApproval": "迁移或替换任何正式用户数据"},
+    {"id": "long-term-channel-learning", "status": "AUTH_REQUIRED", "externalMutation": true, "executed": false, "requiredApproval": "把建议写入 channel_default 或 must_avoid"}
+  ],
+  "preflightCommand": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\tools\\Test-FinalAcceptancePrerequisites.ps1 -AsJson",
+  "liveAcceptanceOutcomeRequired": ["真实 Publication Receipt v1", "真实 YouTube video ID", "目标频道身份回读", "真实公开表现快照", "另行授权后的 owner Analytics 或明确 AUTH_REQUIRED", "长期学习接受或拒绝的用户决定"],
+  "prohibitedEvidenceSubstitution": ["synthetic fixture", "recorded fixture", "本地 ready 状态", "伪造 video ID", "伪造 Studio 指标"]
+}

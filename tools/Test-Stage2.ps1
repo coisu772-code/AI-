@@ -52,16 +52,17 @@ try {
     }
     New-Item -ItemType Directory -Path $isolated -Force | Out-Null
     $installRoot = Join-Path $isolated "install"
-    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "installer\Install-AIVideoChannelProduction.ps1") -SourceRoot $root -InstallRoot $installRoot -SkipCodexRegistration
+    $isolatedDataRoot = Join-Path $isolated "data"
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "installer\Install-AIVideoChannelProduction.ps1") -SourceRoot $root -InstallRoot $installRoot -DataRoot $isolatedDataRoot -SkipCodexRegistration
     if ($LASTEXITCODE -ne 0) { throw "Stage 2 candidate installation failed." }
-    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "installer\Install-AIVideoChannelProduction.ps1") -SourceRoot $root -InstallRoot $installRoot -SkipCodexRegistration
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "installer\Install-AIVideoChannelProduction.ps1") -SourceRoot $root -InstallRoot $installRoot -DataRoot $isolatedDataRoot -SkipCodexRegistration
     if ($LASTEXITCODE -ne 0) { throw "Stage 2 candidate idempotent installation failed." }
     $installedState = Get-Content -LiteralPath (Join-Path $installRoot "current\install-state.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     if ([string]$installedState.productVersion -ne $expectedProductVersion) {
         throw "Current candidate installed an unexpected version."
     }
     $isolatedPlugin = Join-Path $installRoot "current\plugins\ai-video-channel-production"
-    $env:AIVCP_DATA_ROOT = Join-Path $isolated "data"
+    $env:AIVCP_DATA_ROOT = $isolatedDataRoot
     $request = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"stage2-smoke","version":"1"}}}'
     $responseText = $request | powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $isolatedPlugin "mcp\start.ps1") | Out-String
     if ($LASTEXITCODE -ne 0) { throw "Isolated MCP service failed to start." }

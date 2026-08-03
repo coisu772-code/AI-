@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "1.0.0",
+  "reportId": "phase8-mvp-installation-validation-v0.8.0-rc.1",
+  "generatedAt": "2026-08-04T06:28:07+08:00",
+  "productId": "ai-video-channel-production",
+  "productName": "AI 视频频道生产系统",
+  "productVersion": "0.8.0-rc.1",
+  "localReleaseCandidateStatus": "GO",
+  "fullMvpStatus": "WAITING_AUTHORIZED_LIVE_ACCEPTANCE",
+  "externalActionsExecuted": false,
+  "releaseCandidate": {
+    "path": "E:\\小说漫全自动化生产\\distribution\\novel-manga-production\\dist\\v0.8.0-rc.1\\ai-video-channel-production-v0.8.0-rc.1-windows.zip",
+    "sha256": "240d5218dd4ac16765415cd79d60f1c1df223fcdb804f27eb5c8a77801f45f09",
+    "sizeBytes": 361825,
+    "fileCount": 122,
+    "assetManifestSha256": "61cabf26a9ce9c496c004c857113cc3019658ad4741993414444bab1fb96e8f2",
+    "reproducibleZip": true,
+    "safetyScan": {
+      "status": "PASS",
+      "credentialsPresent": false,
+      "executablesPresent": false,
+      "userDataPresent": false
+    }
+  },
+  "releaseChain": {
+    "releaseManifestPath": "release-manifests/release-v0.8.0-rc.1.json",
+    "releaseManifestFileSha256": "6b59b984060f538441dd3dc7dcfda29216ac89de16638c88a44739ad6ecaf5cb",
+    "releaseManifestContentHash": "062b0a49087f6f50a92586d8cbc950b0bed190f49fd18479cc345f66871b2a8f",
+    "versionIndexPath": "release-manifests/version-index.json",
+    "versionIndexSha256": "3752ca3e83ec0dba9e3746b9e83ffe57b6ee30e3436124d347f6488afdc4b030",
+    "hashAlgorithm": "SHA-256",
+    "manifestValidation": "PASS"
+  },
+  "regression": {
+    "fullUnitSuite": {
+      "status": "PASS",
+      "testsRun": 137,
+      "failures": 0,
+      "errors": 0,
+      "skippedWithFormalReadOnlyCliInjected": 0
+    },
+    "validators": {
+      "pluginAndMarketplace": "PASS",
+      "contracts": "PASS",
+      "releaseManifest": "PASS",
+      "repositorySafety": "PASS"
+    },
+    "stageScripts": [
+      {"stage": 1, "status": "GO", "evidence": "installation, repeated installation, upgrade backup, rollback, uninstall-preserve-data and isolated Codex-load smoke tests passed"},
+      {"stage": 2, "status": "GO", "evidence": "137/137 tests passed with the formal read-only publisher CLI injected"},
+      {"stage": 3, "status": "GO", "evidence": "isolated Source Library, MCP, Skill, deduplication, persistence and phase boundaries passed"},
+      {"stage": 4, "status": "GO", "evidence": "three markets, nine frozen packages and twelve focused tests passed"},
+      {"stage": 5, "status": "GO", "evidence": "three-market production handoff, real-media gates and twenty-two focused tests passed"},
+      {"stage": 6, "status": "GO", "evidence": "three-market Publish Package v2 offline boundaries and fifteen focused tests passed"},
+      {"stage": 7, "status": "GO", "evidence": "three-market snapshots, reports, recommendations, isolation and fifteen focused tests passed"},
+      {"stage": 8, "status": "GO", "evidence": "four RC tests plus lifecycle, three-market E2E, reproducibility and approval-gate matrix passed"}
+    ]
+  },
+  "installationLifecycle": {
+    "status": "PASS",
+    "freshOnlineInstall": "PASS",
+    "freshOfflineInstall": "PASS",
+    "repeatedInstall": "IDEMPOTENT_PASS",
+    "upgradeFrom": "0.1.0-beta.2",
+    "upgradeStatus": "PASS",
+    "intentionalFailureAutomaticRollback": "PASS",
+    "uninstallProgramRemoved": true,
+    "uninstallUserDataPreserved": true,
+    "backupRestore": "PASS",
+    "reinstallAndChannelRebind": "PASS",
+    "unicodeSpacesAndSeparatedRoots": "PASS",
+    "formalCodexConfigurationTouched": false,
+    "evidencePath": "E:\\小说漫全自动化生产\\runtime\\s8\\rc1\\installation-lifecycle\\lifecycle-summary.json",
+    "evidenceSha256": "b776f5e68c402f5784672e79eb9febb33b5ab2e9c3adde337b018e419f36298f"
+  },
+  "threeMarketRecordedE2e": {
+    "fixtureType": "recorded-synthetic-stage8-e2e",
+    "status": "GO_RECORDED_SYNTHETIC",
+    "markets": ["ja-JP", "zh-CN", "en-US"],
+    "sourceToTopicToManuscriptToPublishingToProductionToPublishToDataChain": "PASS",
+    "realMediaFileAndHashVerified": true,
+    "videoSha256": "ba4792b3cb95ffe24c26d17d279a5e6f4b379161c9196716fa407b1b652c6804",
+    "restartRecovery": true,
+    "productionIdempotent": true,
+    "publishIdempotent": true,
+    "analyticsIdempotent": true,
+    "channelIsolation": true,
+    "realUploadExecuted": false,
+    "publicationReceiptCreated": false,
+    "studioDataUsed": false,
+    "longTermLearningWritten": false,
+    "learningGate": "LONG_TERM_LEARNING_APPROVAL_REQUIRED",
+    "evidencePath": "E:\\小说漫全自动化生产\\runtime\\s8\\rc1\\three-market-e2e\\summary.json",
+    "evidenceSha256": "6beacb2f69df5747be84de01b620e1a4831bead94537aad029bd8c1fa67e6b79"
+  },
+  "formalArtifacts": {
+    "workshop": {
+      "status": "UNCHANGED",
+      "sha256Before": "2c168cf5e1a886427fc564fc0d381d7a0915786a6d6ad10dec04131bb9d786a4",
+      "sha256After": "2c168cf5e1a886427fc564fc0d381d7a0915786a6d6ad10dec04131bb9d786a4"
+    },
+    "publisherCenter": {
+      "status": "UNCHANGED",
+      "sha256Before": "a81ce665c4d7c7bb97e46760cdde5606e90982a692a901d552165125f3af86f9",
+      "sha256After": "a81ce665c4d7c7bb97e46760cdde5606e90982a692a901d552165125f3af86f9"
+    },
+    "publisherReadOnlyCli": {
+      "status": "READ_ONLY_TESTED",
+      "sha256": "7c7bdbe38d961cfaa139995aa483e3391fb9f9261acdd6b7181c541d8398893f"
+    }
+  },
+  "approval": {
+    "combinedGateId": "final-mvp-live-acceptance-v1",
+    "preflightStatus": "READY_FOR_USER_AUTHORIZATION",
+    "checklistPath": "docs/final-acceptance-approval-checklist-v0.8.0-rc.1.json",
+    "checklistSha256": "b8ffa7152ed6d75957b293d89256a7aee70f5b04ff8a5911d693e8c819e865ef",
+    "runbookPath": "docs/final-live-acceptance-runbook-v0.8.0-rc.1.md",
+    "runbookSha256": "53c74bbd4f6a5ca6efc408893c80d8f1011ecb50ce323a86bb1a6f9da1e7bfb0",
+    "gates": [
+      {"id": "github-push-tag-release", "status": "WAITING_AUTHORIZATION", "executed": false},
+      {"id": "formal-program-install-or-overwrite", "status": "NO-GO", "executed": false},
+      {"id": "google-youtube-oauth", "status": "AUTH_REQUIRED", "executed": false},
+      {"id": "real-youtube-upload", "status": "AUTH_REQUIRED", "executed": false},
+      {"id": "user-data-migration", "status": "AUTH_REQUIRED", "executed": false},
+      {"id": "long-term-channel-learning", "status": "AUTH_REQUIRED", "executed": false}
+    ]
+  },
+  "decision": {
+    "localReleaseCandidate": "GO",
+    "publicRelease": "WAITING_AUTHORIZATION",
+    "completeMvpAcceptance": "WAITING_AUTHORIZED_LIVE_ACCEPTANCE",
+    "reason": "A clean-machine live private upload, authentic Publication Receipt and real YouTube/Studio evidence cannot be substituted with synthetic or recorded fixtures and were not authorized in this run."
+  }
+}

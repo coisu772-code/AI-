@@ -30,7 +30,7 @@ try {
     if (Test-Path -LiteralPath $isolated) { Remove-Item -LiteralPath $isolated -Recurse -Force }
     New-Item -ItemType Directory -Path $isolated -Force | Out-Null
     $installRoot = Join-Path $isolated "install"
-    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "installer\Install-AIVideoChannelProduction.ps1") -SourceRoot $root -InstallRoot $installRoot -SkipCodexRegistration
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "installer\Install-AIVideoChannelProduction.ps1") -SourceRoot $root -InstallRoot $installRoot -DataRoot (Join-Path $isolated "data") -SkipCodexRegistration
     if ($LASTEXITCODE -ne 0) { throw "Stage 6 isolated installation failed." }
 
     $env:AIVCP_DATA_ROOT = Join-Path $isolated "data"
