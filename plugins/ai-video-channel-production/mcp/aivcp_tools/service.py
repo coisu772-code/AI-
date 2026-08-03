@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .content import CONTENT_LOOP_VERSION, SOURCE_MODES, ContentLoop
 from .errors import ToolError
 from .publisher import PUBLISHER_PROTOCOL_VERSION, PublisherChannelProvider, provider_from_environment
 from .security import redact
@@ -15,7 +16,7 @@ from .voices import VoiceCatalog
 
 
 LOCAL_TOOL_PROTOCOL_VERSION = "1.0.0"
-SERVICE_VERSION = "0.3.0-dev.1"
+SERVICE_VERSION = "0.4.0-dev.1"
 
 
 def default_data_root(plugin_root: Path | None = None) -> Path:
@@ -61,6 +62,7 @@ class LocalToolService:
         self.voices = VoiceCatalog(config.voice_catalog_path)
         self.store = ChannelStore(config.data_root)
         self.sources = SourceLibrary(self.store)
+        self.content = ContentLoop(self.store, self.sources, plugin_root=config.plugin_root)
 
     def capabilities(self) -> dict[str, Any]:
         return {
@@ -74,8 +76,12 @@ class LocalToolService:
                 "channelDatabase": CHANNEL_SCHEMA_VERSION,
                 "archiveFormat": ARCHIVE_FORMAT_VERSION,
                 "sourceLibrary": SOURCE_LIBRARY_VERSION,
+                "contentLoop": CONTENT_LOOP_VERSION,
                 "channelProfileContract": "1.0.0",
                 "productionProfileContract": "1.0.0",
+                "topicPackageContract": "1.0.0",
+                "manuscriptPackageContract": "1.0.0",
+                "publishingAssetPackageContract": "1.0.0",
             },
             "capabilities": {
                 "publisherChannelList": self.publisher.capabilities().get("available", False),
@@ -90,7 +96,8 @@ class LocalToolService:
                 "sourceDeduplication": True,
                 "sourceIncrementalUpdate": True,
                 "sourceTaskRecovery": True,
-                "contentProduction": False,
+                "contentProduction": True,
+                "contentPackageHandoffCheck": True,
                 "workshop": False,
                 "upload": False,
                 "analytics": False,
@@ -356,6 +363,88 @@ class LocalToolService:
             )
         elif name == "source_integrity_check":
             result = self.sources.integrity_check(channel_profile_id=args.get("channelProfileId"))
+        elif name == "content_capabilities":
+            result = self.content.capabilities()
+        elif name == "content_project_start":
+            result = self.content.start_project(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                project_id=args.get("projectId"),
+                source_mode=args.get("sourceMode"),
+                source_packages=args.get("sourcePackages"),
+                provided_outline=args.get("providedOutline"),
+                learning_snapshot=args.get("learningSnapshot"),
+                one_time_modifications=args.get("oneTimeModifications"),
+                long_term_learning=args.get("longTermLearning"),
+            )
+        elif name == "content_topic_checkpoint":
+            result = self.content.checkpoint_topic(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                project_id=args.get("projectId"),
+                candidate_number=args.get("candidateNumber"),
+                candidate=args.get("candidate"),
+            )
+        elif name == "content_topic_finalize":
+            result = self.content.finalize_topic(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                project_id=args.get("projectId"),
+                ranking=args.get("ranking"),
+                selected_candidate_id=args.get("selectedCandidateId"),
+                selection_reasons=args.get("selectionReasons"),
+                confirmation=args.get("confirmation"),
+            )
+        elif name == "content_manuscript_finalize":
+            result = self.content.finalize_manuscript(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                project_id=args.get("projectId"),
+                story_bible=args.get("storyBible"),
+                characters=args.get("characters"),
+                target_script=args.get("targetScript"),
+                chinese_audit_script=args.get("chineseAuditScript"),
+                quality_gate=args.get("qualityGate"),
+                confirmation=args.get("confirmation"),
+                authoring_mode=args.get("authoringMode", "target-language-native"),
+            )
+        elif name == "content_publishing_finalize":
+            result = self.content.finalize_publishing(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                project_id=args.get("projectId"),
+                title=args.get("title"),
+                title_chinese=args.get("titleChinese"),
+                description_body=args.get("descriptionBody"),
+                hashtags=args.get("hashtags"),
+                thumbnail_provider=args.get("thumbnailProvider"),
+                thumbnail_strategy=args.get("thumbnailStrategy"),
+                thumbnail_candidates=args.get("thumbnailCandidates"),
+                selected_thumbnail_id=args.get("selectedThumbnailId"),
+                thumbnail=args.get("thumbnail"),
+                ctr_review=args.get("ctrReview"),
+                confirmation=args.get("confirmation"),
+            )
+        elif name == "content_project_get":
+            result = self.content.get_project(
+                channel_profile_id=args.get("channelProfileId"),
+                project_id=args.get("projectId"),
+            )
+        elif name == "content_integrity_check":
+            result = self.content.integrity_check(
+                channel_profile_id=args.get("channelProfileId"),
+                project_id=args.get("projectId"),
+            )
+        elif name == "content_handoff_check":
+            result = self.content.handoff_check(
+                channel_profile_id=args.get("channelProfileId"),
+                project_id=args.get("projectId"),
+            )
         else:
             raise ToolError("TOOL_NOT_FOUND", "本地工具服务没有该工具。", details={"tool": name})
         return redact(result)
@@ -523,6 +612,69 @@ def tool_definitions() -> list[dict[str, Any]]:
             "校验 Source Package manifest、canonical-json-v1 哈希和全部正式资产 SHA-256。",
             {"channelProfileId": {"type": "string"}},
             ["channelProfileId"],
+        ),
+        (
+            "content_capabilities",
+            "只读列出阶段4内容路线、可插拔接口、资料门和禁止触发的下游边界。",
+            {},
+            [],
+        ),
+        (
+            "content_project_start",
+            "冻结阶段2频道上下文与阶段3资料版本，建立阶段4内容项目和 G2 确认卡。",
+            {
+                **binding_properties,
+                "projectId": {"type": "string"},
+                "sourceMode": {"type": "string", "enum": sorted(SOURCE_MODES)},
+                "sourcePackages": {"type": "array"},
+                "providedOutline": {"type": "string"},
+                "learningSnapshot": {"type": "object"},
+                "oneTimeModifications": {"type": "array", "items": {"type": "string"}},
+                "longTermLearning": {},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "projectId", "sourceMode"],
+        ),
+        (
+            "content_topic_checkpoint",
+            "逐个保存一个真实完整候选；频道路线按 1/10 到 10/10 严格递增，不伪造检查点。",
+            {**binding_properties, "projectId": {"type": "string"}, "candidateNumber": {"type": "integer", "minimum": 1, "maximum": 10}, "candidate": {"type": "object"}},
+            ["taskId", "channelProfileId", "bindingProof", "projectId", "candidateNumber", "candidate"],
+        ),
+        (
+            "content_topic_finalize",
+            "校验完整候选、七项评分、排名与 G3 确认后冻结 Topic Package v1。",
+            {**binding_properties, "projectId": {"type": "string"}, "ranking": {"type": "array"}, "selectedCandidateId": {"type": "string"}, "selectionReasons": {"type": "object"}, "confirmation": {"type": "object"}},
+            ["taskId", "channelProfileId", "bindingProof", "projectId", "ranking", "selectedCandidateId", "selectionReasons", "confirmation"],
+        ),
+        (
+            "content_manuscript_finalize",
+            "校验目标语言原生母稿、逐行中文审核映射、角色音色和合并质量门后冻结 Manuscript Package v1。",
+            {**binding_properties, "projectId": {"type": "string"}, "storyBible": {"type": "object"}, "characters": {"type": "array"}, "targetScript": {"type": "array"}, "chineseAuditScript": {"type": ["array", "null"]}, "qualityGate": {"type": "object"}, "confirmation": {"type": "object"}, "authoringMode": {"type": "string"}},
+            ["taskId", "channelProfileId", "bindingProof", "projectId", "storyBible", "characters", "targetScript", "qualityGate", "confirmation"],
+        ),
+        (
+            "content_publishing_finalize",
+            "只读取确认母稿，校验唯一标题、简介、8–12 个 Hashtags、封面与 CTR 联评后冻结 Publishing Asset Package v1。",
+            {**binding_properties, "projectId": {"type": "string"}, "title": {"type": "string"}, "titleChinese": {"type": "string"}, "descriptionBody": {"type": "string"}, "hashtags": {"type": "array"}, "thumbnailProvider": {"type": "object"}, "thumbnailStrategy": {"type": "object"}, "thumbnailCandidates": {"type": "array", "minItems": 5, "maxItems": 5}, "selectedThumbnailId": {"type": "string"}, "thumbnail": {"type": "object"}, "ctrReview": {"type": "object"}, "confirmation": {"type": "object"}},
+            ["taskId", "channelProfileId", "bindingProof", "projectId", "title", "titleChinese", "descriptionBody", "hashtags", "thumbnailProvider", "thumbnailStrategy", "thumbnailCandidates", "selectedThumbnailId", "thumbnail", "ctrReview", "confirmation"],
+        ),
+        (
+            "content_project_get",
+            "只读查看阶段4项目状态、冻结包版本、失效记录和边界。",
+            {"channelProfileId": {"type": "string"}, "projectId": {"type": "string"}},
+            ["channelProfileId", "projectId"],
+        ),
+        (
+            "content_integrity_check",
+            "只读校验三个冻结包、上游哈希、逐行资产及真实封面文件。",
+            {"channelProfileId": {"type": "string"}, "projectId": {"type": "string"}},
+            ["channelProfileId", "projectId"],
+        ),
+        (
+            "content_handoff_check",
+            "只读判断全部确认门与真实封面是否满足；不生成生产包、不启动工坊。",
+            {"channelProfileId": {"type": "string"}, "projectId": {"type": "string"}},
+            ["channelProfileId", "projectId"],
         ),
     ]
     return [

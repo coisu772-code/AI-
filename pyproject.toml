@@ -1,6 +1,6 @@
 [project]
 name = "ai-video-channel-production-contract-tools"
-version = "0.3.0-dev.1"
+version = "0.4.0-dev.1"
 description = "AI video channel production contracts and local validation tools"
 requires-python = ">=3.10"
 dependencies = [

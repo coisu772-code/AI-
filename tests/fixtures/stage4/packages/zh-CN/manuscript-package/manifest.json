@@ -1,0 +1,263 @@
+{
+  "auditScript": {
+    "contentHash": "a814a7a9353f0b10bdc093eb49515e197353576375072847b1615d2ebf28f826",
+    "duplicateFileCreated": false,
+    "language": "zh-CN",
+    "mode": "same-as-target",
+    "productionUseAllowed": false,
+    "sourceTargetScriptHash": "a095a537ec53162a33ad0130e8ceaffee30cc5c77ad8cb31d4539b6ebebdc6fd",
+    "targetScriptReference": "targetScript",
+    "version": "1.0.0"
+  },
+  "channelProfileId": "ch_12836a36f9dc43159361ed6a83e17713",
+  "characters": [
+    {
+      "characterId": "narrator",
+      "goal": "guide the community story",
+      "relationship": "connects the audience to the community",
+      "role": "narration",
+      "speakingStyle": "clear, warm, and concise",
+      "targetLanguageName": "Narrator",
+      "visualConsistencyRequired": false
+    },
+    {
+      "characterId": "protagonist",
+      "goal": "guide the community story",
+      "relationship": "connects the audience to the community",
+      "role": "protagonist",
+      "speakingStyle": "clear, warm, and concise",
+      "targetLanguageName": "Maya",
+      "visualAnchorPromptZh": "单人，年轻社区记录者，深色短发，温暖坚定的眼神，简洁日常服装",
+      "visualConsistencyRequired": true
+    }
+  ],
+  "confirmation": {
+    "confirmedAt": "2026-08-04T02:00:00Z",
+    "gate": "G4_MANUSCRIPT",
+    "mode": "review",
+    "source": "synthetic-fixture-user",
+    "status": "APPROVED"
+  },
+  "contentHash": "26c659512886c9fa118acf665de068871bfffe4e48b4d8a59558f464b9775296",
+  "contractType": "manuscript-package",
+  "createdAt": "2026-08-03T18:26:59Z",
+  "episodeCount": 2,
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "id": "manuscript_synthetic-cn-content-loop_v1_0_0",
+  "lineCount": 4,
+  "lineMapping": {
+    "auditLineCount": 4,
+    "checks": {
+      "emotionsMatch": true,
+      "episodeNumbersMatch": true,
+      "lineIdsMatch": true,
+      "lineTypesMatch": true,
+      "sequenceMatches": true,
+      "speakersMatch": true
+    },
+    "items": [
+      {
+        "auditLineId": "E01-L001",
+        "emotion": "calm",
+        "episodeNumber": 1,
+        "lineType": "narration",
+        "sequence": 1,
+        "speakerId": "narrator",
+        "targetLineId": "E01-L001"
+      },
+      {
+        "auditLineId": "E01-L002",
+        "emotion": "calm",
+        "episodeNumber": 1,
+        "lineType": "dialogue",
+        "sequence": 2,
+        "speakerId": "protagonist",
+        "targetLineId": "E01-L002"
+      },
+      {
+        "auditLineId": "E02-L001",
+        "emotion": "calm",
+        "episodeNumber": 2,
+        "lineType": "narration",
+        "sequence": 1,
+        "speakerId": "narrator",
+        "targetLineId": "E02-L001"
+      },
+      {
+        "auditLineId": "E02-L002",
+        "emotion": "hopeful",
+        "episodeNumber": 2,
+        "lineType": "dialogue",
+        "sequence": 2,
+        "speakerId": "protagonist",
+        "targetLineId": "E02-L002"
+      }
+    ],
+    "mappingMode": "same-as-target",
+    "status": "PASSED",
+    "targetLineCount": 4
+  },
+  "manuscriptPackageId": "manuscript_synthetic-cn-content-loop_v1_0_0",
+  "projectId": "synthetic-cn-content-loop",
+  "qualityGate": {
+    "contentHash": "13b5f0e9d647996722e881e86510965015cd600d8b9e1050779955230f583ab1",
+    "episodeResults": [
+      {
+        "checks": {
+          "audienceRetelling": true,
+          "characterVoice": true,
+          "progressAndStateChange": true,
+          "regionalExpression": true,
+          "storyFacts": true,
+          "targetLanguageNaturalness": true,
+          "terminologyConsistency": true,
+          "ttsSemanticBoundaries": true
+        },
+        "episodeNumber": 1,
+        "status": "PASSED"
+      },
+      {
+        "checks": {
+          "audienceRetelling": true,
+          "characterVoice": true,
+          "progressAndStateChange": true,
+          "regionalExpression": true,
+          "storyFacts": true,
+          "targetLanguageNaturalness": true,
+          "terminologyConsistency": true,
+          "ttsSemanticBoundaries": true
+        },
+        "episodeNumber": 2,
+        "status": "PASSED"
+      }
+    ],
+    "revisionRounds": 1,
+    "status": "PASSED",
+    "targetScriptHash": "a095a537ec53162a33ad0130e8ceaffee30cc5c77ad8cb31d4539b6ebebdc6fd",
+    "version": "1.0.0"
+  },
+  "qualityGateHash": "13b5f0e9d647996722e881e86510965015cd600d8b9e1050779955230f583ab1",
+  "schemaVersion": "1.0.0",
+  "selectiveInvalidation": {
+    "invalidatedEpisodeNumbers": [],
+    "policy": "affected-episodes-only",
+    "upstreamStoryChangeRequiresNewTopicVersion": true
+  },
+  "status": "SCRIPT_READY",
+  "storyBible": {
+    "climax": "The forgotten agreement is publicly verified.",
+    "contentHash": "09f19f5e620f66c50f9aa2022bc7a6eb778c032cbfec2e381d586f6fcd802d78",
+    "ending": "The place reopens under community stewardship.",
+    "foreshadowing": [
+      "The first record hints at a forgotten agreement"
+    ],
+    "lockedFacts": [
+      "The threatened place serves the community",
+      "The protagonist preserves local memories"
+    ],
+    "relationships": [
+      "The protagonist and residents move from distance to cooperation"
+    ],
+    "sourceStoryFactsHash": "214e20ff512b299b5d3bc249d691768ef3ebffc9de1385f5d21d2e643d7ec015",
+    "timeline": [
+      "closure notice",
+      "memory collection",
+      "verification",
+      "reopening"
+    ],
+    "version": "1.0.0",
+    "worldRules": [
+      "A public decision changes only after evidence is verified"
+    ]
+  },
+  "targetLanguage": "zh-CN",
+  "targetScript": {
+    "asset": {
+      "assetId": "target-script",
+      "mediaType": "application/json",
+      "relativePath": "target-script.json",
+      "sha256": "e2fe2375a3047bb3b0f368043ba6aaed45a29ff4dd407d3e07317f10a4282353",
+      "sizeBytes": 1106
+    },
+    "contentHash": "a095a537ec53162a33ad0130e8ceaffee30cc5c77ad8cb31d4539b6ebebdc6fd",
+    "isSoleProductionSource": true,
+    "lines": [
+      {
+        "emotion": "calm",
+        "episodeNumber": 1,
+        "lineId": "E01-L001",
+        "lineType": "narration",
+        "sequence": 1,
+        "speakerId": "narrator",
+        "text": "社区修理铺门口贴出了停业通知，屋里的旧钟仍在走动。"
+      },
+      {
+        "emotion": "calm",
+        "episodeNumber": 1,
+        "lineId": "E01-L002",
+        "lineType": "dialogue",
+        "sequence": 2,
+        "speakerId": "protagonist",
+        "text": "钟表匠林夏决定整理每件旧物背后的维修记录。"
+      },
+      {
+        "emotion": "calm",
+        "episodeNumber": 2,
+        "lineId": "E02-L001",
+        "lineType": "narration",
+        "sequence": 1,
+        "speakerId": "narrator",
+        "text": "邻居们带着故事回来，也找到了被遗漏的公共服务协议。"
+      },
+      {
+        "emotion": "hopeful",
+        "episodeNumber": 2,
+        "lineId": "E02-L002",
+        "lineType": "dialogue",
+        "sequence": 2,
+        "speakerId": "protagonist",
+        "text": "协议通过核验，修理铺改为社区共管，并重新亮起灯牌。"
+      }
+    ],
+    "role": "target-language-production-master",
+    "textAsset": {
+      "assetId": "target-script-text",
+      "mediaType": "text/plain",
+      "relativePath": "target-script.txt",
+      "sha256": "30ef8ce1b6a51d5ca78bd224b9689d784e0c5848b446729f447d92e2ed924574",
+      "sizeBytes": 382
+    },
+    "version": "1.0.0"
+  },
+  "upstream": [
+    {
+      "targetContractType": "topic-package",
+      "targetHash": "90a602c6467e1a7738ed2aef38d3f069ebb450d1902b03bceb5b2863e838be42",
+      "targetId": "topic_synthetic-cn-content-loop_v1_0_0",
+      "targetSchemaVersion": "1.0.0",
+      "targetVersion": "1.0.0"
+    }
+  ],
+  "version": "1.0.0",
+  "voices": [
+    {
+      "bindingStatus": "BOUND",
+      "catalogHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "catalogVersion": "1.0.0",
+      "engine": "fixture-tts",
+      "speakerId": "narrator",
+      "voiceId": "fixture-cn-001",
+      "voiceName": "Synthetic zh-CN Voice"
+    },
+    {
+      "bindingStatus": "BOUND",
+      "catalogHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "catalogVersion": "1.0.0",
+      "engine": "fixture-tts",
+      "speakerId": "protagonist",
+      "voiceId": "fixture-cn-001",
+      "voiceName": "Synthetic zh-CN Voice"
+    }
+  ]
+}

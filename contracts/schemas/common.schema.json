@@ -11,6 +11,10 @@
       "type": "string",
       "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
     },
+    "bcp47Language": {
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-[A-Z]{2}|-[0-9]{3})?$"
+    },
     "contractReference": {
       "type": "object",
       "additionalProperties": false,
@@ -86,6 +90,313 @@
           "$ref": "#/$defs/sha256"
         }
       }
+    },
+    "evidenceSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourcePackage",
+        "locator"
+      ],
+      "properties": {
+        "sourcePackage": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contractReference"
+            },
+            {
+              "properties": {
+                "targetContractType": {
+                  "const": "source-package"
+                }
+              }
+            }
+          ]
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "assetId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "excerptHash": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "evidenceClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claimId",
+        "classification",
+        "statement",
+        "sources"
+      ],
+      "properties": {
+        "claimId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "fact",
+            "inference",
+            "unknown"
+          ]
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceSource"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "enum": [
+                  "fact",
+                  "inference"
+                ]
+              }
+            },
+            "required": [
+              "classification"
+            ]
+          },
+          "then": {
+            "properties": {
+              "sources": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "confidence"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "unknown"
+              }
+            },
+            "required": [
+              "classification"
+            ]
+          },
+          "then": {
+            "properties": {
+              "sources": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    "approvalRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gate",
+        "status",
+        "mode",
+        "source"
+      ],
+      "properties": {
+        "gate": {
+          "type": "string",
+          "enum": [
+            "G3_TOPIC",
+            "G4_MANUSCRIPT",
+            "G5_PUBLISHING_ASSETS"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "APPROVED",
+            "REJECTED"
+          ]
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "review",
+            "auto"
+          ]
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "confirmedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "authorizationRef": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 256
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "APPROVED"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "confirmedAt"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "auto"
+              },
+              "status": {
+                "const": "APPROVED"
+              }
+            },
+            "required": [
+              "mode",
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "authorizationRef"
+            ]
+          }
+        }
+      ]
+    },
+    "extensionCapability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "status",
+        "interfaceVersion",
+        "inputContractTypes",
+        "outputContractType"
+      ],
+      "properties": {
+        "capability": {
+          "type": "string",
+          "enum": [
+            "trend-scan",
+            "single-work-analysis",
+            "multi-work-analysis",
+            "video-analysis",
+            "book-analysis",
+            "style-imitation"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "available",
+            "unavailable"
+          ]
+        },
+        "interfaceVersion": {
+          "$ref": "#/$defs/semver"
+        },
+        "inputContractTypes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "channel-profile",
+              "production-profile",
+              "source-package",
+              "topic-package",
+              "manuscript-package"
+            ]
+          }
+        },
+        "outputContractType": {
+          "type": "string",
+          "enum": [
+            "analysis-package-v1",
+            "writing-style-contract-v1"
+          ]
+        },
+        "skillId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "skillVersion": {
+          "$ref": "#/$defs/semver"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "available"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "skillId",
+              "skillVersion"
+            ]
+          },
+          "else": {
+            "required": [
+              "reason"
+            ]
+          }
+        }
+      ]
     },
     "envelope": {
       "type": "object",

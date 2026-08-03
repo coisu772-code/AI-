@@ -5,23 +5,802 @@
   "allOf": [
     {
       "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/envelope"
+    },
+    {
+      "if": {
+        "properties": {
+          "targetLanguage": {
+            "pattern": "^zh(?:-|$)"
+          }
+        },
+        "required": [
+          "targetLanguage"
+        ]
+      },
+      "then": {
+        "properties": {
+          "auditScript": {
+            "required": [
+              "targetScriptReference"
+            ],
+            "not": {
+              "anyOf": [
+                { "required": ["asset"] },
+                { "required": ["textAsset"] },
+                { "required": ["lines"] }
+              ]
+            },
+            "properties": {
+              "mode": {
+                "const": "same-as-target"
+              },
+              "duplicateFileCreated": {
+                "const": false
+              }
+            }
+          },
+          "lineMapping": {
+            "properties": {
+              "mappingMode": {
+                "const": "same-as-target"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "auditScript": {
+            "required": [
+              "asset",
+              "textAsset",
+              "lines"
+            ],
+            "not": {
+              "required": [
+                "targetScriptReference"
+              ]
+            },
+            "properties": {
+              "mode": {
+                "const": "backtranslation"
+              },
+              "duplicateFileCreated": {
+                "const": true
+              }
+            }
+          },
+          "lineMapping": {
+            "properties": {
+              "mappingMode": {
+                "const": "backtranslation"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "SCRIPT_READY",
+              "HANDED_TO_PUBLISHING_PREP"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "confirmation": {
+            "properties": {
+              "gate": {
+                "const": "G4_MANUSCRIPT"
+              },
+              "status": {
+                "const": "APPROVED"
+              }
+            }
+          },
+          "qualityGate": {
+            "properties": {
+              "status": {
+                "const": "PASSED"
+              }
+            }
+          },
+          "lineMapping": {
+            "properties": {
+              "status": {
+                "const": "PASSED"
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "type": "object",
   "unevaluatedProperties": false,
-  "required": ["manuscriptPackageId", "projectId", "channelProfileId", "status", "targetLanguage", "episodeCount", "lineCount", "targetScript", "auditScript", "qualityGateHash"],
+  "required": [
+    "manuscriptPackageId",
+    "projectId",
+    "channelProfileId",
+    "status",
+    "targetLanguage",
+    "episodeCount",
+    "lineCount",
+    "storyBible",
+    "characters",
+    "voices",
+    "targetScript",
+    "auditScript",
+    "lineMapping",
+    "qualityGate",
+    "qualityGateHash",
+    "selectiveInvalidation",
+    "confirmation"
+  ],
   "properties": {
-    "schemaVersion": { "const": "1.0.0" },
-    "contractType": { "const": "manuscript-package" },
-    "manuscriptPackageId": { "type": "string", "minLength": 3, "maxLength": 128 },
-    "projectId": { "type": "string", "minLength": 3, "maxLength": 128 },
-    "channelProfileId": { "type": "string", "minLength": 3, "maxLength": 128 },
-    "status": { "const": "SCRIPT_READY" },
-    "targetLanguage": { "type": "string", "pattern": "^[a-z]{2,3}(?:-[A-Z]{2})?$" },
-    "episodeCount": { "type": "integer", "minimum": 1 },
-    "lineCount": { "type": "integer", "minimum": 1 },
-    "targetScript": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/asset" },
-    "auditScript": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/asset" },
-    "qualityGateHash": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256" }
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "contractType": {
+      "const": "manuscript-package"
+    },
+    "manuscriptPackageId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128
+    },
+    "projectId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128
+    },
+    "channelProfileId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "QUALITY_REVIEW",
+        "BACKTRANSLATING",
+        "AWAITING_JOINT_REVIEW",
+        "SCRIPT_READY",
+        "HANDED_TO_PUBLISHING_PREP",
+        "NEEDS_REVISION",
+        "PARTIAL"
+      ]
+    },
+    "targetLanguage": {
+      "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/bcp47Language"
+    },
+    "episodeCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "lineCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "storyBible": {
+      "$ref": "#/$defs/storyBible"
+    },
+    "characters": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/character"
+      }
+    },
+    "voices": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/voiceBinding"
+      }
+    },
+    "targetScript": {
+      "$ref": "#/$defs/targetScript"
+    },
+    "auditScript": {
+      "$ref": "#/$defs/auditScript"
+    },
+    "lineMapping": {
+      "$ref": "#/$defs/lineMapping"
+    },
+    "qualityGate": {
+      "$ref": "#/$defs/qualityGate"
+    },
+    "qualityGateHash": {
+      "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+    },
+    "selectiveInvalidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy",
+        "invalidatedEpisodeNumbers",
+        "upstreamStoryChangeRequiresNewTopicVersion"
+      ],
+      "properties": {
+        "policy": {
+          "const": "affected-episodes-only"
+        },
+        "invalidatedEpisodeNumbers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "upstreamStoryChangeRequiresNewTopicVersion": {
+          "const": true
+        }
+      }
+    },
+    "confirmation": {
+      "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/approvalRecord"
+    }
+  },
+  "$defs": {
+    "storyBible": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "contentHash",
+        "sourceStoryFactsHash",
+        "lockedFacts",
+        "worldRules",
+        "relationships",
+        "timeline",
+        "foreshadowing",
+        "climax",
+        "ending"
+      ],
+      "properties": {
+        "version": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/semver"
+        },
+        "contentHash": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+        },
+        "sourceStoryFactsHash": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+        },
+        "lockedFacts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "worldRules": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "relationships": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "timeline": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "foreshadowing": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "climax": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ending": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "character": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "characterId",
+        "targetLanguageName",
+        "role",
+        "goal",
+        "relationship",
+        "speakingStyle",
+        "visualConsistencyRequired"
+      ],
+      "properties": {
+        "characterId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "targetLanguageName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "aliases": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "goal": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relationship": {
+          "type": "string",
+          "minLength": 1
+        },
+        "speakingStyle": {
+          "type": "string",
+          "minLength": 1
+        },
+        "visualConsistencyRequired": {
+          "type": "boolean"
+        },
+        "visualAnchorPromptZh": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "visualConsistencyRequired": {
+                "const": true
+              }
+            },
+            "required": [
+              "visualConsistencyRequired"
+            ]
+          },
+          "then": {
+            "required": [
+              "visualAnchorPromptZh"
+            ]
+          }
+        }
+      ]
+    },
+    "voiceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "speakerId",
+        "engine",
+        "voiceId",
+        "voiceName",
+        "bindingStatus",
+        "catalogVersion",
+        "catalogHash"
+      ],
+      "properties": {
+        "speakerId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "engine": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "voiceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "voiceName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "bindingStatus": {
+          "const": "BOUND"
+        },
+        "catalogVersion": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/semver"
+        },
+        "catalogHash": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+        }
+      }
+    },
+    "scriptLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lineId",
+        "episodeNumber",
+        "sequence",
+        "speakerId",
+        "lineType",
+        "emotion",
+        "text"
+      ],
+      "properties": {
+        "lineId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "episodeNumber": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "speakerId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "lineType": {
+          "type": "string",
+          "enum": [
+            "narration",
+            "dialogue"
+          ]
+        },
+        "emotion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "targetScript": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "contentHash",
+        "role",
+        "isSoleProductionSource",
+        "asset",
+        "textAsset",
+        "lines"
+      ],
+      "properties": {
+        "version": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/semver"
+        },
+        "contentHash": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+        },
+        "role": {
+          "const": "target-language-production-master"
+        },
+        "isSoleProductionSource": {
+          "const": true
+        },
+        "asset": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/asset"
+        },
+        "textAsset": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/asset"
+        },
+        "lines": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/scriptLine"
+          }
+        }
+      }
+    },
+    "auditScript": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "contentHash",
+        "language",
+        "mode",
+        "sourceTargetScriptHash",
+        "productionUseAllowed",
+        "duplicateFileCreated"
+      ],
+      "properties": {
+        "version": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/semver"
+        },
+        "contentHash": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+        },
+        "language": {
+          "const": "zh-CN"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "backtranslation",
+            "same-as-target"
+          ]
+        },
+        "sourceTargetScriptHash": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+        },
+        "productionUseAllowed": {
+          "const": false
+        },
+        "duplicateFileCreated": {
+          "type": "boolean"
+        },
+        "targetScriptReference": {
+          "const": "targetScript"
+        },
+        "asset": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/asset"
+        },
+        "textAsset": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/asset"
+        },
+        "lines": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/scriptLine"
+          }
+        }
+      }
+    },
+    "lineMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "mappingMode",
+        "targetLineCount",
+        "auditLineCount",
+        "checks",
+        "items"
+      ],
+      "properties": {
+        "status": {
+          "const": "PASSED"
+        },
+        "mappingMode": {
+          "type": "string",
+          "enum": [
+            "backtranslation",
+            "same-as-target"
+          ]
+        },
+        "targetLineCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "auditLineCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "checks": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "lineIdsMatch",
+            "episodeNumbersMatch",
+            "sequenceMatches",
+            "speakersMatch",
+            "lineTypesMatch",
+            "emotionsMatch"
+          ],
+          "properties": {
+            "lineIdsMatch": {
+              "const": true
+            },
+            "episodeNumbersMatch": {
+              "const": true
+            },
+            "sequenceMatches": {
+              "const": true
+            },
+            "speakersMatch": {
+              "const": true
+            },
+            "lineTypesMatch": {
+              "const": true
+            },
+            "emotionsMatch": {
+              "const": true
+            }
+          }
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "targetLineId",
+              "auditLineId",
+              "episodeNumber",
+              "sequence",
+              "speakerId",
+              "lineType",
+              "emotion"
+            ],
+            "properties": {
+              "targetLineId": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 128
+              },
+              "auditLineId": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 128
+              },
+              "episodeNumber": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "sequence": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "speakerId": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 128
+              },
+              "lineType": {
+                "type": "string",
+                "enum": [
+                  "narration",
+                  "dialogue"
+                ]
+              },
+              "emotion": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              }
+            }
+          }
+        }
+      }
+    },
+    "qualityGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "contentHash",
+        "targetScriptHash",
+        "status",
+        "revisionRounds",
+        "episodeResults"
+      ],
+      "properties": {
+        "version": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/semver"
+        },
+        "contentHash": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+        },
+        "targetScriptHash": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+        },
+        "status": {
+          "const": "PASSED"
+        },
+        "revisionRounds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "episodeResults": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "episodeNumber",
+              "status",
+              "checks"
+            ],
+            "properties": {
+              "episodeNumber": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "status": {
+                "const": "PASSED"
+              },
+              "checks": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "storyFacts",
+                  "progressAndStateChange",
+                  "characterVoice",
+                  "targetLanguageNaturalness",
+                  "regionalExpression",
+                  "terminologyConsistency",
+                  "ttsSemanticBoundaries",
+                  "audienceRetelling"
+                ],
+                "properties": {
+                  "storyFacts": {
+                    "const": true
+                  },
+                  "progressAndStateChange": {
+                    "const": true
+                  },
+                  "characterVoice": {
+                    "const": true
+                  },
+                  "targetLanguageNaturalness": {
+                    "const": true
+                  },
+                  "regionalExpression": {
+                    "const": true
+                  },
+                  "terminologyConsistency": {
+                    "const": true
+                  },
+                  "ttsSemanticBoundaries": {
+                    "const": true
+                  },
+                  "audienceRetelling": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
   }
 }

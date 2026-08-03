@@ -1,0 +1,41 @@
+{
+  "language": "en-US",
+  "lines": [
+    {
+      "emotion": "calm",
+      "episodeNumber": 1,
+      "lineId": "E01-L001",
+      "lineType": "narration",
+      "sequence": 1,
+      "speakerId": "narrator",
+      "text": "The neighborhood station posted its final broadcast date on a quiet Monday morning."
+    },
+    {
+      "emotion": "calm",
+      "episodeNumber": 1,
+      "lineId": "E01-L002",
+      "lineType": "dialogue",
+      "sequence": 2,
+      "speakerId": "protagonist",
+      "text": "Host Maya asked residents to record the small memories the city had overlooked."
+    },
+    {
+      "emotion": "calm",
+      "episodeNumber": 2,
+      "lineId": "E02-L001",
+      "lineType": "narration",
+      "sequence": 1,
+      "speakerId": "narrator",
+      "text": "One recording revealed a forgotten agreement that protected the studio for public use."
+    },
+    {
+      "emotion": "hopeful",
+      "episodeNumber": 2,
+      "lineId": "E02-L002",
+      "lineType": "dialogue",
+      "sequence": 2,
+      "speakerId": "protagonist",
+      "text": "After the agreement was verified, the station reopened as a community cooperative."
+    }
+  ]
+}

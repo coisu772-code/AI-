@@ -1,0 +1,10 @@
+{
+  "storyFactsHash": "214e20ff512b299b5d3bc249d691768ef3ebffc9de1385f5d21d2e643d7ec015",
+  "topicPackage": {
+    "targetContractType": "topic-package",
+    "targetHash": "d53480ed9d321d28ed8156e1c0f2c01b15542579f0f150e3acc85dbbfb1feb95",
+    "targetId": "topic_synthetic-us-content-loop_v1_0_0",
+    "targetSchemaVersion": "1.0.0",
+    "targetVersion": "1.0.0"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "language": "zh-CN",
+  "lines": [
+    {
+      "emotion": "calm",
+      "episodeNumber": 1,
+      "lineId": "E01-L001",
+      "lineType": "narration",
+      "sequence": 1,
+      "speakerId": "narrator",
+      "text": "社区电台在一个安静的周一早晨公布了最后播出日期。"
+    },
+    {
+      "emotion": "calm",
+      "episodeNumber": 1,
+      "lineId": "E01-L002",
+      "lineType": "dialogue",
+      "sequence": 2,
+      "speakerId": "protagonist",
+      "text": "主持人玛雅邀请居民录下这座城市忽略的小小记忆。"
+    },
+    {
+      "emotion": "calm",
+      "episodeNumber": 2,
+      "lineId": "E02-L001",
+      "lineType": "narration",
+      "sequence": 1,
+      "speakerId": "narrator",
+      "text": "一段录音揭示了保障演播室公共用途的遗忘协议。"
+    },
+    {
+      "emotion": "hopeful",
+      "episodeNumber": 2,
+      "lineId": "E02-L002",
+      "lineType": "dialogue",
+      "sequence": 2,
+      "speakerId": "protagonist",
+      "text": "协议核验后，电台以社区合作社的形式重新开放。"
+    }
+  ]
+}

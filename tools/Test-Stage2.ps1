@@ -13,6 +13,8 @@ if (-not $isolated.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCas
 
 $uv = Get-Command uv -ErrorAction SilentlyContinue
 if ($null -eq $uv) { throw "uv is required for isolated stage 2 validation." }
+$pluginManifest = Get-Content -LiteralPath (Join-Path $root "plugins\ai-video-channel-production\.codex-plugin\plugin.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+$expectedProductVersion = [string]$pluginManifest.version
 
 Push-Location $root
 try {
@@ -39,7 +41,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Stage 2 validation failed: uv $($arguments -join ' ')" }
     }
 
-    foreach ($skill in @("channel-production", "channel-onboarding", "source-library")) {
+    $skillRoot = Join-Path $root "plugins\ai-video-channel-production\skills"
+    foreach ($skill in @(Get-ChildItem -LiteralPath $skillRoot -Directory | Sort-Object Name | ForEach-Object { $_.Name })) {
         & $uv.Source run python "C:\Users\Administrator\.codex\skills\.system\skill-creator\scripts\quick_validate.py" (Join-Path $root "plugins\ai-video-channel-production\skills\$skill")
         if ($LASTEXITCODE -ne 0) { throw "Skill validation failed: $skill" }
     }
@@ -54,7 +57,7 @@ try {
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "installer\Install-AIVideoChannelProduction.ps1") -SourceRoot $root -InstallRoot $installRoot -SkipCodexRegistration
     if ($LASTEXITCODE -ne 0) { throw "Stage 2 candidate idempotent installation failed." }
     $installedState = Get-Content -LiteralPath (Join-Path $installRoot "current\install-state.json") -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ([string]$installedState.productVersion -ne "0.3.0-dev.1") {
+    if ([string]$installedState.productVersion -ne $expectedProductVersion) {
         throw "Current candidate installed an unexpected version."
     }
     $isolatedPlugin = Join-Path $installRoot "current\plugins\ai-video-channel-production"

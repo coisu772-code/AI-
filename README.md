@@ -68,6 +68,8 @@ codex plugin add ai-video-channel-production@novel-manga-production
 - `docs/phase1-validation-report-2026-08-03.md`
 - `docs/local-tool-service-protocol-v1.md`
 - `docs/phase2-channel-library-validation-2026-08-04.md`
+- `docs/phase3-source-library-validation-2026-08-04.md`
+- `docs/phase4-content-loop-validation-2026-08-04.md`
 
 `0.1.0-beta.2` 是阶段 1 骨架预发布，不包含频道建库、资料采集、内容生成、视频生产、真实上传或 Analytics。
 
@@ -91,3 +93,24 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage3.ps1
 ```
 
 完整证据见 `docs/phase3-source-library-validation-2026-08-04.md`。
+
+## 阶段4未发布内容最小闭环
+
+本地 `0.4.0-dev.1` 候选在阶段2频道上下文和阶段3 Source Package v1 之上，增加可由新 Codex 对话使用的内容生产闭环：
+
+- Source Library → Topic Package v1 → Manuscript Package v1 → Publishing Asset Package v1；
+- 原创、频道画像锚定和用户大纲直通三种当前可用选题路线；
+- 频道路线逐候选检查点与严格 10 候选门，普通原创 3～6 候选，大纲直通唯一方案；
+- 目标语言原生母稿、非中文逐行中文回译、合并质量门和选择性失效；
+- 唯一标题、目标语言简介、8～12 个 Hashtags、5 个封面候选、唯一封面和 CTR 联评；
+- G3／G4／G5 状态机、版本、SHA-256、上游引用和移交前联合确认。
+
+趋势研究、单作品、多作品、拆书与仿写保留稳定扩展接口；当前未安装对应能力时返回 `CONTENT_EXTENSION_UNAVAILABLE`，不会伪造分析。阶段4只判断生产包是否具备移交资格，不调用工坊、发布中心、OAuth、上传、Analytics，也不写入长期频道学习。
+
+阶段4完整验收入口：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage4.ps1
+```
+
+三组日／中／英短小合成包位于 `tests/fixtures/stage4/packages/`。它们使用同一 Schema、状态机、质量门、文件与哈希校验，仅用于离线验收，不是线上数据或用户内容。完整证据见 `docs/phase4-content-loop-validation-2026-08-04.md`。

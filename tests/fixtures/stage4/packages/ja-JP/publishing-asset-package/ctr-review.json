@@ -1,0 +1,9 @@
+{
+  "conclusion": "The selected synthetic fixture visualizes the verified story promise.",
+  "factsConsistent": true,
+  "mobileReadable": true,
+  "score": 9.0,
+  "status": "PASSED",
+  "textComplementsTitle": true,
+  "titleHookVisualized": true
+}

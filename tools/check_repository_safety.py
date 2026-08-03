@@ -21,6 +21,12 @@ FORBIDDEN_SUFFIXES = {
     ".db", ".sqlite", ".sqlite3", ".exe", ".msi", ".mp3", ".wav",
     ".mp4", ".mov", ".mkv", ".png", ".jpg", ".jpeg", ".webp",
 }
+ALLOWED_SYNTHETIC_MEDIA_FIXTURES = {
+    "contracts/examples/valid/fixtures/confirmed-thumbnail-1600x900.png",
+    "tests/fixtures/stage4/packages/en-US/publishing-asset-package/confirmed-thumbnail.png",
+    "tests/fixtures/stage4/packages/ja-JP/publishing-asset-package/confirmed-thumbnail.png",
+    "tests/fixtures/stage4/packages/zh-CN/publishing-asset-package/confirmed-thumbnail.png",
+}
 SENSITIVE_NAME = re.compile(r"(?:secret|credential|cookie|oauth|client_secret)", re.IGNORECASE)
 PRIVATE_KEY_MARKERS = (
     b"-----BEGIN " + b"PRIVATE KEY-----",
@@ -42,7 +48,7 @@ def check_repository_safety() -> list[str]:
     for path in repository_files():
         relative = path.relative_to(ROOT).as_posix()
         lowered = path.name.lower()
-        if path.suffix.lower() in FORBIDDEN_SUFFIXES:
+        if path.suffix.lower() in FORBIDDEN_SUFFIXES and relative not in ALLOWED_SYNTHETIC_MEDIA_FIXTURES:
             errors.append(f"forbidden release file type: {relative}")
         if SENSITIVE_NAME.search(path.name) and path.name != ".env.example":
             errors.append(f"sensitive-looking filename: {relative}")

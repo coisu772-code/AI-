@@ -6,14 +6,14 @@
   "createdAt": "2026-08-03T15:09:00Z",
   "hashAlgorithm": "SHA-256",
   "hashRule": "canonical-json-v1",
-  "contentHash": "f698cc64b1094dac48e1baa14d8dceea924a481bc1fa0d859ef2237c19726568",
+  "contentHash": "2c18ae818256f1a14d260d78f49e6d89a7fadd1293ec22d9d05d5ab5cb2ae950",
   "upstream": [
     {
       "targetContractType": "publication-receipt",
       "targetId": "publication_receipt_example_001",
       "targetVersion": "1.0.0",
       "targetSchemaVersion": "1.0.0",
-      "targetHash": "370b1e9638fb0c44f354cce5b4d2cf7b9148e58678424f62ce8bbe7df9727fc1"
+      "targetHash": "2d1b8f11f861febe826bfc5fee11f147fed7b8c05da0060b3540d0c9d1c89dc3"
     }
   ],
   "snapshotId": "analytics_snapshot_example_001",
@@ -22,7 +22,7 @@
     "targetId": "publication_receipt_example_001",
     "targetVersion": "1.0.0",
     "targetSchemaVersion": "1.0.0",
-    "targetHash": "370b1e9638fb0c44f354cce5b4d2cf7b9148e58678424f62ce8bbe7df9727fc1"
+    "targetHash": "2d1b8f11f861febe826bfc5fee11f147fed7b8c05da0060b3540d0c9d1c89dc3"
   },
   "channelProfileId": "channel_profile_example_001",
   "youtubeVideoId": "Example01",

@@ -1,0 +1,23 @@
+{
+  "descriptionBody": "閉館まで残り七日。若い司書が集めた町の記憶は、最後に図書室を救う証拠へ変わります。\n静かな再出発と共同体の選択を描く合成フィクションです。",
+  "hashtags": [
+    "#物語",
+    "#朗読",
+    "#創作",
+    "#図書室",
+    "#再出発",
+    "#町",
+    "#人間ドラマ",
+    "#合成データ"
+  ],
+  "privacyStatus": "private",
+  "targetChannel": {
+    "channelSerial": "01",
+    "publisherProfileId": "publisher_synthetic_jp",
+    "youtubeChannelId": "UCSYNTHETICJP0001"
+  },
+  "thumbnail": "confirmed-thumbnail.png",
+  "thumbnailMode": "real",
+  "title": "閉館寸前の図書室で、町の記憶が未来を変えた",
+  "uploadPolicy": "REQUIRE_REVIEW"
+}

@@ -6,21 +6,21 @@
   "createdAt": "2026-08-03T15:06:00Z",
   "hashAlgorithm": "SHA-256",
   "hashRule": "canonical-json-v1",
-  "contentHash": "fbe1a215d31525b5f6e1bfaac2791682781934f84af996bc3f00a78b39bf605f",
+  "contentHash": "f029e0ed2562470a0fa333079ae4f9526c7d0ee01f9b93fd8de7b56931c38a9d",
   "upstream": [
     {
       "targetContractType": "manuscript-package",
       "targetId": "manuscript_package_example_001",
       "targetVersion": "1.0.0",
       "targetSchemaVersion": "1.0.0",
-      "targetHash": "193eb87538843081e21c4fdc427cb036e75ba4584a791c27e29413da7d2075a7"
+      "targetHash": "8081b157c8b7091e147c61294c53f3ca5a3dd3bd442563cffb0505f8a94e343f"
     },
     {
       "targetContractType": "publishing-asset-package",
       "targetId": "publishing_asset_package_example_001",
       "targetVersion": "1.0.0",
       "targetSchemaVersion": "1.0.0",
-      "targetHash": "e00e24db5f84d55eb8bcb4233dd63913a19756e8cd249a184c11e3e4fa384d61"
+      "targetHash": "f57f3a0157b5981c21166b0ad444ff12b37937846e8573335934c786a70e02e7"
     }
   ],
   "productionResultPackageId": "production_result_package_example_001",

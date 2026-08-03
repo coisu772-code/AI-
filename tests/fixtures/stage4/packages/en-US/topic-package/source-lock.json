@@ -1,0 +1,153 @@
+{
+  "evidenceClaims": [
+    {
+      "claimId": "fact-01",
+      "classification": "fact",
+      "confidence": 1.0,
+      "sources": [
+        {
+          "locator": "user-input:a33ec499010273c6861a075a5ec16afe14698aacf029c797739ca5a533c1acb2",
+          "sourcePackage": {
+            "targetContractType": "source-package",
+            "targetHash": "b7dcde1a49186575687ea2e83c3cc5a29ad14cbbe6ca2a7d6316551ce75c7e39",
+            "targetId": "source_5388c3d5d774ef78f19d5ed8",
+            "targetSchemaVersion": "1.0.0",
+            "targetVersion": "1.0.0"
+          }
+        }
+      ],
+      "statement": "The supplied material is explicitly synthetic."
+    },
+    {
+      "claimId": "inference-01",
+      "classification": "inference",
+      "confidence": 0.7,
+      "sources": [
+        {
+          "locator": "user-input:a33ec499010273c6861a075a5ec16afe14698aacf029c797739ca5a533c1acb2",
+          "sourcePackage": {
+            "targetContractType": "source-package",
+            "targetHash": "b7dcde1a49186575687ea2e83c3cc5a29ad14cbbe6ca2a7d6316551ce75c7e39",
+            "targetId": "source_5388c3d5d774ef78f19d5ed8",
+            "targetSchemaVersion": "1.0.0",
+            "targetVersion": "1.0.0"
+          }
+        }
+      ],
+      "statement": "A community-rebuilding promise can support this candidate."
+    },
+    {
+      "claimId": "unknown-01",
+      "classification": "unknown",
+      "sources": [],
+      "statement": "No online audience retention data is available."
+    },
+    {
+      "claimId": "fact-02",
+      "classification": "fact",
+      "confidence": 1.0,
+      "sources": [
+        {
+          "locator": "user-input:a33ec499010273c6861a075a5ec16afe14698aacf029c797739ca5a533c1acb2",
+          "sourcePackage": {
+            "targetContractType": "source-package",
+            "targetHash": "b7dcde1a49186575687ea2e83c3cc5a29ad14cbbe6ca2a7d6316551ce75c7e39",
+            "targetId": "source_5388c3d5d774ef78f19d5ed8",
+            "targetSchemaVersion": "1.0.0",
+            "targetVersion": "1.0.0"
+          }
+        }
+      ],
+      "statement": "The supplied material is explicitly synthetic."
+    },
+    {
+      "claimId": "inference-02",
+      "classification": "inference",
+      "confidence": 0.7,
+      "sources": [
+        {
+          "locator": "user-input:a33ec499010273c6861a075a5ec16afe14698aacf029c797739ca5a533c1acb2",
+          "sourcePackage": {
+            "targetContractType": "source-package",
+            "targetHash": "b7dcde1a49186575687ea2e83c3cc5a29ad14cbbe6ca2a7d6316551ce75c7e39",
+            "targetId": "source_5388c3d5d774ef78f19d5ed8",
+            "targetSchemaVersion": "1.0.0",
+            "targetVersion": "1.0.0"
+          }
+        }
+      ],
+      "statement": "A community-rebuilding promise can support this candidate."
+    },
+    {
+      "claimId": "unknown-02",
+      "classification": "unknown",
+      "sources": [],
+      "statement": "No online audience retention data is available."
+    },
+    {
+      "claimId": "fact-03",
+      "classification": "fact",
+      "confidence": 1.0,
+      "sources": [
+        {
+          "locator": "user-input:a33ec499010273c6861a075a5ec16afe14698aacf029c797739ca5a533c1acb2",
+          "sourcePackage": {
+            "targetContractType": "source-package",
+            "targetHash": "b7dcde1a49186575687ea2e83c3cc5a29ad14cbbe6ca2a7d6316551ce75c7e39",
+            "targetId": "source_5388c3d5d774ef78f19d5ed8",
+            "targetSchemaVersion": "1.0.0",
+            "targetVersion": "1.0.0"
+          }
+        }
+      ],
+      "statement": "The supplied material is explicitly synthetic."
+    },
+    {
+      "claimId": "inference-03",
+      "classification": "inference",
+      "confidence": 0.7,
+      "sources": [
+        {
+          "locator": "user-input:a33ec499010273c6861a075a5ec16afe14698aacf029c797739ca5a533c1acb2",
+          "sourcePackage": {
+            "targetContractType": "source-package",
+            "targetHash": "b7dcde1a49186575687ea2e83c3cc5a29ad14cbbe6ca2a7d6316551ce75c7e39",
+            "targetId": "source_5388c3d5d774ef78f19d5ed8",
+            "targetSchemaVersion": "1.0.0",
+            "targetVersion": "1.0.0"
+          }
+        }
+      ],
+      "statement": "A community-rebuilding promise can support this candidate."
+    },
+    {
+      "claimId": "unknown-03",
+      "classification": "unknown",
+      "sources": [],
+      "statement": "No online audience retention data is available."
+    }
+  ],
+  "sources": [
+    {
+      "acceptedPartial": false,
+      "acceptedPartialAt": null,
+      "contentHash": "b7dcde1a49186575687ea2e83c3cc5a29ad14cbbe6ca2a7d6316551ce75c7e39",
+      "knownLimitations": [],
+      "provenance": {
+        "adapterId": "builtin-pasted-text",
+        "adapterVersion": "1.0.0",
+        "collectedAt": "2026-08-03T18:27:00Z",
+        "kind": "user-input",
+        "locator": "user-input:a33ec499010273c6861a075a5ec16afe14698aacf029c797739ca5a533c1acb2"
+      },
+      "rightsBoundary": {
+        "accessLevel": "user-authorized",
+        "basis": "用户在当前任务中主动提供文字。",
+        "confirmedByUser": true
+      },
+      "sourcePackageId": "source_5388c3d5d774ef78f19d5ed8",
+      "status": "CONTENT_READY",
+      "version": "1.0.0"
+    }
+  ]
+}

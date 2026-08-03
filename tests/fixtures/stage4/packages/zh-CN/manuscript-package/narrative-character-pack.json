@@ -1,0 +1,43 @@
+{
+  "characters": [
+    {
+      "characterId": "narrator",
+      "goal": "guide the community story",
+      "relationship": "connects the audience to the community",
+      "role": "narration",
+      "speakingStyle": "clear, warm, and concise",
+      "targetLanguageName": "Narrator",
+      "visualConsistencyRequired": false
+    },
+    {
+      "characterId": "protagonist",
+      "goal": "guide the community story",
+      "relationship": "connects the audience to the community",
+      "role": "protagonist",
+      "speakingStyle": "clear, warm, and concise",
+      "targetLanguageName": "Maya",
+      "visualAnchorPromptZh": "单人，年轻社区记录者，深色短发，温暖坚定的眼神，简洁日常服装",
+      "visualConsistencyRequired": true
+    }
+  ],
+  "voices": [
+    {
+      "bindingStatus": "BOUND",
+      "catalogHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "catalogVersion": "1.0.0",
+      "engine": "fixture-tts",
+      "speakerId": "narrator",
+      "voiceId": "fixture-cn-001",
+      "voiceName": "Synthetic zh-CN Voice"
+    },
+    {
+      "bindingStatus": "BOUND",
+      "catalogHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "catalogVersion": "1.0.0",
+      "engine": "fixture-tts",
+      "speakerId": "protagonist",
+      "voiceId": "fixture-cn-001",
+      "voiceName": "Synthetic zh-CN Voice"
+    }
+  ]
+}

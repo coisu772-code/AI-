@@ -5,32 +5,989 @@
   "allOf": [
     {
       "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/envelope"
+    },
+    {
+      "if": {
+        "properties": {
+          "sourceMode": {
+            "const": "channel-library"
+          }
+        },
+        "required": [
+          "sourceMode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "route": {
+            "const": "channel-profile-anchored"
+          },
+          "checkpoints": {
+            "properties": {
+              "applicable": {
+                "const": true
+              },
+              "totalUnits": {
+                "const": 10
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "sourceMode": {
+            "const": "provided-outline"
+          }
+        },
+        "required": [
+          "sourceMode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "route": {
+            "const": "provided-outline"
+          },
+          "candidates": {
+            "minItems": 1,
+            "maxItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "sourceMode": {
+            "enum": [
+              "market-original",
+              "single-reference",
+              "multi-reference"
+            ]
+          }
+        },
+        "required": [
+          "sourceMode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "candidates": {
+            "minItems": 3,
+            "maxItems": 6
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "TOPIC_SELECTED",
+              "HANDED_TO_SCRIPT_CENTER"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "selectedCandidateId"
+        ],
+        "properties": {
+          "selectionConfirmation": {
+            "properties": {
+              "gate": {
+                "const": "G3_TOPIC"
+              },
+              "status": {
+                "const": "APPROVED"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "sourceMode": {
+            "const": "channel-library"
+          },
+          "status": {
+            "enum": [
+              "TOPIC_SELECTED",
+              "HANDED_TO_SCRIPT_CENTER"
+            ]
+          }
+        },
+        "required": [
+          "sourceMode",
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "candidates": {
+            "minItems": 10,
+            "maxItems": 10
+          },
+          "checkpoints": {
+            "properties": {
+              "completedUnits": {
+                "const": 10
+              },
+              "items": {
+                "minItems": 10,
+                "maxItems": 10
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "type": "object",
   "unevaluatedProperties": false,
-  "required": ["topicPackageId", "projectId", "channelProfileId", "sourceMode", "selectedCandidateId", "storyFactsHash", "productionRecommendation"],
+  "required": [
+    "topicPackageId",
+    "projectId",
+    "channelProfileId",
+    "status",
+    "route",
+    "sourceMode",
+    "audience",
+    "sourceInputs",
+    "evidence",
+    "extensionCapabilities",
+    "learningContext",
+    "candidates",
+    "ranking",
+    "selection",
+    "selectionConfirmation",
+    "checkpoints",
+    "storyFacts",
+    "storyFactsHash",
+    "productionRecommendation"
+  ],
   "properties": {
-    "schemaVersion": { "const": "1.0.0" },
-    "contractType": { "const": "topic-package" },
-    "topicPackageId": { "type": "string", "minLength": 3, "maxLength": 128 },
-    "projectId": { "type": "string", "minLength": 3, "maxLength": 128 },
-    "channelProfileId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "contractType": {
+      "const": "topic-package"
+    },
+    "topicPackageId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128
+    },
+    "projectId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128
+    },
+    "channelProfileId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "GENERATING_CANDIDATES",
+        "PARTIAL",
+        "AWAITING_SELECTION",
+        "TOPIC_SELECTED",
+        "HANDED_TO_SCRIPT_CENTER"
+      ]
+    },
+    "route": {
+      "type": "string",
+      "enum": [
+        "original",
+        "channel-profile-anchored",
+        "provided-outline",
+        "extension"
+      ]
+    },
     "sourceMode": {
       "type": "string",
-      "enum": ["channel-library", "market-original", "single-reference", "multi-reference", "provided-outline"]
+      "enum": [
+        "channel-library",
+        "market-original",
+        "single-reference",
+        "multi-reference",
+        "provided-outline"
+      ]
     },
-    "selectedCandidateId": { "type": "string", "minLength": 3, "maxLength": 128 },
-    "storyFactsHash": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256" },
+    "audience": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "region",
+        "targetLanguage",
+        "locale",
+        "commercialOrientation"
+      ],
+      "properties": {
+        "region": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "targetLanguage": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/bcp47Language"
+        },
+        "locale": {
+          "type": "string",
+          "pattern": "^[a-z]{2,3}-[A-Z]{2}$"
+        },
+        "commercialOrientation": {
+          "type": "string",
+          "enum": [
+            "male-oriented",
+            "female-oriented",
+            "general"
+          ]
+        }
+      }
+    },
+    "sourceInputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/sourceInput"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/evidenceClaim"
+      }
+    },
+    "extensionCapabilities": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/extensionCapability"
+      },
+      "allOf": [
+        { "contains": { "properties": { "capability": { "const": "trend-scan" } }, "required": ["capability"] } },
+        { "contains": { "properties": { "capability": { "const": "single-work-analysis" } }, "required": ["capability"] } },
+        { "contains": { "properties": { "capability": { "const": "multi-work-analysis" } }, "required": ["capability"] } },
+        { "contains": { "properties": { "capability": { "const": "video-analysis" } }, "required": ["capability"] } },
+        { "contains": { "properties": { "capability": { "const": "book-analysis" } }, "required": ["capability"] } },
+        { "contains": { "properties": { "capability": { "const": "style-imitation" } }, "required": ["capability"] } }
+      ]
+    },
+    "learningContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "accessMode",
+        "snapshot",
+        "currentProjectChanges",
+        "longTermWriteAllowed"
+      ],
+      "properties": {
+        "accessMode": {
+          "const": "read-only-snapshot"
+        },
+        "snapshot": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "profileId",
+                "version",
+                "contentHash"
+              ],
+              "properties": {
+                "profileId": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 128
+                },
+                "version": {
+                  "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/semver"
+                },
+                "contentHash": {
+                  "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+                }
+              }
+            }
+          ]
+        },
+        "currentProjectChanges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "changeId",
+              "scope",
+              "summary"
+            ],
+            "properties": {
+              "changeId": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 128
+              },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "current_only",
+                  "unspecified"
+                ]
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              }
+            }
+          }
+        },
+        "longTermWriteAllowed": {
+          "const": false
+        }
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": {
+        "$ref": "#/$defs/candidate"
+      }
+    },
+    "ranking": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": {
+        "$ref": "#/$defs/rankingEntry"
+      }
+    },
+    "selection": {
+      "$ref": "#/$defs/selection"
+    },
+    "selectedCandidateId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128
+    },
+    "selectionConfirmation": {
+      "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/approvalRecord"
+    },
+    "checkpoints": {
+      "$ref": "#/$defs/checkpoints"
+    },
+    "storyFacts": {
+      "$ref": "#/$defs/storyFacts"
+    },
+    "storyFactsHash": {
+      "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+    },
+    "productionRecommendation": {
+      "$ref": "#/$defs/productionRecommendation"
+    },
+    "packagingBrief": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "titleInformationDirection",
+        "thumbnailVisualTask",
+        "videoPresentationDirection"
+      ],
+      "properties": {
+        "titleInformationDirection": {
+          "type": "string",
+          "minLength": 1
+        },
+        "thumbnailVisualTask": {
+          "type": "string",
+          "minLength": 1
+        },
+        "videoPresentationDirection": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sourceInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourcePackage",
+        "acceptedStatus"
+      ],
+      "properties": {
+        "sourcePackage": {
+          "allOf": [
+            {
+              "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/contractReference"
+            },
+            {
+              "properties": {
+                "targetContractType": {
+                  "const": "source-package"
+                }
+              }
+            }
+          ]
+        },
+        "acceptedStatus": {
+          "type": "string",
+          "enum": [
+            "CONTENT_READY",
+            "PARTIAL"
+          ]
+        },
+        "partialAcceptance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "accepted",
+            "acceptedBy",
+            "acceptedAt",
+            "knownLimitations"
+          ],
+          "properties": {
+            "accepted": {
+              "const": true
+            },
+            "acceptedBy": {
+              "const": "user"
+            },
+            "acceptedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "knownLimitations": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "acceptedStatus": {
+                "const": "PARTIAL"
+              }
+            },
+            "required": [
+              "acceptedStatus"
+            ]
+          },
+          "then": {
+            "required": [
+              "partialAcceptance"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "partialAcceptance"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "character": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "characterId",
+        "name",
+        "role",
+        "goal",
+        "relationshipFunction"
+      ],
+      "properties": {
+        "characterId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "goal": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relationshipFunction": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "episodePlot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "episodeNumber",
+        "startState",
+        "progress",
+        "audienceReward",
+        "endState"
+      ],
+      "properties": {
+        "episodeNumber": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "startState": {
+          "type": "string",
+          "minLength": 1
+        },
+        "progress": {
+          "type": "string",
+          "minLength": 1
+        },
+        "audienceReward": {
+          "type": "string",
+          "minLength": 1
+        },
+        "endState": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "audienceFit",
+        "clickPotential",
+        "storySustainability",
+        "visualPotential",
+        "originality",
+        "productionFeasibility",
+        "overall"
+      ],
+      "properties": {
+        "audienceFit": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "clickPotential": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "storySustainability": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "visualPotential": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "originality": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "productionFeasibility": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "overall": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        }
+      }
+    },
     "productionRecommendation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["targetCharacters", "estimatedDurationSeconds", "episodeCount", "reason"],
+      "required": [
+        "targetCharacters",
+        "estimatedDurationSeconds",
+        "episodeCount",
+        "reason"
+      ],
       "properties": {
-        "targetCharacters": { "type": "integer", "minimum": 1 },
-        "estimatedDurationSeconds": { "type": "integer", "minimum": 1 },
-        "episodeCount": { "type": "integer", "minimum": 1 },
-        "reason": { "type": "string", "minLength": 1 }
+        "targetCharacters": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "estimatedDurationSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "episodeCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidateId",
+        "storyDriver",
+        "coreSellingPoints",
+        "worldRules",
+        "characters",
+        "completeOutline",
+        "episodePlots",
+        "productionRecommendation",
+        "scores",
+        "strengths",
+        "risks",
+        "evidenceClaimIds"
+      ],
+      "properties": {
+        "candidateId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "storyDriver": {
+          "type": "string",
+          "minLength": 1
+        },
+        "coreSellingPoints": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "worldRules": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "characters": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/character"
+          }
+        },
+        "completeOutline": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "opening",
+            "development",
+            "climax",
+            "ending"
+          ],
+          "properties": {
+            "opening": {
+              "type": "string",
+              "minLength": 1
+            },
+            "development": {
+              "type": "string",
+              "minLength": 1
+            },
+            "climax": {
+              "type": "string",
+              "minLength": 1
+            },
+            "ending": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "episodePlots": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/episodePlot"
+          }
+        },
+        "productionRecommendation": {
+          "$ref": "#/$defs/productionRecommendation"
+        },
+        "scores": {
+          "$ref": "#/$defs/scores"
+        },
+        "strengths": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "risks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidenceClaimIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 128
+          }
+        }
+      }
+    },
+    "rankingEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rank",
+        "candidateId",
+        "overallScore",
+        "decision",
+        "reason"
+      ],
+      "properties": {
+        "rank": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "candidateId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "overallScore": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "selected",
+            "backup",
+            "not-selected"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "primaryCandidateId",
+        "backupCandidateIds",
+        "policy"
+      ],
+      "properties": {
+        "primaryCandidateId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "backupCandidateIds": {
+          "type": "array",
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 128
+          }
+        },
+        "policy": {
+          "type": "string",
+          "enum": [
+            "user-choice",
+            "auto-best",
+            "provided-outline-only"
+          ]
+        }
+      }
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unitNumber",
+        "candidateId",
+        "status",
+        "contentHash",
+        "completedAt"
+      ],
+      "properties": {
+        "unitNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "candidateId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "status": {
+          "const": "COMPLETED"
+        },
+        "contentHash": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "checkpoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "applicable",
+        "totalUnits",
+        "completedUnits",
+        "items"
+      ],
+      "properties": {
+        "applicable": {
+          "type": "boolean"
+        },
+        "totalUnits": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "completedUnits": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/$defs/checkpoint"
+          }
+        }
+      }
+    },
+    "storyFacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lockedFacts",
+        "worldRules",
+        "relationships",
+        "climax",
+        "ending"
+      ],
+      "properties": {
+        "lockedFacts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "factId",
+              "statement",
+              "evidenceClaimIds"
+            ],
+            "properties": {
+              "factId": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 128
+              },
+              "statement": {
+                "type": "string",
+                "minLength": 1
+              },
+              "evidenceClaimIds": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 128
+                }
+              }
+            }
+          }
+        },
+        "worldRules": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "relationships": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "climax": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ending": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     }
   }

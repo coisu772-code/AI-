@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.0.0",
+  "syntheticFixture": true,
+  "onlineData": false,
+  "userData": false,
+  "generatedFor": "stage4-content-loop-validation",
+  "markets": [
+    {
+      "language": "ja-JP",
+      "path": "ja-JP",
+      "integrity": "PASS",
+      "handoffEligible": true,
+      "note": "Short synthetic fixture; never treat as online performance or user data."
+    },
+    {
+      "language": "zh-CN",
+      "path": "zh-CN",
+      "integrity": "PASS",
+      "handoffEligible": true,
+      "note": "Short synthetic fixture; never treat as online performance or user data."
+    },
+    {
+      "language": "en-US",
+      "path": "en-US",
+      "integrity": "PASS",
+      "handoffEligible": true,
+      "note": "Short synthetic fixture; never treat as online performance or user data."
+    }
+  ]
+}

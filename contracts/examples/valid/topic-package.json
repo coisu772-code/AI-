@@ -6,7 +6,7 @@
   "createdAt": "2026-08-03T15:03:00Z",
   "hashAlgorithm": "SHA-256",
   "hashRule": "canonical-json-v1",
-  "contentHash": "379784765d70998fb5d739a3b6dd1cd75cf0ce2fbaf7ebf635dbe2aed8ea0d9e",
+  "contentHash": "15dbb01f714973c93a499e03d17159722148fdf647fd42f9096cc491295be52b",
   "upstream": [
     {
       "targetContractType": "production-profile",
@@ -26,13 +26,277 @@
   "topicPackageId": "topic_package_example_001",
   "projectId": "project_example_001",
   "channelProfileId": "channel_profile_example_001",
-  "sourceMode": "channel-library",
+  "status": "TOPIC_SELECTED",
+  "route": "provided-outline",
+  "sourceMode": "provided-outline",
+  "audience": {
+    "region": "Japan",
+    "targetLanguage": "ja-JP",
+    "locale": "ja-JP",
+    "commercialOrientation": "general"
+  },
+  "sourceInputs": [
+    {
+      "sourcePackage": {
+        "targetContractType": "source-package",
+        "targetId": "source_package_example_001",
+        "targetVersion": "1.0.0",
+        "targetSchemaVersion": "1.0.0",
+        "targetHash": "d5358e4ef28a32b170c6bc8115203eaf7541d415c6dc4300c7ed909d93352fb6"
+      },
+      "acceptedStatus": "CONTENT_READY"
+    }
+  ],
+  "evidence": [
+    {
+      "claimId": "claim_fact_001",
+      "classification": "fact",
+      "statement": "The synthetic outline explicitly starts in a quiet town.",
+      "confidence": 1.0,
+      "sources": [
+        {
+          "sourcePackage": {
+            "targetContractType": "source-package",
+            "targetId": "source_package_example_001",
+            "targetVersion": "1.0.0",
+            "targetSchemaVersion": "1.0.0",
+            "targetHash": "d5358e4ef28a32b170c6bc8115203eaf7541d415c6dc4300c7ed909d93352fb6"
+          },
+          "locator": "normalized/metadata.json",
+          "assetId": "source_metadata_example_001"
+        }
+      ]
+    },
+    {
+      "claimId": "claim_inference_001",
+      "classification": "inference",
+      "statement": "A restart arc may fit the stated audience promise.",
+      "confidence": 0.7,
+      "sources": [
+        {
+          "sourcePackage": {
+            "targetContractType": "source-package",
+            "targetId": "source_package_example_001",
+            "targetVersion": "1.0.0",
+            "targetSchemaVersion": "1.0.0",
+            "targetHash": "d5358e4ef28a32b170c6bc8115203eaf7541d415c6dc4300c7ed909d93352fb6"
+          },
+          "locator": "normalized/metadata.json",
+          "assetId": "source_metadata_example_001"
+        }
+      ]
+    },
+    {
+      "claimId": "claim_unknown_001",
+      "classification": "unknown",
+      "statement": "No online audience retention data exists for this synthetic fixture.",
+      "sources": []
+    }
+  ],
+  "extensionCapabilities": [
+    {
+      "capability": "trend-scan",
+      "status": "unavailable",
+      "interfaceVersion": "1.0.0",
+      "inputContractTypes": [
+        "channel-profile",
+        "production-profile",
+        "source-package"
+      ],
+      "outputContractType": "analysis-package-v1",
+      "reason": "Synthetic fixture does not invoke an external trend Skill."
+    },
+    {
+      "capability": "single-work-analysis",
+      "status": "unavailable",
+      "interfaceVersion": "1.0.0",
+      "inputContractTypes": [
+        "source-package"
+      ],
+      "outputContractType": "analysis-package-v1",
+      "reason": "No single-work analysis Skill is installed in this synthetic fixture."
+    },
+    {
+      "capability": "multi-work-analysis",
+      "status": "unavailable",
+      "interfaceVersion": "1.0.0",
+      "inputContractTypes": [
+        "source-package"
+      ],
+      "outputContractType": "analysis-package-v1",
+      "reason": "No multi-work analysis Skill is installed in this synthetic fixture."
+    },
+    {
+      "capability": "video-analysis",
+      "status": "unavailable",
+      "interfaceVersion": "1.0.0",
+      "inputContractTypes": [
+        "source-package"
+      ],
+      "outputContractType": "analysis-package-v1",
+      "reason": "No video analysis Skill is installed in this synthetic fixture."
+    },
+    {
+      "capability": "book-analysis",
+      "status": "unavailable",
+      "interfaceVersion": "1.0.0",
+      "inputContractTypes": [
+        "source-package"
+      ],
+      "outputContractType": "analysis-package-v1",
+      "reason": "No book analysis Skill is installed in this synthetic fixture."
+    },
+    {
+      "capability": "style-imitation",
+      "status": "unavailable",
+      "interfaceVersion": "1.0.0",
+      "inputContractTypes": [
+        "source-package",
+        "topic-package"
+      ],
+      "outputContractType": "writing-style-contract-v1",
+      "reason": "No style imitation Skill is installed in this synthetic fixture."
+    }
+  ],
+  "learningContext": {
+    "accessMode": "read-only-snapshot",
+    "snapshot": null,
+    "currentProjectChanges": [
+      {
+        "changeId": "current_change_001",
+        "scope": "current_only",
+        "summary": "Keep this synthetic fixture to one short episode."
+      }
+    ],
+    "longTermWriteAllowed": false
+  },
+  "candidates": [
+    {
+      "candidateId": "topic_candidate_example_001",
+      "storyDriver": "A synthetic protagonist reopens a closed town library and repairs one broken relationship.",
+      "coreSellingPoints": [
+        "A gentle restart with a visible community result"
+      ],
+      "worldRules": [
+        "All events occur in a fictional contemporary town."
+      ],
+      "characters": [
+        {
+          "characterId": "character_example_001",
+          "name": "Haruka",
+          "role": "protagonist and librarian",
+          "goal": "Reopen the library without hiding the earlier failure.",
+          "relationshipFunction": "Rebuild trust with a former friend."
+        }
+      ],
+      "completeOutline": {
+        "opening": "Haruka returns to a fictional town and finds its library closed.",
+        "development": "She discovers a forgotten lending ledger and asks residents to restore the collection together.",
+        "climax": "At the reopening meeting, Haruka admits her earlier mistake and her former friend supplies the missing records.",
+        "ending": "The library reopens with transparent rules and the two begin working together again."
+      },
+      "episodePlots": [
+        {
+          "episodeNumber": 1,
+          "startState": "The library is closed and trust is broken.",
+          "progress": "Haruka finds the ledger, admits her mistake, and organizes a public restoration.",
+          "audienceReward": "The lost records are recovered and the relationship becomes honest.",
+          "endState": "The library is open and the former friends cooperate."
+        }
+      ],
+      "productionRecommendation": {
+        "targetCharacters": 900,
+        "estimatedDurationSeconds": 180,
+        "episodeCount": 1,
+        "reason": "A single short episode is sufficient for this intentionally small synthetic fixture."
+      },
+      "scores": {
+        "audienceFit": 8.1,
+        "clickPotential": 7.6,
+        "storySustainability": 7.5,
+        "visualPotential": 8.0,
+        "originality": 8.2,
+        "productionFeasibility": 9.4,
+        "overall": 8.1
+      },
+      "strengths": [
+        "Complete cause-and-effect in one episode"
+      ],
+      "risks": [
+        "The quiet conflict requires clear packaging."
+      ],
+      "evidenceClaimIds": [
+        "claim_fact_001",
+        "claim_inference_001",
+        "claim_unknown_001"
+      ]
+    }
+  ],
+  "ranking": [
+    {
+      "rank": 1,
+      "candidateId": "topic_candidate_example_001",
+      "overallScore": 8.1,
+      "decision": "selected",
+      "reason": "This is the only user-outline completion; no backup is fabricated."
+    }
+  ],
+  "selection": {
+    "primaryCandidateId": "topic_candidate_example_001",
+    "backupCandidateIds": [],
+    "policy": "provided-outline-only"
+  },
   "selectedCandidateId": "topic_candidate_example_001",
+  "selectionConfirmation": {
+    "gate": "G3_TOPIC",
+    "status": "APPROVED",
+    "mode": "review",
+    "source": "synthetic-contract-fixture",
+    "confirmedAt": "2026-08-03T15:03:00Z"
+  },
+  "checkpoints": {
+    "applicable": false,
+    "totalUnits": 1,
+    "completedUnits": 1,
+    "items": [
+      {
+        "unitNumber": 1,
+        "candidateId": "topic_candidate_example_001",
+        "status": "COMPLETED",
+        "contentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "completedAt": "2026-08-03T15:02:30Z"
+      }
+    ]
+  },
+  "storyFacts": {
+    "lockedFacts": [
+      {
+        "factId": "story_fact_001",
+        "statement": "Haruka reopens the fictional town library after publicly acknowledging her mistake.",
+        "evidenceClaimIds": [
+          "claim_fact_001"
+        ]
+      }
+    ],
+    "worldRules": [
+      "The story is contemporary and contains no supernatural mechanism."
+    ],
+    "relationships": [
+      "Haruka and her former friend move from distrust to transparent cooperation."
+    ],
+    "climax": "Haruka acknowledges her mistake before the town and the missing records are returned.",
+    "ending": "The library reopens and the two former friends cooperate under transparent rules."
+  },
   "storyFactsHash": "2222222222222222222222222222222222222222222222222222222222222222",
   "productionRecommendation": {
-    "targetCharacters": 12000,
-    "estimatedDurationSeconds": 2400,
-    "episodeCount": 8,
-    "reason": "Synthetic fixture for contract validation."
+    "targetCharacters": 900,
+    "estimatedDurationSeconds": 180,
+    "episodeCount": 1,
+    "reason": "A single short episode is sufficient for this intentionally small synthetic fixture."
+  },
+  "packagingBrief": {
+    "titleInformationDirection": "A failed librarian returns and earns a real second chance.",
+    "thumbnailVisualTask": "Show the locked library becoming open through one human decision.",
+    "videoPresentationDirection": "Use restrained emotional progression and clear before-and-after states."
   }
 }

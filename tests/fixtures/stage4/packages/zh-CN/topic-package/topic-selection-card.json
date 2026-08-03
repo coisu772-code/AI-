@@ -1,0 +1,26 @@
+{
+  "ranking": [
+    {
+      "candidateId": "candidate-01",
+      "decision": "selected",
+      "overallScore": 8.9,
+      "rank": 1,
+      "reason": "Highest complete score and selected."
+    },
+    {
+      "candidateId": "candidate-02",
+      "decision": "backup",
+      "overallScore": 8.8,
+      "rank": 2,
+      "reason": "Traceable backup with a lower audience score."
+    },
+    {
+      "candidateId": "candidate-03",
+      "decision": "backup",
+      "overallScore": 8.7,
+      "rank": 3,
+      "reason": "Retained but not selected due to lower feasibility."
+    }
+  ],
+  "selectedCandidateId": "candidate-01"
+}

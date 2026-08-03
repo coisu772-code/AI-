@@ -151,6 +151,15 @@ try {
         throw "Installed plugin fingerprint does not match the source payload."
     }
 
+    $stagingHealthCheck = Join-Path $stagingPath "installer\Test-AIVideoChannelProductionHealth.ps1"
+    if (-not (Test-Path -LiteralPath $stagingHealthCheck -PathType Leaf)) {
+        throw "Installation health check is missing from the staging payload."
+    }
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $stagingHealthCheck -PluginRoot (Join-Path $stagingPath "plugins\$productId") -SkipServiceCheck
+    if ($LASTEXITCODE -ne 0) {
+        throw "Staging files failed the stage 4 static health check."
+    }
+
     $state = [ordered]@{
         schemaVersion = "1.0.0"
         productId = $productId

@@ -1,0 +1,570 @@
+{
+  "audience": {
+    "commercialOrientation": "general",
+    "locale": "zh-CN",
+    "region": "China",
+    "targetLanguage": "zh-CN"
+  },
+  "candidates": [
+    {
+      "candidateId": "candidate-01",
+      "characters": [
+        {
+          "characterId": "protagonist",
+          "goal": "preserve the shared place",
+          "name": "Maya",
+          "relationshipFunction": "connects residents",
+          "role": "community archivist"
+        }
+      ],
+      "completeOutline": {
+        "climax": "A forgotten agreement is authenticated in public and changes the available decision. Candidate 1 uses a distinct driver, relationship, climax, and ending for synthetic validation.",
+        "development": "Residents contribute memories while the protagonist separates verified records from assumptions. Candidate 1 uses a distinct driver, relationship, climax, and ending for synthetic validation.",
+        "ending": "The community chooses a cooperative future and the protagonist gains a durable role. Candidate 1 uses a distinct driver, relationship, climax, and ending for synthetic validation.",
+        "opening": "A public notice creates a seven-day deadline and a concrete loss. Candidate 1 uses a distinct driver, relationship, climax, and ending for synthetic validation."
+      },
+      "coreSellingPoints": [
+        "A visible deadline",
+        "A verified nonviolent reversal"
+      ],
+      "episodePlots": [
+        {
+          "audienceReward": "a document clue",
+          "endState": "verification becomes possible",
+          "episodeNumber": 1,
+          "progress": "memories collected",
+          "startState": "closure announced"
+        },
+        {
+          "audienceReward": "earned reversal",
+          "endState": "cooperative reopening",
+          "episodeNumber": 2,
+          "progress": "agreement authenticated",
+          "startState": "document unverified"
+        }
+      ],
+      "evidenceClaimIds": [
+        "fact-01",
+        "inference-01",
+        "unknown-01"
+      ],
+      "productionRecommendation": {
+        "episodeCount": 2,
+        "estimatedDurationSeconds": 61,
+        "reason": "Short synthetic fixture with two complete state changes.",
+        "targetCharacters": 96
+      },
+      "risks": [
+        "Synthetic brevity limits nuance"
+      ],
+      "scores": {
+        "audienceFit": 8.9,
+        "clickPotential": 8.700000000000001,
+        "originality": 8.8,
+        "overall": 8.9,
+        "productionFeasibility": 9.1,
+        "storySustainability": 8.6,
+        "visualPotential": 8.5
+      },
+      "storyDriver": "driver-1: community evidence and a different relationship path",
+      "strengths": [
+        "Clear promise and complete ending"
+      ],
+      "worldRules": [
+        "Only verified records can change the public decision"
+      ]
+    },
+    {
+      "candidateId": "candidate-02",
+      "characters": [
+        {
+          "characterId": "protagonist",
+          "goal": "preserve the shared place",
+          "name": "Maya",
+          "relationshipFunction": "connects residents",
+          "role": "community archivist"
+        }
+      ],
+      "completeOutline": {
+        "climax": "A forgotten agreement is authenticated in public and changes the available decision. Candidate 2 uses a distinct driver, relationship, climax, and ending for synthetic validation.",
+        "development": "Residents contribute memories while the protagonist separates verified records from assumptions. Candidate 2 uses a distinct driver, relationship, climax, and ending for synthetic validation.",
+        "ending": "The community chooses a cooperative future and the protagonist gains a durable role. Candidate 2 uses a distinct driver, relationship, climax, and ending for synthetic validation.",
+        "opening": "A public notice creates a seven-day deadline and a concrete loss. Candidate 2 uses a distinct driver, relationship, climax, and ending for synthetic validation."
+      },
+      "coreSellingPoints": [
+        "A visible deadline",
+        "A verified nonviolent reversal"
+      ],
+      "episodePlots": [
+        {
+          "audienceReward": "a document clue",
+          "endState": "verification becomes possible",
+          "episodeNumber": 1,
+          "progress": "memories collected",
+          "startState": "closure announced"
+        },
+        {
+          "audienceReward": "earned reversal",
+          "endState": "cooperative reopening",
+          "episodeNumber": 2,
+          "progress": "agreement authenticated",
+          "startState": "document unverified"
+        }
+      ],
+      "evidenceClaimIds": [
+        "fact-02",
+        "inference-02",
+        "unknown-02"
+      ],
+      "productionRecommendation": {
+        "episodeCount": 2,
+        "estimatedDurationSeconds": 62,
+        "reason": "Short synthetic fixture with two complete state changes.",
+        "targetCharacters": 98
+      },
+      "risks": [
+        "Synthetic brevity limits nuance"
+      ],
+      "scores": {
+        "audienceFit": 8.8,
+        "clickPotential": 8.600000000000001,
+        "originality": 8.700000000000001,
+        "overall": 8.8,
+        "productionFeasibility": 9.0,
+        "storySustainability": 8.5,
+        "visualPotential": 8.4
+      },
+      "storyDriver": "driver-2: community evidence and a different relationship path",
+      "strengths": [
+        "Clear promise and complete ending"
+      ],
+      "worldRules": [
+        "Only verified records can change the public decision"
+      ]
+    },
+    {
+      "candidateId": "candidate-03",
+      "characters": [
+        {
+          "characterId": "protagonist",
+          "goal": "preserve the shared place",
+          "name": "Maya",
+          "relationshipFunction": "connects residents",
+          "role": "community archivist"
+        }
+      ],
+      "completeOutline": {
+        "climax": "A forgotten agreement is authenticated in public and changes the available decision. Candidate 3 uses a distinct driver, relationship, climax, and ending for synthetic validation.",
+        "development": "Residents contribute memories while the protagonist separates verified records from assumptions. Candidate 3 uses a distinct driver, relationship, climax, and ending for synthetic validation.",
+        "ending": "The community chooses a cooperative future and the protagonist gains a durable role. Candidate 3 uses a distinct driver, relationship, climax, and ending for synthetic validation.",
+        "opening": "A public notice creates a seven-day deadline and a concrete loss. Candidate 3 uses a distinct driver, relationship, climax, and ending for synthetic validation."
+      },
+      "coreSellingPoints": [
+        "A visible deadline",
+        "A verified nonviolent reversal"
+      ],
+      "episodePlots": [
+        {
+          "audienceReward": "a document clue",
+          "endState": "verification becomes possible",
+          "episodeNumber": 1,
+          "progress": "memories collected",
+          "startState": "closure announced"
+        },
+        {
+          "audienceReward": "earned reversal",
+          "endState": "cooperative reopening",
+          "episodeNumber": 2,
+          "progress": "agreement authenticated",
+          "startState": "document unverified"
+        }
+      ],
+      "evidenceClaimIds": [
+        "fact-03",
+        "inference-03",
+        "unknown-03"
+      ],
+      "productionRecommendation": {
+        "episodeCount": 2,
+        "estimatedDurationSeconds": 63,
+        "reason": "Short synthetic fixture with two complete state changes.",
+        "targetCharacters": 99
+      },
+      "risks": [
+        "Synthetic brevity limits nuance"
+      ],
+      "scores": {
+        "audienceFit": 8.7,
+        "clickPotential": 8.5,
+        "originality": 8.6,
+        "overall": 8.7,
+        "productionFeasibility": 8.899999999999999,
+        "storySustainability": 8.399999999999999,
+        "visualPotential": 8.299999999999999
+      },
+      "storyDriver": "driver-3: community evidence and a different relationship path",
+      "strengths": [
+        "Clear promise and complete ending"
+      ],
+      "worldRules": [
+        "Only verified records can change the public decision"
+      ]
+    }
+  ],
+  "channelProfileId": "ch_12836a36f9dc43159361ed6a83e17713",
+  "checkpoints": {
+    "applicable": false,
+    "completedUnits": 3,
+    "items": [
+      {
+        "candidateId": "candidate-01",
+        "completedAt": "2026-08-03T18:26:59Z",
+        "contentHash": "b23d3a9f043356328c4254e0c38ff66359483b0f93fad9f260bbd4b7657f44bb",
+        "status": "COMPLETED",
+        "unitNumber": 1
+      },
+      {
+        "candidateId": "candidate-02",
+        "completedAt": "2026-08-03T18:26:59Z",
+        "contentHash": "e11386f57b4b4f42d78e36e2d0e32d5126350bcab9ed4506016ce45e452f9a9c",
+        "status": "COMPLETED",
+        "unitNumber": 2
+      },
+      {
+        "candidateId": "candidate-03",
+        "completedAt": "2026-08-03T18:26:59Z",
+        "contentHash": "259c451cdc60eed9c53ccae4f603f7e37df3cdba00c9523e074a30d79fdab3a0",
+        "status": "COMPLETED",
+        "unitNumber": 3
+      }
+    ],
+    "totalUnits": 3
+  },
+  "contentHash": "90a602c6467e1a7738ed2aef38d3f069ebb450d1902b03bceb5b2863e838be42",
+  "contractType": "topic-package",
+  "createdAt": "2026-08-03T18:26:59Z",
+  "evidence": [
+    {
+      "claimId": "fact-01",
+      "classification": "fact",
+      "confidence": 1.0,
+      "sources": [
+        {
+          "locator": "user-input:81961b3fe3f9dc1779c8724b7e2408852d66bfde9351b9c8a1b2b0eb8ecf19f6",
+          "sourcePackage": {
+            "targetContractType": "source-package",
+            "targetHash": "5a9f08bbcb6df930f77e76442d09d8c978bb323beb8e9a71e000b1d2d91344d9",
+            "targetId": "source_019a491636cb9b36e2ff768d",
+            "targetSchemaVersion": "1.0.0",
+            "targetVersion": "1.0.0"
+          }
+        }
+      ],
+      "statement": "The supplied material is explicitly synthetic."
+    },
+    {
+      "claimId": "inference-01",
+      "classification": "inference",
+      "confidence": 0.7,
+      "sources": [
+        {
+          "locator": "user-input:81961b3fe3f9dc1779c8724b7e2408852d66bfde9351b9c8a1b2b0eb8ecf19f6",
+          "sourcePackage": {
+            "targetContractType": "source-package",
+            "targetHash": "5a9f08bbcb6df930f77e76442d09d8c978bb323beb8e9a71e000b1d2d91344d9",
+            "targetId": "source_019a491636cb9b36e2ff768d",
+            "targetSchemaVersion": "1.0.0",
+            "targetVersion": "1.0.0"
+          }
+        }
+      ],
+      "statement": "A community-rebuilding promise can support this candidate."
+    },
+    {
+      "claimId": "unknown-01",
+      "classification": "unknown",
+      "sources": [],
+      "statement": "No online audience retention data is available."
+    },
+    {
+      "claimId": "fact-02",
+      "classification": "fact",
+      "confidence": 1.0,
+      "sources": [
+        {
+          "locator": "user-input:81961b3fe3f9dc1779c8724b7e2408852d66bfde9351b9c8a1b2b0eb8ecf19f6",
+          "sourcePackage": {
+            "targetContractType": "source-package",
+            "targetHash": "5a9f08bbcb6df930f77e76442d09d8c978bb323beb8e9a71e000b1d2d91344d9",
+            "targetId": "source_019a491636cb9b36e2ff768d",
+            "targetSchemaVersion": "1.0.0",
+            "targetVersion": "1.0.0"
+          }
+        }
+      ],
+      "statement": "The supplied material is explicitly synthetic."
+    },
+    {
+      "claimId": "inference-02",
+      "classification": "inference",
+      "confidence": 0.7,
+      "sources": [
+        {
+          "locator": "user-input:81961b3fe3f9dc1779c8724b7e2408852d66bfde9351b9c8a1b2b0eb8ecf19f6",
+          "sourcePackage": {
+            "targetContractType": "source-package",
+            "targetHash": "5a9f08bbcb6df930f77e76442d09d8c978bb323beb8e9a71e000b1d2d91344d9",
+            "targetId": "source_019a491636cb9b36e2ff768d",
+            "targetSchemaVersion": "1.0.0",
+            "targetVersion": "1.0.0"
+          }
+        }
+      ],
+      "statement": "A community-rebuilding promise can support this candidate."
+    },
+    {
+      "claimId": "unknown-02",
+      "classification": "unknown",
+      "sources": [],
+      "statement": "No online audience retention data is available."
+    },
+    {
+      "claimId": "fact-03",
+      "classification": "fact",
+      "confidence": 1.0,
+      "sources": [
+        {
+          "locator": "user-input:81961b3fe3f9dc1779c8724b7e2408852d66bfde9351b9c8a1b2b0eb8ecf19f6",
+          "sourcePackage": {
+            "targetContractType": "source-package",
+            "targetHash": "5a9f08bbcb6df930f77e76442d09d8c978bb323beb8e9a71e000b1d2d91344d9",
+            "targetId": "source_019a491636cb9b36e2ff768d",
+            "targetSchemaVersion": "1.0.0",
+            "targetVersion": "1.0.0"
+          }
+        }
+      ],
+      "statement": "The supplied material is explicitly synthetic."
+    },
+    {
+      "claimId": "inference-03",
+      "classification": "inference",
+      "confidence": 0.7,
+      "sources": [
+        {
+          "locator": "user-input:81961b3fe3f9dc1779c8724b7e2408852d66bfde9351b9c8a1b2b0eb8ecf19f6",
+          "sourcePackage": {
+            "targetContractType": "source-package",
+            "targetHash": "5a9f08bbcb6df930f77e76442d09d8c978bb323beb8e9a71e000b1d2d91344d9",
+            "targetId": "source_019a491636cb9b36e2ff768d",
+            "targetSchemaVersion": "1.0.0",
+            "targetVersion": "1.0.0"
+          }
+        }
+      ],
+      "statement": "A community-rebuilding promise can support this candidate."
+    },
+    {
+      "claimId": "unknown-03",
+      "classification": "unknown",
+      "sources": [],
+      "statement": "No online audience retention data is available."
+    }
+  ],
+  "extensionCapabilities": [
+    {
+      "capability": "trend-scan",
+      "inputContractTypes": [
+        "source-package"
+      ],
+      "interfaceVersion": "1.0.0",
+      "outputContractType": "analysis-package-v1",
+      "reason": "对应的可插拔 Skill 尚未安装；不会伪造输出。",
+      "status": "unavailable"
+    },
+    {
+      "capability": "single-work-analysis",
+      "inputContractTypes": [
+        "source-package"
+      ],
+      "interfaceVersion": "1.0.0",
+      "outputContractType": "analysis-package-v1",
+      "reason": "对应的可插拔 Skill 尚未安装；不会伪造输出。",
+      "status": "unavailable"
+    },
+    {
+      "capability": "multi-work-analysis",
+      "inputContractTypes": [
+        "source-package"
+      ],
+      "interfaceVersion": "1.0.0",
+      "outputContractType": "analysis-package-v1",
+      "reason": "对应的可插拔 Skill 尚未安装；不会伪造输出。",
+      "status": "unavailable"
+    },
+    {
+      "capability": "video-analysis",
+      "inputContractTypes": [
+        "source-package"
+      ],
+      "interfaceVersion": "1.0.0",
+      "outputContractType": "analysis-package-v1",
+      "reason": "对应的可插拔 Skill 尚未安装；不会伪造输出。",
+      "status": "unavailable"
+    },
+    {
+      "capability": "book-analysis",
+      "inputContractTypes": [
+        "source-package"
+      ],
+      "interfaceVersion": "1.0.0",
+      "outputContractType": "analysis-package-v1",
+      "reason": "对应的可插拔 Skill 尚未安装；不会伪造输出。",
+      "status": "unavailable"
+    },
+    {
+      "capability": "style-imitation",
+      "inputContractTypes": [
+        "source-package"
+      ],
+      "interfaceVersion": "1.0.0",
+      "outputContractType": "writing-style-contract-v1",
+      "reason": "对应的可插拔 Skill 尚未安装；不会伪造输出。",
+      "status": "unavailable"
+    }
+  ],
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "id": "topic_synthetic-cn-content-loop_v1_0_0",
+  "learningContext": {
+    "accessMode": "read-only-snapshot",
+    "currentProjectChanges": [
+      {
+        "changeId": "change-001",
+        "scope": "current_only",
+        "summary": "仅本合成项目使用简短两集结构。"
+      }
+    ],
+    "longTermWriteAllowed": false,
+    "snapshot": null
+  },
+  "packagingBrief": {
+    "thumbnailVisualTask": "one protagonist, threatened place, visible record",
+    "titleInformationDirection": "deadline plus evidence-backed reversal",
+    "videoPresentationDirection": "two compact episodes with static-image production compatibility"
+  },
+  "productionRecommendation": {
+    "episodeCount": 2,
+    "estimatedDurationSeconds": 61,
+    "reason": "Short synthetic fixture with two complete state changes.",
+    "targetCharacters": 96
+  },
+  "projectId": "synthetic-cn-content-loop",
+  "ranking": [
+    {
+      "candidateId": "candidate-01",
+      "decision": "selected",
+      "overallScore": 8.9,
+      "rank": 1,
+      "reason": "Highest complete score and selected."
+    },
+    {
+      "candidateId": "candidate-02",
+      "decision": "backup",
+      "overallScore": 8.8,
+      "rank": 2,
+      "reason": "Traceable backup with a lower audience score."
+    },
+    {
+      "candidateId": "candidate-03",
+      "decision": "backup",
+      "overallScore": 8.7,
+      "rank": 3,
+      "reason": "Retained but not selected due to lower feasibility."
+    }
+  ],
+  "route": "original",
+  "schemaVersion": "1.0.0",
+  "selectedCandidateId": "candidate-01",
+  "selection": {
+    "backupCandidateIds": [
+      "candidate-02",
+      "candidate-03"
+    ],
+    "policy": "user-choice",
+    "primaryCandidateId": "candidate-01"
+  },
+  "selectionConfirmation": {
+    "confirmedAt": "2026-08-04T01:00:00Z",
+    "gate": "G3_TOPIC",
+    "mode": "review",
+    "source": "synthetic-fixture-user",
+    "status": "APPROVED"
+  },
+  "sourceInputs": [
+    {
+      "acceptedStatus": "CONTENT_READY",
+      "sourcePackage": {
+        "targetContractType": "source-package",
+        "targetHash": "5a9f08bbcb6df930f77e76442d09d8c978bb323beb8e9a71e000b1d2d91344d9",
+        "targetId": "source_019a491636cb9b36e2ff768d",
+        "targetSchemaVersion": "1.0.0",
+        "targetVersion": "1.0.0"
+      }
+    }
+  ],
+  "sourceMode": "market-original",
+  "status": "TOPIC_SELECTED",
+  "storyFacts": {
+    "climax": "The forgotten agreement is publicly verified.",
+    "ending": "The place reopens under community stewardship.",
+    "lockedFacts": [
+      {
+        "evidenceClaimIds": [
+          "fact-01"
+        ],
+        "factId": "story-fact-01-a",
+        "statement": "The threatened place serves the community"
+      },
+      {
+        "evidenceClaimIds": [
+          "inference-01"
+        ],
+        "factId": "story-fact-01-b",
+        "statement": "The protagonist preserves local memories"
+      }
+    ],
+    "relationships": [
+      "The protagonist and residents move from distance to cooperation"
+    ],
+    "worldRules": [
+      "A public decision changes only after evidence is verified"
+    ]
+  },
+  "storyFactsHash": "214e20ff512b299b5d3bc249d691768ef3ebffc9de1385f5d21d2e643d7ec015",
+  "topicPackageId": "topic_synthetic-cn-content-loop_v1_0_0",
+  "upstream": [
+    {
+      "targetContractType": "channel-profile",
+      "targetHash": "62750a581bdf03bdab36462e6296ce7e84389cccfd52b4663329e0b6ec6ec152",
+      "targetId": "ch_12836a36f9dc43159361ed6a83e17713",
+      "targetSchemaVersion": "1.0.0",
+      "targetVersion": "1.0.0"
+    },
+    {
+      "targetContractType": "production-profile",
+      "targetHash": "7a8d9bd3a60bb41321fd3a0d308d6ed37f1f967fd8347f37a478b2e0e3831782",
+      "targetId": "preset_052141e0f59142b29b2aff0339366295",
+      "targetSchemaVersion": "1.0.0",
+      "targetVersion": "1.0.0"
+    },
+    {
+      "targetContractType": "source-package",
+      "targetHash": "5a9f08bbcb6df930f77e76442d09d8c978bb323beb8e9a71e000b1d2d91344d9",
+      "targetId": "source_019a491636cb9b36e2ff768d",
+      "targetSchemaVersion": "1.0.0",
+      "targetVersion": "1.0.0"
+    }
+  ],
+  "version": "1.0.0"
+}

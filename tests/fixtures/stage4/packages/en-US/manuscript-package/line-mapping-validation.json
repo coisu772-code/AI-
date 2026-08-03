@@ -1,0 +1,52 @@
+{
+  "auditLineCount": 4,
+  "checks": {
+    "emotionsMatch": true,
+    "episodeNumbersMatch": true,
+    "lineIdsMatch": true,
+    "lineTypesMatch": true,
+    "sequenceMatches": true,
+    "speakersMatch": true
+  },
+  "items": [
+    {
+      "auditLineId": "E01-L001",
+      "emotion": "calm",
+      "episodeNumber": 1,
+      "lineType": "narration",
+      "sequence": 1,
+      "speakerId": "narrator",
+      "targetLineId": "E01-L001"
+    },
+    {
+      "auditLineId": "E01-L002",
+      "emotion": "calm",
+      "episodeNumber": 1,
+      "lineType": "dialogue",
+      "sequence": 2,
+      "speakerId": "protagonist",
+      "targetLineId": "E01-L002"
+    },
+    {
+      "auditLineId": "E02-L001",
+      "emotion": "calm",
+      "episodeNumber": 2,
+      "lineType": "narration",
+      "sequence": 1,
+      "speakerId": "narrator",
+      "targetLineId": "E02-L001"
+    },
+    {
+      "auditLineId": "E02-L002",
+      "emotion": "hopeful",
+      "episodeNumber": 2,
+      "lineType": "dialogue",
+      "sequence": 2,
+      "speakerId": "protagonist",
+      "targetLineId": "E02-L002"
+    }
+  ],
+  "mappingMode": "backtranslation",
+  "status": "PASSED",
+  "targetLineCount": 4
+}

@@ -5,39 +5,731 @@
   "allOf": [
     {
       "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/envelope"
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "PUBLISHING_ASSETS_READY",
+              "HANDED_TO_PRODUCTION"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "thumbnail": {
+            "properties": {
+              "mode": {
+                "const": "real_file"
+              }
+            }
+          },
+          "ctrReview": {
+            "properties": {
+              "status": {
+                "const": "PASSED"
+              }
+            }
+          },
+          "confirmation": {
+            "properties": {
+              "gate": {
+                "const": "G5_PUBLISHING_ASSETS"
+              },
+              "status": {
+                "const": "APPROVED"
+              }
+            }
+          },
+          "productionHandoff": {
+            "properties": {
+              "eligible": {
+                "const": true
+              },
+              "blockers": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "thumbnail": {
+            "properties": {
+              "mode": {
+                "const": "prompt_only"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          }
+        },
+        "required": [
+          "thumbnail"
+        ]
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "enum": [
+              "AWAITING_THUMBNAIL",
+              "AWAITING_PUBLISHING_CONFIRMATION"
+            ]
+          },
+          "productionHandoff": {
+            "properties": {
+              "eligible": {
+                "const": false
+              },
+              "blockers": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "type": "object",
   "unevaluatedProperties": false,
-  "required": ["publishingAssetPackageId", "projectId", "channelProfileId", "status", "title", "descriptionBody", "hashtags", "thumbnail", "targetChannel", "uploadPolicy", "privacyStatus"],
+  "required": [
+    "publishingAssetPackageId",
+    "projectId",
+    "channelProfileId",
+    "status",
+    "targetLanguage",
+    "manuscriptBinding",
+    "title",
+    "titleZhTranslation",
+    "titleSelection",
+    "descriptionBody",
+    "hashtags",
+    "thumbnailProvider",
+    "thumbnailStrategy",
+    "thumbnailCandidates",
+    "thumbnailSelection",
+    "thumbnail",
+    "ctrReview",
+    "targetChannel",
+    "uploadPolicy",
+    "privacyStatus",
+    "confirmation",
+    "productionHandoff"
+  ],
   "properties": {
-    "schemaVersion": { "const": "1.0.0" },
-    "contractType": { "const": "publishing-asset-package" },
-    "publishingAssetPackageId": { "type": "string", "minLength": 3, "maxLength": 128 },
-    "projectId": { "type": "string", "minLength": 3, "maxLength": 128 },
-    "channelProfileId": { "type": "string", "minLength": 3, "maxLength": 128 },
-    "status": { "const": "PUBLISHING_ASSETS_READY" },
-    "title": { "type": "string", "minLength": 1, "maxLength": 100 },
-    "descriptionBody": { "type": "string", "minLength": 1, "maxLength": 5000 },
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "contractType": {
+      "const": "publishing-asset-package"
+    },
+    "publishingAssetPackageId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128
+    },
+    "projectId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128
+    },
+    "channelProfileId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "GENERATING_TITLES",
+        "TITLE_SELECTED",
+        "GENERATING_THUMBNAILS",
+        "CTR_REVIEW",
+        "METADATA_READY",
+        "AWAITING_THUMBNAIL",
+        "AWAITING_PUBLISHING_CONFIRMATION",
+        "PUBLISHING_ASSETS_READY",
+        "HANDED_TO_PRODUCTION"
+      ]
+    },
+    "targetLanguage": {
+      "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/bcp47Language"
+    },
+    "manuscriptBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "manuscriptPackage",
+        "targetScriptHash",
+        "qualityGateHash"
+      ],
+      "properties": {
+        "manuscriptPackage": {
+          "allOf": [
+            {
+              "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/contractReference"
+            },
+            {
+              "properties": {
+                "targetContractType": {
+                  "const": "manuscript-package"
+                }
+              }
+            }
+          ]
+        },
+        "targetScriptHash": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+        },
+        "qualityGateHash": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+        }
+      }
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "titleZhTranslation": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "titleSelection": {
+      "$ref": "#/$defs/titleSelection"
+    },
+    "descriptionBody": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 5000
+    },
     "hashtags": {
       "type": "array",
       "minItems": 8,
       "maxItems": 12,
       "uniqueItems": true,
-      "items": { "type": "string", "pattern": "^#[^#\\s]{1,99}$" }
+      "items": {
+        "type": "string",
+        "pattern": "^#[^#\\s]{1,99}$"
+      }
     },
-    "thumbnail": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/asset" },
+    "thumbnailProvider": {
+      "$ref": "#/$defs/imageProvider"
+    },
+    "thumbnailStrategy": {
+      "$ref": "#/$defs/thumbnailStrategy"
+    },
+    "thumbnailCandidates": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/thumbnailCandidate"
+      }
+    },
+    "thumbnailSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selectedCandidateId",
+        "reason"
+      ],
+      "properties": {
+        "selectedCandidateId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "thumbnail": {
+      "$ref": "#/$defs/thumbnail"
+    },
+    "ctrReview": {
+      "$ref": "#/$defs/ctrReview"
+    },
     "targetChannel": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["publisherProfileId", "channelSerial", "youtubeChannelId"],
+      "required": [
+        "publisherProfileId",
+        "channelSerial",
+        "youtubeChannelId"
+      ],
       "properties": {
-        "publisherProfileId": { "type": "string", "minLength": 3 },
-        "channelSerial": { "type": "string", "pattern": "^[0-9]{2,}$" },
-        "youtubeChannelId": { "type": "string", "minLength": 8, "maxLength": 64 }
+        "publisherProfileId": {
+          "type": "string",
+          "minLength": 3
+        },
+        "channelSerial": {
+          "type": "string",
+          "pattern": "^[0-9]{2,}$"
+        },
+        "youtubeChannelId": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64
+        }
       }
     },
-    "uploadPolicy": { "type": "string", "enum": ["DO_NOT_UPLOAD", "REQUIRE_REVIEW", "AUTO"] },
-    "privacyStatus": { "type": "string", "enum": ["private", "unlisted", "public", "scheduled"] }
+    "uploadPolicy": {
+      "type": "string",
+      "enum": [
+        "DO_NOT_UPLOAD",
+        "REQUIRE_REVIEW",
+        "AUTO"
+      ]
+    },
+    "privacyStatus": {
+      "type": "string",
+      "enum": [
+        "private",
+        "unlisted",
+        "public",
+        "scheduled"
+      ]
+    },
+    "confirmation": {
+      "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/approvalRecord"
+    },
+    "productionHandoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligible",
+        "assessedAt",
+        "blockers"
+      ],
+      "properties": {
+        "eligible": {
+          "type": "boolean"
+        },
+        "assessedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "imageProvider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "providerId",
+        "interfaceVersion",
+        "integrationMode",
+        "status"
+      ],
+      "properties": {
+        "providerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "interfaceVersion": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/semver"
+        },
+        "integrationMode": {
+          "type": "string",
+          "enum": [
+            "built-in",
+            "plugin",
+            "user-provided",
+            "fixture"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "available",
+            "unavailable"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "unavailable"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "reason"
+            ]
+          }
+        }
+      ]
+    },
+    "titleSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selectedTitleId",
+        "factConsistencyPassed",
+        "similarityGatePassed",
+        "candidates"
+      ],
+      "properties": {
+        "selectedTitleId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "factConsistencyPassed": {
+          "const": true
+        },
+        "similarityGatePassed": {
+          "const": true
+        },
+        "candidates": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "titleId",
+              "text",
+              "zhTranslation",
+              "audienceFit",
+              "factBasis",
+              "promiseFulfilled",
+              "sampleWordingCopied"
+            ],
+            "properties": {
+              "titleId": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 128
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "zhTranslation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "audienceFit": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10
+              },
+              "factBasis": {
+                "type": "string",
+                "minLength": 1
+              },
+              "promiseFulfilled": {
+                "const": true
+              },
+              "sampleWordingCopied": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "thumbnailStrategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject",
+        "conflict",
+        "composition",
+        "expression",
+        "targetLanguageText",
+        "textSafeArea",
+        "mobileReadabilityTarget"
+      ],
+      "properties": {
+        "subject": {
+          "type": "string",
+          "minLength": 1
+        },
+        "conflict": {
+          "type": "string",
+          "minLength": 1
+        },
+        "composition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expression": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targetLanguageText": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "textSafeArea": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mobileReadabilityTarget": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "thumbnailCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidateId",
+        "prompt",
+        "renderStatus",
+        "visualDifference",
+        "score",
+        "textAccurate",
+        "factsConsistent",
+        "mobileReadable"
+      ],
+      "properties": {
+        "candidateId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "renderStatus": {
+          "type": "string",
+          "enum": [
+            "GENERATED",
+            "PROMPT_ONLY"
+          ]
+        },
+        "visualDifference": {
+          "type": "string",
+          "minLength": 1
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "textAccurate": {
+          "type": "boolean"
+        },
+        "factsConsistent": {
+          "type": "boolean"
+        },
+        "mobileReadable": {
+          "type": "boolean"
+        },
+        "asset": {
+          "allOf": [
+            {
+              "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/asset"
+            },
+            {
+              "properties": {
+                "mediaType": {
+                  "enum": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "thumbnail": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/realThumbnail"
+        },
+        {
+          "$ref": "#/$defs/promptOnlyThumbnail"
+        }
+      ]
+    },
+    "realThumbnail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "asset",
+        "widthPixels",
+        "heightPixels",
+        "aspectRatio",
+        "fileReadable",
+        "hashVerified"
+      ],
+      "properties": {
+        "mode": {
+          "const": "real_file"
+        },
+        "asset": {
+          "allOf": [
+            {
+              "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/asset"
+            },
+            {
+              "properties": {
+                "mediaType": {
+                  "enum": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "widthPixels": {
+          "type": "integer",
+          "minimum": 16
+        },
+        "heightPixels": {
+          "type": "integer",
+          "minimum": 9
+        },
+        "aspectRatio": {
+          "const": "16:9"
+        },
+        "fileReadable": {
+          "const": true
+        },
+        "hashVerified": {
+          "const": true
+        }
+      }
+    },
+    "promptOnlyThumbnail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "prompt",
+        "providerStatus"
+      ],
+      "properties": {
+        "mode": {
+          "const": "prompt_only"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "providerStatus": {
+          "type": "string",
+          "enum": [
+            "not_requested",
+            "unavailable",
+            "failed"
+          ]
+        }
+      }
+    },
+    "ctrReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "score",
+        "titleHookVisualized",
+        "textComplementsTitle",
+        "mobileReadable",
+        "factsConsistent",
+        "conclusion"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PASSED",
+            "FAILED"
+          ]
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "titleHookVisualized": {
+          "type": "boolean"
+        },
+        "textComplementsTitle": {
+          "type": "boolean"
+        },
+        "mobileReadable": {
+          "type": "boolean"
+        },
+        "factsConsistent": {
+          "type": "boolean"
+        },
+        "conclusion": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "PASSED"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "titleHookVisualized": { "const": true },
+              "textComplementsTitle": { "const": true },
+              "mobileReadable": { "const": true },
+              "factsConsistent": { "const": true }
+            }
+          }
+        }
+      ]
+    }
   }
 }

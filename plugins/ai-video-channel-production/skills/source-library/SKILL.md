@@ -63,4 +63,4 @@ Use the default scope unless the user changes it:
 - Keep original, normalized, asset, report, and version files separate. Analysis outputs never belong inside the Source Package.
 - Use `source_search` and `source_get` for indexed retrieval; do not scan unrelated channels or production queues.
 
-Stage 3 ends after a persistent, valid Source Package and completion card. Do not start stage 4 content analysis or generation.
+This Skill ends after a persistent, valid Source Package and completion card. Return to `$channel-production` for a separate content step; do not start analysis or generation inside Source Library.

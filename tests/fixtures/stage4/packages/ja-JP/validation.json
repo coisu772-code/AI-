@@ -1,0 +1,46 @@
+{
+  "syntheticFixture": true,
+  "onlineData": false,
+  "userData": false,
+  "language": "ja-JP",
+  "integrity": {
+    "status": "PASS",
+    "projectId": "synthetic-jp-content-loop",
+    "checkedPackages": [
+      "manuscript",
+      "publishing",
+      "topic"
+    ],
+    "errors": [],
+    "boundaries": {
+      "workshop": false,
+      "publisherAuthorization": false,
+      "upload": false,
+      "analytics": false,
+      "longTermLearningWrite": false
+    }
+  },
+  "handoff": {
+    "eligible": true,
+    "projectId": "synthetic-jp-content-loop",
+    "nextCenter": "production",
+    "packageHashes": {
+      "manuscript": "e457c5503cf592fae05894ab0c3295a48a13c0a78512d35031916b81cc7213e4",
+      "publishing": "88190063164be2ca8f75dfc1c629cafa40c09057d42ac1db794e89ee5c5eb692",
+      "topic": "d6c17bf1a31e2508e57835152c1227a74e2246534fba9fc93fddd2df3c99d686"
+    },
+    "notExecuted": [
+      "production-package",
+      "workshop",
+      "publisher-authorization",
+      "upload",
+      "analytics",
+      "long-term-learning-write"
+    ]
+  },
+  "packagePaths": {
+    "topic": "topic-package",
+    "manuscript": "manuscript-package",
+    "publishing": "publishing-asset-package"
+  }
+}

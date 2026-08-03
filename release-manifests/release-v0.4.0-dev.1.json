@@ -1,0 +1,131 @@
+{
+  "manifestVersion": "1.0.0",
+  "productId": "ai-video-channel-production",
+  "productName": "AI 视频频道生产系统",
+  "productVersion": "0.4.0-dev.1",
+  "releaseChannel": "beta",
+  "releaseStatus": "draft",
+  "generatedAt": "2026-08-03T18:32:10Z",
+  "repository": "https://github.com/coisu772-code/AI-/",
+  "gitCommit": null,
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "contentHash": "77e93a256f46b21809edfc40e9a0b55ea2459024a6325d89927a1b41f9f6b217",
+  "schemaVersions": {
+    "channel-profile": "1.0.0",
+    "production-profile": "1.0.0",
+    "source-package": "1.0.0",
+    "topic-package": "1.0.0",
+    "manuscript-package": "1.0.0",
+    "publishing-asset-package": "1.0.0",
+    "production-result-package": "1.0.0",
+    "publish-intent": "1.0.0",
+    "publication-receipt": "1.0.0",
+    "analytics-snapshot": "1.0.0"
+  },
+  "protocolVersions": {
+    "contractExchange": "1.0.0",
+    "localToolService": "1.0.0",
+    "installerState": "1.0.0"
+  },
+  "components": [
+    {
+      "componentId": "codex-plugin",
+      "version": "0.4.0-dev.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.4.0-dev.1",
+      "maximumProductVersion": "0.4.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "plugins/ai-video-channel-production",
+          "sha256": "3cc3c5abdf746de8e0c415cd809e0d1cf6c361e4f45164cca51606805df1752a",
+          "sizeBytes": 439085
+        }
+      ],
+      "notes": "阶段4 Skills、MCP 与可追溯内容最小闭环。"
+    },
+    {
+      "componentId": "windows-installer",
+      "version": "0.4.0-dev.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.4.0-dev.1",
+      "maximumProductVersion": "0.4.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "installer",
+          "sha256": "1a459dc3e86f886ec8a1538caec32b07f0df253d78deb8ff9a51b26d7a158dcd",
+          "sizeBytes": 23828
+        }
+      ],
+      "notes": "隔离安装、升级、回滚、卸载与阶段4健康检查。"
+    },
+    {
+      "componentId": "cross-center-contracts",
+      "version": "1.0.0",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.4.0-dev.1",
+      "maximumProductVersion": "0.4.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "contracts",
+          "sha256": "b6f05790a42e8c8160e9a126abf7c2f4a8e5ead04e81072f4267dfabfbceeb91",
+          "sizeBytes": 151182
+        }
+      ],
+      "notes": "十类 v1 契约及阶段4内容包约束保持主版本兼容。"
+    },
+    {
+      "componentId": "local-tool-service",
+      "version": "0.4.0-dev.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.4.0-dev.1",
+      "maximumProductVersion": "0.4.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "plugins/ai-video-channel-production/mcp",
+          "sha256": "8347653848080ae8246d58f607ee784f921644c92d115c18072b048d07f1c1ab",
+          "sizeBytes": 394482
+        }
+      ],
+      "notes": "频道与资料工具，以及 Topic、Manuscript、Publishing Asset 内容状态机和质量硬门。"
+    },
+    {
+      "componentId": "control-center",
+      "version": "0.11.0",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.4.0-dev.1",
+      "maximumProductVersion": "0.4.0-dev.1",
+      "artifacts": [],
+      "notes": "外部基线；阶段4不进入制作。"
+    },
+    {
+      "componentId": "workshop",
+      "version": "1.0.0",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.4.0-dev.1",
+      "maximumProductVersion": "0.4.0-dev.1",
+      "artifacts": [],
+      "notes": "阶段4不启动工坊。"
+    },
+    {
+      "componentId": "publisher-center",
+      "version": "0.1.0",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.4.0-dev.1",
+      "maximumProductVersion": "0.4.0-dev.1",
+      "artifacts": [],
+      "notes": "只保留已验收的真实频道只读接口；阶段4不授权或上传。"
+    }
+  ]
+}

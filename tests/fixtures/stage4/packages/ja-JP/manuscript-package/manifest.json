@@ -1,0 +1,314 @@
+{
+  "auditScript": {
+    "asset": {
+      "assetId": "chinese-audit-script",
+      "mediaType": "application/json",
+      "relativePath": "chinese-audit-script.json",
+      "sha256": "d19ad93143b28e0b72ec0aa78bf6f03e5ec1a378f7dcb5d63b8c2b01afc67094",
+      "sizeBytes": 1082
+    },
+    "contentHash": "564e80de891f16bd8b5ff7c61c0b6ba090f64110b9b5fd35626186fb850a6e1c",
+    "duplicateFileCreated": true,
+    "language": "zh-CN",
+    "lines": [
+      {
+        "emotion": "calm",
+        "episodeNumber": 1,
+        "lineId": "E01-L001",
+        "lineType": "narration",
+        "sequence": 1,
+        "speakerId": "narrator",
+        "text": "镇图书室只贴着一张即将闭馆的通知。"
+      },
+      {
+        "emotion": "calm",
+        "episodeNumber": 1,
+        "lineId": "E01-L002",
+        "lineType": "dialogue",
+        "sequence": 2,
+        "speakerId": "protagonist",
+        "text": "图书管理员美咲决定在一切消失前收集居民的记忆。"
+      },
+      {
+        "emotion": "calm",
+        "episodeNumber": 2,
+        "lineId": "E02-L001",
+        "lineType": "narration",
+        "sequence": 1,
+        "speakerId": "narrator",
+        "text": "第一次朗读会上，大家发现了无人知晓的捐赠登记线索。"
+      },
+      {
+        "emotion": "hopeful",
+        "episodeNumber": 2,
+        "lineId": "E02-L002",
+        "lineType": "dialogue",
+        "sequence": 2,
+        "speakerId": "protagonist",
+        "text": "登记册成为保住图书室的证据，小镇选择共同运营。"
+      }
+    ],
+    "mode": "backtranslation",
+    "productionUseAllowed": false,
+    "sourceTargetScriptHash": "1854c94dbded170a01f0a2cabba5ed191711b056356b7fc210cb875a34b94c63",
+    "textAsset": {
+      "assetId": "chinese-audit-script-text",
+      "mediaType": "text/plain",
+      "relativePath": "chinese-audit-script.txt",
+      "sha256": "d91566b6c4a0e8a5057fde0234ca99a981cf86b52aca4dbcf69e76e57fa4b9b7",
+      "sizeBytes": 358
+    },
+    "version": "1.0.0"
+  },
+  "channelProfileId": "ch_63e3676a208e4309ae72704b7f1e49e2",
+  "characters": [
+    {
+      "characterId": "narrator",
+      "goal": "guide the community story",
+      "relationship": "connects the audience to the community",
+      "role": "narration",
+      "speakingStyle": "clear, warm, and concise",
+      "targetLanguageName": "Narrator",
+      "visualConsistencyRequired": false
+    },
+    {
+      "characterId": "protagonist",
+      "goal": "guide the community story",
+      "relationship": "connects the audience to the community",
+      "role": "protagonist",
+      "speakingStyle": "clear, warm, and concise",
+      "targetLanguageName": "Maya",
+      "visualAnchorPromptZh": "单人，年轻社区记录者，深色短发，温暖坚定的眼神，简洁日常服装",
+      "visualConsistencyRequired": true
+    }
+  ],
+  "confirmation": {
+    "confirmedAt": "2026-08-04T02:00:00Z",
+    "gate": "G4_MANUSCRIPT",
+    "mode": "review",
+    "source": "synthetic-fixture-user",
+    "status": "APPROVED"
+  },
+  "contentHash": "e457c5503cf592fae05894ab0c3295a48a13c0a78512d35031916b81cc7213e4",
+  "contractType": "manuscript-package",
+  "createdAt": "2026-08-03T18:26:59Z",
+  "episodeCount": 2,
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "id": "manuscript_synthetic-jp-content-loop_v1_0_0",
+  "lineCount": 4,
+  "lineMapping": {
+    "auditLineCount": 4,
+    "checks": {
+      "emotionsMatch": true,
+      "episodeNumbersMatch": true,
+      "lineIdsMatch": true,
+      "lineTypesMatch": true,
+      "sequenceMatches": true,
+      "speakersMatch": true
+    },
+    "items": [
+      {
+        "auditLineId": "E01-L001",
+        "emotion": "calm",
+        "episodeNumber": 1,
+        "lineType": "narration",
+        "sequence": 1,
+        "speakerId": "narrator",
+        "targetLineId": "E01-L001"
+      },
+      {
+        "auditLineId": "E01-L002",
+        "emotion": "calm",
+        "episodeNumber": 1,
+        "lineType": "dialogue",
+        "sequence": 2,
+        "speakerId": "protagonist",
+        "targetLineId": "E01-L002"
+      },
+      {
+        "auditLineId": "E02-L001",
+        "emotion": "calm",
+        "episodeNumber": 2,
+        "lineType": "narration",
+        "sequence": 1,
+        "speakerId": "narrator",
+        "targetLineId": "E02-L001"
+      },
+      {
+        "auditLineId": "E02-L002",
+        "emotion": "hopeful",
+        "episodeNumber": 2,
+        "lineType": "dialogue",
+        "sequence": 2,
+        "speakerId": "protagonist",
+        "targetLineId": "E02-L002"
+      }
+    ],
+    "mappingMode": "backtranslation",
+    "status": "PASSED",
+    "targetLineCount": 4
+  },
+  "manuscriptPackageId": "manuscript_synthetic-jp-content-loop_v1_0_0",
+  "projectId": "synthetic-jp-content-loop",
+  "qualityGate": {
+    "contentHash": "a01e1e66f8e037f3e9149fc7b98eb3d8b21ab487da06a8f30a4a117a414df715",
+    "episodeResults": [
+      {
+        "checks": {
+          "audienceRetelling": true,
+          "characterVoice": true,
+          "progressAndStateChange": true,
+          "regionalExpression": true,
+          "storyFacts": true,
+          "targetLanguageNaturalness": true,
+          "terminologyConsistency": true,
+          "ttsSemanticBoundaries": true
+        },
+        "episodeNumber": 1,
+        "status": "PASSED"
+      },
+      {
+        "checks": {
+          "audienceRetelling": true,
+          "characterVoice": true,
+          "progressAndStateChange": true,
+          "regionalExpression": true,
+          "storyFacts": true,
+          "targetLanguageNaturalness": true,
+          "terminologyConsistency": true,
+          "ttsSemanticBoundaries": true
+        },
+        "episodeNumber": 2,
+        "status": "PASSED"
+      }
+    ],
+    "revisionRounds": 1,
+    "status": "PASSED",
+    "targetScriptHash": "1854c94dbded170a01f0a2cabba5ed191711b056356b7fc210cb875a34b94c63",
+    "version": "1.0.0"
+  },
+  "qualityGateHash": "a01e1e66f8e037f3e9149fc7b98eb3d8b21ab487da06a8f30a4a117a414df715",
+  "schemaVersion": "1.0.0",
+  "selectiveInvalidation": {
+    "invalidatedEpisodeNumbers": [],
+    "policy": "affected-episodes-only",
+    "upstreamStoryChangeRequiresNewTopicVersion": true
+  },
+  "status": "SCRIPT_READY",
+  "storyBible": {
+    "climax": "The forgotten agreement is publicly verified.",
+    "contentHash": "09f19f5e620f66c50f9aa2022bc7a6eb778c032cbfec2e381d586f6fcd802d78",
+    "ending": "The place reopens under community stewardship.",
+    "foreshadowing": [
+      "The first record hints at a forgotten agreement"
+    ],
+    "lockedFacts": [
+      "The threatened place serves the community",
+      "The protagonist preserves local memories"
+    ],
+    "relationships": [
+      "The protagonist and residents move from distance to cooperation"
+    ],
+    "sourceStoryFactsHash": "214e20ff512b299b5d3bc249d691768ef3ebffc9de1385f5d21d2e643d7ec015",
+    "timeline": [
+      "closure notice",
+      "memory collection",
+      "verification",
+      "reopening"
+    ],
+    "version": "1.0.0",
+    "worldRules": [
+      "A public decision changes only after evidence is verified"
+    ]
+  },
+  "targetLanguage": "ja-JP",
+  "targetScript": {
+    "asset": {
+      "assetId": "target-script",
+      "mediaType": "application/json",
+      "relativePath": "target-script.json",
+      "sha256": "afc7501d4552e7586c59775a49f995424d50282f51d71cbeaa563728ab5bd024",
+      "sizeBytes": 1169
+    },
+    "contentHash": "1854c94dbded170a01f0a2cabba5ed191711b056356b7fc210cb875a34b94c63",
+    "isSoleProductionSource": true,
+    "lines": [
+      {
+        "emotion": "calm",
+        "episodeNumber": 1,
+        "lineId": "E01-L001",
+        "lineType": "narration",
+        "sequence": 1,
+        "speakerId": "narrator",
+        "text": "町の図書室には、閉館を知らせる紙が一枚だけ貼られていた。"
+      },
+      {
+        "emotion": "calm",
+        "episodeNumber": 1,
+        "lineId": "E01-L002",
+        "lineType": "dialogue",
+        "sequence": 2,
+        "speakerId": "protagonist",
+        "text": "司書の美咲は、失われる前に住民の記憶を集めようと決めた。"
+      },
+      {
+        "emotion": "calm",
+        "episodeNumber": 2,
+        "lineId": "E02-L001",
+        "lineType": "narration",
+        "sequence": 1,
+        "speakerId": "narrator",
+        "text": "最初の朗読会で、誰も知らなかった寄贈台帳の手掛かりが見つかった。"
+      },
+      {
+        "emotion": "hopeful",
+        "episodeNumber": 2,
+        "lineId": "E02-L002",
+        "lineType": "dialogue",
+        "sequence": 2,
+        "speakerId": "protagonist",
+        "text": "台帳は図書室を守る証拠となり、町は新しい共同運営を選んだ。"
+      }
+    ],
+    "role": "target-language-production-master",
+    "textAsset": {
+      "assetId": "target-script-text",
+      "mediaType": "text/plain",
+      "relativePath": "target-script.txt",
+      "sha256": "db878881712765e9f4a68657f4b5d4faa44f6aa6222f9b5900914948385e6331",
+      "sizeBytes": 445
+    },
+    "version": "1.0.0"
+  },
+  "upstream": [
+    {
+      "targetContractType": "topic-package",
+      "targetHash": "d6c17bf1a31e2508e57835152c1227a74e2246534fba9fc93fddd2df3c99d686",
+      "targetId": "topic_synthetic-jp-content-loop_v1_0_0",
+      "targetSchemaVersion": "1.0.0",
+      "targetVersion": "1.0.0"
+    }
+  ],
+  "version": "1.0.0",
+  "voices": [
+    {
+      "bindingStatus": "BOUND",
+      "catalogHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "catalogVersion": "1.0.0",
+      "engine": "fixture-tts",
+      "speakerId": "narrator",
+      "voiceId": "fixture-jp-001",
+      "voiceName": "Synthetic ja-JP Voice"
+    },
+    {
+      "bindingStatus": "BOUND",
+      "catalogHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "catalogVersion": "1.0.0",
+      "engine": "fixture-tts",
+      "speakerId": "protagonist",
+      "voiceId": "fixture-jp-001",
+      "voiceName": "Synthetic ja-JP Voice"
+    }
+  ]
+}

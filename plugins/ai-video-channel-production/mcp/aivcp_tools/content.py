@@ -1,0 +1,1423 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import shutil
+import struct
+import tempfile
+from pathlib import Path
+from typing import Any
+
+from jsonschema import Draft202012Validator, FormatChecker
+from referencing import Registry, Resource
+
+from .contracts import canonical_hash, utc_now, with_hash
+from .errors import ToolError
+
+
+CONTENT_LOOP_VERSION = "1.0.0"
+PACKAGE_SCHEMA_VERSION = "1.0.0"
+SCORE_KEYS = (
+    "audienceFit",
+    "clickPotential",
+    "storySustainability",
+    "visualPotential",
+    "originality",
+    "productionFeasibility",
+    "overall",
+)
+SOURCE_MODES = {
+    "channel-library",
+    "market-original",
+    "single-reference",
+    "multi-reference",
+    "provided-outline",
+    "trend",
+    "book-deconstruction",
+    "imitation",
+}
+EXTENSION_MODES = {"trend", "single-reference", "multi-reference", "book-deconstruction", "imitation"}
+QUALITY_CHECKS = {
+    "locked-facts",
+    "story-progress",
+    "character-voice",
+    "target-language-naturalness",
+    "regional-expression",
+    "terminology-consistency",
+    "tts-semantic-lines",
+    "audience-reward",
+}
+EXTENSION_CAPABILITY_NAMES = (
+    "trend-scan",
+    "single-work-analysis",
+    "multi-work-analysis",
+    "video-analysis",
+    "book-analysis",
+    "style-imitation",
+)
+
+
+def _safe_identifier(value: Any, field: str, *, maximum: int = 128) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", value):
+        raise ToolError("INVALID_ARGUMENT", f"{field} 必须是安全标识符。")
+    if len(value) > maximum:
+        raise ToolError("INVALID_ARGUMENT", f"{field} 过长。")
+    return value
+
+
+def _json_bytes(value: Any) -> bytes:
+    return (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+
+def _json_hash(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _atomic_bytes(path: Path, payload: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_name, path)
+    except Exception:
+        Path(temp_name).unlink(missing_ok=True)
+        raise
+
+
+def _atomic_json(path: Path, value: Any) -> None:
+    _atomic_bytes(path, _json_bytes(value))
+
+
+def _asset(path: Path, root: Path, asset_id: str, media_type: str) -> dict[str, Any]:
+    return {
+        "assetId": asset_id,
+        "relativePath": path.relative_to(root).as_posix(),
+        "mediaType": media_type,
+        "sizeBytes": path.stat().st_size,
+        "sha256": _sha256_file(path),
+    }
+
+
+def _contract_ref(contract: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "targetContractType": contract["contractType"],
+        "targetId": contract["id"],
+        "targetVersion": contract["version"],
+        "targetSchemaVersion": contract["schemaVersion"],
+        "targetHash": contract["contentHash"],
+    }
+
+
+def _approval(gate: str, confirmation: dict[str, Any], created: str) -> dict[str, Any]:
+    mode = confirmation.get("mode", "review")
+    result = {
+        "gate": gate,
+        "status": "APPROVED",
+        "mode": mode,
+        "source": confirmation.get("confirmedBy", "user"),
+        "confirmedAt": confirmation.get("confirmedAt") or created,
+    }
+    if mode == "auto":
+        authorization = confirmation.get("authorizationRef")
+        if not isinstance(authorization, str) or len(authorization) < 3:
+            raise ToolError("AUTO_CONFIRMATION_INVALID", "自动确认必须绑定已有用户授权引用。")
+        result["authorizationRef"] = authorization
+    return result
+
+
+def _extension_capabilities() -> list[dict[str, Any]]:
+    items = []
+    for capability in EXTENSION_CAPABILITY_NAMES:
+        style = capability == "style-imitation"
+        items.append(
+            {
+                "capability": capability,
+                "status": "unavailable",
+                "interfaceVersion": "1.0.0",
+                "inputContractTypes": ["source-package"],
+                "outputContractType": "writing-style-contract-v1" if style else "analysis-package-v1",
+                "reason": "对应的可插拔 Skill 尚未安装；不会伪造输出。",
+            }
+        )
+    return items
+
+
+def _next_version(current: str | None) -> str:
+    if not current:
+        return "1.0.0"
+    major, minor, patch = (int(item) for item in current.split(".")[:3])
+    return f"{major}.{minor}.{patch + 1}"
+
+
+def _read_contract(path: Path, expected_type: str) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ToolError("CONTENT_PACKAGE_INVALID", "冻结包不可读或 JSON 已损坏。", details={"path": str(path)}) from exc
+    if value.get("contractType") != expected_type or canonical_hash(value) != value.get("contentHash"):
+        raise ToolError("CONTENT_PACKAGE_HASH_MISMATCH", "冻结包类型或 canonical-json-v1 哈希无效。", details={"path": str(path)})
+    return value
+
+
+def _png_dimensions(path: Path) -> tuple[int, int]:
+    with path.open("rb") as handle:
+        header = handle.read(24)
+    if len(header) != 24 or header[:8] != b"\x89PNG\r\n\x1a\n" or header[12:16] != b"IHDR":
+        raise ToolError("THUMBNAIL_FORMAT_INVALID", "阶段4真实封面 fixture 必须是可读 PNG。")
+    return struct.unpack(">II", header[16:24])
+
+
+class ContentLoop:
+    """Freeze AI-authored content into deterministic, traceable stage-4 packages."""
+
+    def __init__(self, store: Any, sources: Any, *, plugin_root: Path | None = None) -> None:
+        self.store = store
+        self.sources = sources
+        self.plugin_root = plugin_root
+
+    def _validate_contract_schema(self, contract: dict[str, Any], schema_name: str) -> None:
+        if not self.plugin_root:
+            return
+        contracts_root = self.plugin_root.resolve().parents[1] / "contracts"
+        schema_root = contracts_root / "schemas"
+        schema_path = schema_root / schema_name
+        if not schema_path.is_file():
+            raise ToolError("CONTENT_SCHEMA_MISSING", "安装内容缺少阶段4契约 Schema。", details={"schema": schema_name})
+        try:
+            resources = []
+            for path in sorted(schema_root.glob("*.schema.json")):
+                schema = json.loads(path.read_text(encoding="utf-8"))
+                resources.append((schema["$id"], Resource.from_contents(schema)))
+            selected = json.loads(schema_path.read_text(encoding="utf-8"))
+            validator = Draft202012Validator(
+                selected,
+                registry=Registry().with_resources(resources),
+                format_checker=FormatChecker(),
+            )
+            errors = sorted(validator.iter_errors(contract), key=lambda item: list(item.absolute_path))
+        except (OSError, json.JSONDecodeError, KeyError) as exc:
+            raise ToolError("CONTENT_SCHEMA_INVALID", "安装内容中的阶段4 Schema 不可读。") from exc
+        if errors:
+            first = errors[0]
+            location = "/".join(str(item) for item in first.absolute_path) or "<root>"
+            raise ToolError(
+                "CONTENT_CONTRACT_SCHEMA_FAILED",
+                "冻结包未通过阶段4契约 Schema。",
+                details={"schema": schema_name, "location": location, "message": first.message, "errorCount": len(errors)},
+            )
+
+    def capabilities(self) -> dict[str, Any]:
+        return {
+            "contentLoopVersion": CONTENT_LOOP_VERSION,
+            "packageSchemaVersion": PACKAGE_SCHEMA_VERSION,
+            "routes": {
+                "market-original": {"available": True, "label": "目标市场原创"},
+                "channel-library": {"available": True, "label": "频道画像锚定"},
+                "provided-outline": {"available": True, "label": "用户大纲直通"},
+                "trend": {"available": False, "reason": "trend-analysis-skill-unavailable"},
+                "single-reference": {"available": False, "reason": "deconstruction-skill-unavailable"},
+                "multi-reference": {"available": False, "reason": "deconstruction-skill-unavailable"},
+            },
+            "extensionInterfaces": {
+                "analysis-package-v1": {
+                    "status": "unavailable",
+                    "consumers": ["single-reference", "multi-reference", "book-deconstruction"],
+                },
+                "writing-style-contract-v1": {"status": "unavailable", "consumers": ["imitation"]},
+                "image-provider-v1": {"status": "available", "modes": ["real", "prompt_only"]},
+            },
+            "sourceGate": {
+                "accepted": ["CONTENT_READY"],
+                "conditional": "PARTIAL requires an explicit per-source acceptance",
+            },
+            "boundaries": {
+                "workshop": False,
+                "publisherAuthorization": False,
+                "upload": False,
+                "analytics": False,
+                "longTermLearningWrite": False,
+            },
+        }
+
+    def _project_root(self, channel_profile_id: str, project_id: str) -> Path:
+        return self.store.channel_path(channel_profile_id) / "projects" / _safe_identifier(project_id, "projectId")
+
+    def _state_path(self, channel_profile_id: str, project_id: str) -> Path:
+        return self._project_root(channel_profile_id, project_id) / "content-state.json"
+
+    def _load_state(self, channel_profile_id: str, project_id: str) -> dict[str, Any]:
+        path = self._state_path(channel_profile_id, project_id)
+        if not path.is_file():
+            raise ToolError("CONTENT_PROJECT_NOT_FOUND", "没有找到指定的阶段4内容项目。")
+        try:
+            state = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ToolError("CONTENT_STATE_INVALID", "项目状态文件损坏。") from exc
+        if state.get("projectId") != project_id or state.get("channelProfileId") != channel_profile_id:
+            raise ToolError("CONTENT_STATE_IDENTITY_MISMATCH", "项目状态身份不匹配。")
+        return state
+
+    def _save_state(self, state: dict[str, Any]) -> None:
+        state["updatedAt"] = utc_now()
+        _atomic_json(self._state_path(state["channelProfileId"], state["projectId"]), state)
+
+    def start_project(
+        self,
+        *,
+        task_id: Any,
+        channel_profile_id: Any,
+        binding_proof: Any,
+        project_id: Any,
+        source_mode: Any,
+        source_packages: Any = None,
+        provided_outline: Any = None,
+        learning_snapshot: Any = None,
+        one_time_modifications: Any = None,
+        long_term_learning: Any = None,
+    ) -> dict[str, Any]:
+        self.store.assert_binding(
+            task_id=task_id, channel_profile_id=channel_profile_id, binding_proof=binding_proof
+        )
+        project_id = _safe_identifier(project_id, "projectId")
+        if source_mode not in SOURCE_MODES:
+            raise ToolError("CONTENT_ROUTE_INVALID", "不支持该选题路线。")
+        if source_mode in EXTENSION_MODES:
+            interface = "writing-style-contract-v1" if source_mode == "imitation" else "analysis-package-v1"
+            raise ToolError(
+                "CONTENT_EXTENSION_UNAVAILABLE",
+                "当前未安装该路线需要的拆解／趋势／仿写 Skill；不能从标题或来源元数据伪造内容。",
+                details={"route": source_mode, "requiredInterface": interface},
+            )
+        if long_term_learning not in (None, False, {}):
+            raise ToolError(
+                "LONG_TERM_LEARNING_FORBIDDEN",
+                "阶段4只读取频道学习快照；长期规则必须等待独立 G7 用户确认。",
+            )
+        if learning_snapshot is not None:
+            if not isinstance(learning_snapshot, dict) or learning_snapshot.get("mode") != "read_only":
+                raise ToolError("LEARNING_SNAPSHOT_INVALID", "频道学习只允许读取明确标记为 read_only 的快照。")
+        if one_time_modifications is None:
+            one_time_modifications = []
+        if not isinstance(one_time_modifications, list) or any(not isinstance(item, str) for item in one_time_modifications):
+            raise ToolError("INVALID_ARGUMENT", "oneTimeModifications 必须是字符串数组。")
+
+        outline_hash = None
+        if source_mode == "provided-outline":
+            if not isinstance(provided_outline, str) or len(provided_outline.strip()) < 80:
+                raise ToolError("OUTLINE_REQUIRED", "用户大纲直通需要至少 80 字的可辨认大纲。")
+            outline_hash = hashlib.sha256(provided_outline.encode("utf-8")).hexdigest()
+        elif provided_outline is not None:
+            raise ToolError("OUTLINE_ROUTE_MISMATCH", "只有用户大纲直通路线可以冻结 providedOutline。")
+
+        channel_summary = self.store.get_channel(channel_profile_id)
+        channel = channel_summary.get("channelProfile")
+        production = channel_summary.get("productionProfile")
+        if not isinstance(channel, dict) or not isinstance(production, dict):
+            raise ToolError("CHANNEL_CONTEXT_NOT_READY", "阶段2频道档案或生产预设尚未冻结。")
+        locks: list[dict[str, Any]] = []
+        for requested in source_packages or []:
+            if not isinstance(requested, dict) or not isinstance(requested.get("sourcePackageId"), str):
+                raise ToolError("SOURCE_REFERENCE_INVALID", "资料引用必须包含 sourcePackageId。")
+            detail = self.sources.get_source(
+                channel_profile_id=channel_profile_id,
+                source_package_id=requested["sourcePackageId"],
+            )
+            manifest = detail["manifest"]
+            if canonical_hash(manifest) != manifest.get("contentHash"):
+                raise ToolError("SOURCE_HASH_MISMATCH", "Source Package 的 canonical 哈希无效。")
+            status = manifest["status"]
+            accepted_partial = bool(requested.get("acceptPartial", False))
+            accepted_at = requested.get("acceptedAt")
+            known_limitations = requested.get("knownLimitations")
+            if status == "PARTIAL" and (
+                not accepted_partial
+                or not isinstance(accepted_at, str)
+                or not accepted_at
+                or not isinstance(known_limitations, list)
+                or not known_limitations
+                or any(not isinstance(item, str) or not item for item in known_limitations)
+            ):
+                raise ToolError(
+                    "PARTIAL_SOURCE_ACCEPTANCE_REQUIRED",
+                    "PARTIAL 资料只有在用户逐项明确接受并记录时间与已知限制后才能进入内容生产。",
+                    details={"sourcePackageId": manifest["sourcePackageId"]},
+                )
+            if status not in {"CONTENT_READY", "PARTIAL"}:
+                raise ToolError(
+                    "SOURCE_NOT_CONTENT_READY",
+                    "阶段4只接收 CONTENT_READY 或用户明确接受的 PARTIAL 资料。",
+                    details={"sourcePackageId": manifest["sourcePackageId"], "status": status},
+                )
+            locks.append(
+                {
+                    "sourcePackageId": manifest["sourcePackageId"],
+                    "version": manifest["version"],
+                    "contentHash": manifest["contentHash"],
+                    "status": status,
+                    "acceptedPartial": accepted_partial,
+                    "acceptedPartialAt": accepted_at if accepted_partial else None,
+                    "knownLimitations": known_limitations if accepted_partial else [],
+                    "provenance": manifest["provenance"],
+                    "rightsBoundary": manifest["rightsBoundary"],
+                }
+            )
+        if source_mode == "channel-library" and not locks:
+            raise ToolError("CHANNEL_SOURCE_REQUIRED", "频道画像锚定路线至少需要一份合格的频道资料。")
+
+        brief = {
+            "schemaVersion": CONTENT_LOOP_VERSION,
+            "projectId": project_id,
+            "channelProfileId": channel_profile_id,
+            "sourceMode": source_mode,
+            "channelContext": {
+                "channelProfile": _contract_ref(channel),
+                "productionProfile": _contract_ref(production),
+                "targetRegion": channel["targetRegion"],
+                "targetLanguage": channel["outputLanguage"],
+                "productionDefaults": production["defaults"],
+            },
+            "sourceLocks": locks,
+            "providedOutlineHash": outline_hash,
+            "learningSnapshot": learning_snapshot,
+            "oneTimeModifications": one_time_modifications,
+            "extensions": _extension_capabilities(),
+        }
+        request_hash = _json_hash(brief)
+        state_path = self._state_path(channel_profile_id, project_id)
+        if state_path.is_file():
+            existing = self._load_state(channel_profile_id, project_id)
+            if existing.get("requestHash") != request_hash:
+                raise ToolError("CONTENT_PROJECT_EXISTS", "同一 projectId 已绑定不同内容简报；不会覆盖旧项目。")
+            return {"state": existing, "idempotent": True, "confirmationCard": existing["confirmationCard"]}
+
+        root = self._project_root(channel_profile_id, project_id)
+        root.mkdir(parents=True, exist_ok=False)
+        if provided_outline is not None:
+            _atomic_bytes(root / "provided-outline-v001.txt", provided_outline.encode("utf-8"))
+        _atomic_json(root / "content-brief-v001.json", brief)
+        created = utc_now()
+        state = {
+            "schemaVersion": CONTENT_LOOP_VERSION,
+            "projectId": project_id,
+            "channelProfileId": channel_profile_id,
+            "sourceMode": source_mode,
+            "targetRegion": channel["targetRegion"],
+            "targetLanguage": channel["outputLanguage"],
+            "state": "DRAFT_BRIEF",
+            "createdAt": created,
+            "updatedAt": created,
+            "requestHash": request_hash,
+            "briefPath": "content-brief-v001.json",
+            "sourceLocks": locks,
+            "topicCheckpoint": {"version": "1.0.0", "completedUnits": 0, "candidateIds": [], "items": []},
+            "activePackages": {"topic": None, "manuscript": None, "publishing": None},
+            "invalidations": [],
+            "oneTimeModifications": one_time_modifications,
+            "learningSnapshotMode": "read_only" if learning_snapshot else "none",
+            "confirmationCard": {
+                "gate": "G2",
+                "targetRegion": channel["targetRegion"],
+                "targetLanguage": channel["outputLanguage"],
+                "sourceMode": source_mode,
+                "sourceCount": len(locks),
+                "partialAcceptedCount": sum(1 for item in locks if item["status"] == "PARTIAL"),
+                "next": "生成完整候选并逐项写入检查点",
+            },
+        }
+        self._save_state(state)
+        return {"state": state, "idempotent": False, "confirmationCard": state["confirmationCard"]}
+
+    def _validate_claims(self, claims: Any, source_locks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if not isinstance(claims, list) or not claims:
+            raise ToolError("EVIDENCE_REQUIRED", "候选必须保留 fact／inference／unknown 分类和来源边界。")
+        source_index = {
+            (item["sourcePackageId"], item["version"], item["contentHash"]): item
+            for item in source_locks
+        }
+        seen: set[str] = set()
+        normalized: list[dict[str, Any]] = []
+        for claim in claims:
+            if not isinstance(claim, dict) or claim.get("classification") not in {"fact", "inference", "unknown"}:
+                raise ToolError("EVIDENCE_CLASSIFICATION_INVALID", "证据分类只允许 fact、inference、unknown。")
+            claim_id = _safe_identifier(claim.get("claimId"), "claimId")
+            if claim_id in seen or not isinstance(claim.get("statement"), str) or not claim["statement"].strip():
+                raise ToolError("EVIDENCE_CLAIM_INVALID", "证据声明必须有唯一 ID 和非空内容。")
+            seen.add(claim_id)
+            raw_sources = claim.get("sources")
+            if raw_sources is None:
+                raw_sources = [
+                    {
+                        "sourcePackage": {
+                            "targetContractType": "source-package",
+                            "targetId": reference.get("sourcePackageId"),
+                            "targetVersion": reference.get("version"),
+                            "targetSchemaVersion": PACKAGE_SCHEMA_VERSION,
+                            "targetHash": reference.get("contentHash"),
+                        },
+                        "locator": reference.get("locator", "frozen-source-package"),
+                    }
+                    for reference in claim.get("sourceRefs") or []
+                ]
+            clean_sources = []
+            for reference in raw_sources:
+                package_ref = reference.get("sourcePackage", {}) if isinstance(reference, dict) else {}
+                key = (package_ref.get("targetId"), package_ref.get("targetVersion"), package_ref.get("targetHash"))
+                if key not in source_index or package_ref.get("targetContractType") != "source-package":
+                    raise ToolError("EVIDENCE_SOURCE_MISMATCH", "证据声明引用了未冻结或哈希不匹配的资料版本。")
+                clean_sources.append(
+                    {
+                        "sourcePackage": {
+                            "targetContractType": "source-package",
+                            "targetId": key[0],
+                            "targetVersion": key[1],
+                            "targetSchemaVersion": PACKAGE_SCHEMA_VERSION,
+                            "targetHash": key[2],
+                        },
+                        "locator": reference.get("locator") or source_index[key]["provenance"]["locator"],
+                    }
+                )
+            classification = claim["classification"]
+            if classification in {"fact", "inference"} and not clean_sources:
+                raise ToolError("EVIDENCE_SOURCE_REQUIRED", "fact 与 inference 必须绑定冻结资料来源。")
+            if classification == "unknown" and clean_sources:
+                raise ToolError("UNKNOWN_SOURCE_INVALID", "unknown 必须明确无可核验来源，不能伪装成事实。")
+            item = {
+                "claimId": claim_id,
+                "classification": classification,
+                "statement": claim["statement"],
+                "sources": clean_sources,
+            }
+            if classification in {"fact", "inference"}:
+                confidence = claim.get("confidence")
+                if not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or not 0 <= confidence <= 1:
+                    raise ToolError("EVIDENCE_CONFIDENCE_INVALID", "fact 与 inference 需要 0–1 的置信度。")
+                item["confidence"] = confidence
+            normalized.append(item)
+        return normalized
+
+    def _validate_candidate(self, candidate: Any, state: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(candidate, dict):
+            raise ToolError("TOPIC_CANDIDATE_INVALID", "完整候选必须是对象。")
+        required = {
+            "candidateId",
+            "audience",
+            "evidenceClaims",
+            "storyDriver",
+            "coreSellingPoints",
+            "worldRules",
+            "storyFacts",
+            "characters",
+            "completeOutline",
+            "episodePlots",
+            "productionRecommendation",
+            "scores",
+            "strengths",
+            "risks",
+            "packagingBrief",
+        }
+        missing = sorted(required - set(candidate))
+        if missing:
+            raise ToolError("TOPIC_CANDIDATE_INVALID", "完整候选缺少字段。", details={"missing": missing})
+        _safe_identifier(candidate["candidateId"], "candidateId")
+        audience = candidate["audience"]
+        audience_required = {"region", "targetLanguage", "locale", "commercialOrientation"}
+        if (
+            not isinstance(audience, dict)
+            or set(audience) != audience_required
+            or audience.get("targetLanguage") != state["targetLanguage"]
+            or audience.get("region") != state["targetRegion"]
+            or audience.get("commercialOrientation") not in {"male-oriented", "female-oriented", "general"}
+        ):
+            raise ToolError("TOPIC_LANGUAGE_MISMATCH", "候选受众语言必须与频道目标语言一致。")
+        candidate["evidenceClaims"] = self._validate_claims(candidate["evidenceClaims"], state["sourceLocks"])
+        for key in ("coreSellingPoints", "worldRules", "characters", "episodePlots", "strengths"):
+            if not isinstance(candidate[key], list) or not candidate[key]:
+                raise ToolError("TOPIC_CANDIDATE_INVALID", f"{key} 必须是非空数组。")
+        if not isinstance(candidate["risks"], list):
+            raise ToolError("TOPIC_CANDIDATE_INVALID", "risks 必须是数组。")
+        story_facts = candidate["storyFacts"]
+        fact_keys = {"lockedFacts", "worldRules", "relationships", "climax", "ending"}
+        if not isinstance(story_facts, dict) or set(story_facts) != fact_keys:
+            raise ToolError("STORY_FACTS_INVALID", "故事事实必须冻结事实、世界规则、关系、高潮和结局。")
+        if any(not isinstance(story_facts[key], list) or not story_facts[key] for key in ("lockedFacts", "worldRules", "relationships")):
+            raise ToolError("STORY_FACTS_INVALID", "故事事实数组不能为空。")
+        outline = candidate["completeOutline"]
+        if not isinstance(outline, dict) or set(outline) != {"opening", "development", "climax", "ending"}:
+            raise ToolError("TOPIC_OUTLINE_INCOMPLETE", "候选需要有开端、发展、高潮与结局的完整大纲。")
+        if sum(len(str(value)) for value in outline.values()) < 80:
+            raise ToolError("TOPIC_OUTLINE_INCOMPLETE", "完整大纲信息不足。")
+        recommendation = candidate["productionRecommendation"]
+        if not isinstance(recommendation, dict):
+            raise ToolError("PRODUCTION_RECOMMENDATION_INVALID", "生产建议必须是对象。")
+        for key in ("targetCharacters", "estimatedDurationSeconds", "episodeCount"):
+            value = recommendation.get(key)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+                raise ToolError("PRODUCTION_RECOMMENDATION_INVALID", "篇幅、时长和集数必须是精确正整数。")
+        if not isinstance(recommendation.get("reason"), str) or not recommendation["reason"]:
+            raise ToolError("PRODUCTION_RECOMMENDATION_INVALID", "生产建议需要说明理由。")
+        if len(candidate["episodePlots"]) != recommendation["episodeCount"]:
+            raise ToolError("EPISODE_COUNT_MISMATCH", "逐集剧情数量必须等于精确推荐集数。")
+        for number, episode in enumerate(candidate["episodePlots"], 1):
+            if not isinstance(episode, dict) or set(episode) != {"episodeNumber", "startState", "progress", "audienceReward", "endState"} or episode["episodeNumber"] != number:
+                raise ToolError("EPISODE_PLOT_INVALID", "逐集剧情字段或顺序无效。")
+        scores = candidate["scores"]
+        if not isinstance(scores, dict) or set(scores) != set(SCORE_KEYS):
+            raise ToolError("TOPIC_SCORES_INVALID", "七项评分名称不完整或出现额外字段。")
+        if any(not isinstance(scores[key], (int, float)) or isinstance(scores[key], bool) or not 0 <= scores[key] <= 10 for key in SCORE_KEYS):
+            raise ToolError("TOPIC_SCORES_INVALID", "七项评分必须在 0–10 之间。")
+        packaging = candidate["packagingBrief"]
+        if not isinstance(packaging, dict) or not all(
+            isinstance(packaging.get(key), str) and packaging[key].strip()
+            for key in ("titleInformationDirection", "thumbnailVisualTask", "videoPresentationDirection")
+        ):
+            raise ToolError("PACKAGING_BRIEF_INVALID", "候选必须保存完整的后续包装任务，但不得冒充正式资产。")
+        return json.loads(json.dumps(candidate, ensure_ascii=False))
+
+    def checkpoint_topic(
+        self,
+        *,
+        task_id: Any,
+        channel_profile_id: Any,
+        binding_proof: Any,
+        project_id: Any,
+        candidate_number: Any,
+        candidate: Any,
+    ) -> dict[str, Any]:
+        self.store.assert_binding(task_id=task_id, channel_profile_id=channel_profile_id, binding_proof=binding_proof)
+        project_id = _safe_identifier(project_id, "projectId")
+        state = self._load_state(channel_profile_id, project_id)
+        checkpoint = state["topicCheckpoint"]
+        expected = checkpoint["completedUnits"] + 1
+        if candidate_number != expected:
+            raise ToolError("TOPIC_CHECKPOINT_SEQUENCE", "每次只能追加下一个缺失候选，completedUnits 只能增加 1。", details={"expected": expected})
+        maximum = 10 if state["sourceMode"] == "channel-library" else 1 if state["sourceMode"] == "provided-outline" else 6
+        if candidate_number > maximum:
+            raise ToolError("TOPIC_CANDIDATE_LIMIT", "候选数量超过当前路线允许上限。")
+        candidate = self._validate_candidate(candidate, state)
+        if candidate["candidateId"] in checkpoint["candidateIds"]:
+            raise ToolError("TOPIC_CANDIDATE_DUPLICATE", "候选 ID 已存在。")
+        topic_root = self._project_root(channel_profile_id, project_id) / "topic"
+        candidate_path = topic_root / "candidates" / f"{candidate_number:02d}-{candidate['candidateId']}.json"
+        _atomic_json(candidate_path, candidate)
+        checkpoint["completedUnits"] = candidate_number
+        checkpoint["candidateIds"].append(candidate["candidateId"])
+        checkpoint["lastCandidateHash"] = _json_hash(candidate)
+        checkpoint["updatedAt"] = utc_now()
+        checkpoint["items"].append(
+            {
+                "unitNumber": candidate_number,
+                "candidateId": candidate["candidateId"],
+                "status": "COMPLETED",
+                "contentHash": checkpoint["lastCandidateHash"],
+                "completedAt": checkpoint["updatedAt"],
+            }
+        )
+        state["state"] = "GENERATING_CANDIDATES"
+        partial = {
+            "schemaVersion": CONTENT_LOOP_VERSION,
+            "projectId": project_id,
+            "sourceMode": state["sourceMode"],
+            "checkpoint": checkpoint,
+            "candidateFiles": [
+                path.relative_to(topic_root).as_posix()
+                for path in sorted((topic_root / "candidates").glob("*.json"))
+            ],
+            "synthetic": False,
+        }
+        _atomic_json(topic_root / "topic-candidates-v001.partial.json", partial)
+        self._save_state(state)
+        required_total = 10 if state["sourceMode"] == "channel-library" else 1 if state["sourceMode"] == "provided-outline" else None
+        return {
+            "checkpoint": checkpoint,
+            "progress": f"topic {candidate_number}/{required_total or '3-6'}",
+            "isComplete": candidate_number == required_total if required_total else candidate_number >= 3,
+            "note": "检查点只代表已实际落盘的完整候选；不会把测试小样本宣称为频道 10 候选。",
+        }
+
+    def _load_candidates(self, state: dict[str, Any]) -> list[dict[str, Any]]:
+        root = self._project_root(state["channelProfileId"], state["projectId"]) / "topic" / "candidates"
+        candidates = [json.loads(path.read_text(encoding="utf-8")) for path in sorted(root.glob("*.json"))]
+        if len(candidates) != state["topicCheckpoint"]["completedUnits"]:
+            raise ToolError("TOPIC_CHECKPOINT_MISMATCH", "候选文件数与检查点不一致。")
+        return candidates
+
+    def finalize_topic(
+        self,
+        *,
+        task_id: Any,
+        channel_profile_id: Any,
+        binding_proof: Any,
+        project_id: Any,
+        ranking: Any,
+        selected_candidate_id: Any,
+        selection_reasons: Any,
+        confirmation: Any,
+    ) -> dict[str, Any]:
+        self.store.assert_binding(task_id=task_id, channel_profile_id=channel_profile_id, binding_proof=binding_proof)
+        project_id = _safe_identifier(project_id, "projectId")
+        state = self._load_state(channel_profile_id, project_id)
+        candidates = self._load_candidates(state)
+        required = 10 if state["sourceMode"] == "channel-library" else 1 if state["sourceMode"] == "provided-outline" else None
+        if required is not None and len(candidates) != required:
+            raise ToolError("TOPIC_CANDIDATES_INCOMPLETE", "当前路线的完整候选尚未全部落盘。", details={"required": required, "actual": len(candidates)})
+        if required is None and not 3 <= len(candidates) <= 6:
+            raise ToolError("TOPIC_CANDIDATES_INCOMPLETE", "普通原创路线需要 3–6 个完整且不同的候选。")
+        ids = [item["candidateId"] for item in candidates]
+        if not isinstance(ranking, list) or len(ranking) != len(ids) or set(ranking) != set(ids) or len(set(ranking)) != len(ranking):
+            raise ToolError("TOPIC_RANKING_INVALID", "连续排名必须完整且只包含全部真实候选。")
+        if selected_candidate_id not in ids or ranking[0] != selected_candidate_id:
+            raise ToolError("TOPIC_SELECTION_INVALID", "唯一入选方案必须存在且与排名第一一致。")
+        if not isinstance(selection_reasons, dict) or set(selection_reasons) != set(ids):
+            raise ToolError("TOPIC_SELECTION_REASONS_INVALID", "必须保留每个候选的入选或未入选理由。")
+        if not isinstance(confirmation, dict) or confirmation.get("confirmed") is not True:
+            state["state"] = "AWAITING_SELECTION"
+            self._save_state(state)
+            raise ToolError("TOPIC_CONFIRMATION_REQUIRED", "G3 未确认，不能冻结 Topic Package v1。")
+        selected = next(item for item in candidates if item["candidateId"] == selected_candidate_id)
+        channel_summary = self.store.get_channel(channel_profile_id)
+        channel = channel_summary["channelProfile"]
+        production = channel_summary["productionProfile"]
+        version = _next_version((state["activePackages"]["topic"] or {}).get("version"))
+        topic_id = f"topic_{project_id}_v{version.replace('.', '_')}"
+        evidence_by_id: dict[str, dict[str, Any]] = {}
+        for candidate in candidates:
+            for claim in candidate["evidenceClaims"]:
+                existing_claim = evidence_by_id.get(claim["claimId"])
+                if existing_claim is not None and existing_claim != claim:
+                    raise ToolError("EVIDENCE_CLAIM_CONFLICT", "不同候选使用了同一 claimId 表达不同证据。")
+                evidence_by_id[claim["claimId"]] = claim
+        evidence = list(evidence_by_id.values())
+        upstream = [_contract_ref(channel), _contract_ref(production)]
+        upstream.extend(
+            {
+                "targetContractType": "source-package",
+                "targetId": item["sourcePackageId"],
+                "targetVersion": item["version"],
+                "targetSchemaVersion": PACKAGE_SCHEMA_VERSION,
+                "targetHash": item["contentHash"],
+            }
+            for item in state["sourceLocks"]
+        )
+        created = utc_now()
+        contract_candidates = [
+            {
+                "candidateId": item["candidateId"],
+                "storyDriver": item["storyDriver"],
+                "coreSellingPoints": item["coreSellingPoints"],
+                "worldRules": item["worldRules"],
+                "characters": item["characters"],
+                "completeOutline": item["completeOutline"],
+                "episodePlots": item["episodePlots"],
+                "productionRecommendation": item["productionRecommendation"],
+                "scores": item["scores"],
+                "strengths": item["strengths"],
+                "risks": item["risks"],
+                "evidenceClaimIds": [claim["claimId"] for claim in item["evidenceClaims"]],
+            }
+            for item in candidates
+        ]
+        source_inputs = []
+        for item in state["sourceLocks"]:
+            source_input = {
+                "sourcePackage": {
+                    "targetContractType": "source-package",
+                    "targetId": item["sourcePackageId"],
+                    "targetVersion": item["version"],
+                    "targetSchemaVersion": PACKAGE_SCHEMA_VERSION,
+                    "targetHash": item["contentHash"],
+                },
+                "acceptedStatus": item["status"],
+            }
+            if item["status"] == "PARTIAL":
+                source_input["partialAcceptance"] = {
+                    "accepted": True,
+                    "acceptedBy": "user",
+                    "acceptedAt": item["acceptedPartialAt"],
+                    "knownLimitations": item["knownLimitations"],
+                }
+            source_inputs.append(source_input)
+        snapshot = None
+        brief = json.loads((self._project_root(channel_profile_id, project_id) / state["briefPath"]).read_text(encoding="utf-8"))
+        raw_snapshot = brief.get("learningSnapshot")
+        if raw_snapshot and all(raw_snapshot.get(key) for key in ("profileId", "version", "contentHash")):
+            snapshot = {key: raw_snapshot[key] for key in ("profileId", "version", "contentHash")}
+        learning_context = {
+            "accessMode": "read-only-snapshot",
+            "snapshot": snapshot,
+            "currentProjectChanges": [
+                {"changeId": f"change-{index:03d}", "scope": "current_only", "summary": summary}
+                for index, summary in enumerate(state["oneTimeModifications"], 1)
+            ],
+            "longTermWriteAllowed": False,
+        }
+        route = {
+            "channel-library": "channel-profile-anchored",
+            "provided-outline": "provided-outline",
+            "market-original": "original",
+        }[state["sourceMode"]]
+        approval = _approval("G3_TOPIC", confirmation, created)
+        backup_ids = ranking[1:3] if len(ranking) > 1 else []
+        contract = with_hash(
+            {
+                "schemaVersion": PACKAGE_SCHEMA_VERSION,
+                "contractType": "topic-package",
+                "id": topic_id,
+                "version": version,
+                "createdAt": created,
+                "hashAlgorithm": "SHA-256",
+                "hashRule": "canonical-json-v1",
+                "upstream": upstream,
+                "topicPackageId": topic_id,
+                "projectId": project_id,
+                "channelProfileId": channel_profile_id,
+                "status": "TOPIC_SELECTED",
+                "route": route,
+                "sourceMode": state["sourceMode"],
+                "audience": selected["audience"],
+                "sourceInputs": source_inputs,
+                "evidence": evidence,
+                "extensionCapabilities": _extension_capabilities(),
+                "learningContext": learning_context,
+                "candidates": contract_candidates,
+                "ranking": [
+                    {
+                        "rank": index,
+                        "candidateId": candidate_id,
+                        "overallScore": next(item for item in candidates if item["candidateId"] == candidate_id)["scores"]["overall"],
+                        "decision": "selected" if index == 1 else "backup" if index <= 3 else "not-selected",
+                        "reason": selection_reasons[candidate_id],
+                    }
+                    for index, candidate_id in enumerate(ranking, 1)
+                ],
+                "selection": {
+                    "primaryCandidateId": selected_candidate_id,
+                    "backupCandidateIds": backup_ids,
+                    "policy": "provided-outline-only" if state["sourceMode"] == "provided-outline" else "auto-best" if confirmation.get("mode") == "auto" else "user-choice",
+                },
+                "selectedCandidateId": selected_candidate_id,
+                "selectionConfirmation": approval,
+                "checkpoints": {
+                    "applicable": state["sourceMode"] == "channel-library",
+                    "totalUnits": required or len(candidates),
+                    "completedUnits": len(candidates),
+                    "items": state["topicCheckpoint"]["items"],
+                },
+                "storyFacts": selected["storyFacts"],
+                "storyFactsHash": _json_hash(selected["storyFacts"]),
+                "productionRecommendation": selected["productionRecommendation"],
+                "packagingBrief": selected["packagingBrief"],
+            }
+        )
+        self._validate_contract_schema(contract, "topic-package.schema.json")
+        root = self._project_root(channel_profile_id, project_id) / "topic-package" / f"v{version}"
+        _atomic_json(root / "manifest.json", contract)
+        _atomic_json(root / "source-lock.json", {"sources": state["sourceLocks"], "evidenceClaims": evidence})
+        _atomic_json(root / "topic-selection-card.json", {"ranking": contract["ranking"], "selectedCandidateId": selected_candidate_id})
+        previous = state["activePackages"]["topic"]
+        if previous:
+            state["invalidations"].append({"at": created, "reason": "new-topic-version", "invalidated": ["manuscript", "publishing"]})
+            state["activePackages"]["manuscript"] = None
+            state["activePackages"]["publishing"] = None
+        state["activePackages"]["topic"] = {"id": topic_id, "version": version, "hash": contract["contentHash"], "path": str(root / "manifest.json")}
+        state["state"] = "TOPIC_SELECTED"
+        self._save_state(state)
+        return {"package": contract, "packagePath": str(root), "confirmationCard": {"gate": "G3", "confirmed": True}}
+
+    def _validate_lines(self, lines: Any, episode_count: int, *, field: str) -> list[dict[str, Any]]:
+        if not isinstance(lines, list) or not lines:
+            raise ToolError("SCRIPT_LINES_INVALID", f"{field} 必须是非空行数组。")
+        seen: set[str] = set()
+        expected_global = 1
+        per_episode: dict[int, int] = {index: 1 for index in range(1, episode_count + 1)}
+        normalized: list[dict[str, Any]] = []
+        for line in lines:
+            if not isinstance(line, dict) or "lineId" not in line or "emotion" not in line or "text" not in line:
+                raise ToolError("SCRIPT_LINES_INVALID", f"{field} 行字段不完整。")
+            line_id = _safe_identifier(line["lineId"], "lineId")
+            episode = line.get("episodeNumber", line.get("episode"))
+            sequence = line.get("sequence", line.get("order"))
+            speaker_id = line.get("speakerId", line.get("speaker"))
+            line_type = line.get("lineType", line.get("type"))
+            if line_id in seen or not isinstance(episode, int) or not 1 <= episode <= episode_count:
+                raise ToolError("SCRIPT_LINES_INVALID", f"{field} 行 ID 重复或集号无效。")
+            if sequence != per_episode[episode] or line.get("globalOrder", expected_global) != expected_global:
+                raise ToolError("SCRIPT_ORDER_INVALID", f"{field} 的集内或全局顺序不连续。")
+            if line_type not in {"narration", "dialogue"} or not isinstance(speaker_id, str) or not speaker_id or not all(
+                isinstance(line[key], str) and line[key].strip() for key in ("emotion", "text")
+            ):
+                raise ToolError("SCRIPT_LINES_INVALID", f"{field} 的说话人、类型、情绪或文本无效。")
+            seen.add(line_id)
+            per_episode[episode] += 1
+            expected_global += 1
+            normalized.append(
+                {
+                    "lineId": line_id,
+                    "episodeNumber": episode,
+                    "sequence": sequence,
+                    "speakerId": speaker_id,
+                    "lineType": line_type,
+                    "emotion": line["emotion"],
+                    "text": line["text"],
+                }
+            )
+        if set(line["episodeNumber"] for line in normalized) != set(range(1, episode_count + 1)):
+            raise ToolError("SCRIPT_EPISODE_MISSING", f"{field} 没有覆盖全部分集。")
+        return normalized
+
+    def finalize_manuscript(
+        self,
+        *,
+        task_id: Any,
+        channel_profile_id: Any,
+        binding_proof: Any,
+        project_id: Any,
+        story_bible: Any,
+        characters: Any,
+        target_script: Any,
+        chinese_audit_script: Any,
+        quality_gate: Any,
+        confirmation: Any,
+        authoring_mode: Any = "target-language-native",
+    ) -> dict[str, Any]:
+        self.store.assert_binding(task_id=task_id, channel_profile_id=channel_profile_id, binding_proof=binding_proof)
+        project_id = _safe_identifier(project_id, "projectId")
+        state = self._load_state(channel_profile_id, project_id)
+        topic_ref = state["activePackages"]["topic"]
+        if not topic_ref:
+            raise ToolError("TOPIC_PACKAGE_REQUIRED", "必须先确认并冻结 Topic Package v1。")
+        topic = _read_contract(Path(topic_ref["path"]), "topic-package")
+        if authoring_mode != "target-language-native":
+            raise ToolError("MANUSCRIPT_AUTHORING_MODE_INVALID", "目标语言原生稿必须是唯一生产母稿。")
+        if not isinstance(story_bible, dict) or story_bible.get("sourceStoryFactsHash", story_bible.get("lockedStoryFactsHash")) != topic["storyFactsHash"]:
+            raise ToolError("STORY_BIBLE_MISMATCH", "Story Bible 必须绑定已确认选题的故事事实哈希。")
+        story_fields = ("lockedFacts", "worldRules", "relationships", "timeline", "foreshadowing", "climax", "ending")
+        if any(key not in story_bible for key in story_fields):
+            raise ToolError("STORY_BIBLE_INVALID", "Story Bible 缺少事实、时间线、伏笔、高潮或结局。")
+        if not isinstance(characters, list) or not characters:
+            raise ToolError("CHARACTER_PACK_INVALID", "角色包至少包含一名持续出场的主要角色。")
+        contract_characters: list[dict[str, Any]] = []
+        voices: list[dict[str, Any]] = []
+        for character in characters:
+            voice = character.get("voice") if isinstance(character, dict) else None
+            if not isinstance(voice, dict) or not all(isinstance(voice.get(key), str) and voice[key] for key in ("engineId", "voiceId", "voiceName", "catalogVersion", "catalogHash")):
+                raise ToolError("VOICE_LOCK_INVALID", "每个实际配音角色必须冻结真实引擎、音色 ID 和名称。")
+            if not re.fullmatch(r"[0-9a-f]{64}", voice["catalogHash"]):
+                raise ToolError("VOICE_LOCK_INVALID", "音色目录哈希无效。")
+            required_character = {
+                "characterId", "targetLanguageName", "role", "goal", "relationship",
+                "speakingStyle", "visualConsistencyRequired",
+            }
+            if not required_character.issubset(character):
+                raise ToolError("CHARACTER_PACK_INVALID", "角色缺少目标语言姓名、目标、关系或说话特征。")
+            clean_character = {key: character[key] for key in required_character}
+            if "aliases" in character:
+                clean_character["aliases"] = character["aliases"]
+            if character["visualConsistencyRequired"]:
+                if not isinstance(character.get("visualAnchorPromptZh"), str) or not character["visualAnchorPromptZh"]:
+                    raise ToolError("CHARACTER_VISUAL_ANCHOR_REQUIRED", "持续视觉角色必须提供中文单人锚点提示词。")
+                clean_character["visualAnchorPromptZh"] = character["visualAnchorPromptZh"]
+            contract_characters.append(clean_character)
+            voices.append(
+                {
+                    "speakerId": character["characterId"],
+                    "engine": voice["engineId"],
+                    "voiceId": voice["voiceId"],
+                    "voiceName": voice["voiceName"],
+                    "bindingStatus": "BOUND",
+                    "catalogVersion": voice["catalogVersion"],
+                    "catalogHash": voice["catalogHash"],
+                }
+            )
+        episode_count = topic["productionRecommendation"]["episodeCount"]
+        target_lines = self._validate_lines(target_script, episode_count, field="targetScript")
+        target_language = topic["audience"]["targetLanguage"]
+        if target_language.startswith("zh"):
+            if chinese_audit_script not in (None, target_script) and chinese_audit_script != target_script:
+                raise ToolError("CHINESE_AUDIT_DUPLICATED", "中文目标稿不生成第二份回译；审核稿必须直接复用母稿。")
+            audit_lines = target_lines
+            audit_mode = "TARGET_IS_CHINESE"
+        else:
+            audit_lines = self._validate_lines(chinese_audit_script, episode_count, field="chineseAuditScript")
+            if len(audit_lines) != len(target_lines):
+                raise ToolError("SCRIPT_MAPPING_MISMATCH", "中文回译与目标语言母稿行数不一致。")
+            mapping_keys = ("lineId", "episodeNumber", "sequence", "speakerId", "lineType", "emotion")
+            for target, audit in zip(target_lines, audit_lines, strict=True):
+                if any(target[key] != audit[key] for key in mapping_keys):
+                    raise ToolError("SCRIPT_MAPPING_MISMATCH", "行 ID、集、顺序、说话人、类型或情绪映射错误。", details={"lineId": target["lineId"]})
+            audit_mode = "LINE_BY_LINE_BACKTRANSLATION"
+        if not isinstance(quality_gate, dict) or quality_gate.get("passed") is not True:
+            raise ToolError("MANUSCRIPT_QUALITY_GATE_FAILED", "合并质量门未通过，不能冻结正式文稿。")
+        episodes = quality_gate.get("episodes")
+        if not isinstance(episodes, list) or len(episodes) != episode_count:
+            raise ToolError("MANUSCRIPT_QUALITY_GATE_INVALID", "每集必须且只能有一次合并质量门记录。")
+        for number, gate in enumerate(episodes, 1):
+            checks = gate.get("checks") if isinstance(gate, dict) else None
+            if gate.get("episode") != number or gate.get("passed") is not True or not isinstance(checks, dict):
+                raise ToolError("MANUSCRIPT_QUALITY_GATE_INVALID", "分集质量门顺序或状态无效。")
+            if set(checks) != QUALITY_CHECKS or not all(checks.values()) or not 0 <= gate.get("revisionCount", 0) <= 3:
+                raise ToolError("MANUSCRIPT_QUALITY_GATE_INVALID", "质量门硬项不完整、未通过或定向优化超过三轮。")
+        actual_characters = sum(len(line["text"]) for line in target_lines)
+        target_characters = topic["productionRecommendation"]["targetCharacters"]
+        tolerance = max(1, round(target_characters * 0.05))
+        if abs(actual_characters - target_characters) > tolerance:
+            raise ToolError(
+                "MANUSCRIPT_LENGTH_OUT_OF_RANGE",
+                "正式母稿篇幅不在选题锁定目标的 ±5% 容差内。",
+                details={"target": target_characters, "actual": actual_characters, "tolerance": tolerance},
+            )
+        if not isinstance(confirmation, dict) or confirmation.get("confirmed") is not True:
+            state["state"] = "AWAITING_JOINT_REVIEW"
+            self._save_state(state)
+            raise ToolError("MANUSCRIPT_CONFIRMATION_REQUIRED", "G4 未联合确认，不能冻结 Manuscript Package v1。")
+
+        version = _next_version((state["activePackages"]["manuscript"] or {}).get("version"))
+        manuscript_id = f"manuscript_{project_id}_v{version.replace('.', '_')}"
+        root = self._project_root(channel_profile_id, project_id) / "manuscript-package" / f"v{version}"
+        story_core = {key: story_bible[key] for key in story_fields}
+        story_contract = {
+            "version": "1.0.0",
+            "contentHash": _json_hash(story_core),
+            "sourceStoryFactsHash": topic["storyFactsHash"],
+            **story_core,
+        }
+        _atomic_json(root / "story-bible.json", story_contract)
+        _atomic_json(root / "narrative-character-pack.json", {"characters": contract_characters, "voices": voices})
+        _atomic_json(root / "target-script.json", {"language": target_language, "lines": target_lines})
+        target_txt = "\n".join(f"[{line['lineId']}] {line['speakerId']}: {line['text']}" for line in target_lines) + "\n"
+        audit_txt = "\n".join(f"[{line['lineId']}] {line['speakerId']}: {line['text']}" for line in audit_lines) + "\n"
+        _atomic_bytes(root / "target-script.txt", target_txt.encode("utf-8"))
+        if not target_language.startswith("zh"):
+            _atomic_json(root / "chinese-audit-script.json", {"language": "zh-CN", "lines": audit_lines})
+            _atomic_bytes(root / "chinese-audit-script.txt", audit_txt.encode("utf-8"))
+        mapping_mode = "same-as-target" if target_language.startswith("zh") else "backtranslation"
+        mapping = {
+            "status": "PASSED",
+            "mappingMode": mapping_mode,
+            "targetLineCount": len(target_lines),
+            "auditLineCount": len(audit_lines),
+            "checks": {
+                "lineIdsMatch": True,
+                "episodeNumbersMatch": True,
+                "sequenceMatches": True,
+                "speakersMatch": True,
+                "lineTypesMatch": True,
+                "emotionsMatch": True,
+            },
+            "items": [
+                {
+                    "targetLineId": target["lineId"],
+                    "auditLineId": audit["lineId"],
+                    "episodeNumber": target["episodeNumber"],
+                    "sequence": target["sequence"],
+                    "speakerId": target["speakerId"],
+                    "lineType": target["lineType"],
+                    "emotion": target["emotion"],
+                }
+                for target, audit in zip(target_lines, audit_lines, strict=True)
+            ],
+        }
+        _atomic_json(root / "line-mapping-validation.json", mapping)
+        created = utc_now()
+        target_script_hash = _json_hash(target_lines)
+        quality_episode_results = []
+        quality_revision_rounds = 0
+        quality_key_map = {
+            "locked-facts": "storyFacts",
+            "story-progress": "progressAndStateChange",
+            "character-voice": "characterVoice",
+            "target-language-naturalness": "targetLanguageNaturalness",
+            "regional-expression": "regionalExpression",
+            "terminology-consistency": "terminologyConsistency",
+            "tts-semantic-lines": "ttsSemanticBoundaries",
+            "audience-reward": "audienceRetelling",
+        }
+        for gate in episodes:
+            quality_revision_rounds = max(quality_revision_rounds, gate.get("revisionCount", 0))
+            quality_episode_results.append(
+                {
+                    "episodeNumber": gate["episode"],
+                    "status": "PASSED",
+                    "checks": {output: bool(gate["checks"][source]) for source, output in quality_key_map.items()},
+                }
+            )
+        quality_core = {
+            "version": "1.0.0",
+            "targetScriptHash": target_script_hash,
+            "status": "PASSED",
+            "revisionRounds": quality_revision_rounds,
+            "episodeResults": quality_episode_results,
+        }
+        quality_contract = {**quality_core, "contentHash": _json_hash(quality_core)}
+        _atomic_json(root / "target-script-quality-gate.json", quality_contract)
+        target_script_contract = {
+            "version": "1.0.0",
+            "contentHash": target_script_hash,
+            "role": "target-language-production-master",
+            "isSoleProductionSource": True,
+            "asset": _asset(root / "target-script.json", root, "target-script", "application/json"),
+            "textAsset": _asset(root / "target-script.txt", root, "target-script-text", "text/plain"),
+            "lines": target_lines,
+        }
+        audit_script_core = {
+            "version": "1.0.0",
+            "language": "zh-CN",
+            "mode": mapping_mode,
+            "sourceTargetScriptHash": target_script_hash,
+            "productionUseAllowed": False,
+            "duplicateFileCreated": not target_language.startswith("zh"),
+        }
+        if target_language.startswith("zh"):
+            audit_script_core["targetScriptReference"] = "targetScript"
+            audit_content = {"mode": mapping_mode, "targetScriptHash": target_script_hash}
+        else:
+            audit_script_core["asset"] = _asset(root / "chinese-audit-script.json", root, "chinese-audit-script", "application/json")
+            audit_script_core["textAsset"] = _asset(root / "chinese-audit-script.txt", root, "chinese-audit-script-text", "text/plain")
+            audit_script_core["lines"] = audit_lines
+            audit_content = audit_lines
+        audit_script_contract = {**audit_script_core, "contentHash": _json_hash(audit_content)}
+        contract = with_hash(
+            {
+                "schemaVersion": PACKAGE_SCHEMA_VERSION,
+                "contractType": "manuscript-package",
+                "id": manuscript_id,
+                "version": version,
+                "createdAt": created,
+                "hashAlgorithm": "SHA-256",
+                "hashRule": "canonical-json-v1",
+                "upstream": [_contract_ref(topic)],
+                "manuscriptPackageId": manuscript_id,
+                "projectId": project_id,
+                "channelProfileId": channel_profile_id,
+                "status": "SCRIPT_READY",
+                "targetLanguage": target_language,
+                "episodeCount": episode_count,
+                "lineCount": len(target_lines),
+                "storyBible": story_contract,
+                "characters": contract_characters,
+                "voices": voices,
+                "targetScript": target_script_contract,
+                "auditScript": audit_script_contract,
+                "lineMapping": mapping,
+                "qualityGate": quality_contract,
+                "qualityGateHash": quality_contract["contentHash"],
+                "selectiveInvalidation": {
+                    "policy": "affected-episodes-only",
+                    "invalidatedEpisodeNumbers": [],
+                    "upstreamStoryChangeRequiresNewTopicVersion": True,
+                },
+                "confirmation": _approval("G4_MANUSCRIPT", confirmation, created),
+            }
+        )
+        self._validate_contract_schema(contract, "manuscript-package.schema.json")
+        _atomic_json(root / "manifest.json", contract)
+        _atomic_json(root / "source-lock.json", {"topicPackage": _contract_ref(topic), "storyFactsHash": topic["storyFactsHash"]})
+        previous = state["activePackages"]["manuscript"]
+        if previous:
+            state["invalidations"].append({"at": created, "reason": "new-manuscript-version", "invalidated": ["publishing"]})
+            state["activePackages"]["publishing"] = None
+        state["activePackages"]["manuscript"] = {"id": manuscript_id, "version": version, "hash": contract["contentHash"], "path": str(root / "manifest.json")}
+        state["state"] = "SCRIPT_READY"
+        self._save_state(state)
+        return {"package": contract, "packagePath": str(root), "confirmationCard": {"gate": "G4", "confirmed": True}}
+
+    def finalize_publishing(
+        self,
+        *,
+        task_id: Any,
+        channel_profile_id: Any,
+        binding_proof: Any,
+        project_id: Any,
+        title: Any,
+        title_chinese: Any,
+        description_body: Any,
+        hashtags: Any,
+        thumbnail_provider: Any,
+        thumbnail_strategy: Any,
+        thumbnail_candidates: Any,
+        selected_thumbnail_id: Any,
+        thumbnail: Any,
+        ctr_review: Any,
+        confirmation: Any,
+    ) -> dict[str, Any]:
+        self.store.assert_binding(task_id=task_id, channel_profile_id=channel_profile_id, binding_proof=binding_proof)
+        project_id = _safe_identifier(project_id, "projectId")
+        state = self._load_state(channel_profile_id, project_id)
+        manuscript_ref = state["activePackages"]["manuscript"]
+        if not manuscript_ref:
+            raise ToolError("MANUSCRIPT_PACKAGE_REQUIRED", "发布素材只能读取已确认 Manuscript Package v1。")
+        manuscript = _read_contract(Path(manuscript_ref["path"]), "manuscript-package")
+        if manuscript.get("status") != "SCRIPT_READY" or manuscript.get("confirmation", {}).get("status") != "APPROVED":
+            raise ToolError("MANUSCRIPT_NOT_CONFIRMED", "正式母稿未联合确认。")
+        for field, value, maximum in (("title", title, 100), ("descriptionBody", description_body, 5000)):
+            if not isinstance(value, str) or not value.strip() or len(value) > maximum:
+                raise ToolError("PUBLISHING_TEXT_INVALID", f"{field} 为空或超过长度限制。")
+        if not isinstance(title_chinese, str) or not title_chinese.strip():
+            raise ToolError("PUBLISHING_TEXT_INVALID", "标题必须附中文翻译供审核。")
+        if not isinstance(hashtags, list) or not 8 <= len(hashtags) <= 12 or len(set(hashtags)) != len(hashtags):
+            raise ToolError("HASHTAG_COUNT_INVALID", "Hashtags 必须是 8–12 个互不重复的目标语言标签。")
+        if any(not isinstance(item, str) or not re.fullmatch(r"#[^#\s]{1,99}", item) for item in hashtags):
+            raise ToolError("HASHTAG_FORMAT_INVALID", "Hashtag 必须以 # 开头且不包含空白。")
+        if not isinstance(thumbnail_provider, dict) or not thumbnail_provider:
+            raise ToolError("THUMBNAIL_PROVIDER_REQUIRED", "必须冻结图片供应商接口状态与版本。")
+        if not isinstance(thumbnail_strategy, dict) or not thumbnail_strategy:
+            raise ToolError("THUMBNAIL_STRATEGY_REQUIRED", "必须先冻结 16:9 封面策略。")
+        if not isinstance(thumbnail_candidates, list) or len(thumbnail_candidates) != 5:
+            raise ToolError("THUMBNAIL_CANDIDATES_REQUIRED", "必须保留恰好 5 个构图实质不同的封面候选与内部评分。")
+        candidate_ids = [item.get("candidateId") for item in thumbnail_candidates if isinstance(item, dict)]
+        if len(candidate_ids) != len(thumbnail_candidates) or len(set(candidate_ids)) != len(candidate_ids) or selected_thumbnail_id not in candidate_ids:
+            raise ToolError("THUMBNAIL_SELECTION_INVALID", "封面候选 ID 或唯一正式选择无效。")
+        if not isinstance(ctr_review, dict) or ctr_review.get("status") != "PASSED" or ctr_review.get("factsConsistent") is not True:
+            raise ToolError("CTR_REVIEW_FAILED", "唯一标题与封面未通过事实一致性和 CTR 联评。")
+        if not isinstance(confirmation, dict) or confirmation.get("confirmed") is not True:
+            state["state"] = "AWAITING_PUBLISHING_CONFIRMATION"
+            self._save_state(state)
+            raise ToolError("PUBLISHING_CONFIRMATION_REQUIRED", "G5 未联合确认，不能冻结 Publishing Asset Package v1。")
+        if not isinstance(thumbnail, dict) or thumbnail.get("mode") not in {"real", "prompt_only"}:
+            raise ToolError("THUMBNAIL_INVALID", "封面必须明确标记 real 或 prompt_only。")
+
+        version = _next_version((state["activePackages"]["publishing"] or {}).get("version"))
+        publishing_id = f"publishing_{project_id}_v{version.replace('.', '_')}"
+        root = self._project_root(channel_profile_id, project_id) / "publishing-asset-package" / f"v{version}"
+        root.mkdir(parents=True, exist_ok=True)
+        thumbnail_mode = thumbnail["mode"]
+        thumbnail_asset = None
+        thumbnail_prompt = None
+        dimensions = None
+        if thumbnail_mode == "real":
+            source_path = thumbnail.get("sourcePath")
+            if not isinstance(source_path, str) or not source_path:
+                raise ToolError("THUMBNAIL_FILE_REQUIRED", "real 封面必须提供本地图片文件。")
+            source = Path(source_path).resolve()
+            if not source.is_file():
+                raise ToolError("THUMBNAIL_FILE_MISSING", "真实封面文件不存在或不可读。")
+            width, height = _png_dimensions(source)
+            if width * 9 != height * 16:
+                raise ToolError("THUMBNAIL_ASPECT_RATIO_INVALID", "正式封面必须是精确 16:9。", details={"width": width, "height": height})
+            destination = root / "confirmed-thumbnail.png"
+            shutil.copyfile(source, destination)
+            dimensions = {"width": width, "height": height, "aspectRatio": "16:9"}
+            thumbnail_asset = _asset(destination, root, "confirmed-thumbnail", "image/png")
+        else:
+            thumbnail_prompt = thumbnail.get("prompt")
+            if not isinstance(thumbnail_prompt, str) or not thumbnail_prompt.strip():
+                raise ToolError("THUMBNAIL_PROMPT_REQUIRED", "prompt_only 必须保存清楚的图片提示词。")
+        channel = self.store.get_channel(channel_profile_id)["channelProfile"]
+        production = self.store.get_channel(channel_profile_id)["productionProfile"]
+        created = utc_now()
+        status = "PUBLISHING_ASSETS_READY" if thumbnail_mode == "real" else "AWAITING_THUMBNAIL"
+        if thumbnail_mode == "real":
+            thumbnail_contract = {
+                "mode": "real_file",
+                "asset": thumbnail_asset,
+                "widthPixels": dimensions["width"],
+                "heightPixels": dimensions["height"],
+                "aspectRatio": "16:9",
+                "fileReadable": True,
+                "hashVerified": True,
+            }
+        else:
+            thumbnail_contract = {
+                "mode": "prompt_only",
+                "prompt": thumbnail_prompt,
+                "providerStatus": thumbnail.get("providerStatus", "not_requested"),
+            }
+        contract_thumbnail_candidates = json.loads(json.dumps(thumbnail_candidates, ensure_ascii=False))
+        if thumbnail_asset:
+            for item in contract_thumbnail_candidates:
+                if item["candidateId"] == selected_thumbnail_id:
+                    item["asset"] = thumbnail_asset
+                    item["renderStatus"] = "GENERATED"
+        production_handoff = {
+            "eligible": thumbnail_mode == "real",
+            "assessedAt": created,
+            "blockers": [] if thumbnail_mode == "real" else ["real-thumbnail-required"],
+        }
+        title_id = "title-selected-001"
+        contract = with_hash(
+            {
+                "schemaVersion": PACKAGE_SCHEMA_VERSION,
+                "contractType": "publishing-asset-package",
+                "id": publishing_id,
+                "version": version,
+                "createdAt": created,
+                "hashAlgorithm": "SHA-256",
+                "hashRule": "canonical-json-v1",
+                "upstream": [_contract_ref(manuscript)],
+                "publishingAssetPackageId": publishing_id,
+                "projectId": project_id,
+                "channelProfileId": channel_profile_id,
+                "status": status,
+                "targetLanguage": manuscript["targetLanguage"],
+                "manuscriptBinding": {
+                    "manuscriptPackage": _contract_ref(manuscript),
+                    "targetScriptHash": manuscript["targetScript"]["contentHash"],
+                    "qualityGateHash": manuscript["qualityGateHash"],
+                },
+                "title": title,
+                "titleZhTranslation": title_chinese,
+                "titleSelection": {
+                    "selectedTitleId": title_id,
+                    "factConsistencyPassed": True,
+                    "similarityGatePassed": True,
+                    "candidates": [
+                        {
+                            "titleId": title_id,
+                            "text": title,
+                            "zhTranslation": title_chinese,
+                            "audienceFit": ctr_review.get("score", 0),
+                            "factBasis": ctr_review.get("conclusion", "标题承诺由正式母稿事实支持。"),
+                            "promiseFulfilled": True,
+                            "sampleWordingCopied": False,
+                        }
+                    ],
+                },
+                "descriptionBody": description_body,
+                "hashtags": hashtags,
+                "thumbnailProvider": thumbnail_provider,
+                "thumbnailStrategy": thumbnail_strategy,
+                "thumbnailCandidates": contract_thumbnail_candidates,
+                "thumbnailSelection": {
+                    "selectedCandidateId": selected_thumbnail_id,
+                    "reason": ctr_review.get("conclusion", "综合评分最高且事实一致。"),
+                },
+                "thumbnail": thumbnail_contract,
+                "ctrReview": ctr_review,
+                "targetChannel": {
+                    "publisherProfileId": channel["publisherBinding"]["publisherProfileId"],
+                    "channelSerial": channel["publisherBinding"]["channelSerial"],
+                    "youtubeChannelId": channel["publisherBinding"]["youtubeChannelId"],
+                },
+                "uploadPolicy": production["defaults"]["uploadPolicy"],
+                "privacyStatus": "private",
+                "confirmation": _approval("G5_PUBLISHING_ASSETS", confirmation, created),
+                "productionHandoff": production_handoff,
+            }
+        )
+        self._validate_contract_schema(contract, "publishing-asset-package.schema.json")
+        _atomic_json(root / "manifest.json", contract)
+        _atomic_json(root / "publishing.json", {
+            "title": title,
+            "descriptionBody": description_body,
+            "hashtags": hashtags,
+            "thumbnail": thumbnail_asset["relativePath"] if thumbnail_asset else None,
+            "thumbnailMode": thumbnail_mode,
+            "targetChannel": contract["targetChannel"],
+            "uploadPolicy": contract["uploadPolicy"],
+            "privacyStatus": contract["privacyStatus"],
+        })
+        _atomic_json(root / "thumbnail-strategy.json", thumbnail_strategy)
+        _atomic_json(root / "thumbnail-selection.json", {"candidates": contract_thumbnail_candidates, "selectedThumbnailId": selected_thumbnail_id})
+        _atomic_json(root / "ctr-review.json", ctr_review)
+        _atomic_bytes(root / "description-hashtags.txt", (description_body.rstrip() + "\n\n" + " ".join(hashtags) + "\n").encode("utf-8"))
+        _atomic_json(root / "source-lock.json", {"manuscriptPackage": _contract_ref(manuscript)})
+        state["activePackages"]["publishing"] = {"id": publishing_id, "version": version, "hash": contract["contentHash"], "path": str(root / "manifest.json")}
+        state["state"] = status
+        self._save_state(state)
+        return {
+            "package": contract,
+            "packagePath": str(root),
+            "confirmationCard": {"gate": "G5", "confirmed": True, "thumbnailMode": thumbnail_mode},
+            "productionHandoffEligible": thumbnail_mode == "real",
+        }
+
+    def get_project(self, *, channel_profile_id: Any, project_id: Any) -> dict[str, Any]:
+        project_id = _safe_identifier(project_id, "projectId")
+        state = self._load_state(channel_profile_id, project_id)
+        return {
+            "state": state,
+            "progressReadOnly": True,
+            "boundaries": self.capabilities()["boundaries"],
+        }
+
+    def integrity_check(self, *, channel_profile_id: Any, project_id: Any) -> dict[str, Any]:
+        project_id = _safe_identifier(project_id, "projectId")
+        state = self._load_state(channel_profile_id, project_id)
+        errors: list[dict[str, Any]] = []
+        contracts: dict[str, dict[str, Any]] = {}
+        for package_name, expected_type in (("topic", "topic-package"), ("manuscript", "manuscript-package"), ("publishing", "publishing-asset-package")):
+            reference = state["activePackages"].get(package_name)
+            if not reference:
+                continue
+            try:
+                contract = _read_contract(Path(reference["path"]), expected_type)
+                contracts[package_name] = contract
+                if contract["contentHash"] != reference["hash"]:
+                    errors.append({"package": package_name, "issue": "active-reference-hash"})
+                root = Path(reference["path"]).parent
+                descriptors: list[tuple[str, dict[str, Any]]] = []
+                if package_name == "manuscript":
+                    for group in ("targetScript", "auditScript"):
+                        for key in ("asset", "textAsset"):
+                            descriptor = contract.get(group, {}).get(key)
+                            if descriptor:
+                                descriptors.append((f"{group}.{key}", descriptor))
+                elif package_name == "publishing":
+                    descriptor = contract.get("thumbnail", {}).get("asset")
+                    if descriptor:
+                        descriptors.append(("thumbnail.asset", descriptor))
+                for key, descriptor in descriptors:
+                    asset_path = root / descriptor["relativePath"]
+                    if not asset_path.is_file() or asset_path.stat().st_size != descriptor["sizeBytes"] or _sha256_file(asset_path) != descriptor["sha256"]:
+                        errors.append({"package": package_name, "issue": "asset-hash", "asset": key})
+            except ToolError as exc:
+                errors.append({"package": package_name, "issue": exc.code})
+        if "topic" in contracts and "manuscript" in contracts:
+            upstream = contracts["manuscript"]["upstream"][0]
+            if upstream["targetHash"] != contracts["topic"]["contentHash"]:
+                errors.append({"package": "manuscript", "issue": "topic-upstream-hash"})
+        if "manuscript" in contracts and "publishing" in contracts:
+            upstream = contracts["publishing"]["upstream"][0]
+            if upstream["targetHash"] != contracts["manuscript"]["contentHash"]:
+                errors.append({"package": "publishing", "issue": "manuscript-upstream-hash"})
+            if contracts["publishing"].get("thumbnail", {}).get("mode") == "real_file":
+                root = Path(state["activePackages"]["publishing"]["path"]).parent
+                try:
+                    width, height = _png_dimensions(root / contracts["publishing"]["thumbnail"]["asset"]["relativePath"])
+                    if width * 9 != height * 16:
+                        errors.append({"package": "publishing", "issue": "thumbnail-aspect-ratio"})
+                except ToolError as exc:
+                    errors.append({"package": "publishing", "issue": exc.code})
+        return {
+            "status": "PASS" if not errors else "FAIL",
+            "projectId": project_id,
+            "checkedPackages": sorted(contracts),
+            "errors": errors,
+            "boundaries": self.capabilities()["boundaries"],
+        }
+
+    def handoff_check(self, *, channel_profile_id: Any, project_id: Any) -> dict[str, Any]:
+        project_id = _safe_identifier(project_id, "projectId")
+        state = self._load_state(channel_profile_id, project_id)
+        integrity = self.integrity_check(channel_profile_id=channel_profile_id, project_id=project_id)
+        missing = [name for name in ("topic", "manuscript", "publishing") if not state["activePackages"].get(name)]
+        if missing:
+            raise ToolError("CONTENT_CONFIRMATION_CHAIN_INCOMPLETE", "未确认的内容链不得移交制作。", details={"missing": missing})
+        publishing = _read_contract(Path(state["activePackages"]["publishing"]["path"]), "publishing-asset-package")
+        if integrity["status"] != "PASS" or publishing.get("status") != "PUBLISHING_ASSETS_READY" or publishing.get("thumbnail", {}).get("mode") != "real_file":
+            raise ToolError(
+                "CONTENT_HANDOFF_BLOCKED",
+                "内容包完整性、联合确认或真实 16:9 封面未满足；不会进入制作中心。",
+                details={"integrity": integrity["status"], "publishingStatus": publishing.get("status")},
+            )
+        return {
+            "eligible": True,
+            "projectId": project_id,
+            "nextCenter": "production",
+            "packageHashes": {name: value["hash"] for name, value in state["activePackages"].items()},
+            "notExecuted": ["production-package", "workshop", "publisher-authorization", "upload", "analytics", "long-term-learning-write"],
+        }

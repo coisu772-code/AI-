@@ -1,0 +1,4 @@
+[E01-L001] narrator: The neighborhood station posted its final broadcast date on a quiet Monday morning.
+[E01-L002] protagonist: Host Maya asked residents to record the small memories the city had overlooked.
+[E02-L001] narrator: One recording revealed a forgotten agreement that protected the studio for public use.
+[E02-L002] protagonist: After the agreement was verified, the station reopened as a community cooperative.

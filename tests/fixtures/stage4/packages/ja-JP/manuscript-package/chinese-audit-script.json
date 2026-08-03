@@ -1,0 +1,41 @@
+{
+  "language": "zh-CN",
+  "lines": [
+    {
+      "emotion": "calm",
+      "episodeNumber": 1,
+      "lineId": "E01-L001",
+      "lineType": "narration",
+      "sequence": 1,
+      "speakerId": "narrator",
+      "text": "镇图书室只贴着一张即将闭馆的通知。"
+    },
+    {
+      "emotion": "calm",
+      "episodeNumber": 1,
+      "lineId": "E01-L002",
+      "lineType": "dialogue",
+      "sequence": 2,
+      "speakerId": "protagonist",
+      "text": "图书管理员美咲决定在一切消失前收集居民的记忆。"
+    },
+    {
+      "emotion": "calm",
+      "episodeNumber": 2,
+      "lineId": "E02-L001",
+      "lineType": "narration",
+      "sequence": 1,
+      "speakerId": "narrator",
+      "text": "第一次朗读会上，大家发现了无人知晓的捐赠登记线索。"
+    },
+    {
+      "emotion": "hopeful",
+      "episodeNumber": 2,
+      "lineId": "E02-L002",
+      "lineType": "dialogue",
+      "sequence": 2,
+      "speakerId": "protagonist",
+      "text": "登记册成为保住图书室的证据，小镇选择共同运营。"
+    }
+  ]
+}

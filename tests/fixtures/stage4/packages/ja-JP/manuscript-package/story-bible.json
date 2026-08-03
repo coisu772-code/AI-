@@ -1,0 +1,26 @@
+{
+  "climax": "The forgotten agreement is publicly verified.",
+  "contentHash": "09f19f5e620f66c50f9aa2022bc7a6eb778c032cbfec2e381d586f6fcd802d78",
+  "ending": "The place reopens under community stewardship.",
+  "foreshadowing": [
+    "The first record hints at a forgotten agreement"
+  ],
+  "lockedFacts": [
+    "The threatened place serves the community",
+    "The protagonist preserves local memories"
+  ],
+  "relationships": [
+    "The protagonist and residents move from distance to cooperation"
+  ],
+  "sourceStoryFactsHash": "214e20ff512b299b5d3bc249d691768ef3ebffc9de1385f5d21d2e643d7ec015",
+  "timeline": [
+    "closure notice",
+    "memory collection",
+    "verification",
+    "reopening"
+  ],
+  "version": "1.0.0",
+  "worldRules": [
+    "A public decision changes only after evidence is verified"
+  ]
+}

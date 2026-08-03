@@ -1,0 +1,185 @@
+{
+  "channelProfileId": "ch_cd9ddc329e704242b5d7d8fd4d475b06",
+  "confirmation": {
+    "confirmedAt": "2026-08-04T03:00:00Z",
+    "gate": "G5_PUBLISHING_ASSETS",
+    "mode": "review",
+    "source": "synthetic-fixture-user",
+    "status": "APPROVED"
+  },
+  "contentHash": "e1110c7072d508cdefac386da7a072dfe41b04c88d5246d46abcd434b7f38ad8",
+  "contractType": "publishing-asset-package",
+  "createdAt": "2026-08-03T18:27:00Z",
+  "ctrReview": {
+    "conclusion": "The selected synthetic fixture visualizes the verified story promise.",
+    "factsConsistent": true,
+    "mobileReadable": true,
+    "score": 9.0,
+    "status": "PASSED",
+    "textComplementsTitle": true,
+    "titleHookVisualized": true
+  },
+  "descriptionBody": "The station has seven days left. One forgotten recording turns a farewell broadcast into a path forward.\nA synthetic story about memory, proof, and a community choosing to rebuild.",
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "hashtags": [
+    "#Storytime",
+    "#AudioStory",
+    "#OriginalFiction",
+    "#Community",
+    "#SecondChance",
+    "#PlotTwist",
+    "#HumanDrama",
+    "#SyntheticData"
+  ],
+  "id": "publishing_synthetic-us-content-loop_v1_0_0",
+  "manuscriptBinding": {
+    "manuscriptPackage": {
+      "targetContractType": "manuscript-package",
+      "targetHash": "de2131571470b0542b44f53472da26895097f0ec1ee1ac62737d3475a7c93a6a",
+      "targetId": "manuscript_synthetic-us-content-loop_v1_0_0",
+      "targetSchemaVersion": "1.0.0",
+      "targetVersion": "1.0.0"
+    },
+    "qualityGateHash": "d5c037beb1825bd11c895178f194b6610bbaf75a884f1650732c5affacc3dfc1",
+    "targetScriptHash": "99469e272913ac92663bc3e69ba64cbb54e4edcf1c7ee1d76fd73786d9239c51"
+  },
+  "privacyStatus": "private",
+  "productionHandoff": {
+    "assessedAt": "2026-08-03T18:27:00Z",
+    "blockers": [],
+    "eligible": true
+  },
+  "projectId": "synthetic-us-content-loop",
+  "publishingAssetPackageId": "publishing_synthetic-us-content-loop_v1_0_0",
+  "schemaVersion": "1.0.0",
+  "status": "PUBLISHING_ASSETS_READY",
+  "targetChannel": {
+    "channelSerial": "01",
+    "publisherProfileId": "publisher_synthetic_us",
+    "youtubeChannelId": "UCSYNTHETICUS0001"
+  },
+  "targetLanguage": "en-US",
+  "thumbnail": {
+    "aspectRatio": "16:9",
+    "asset": {
+      "assetId": "confirmed-thumbnail",
+      "mediaType": "image/png",
+      "relativePath": "confirmed-thumbnail.png",
+      "sha256": "a667f692ef6074c3fa5f1de9af4188ae189dfb1bf390c3b2b0fb5f31d47eb7c7",
+      "sizeBytes": 23818
+    },
+    "fileReadable": true,
+    "hashVerified": true,
+    "heightPixels": 900,
+    "mode": "real_file",
+    "widthPixels": 1600
+  },
+  "thumbnailCandidates": [
+    {
+      "asset": {
+        "assetId": "confirmed-thumbnail",
+        "mediaType": "image/png",
+        "relativePath": "confirmed-thumbnail.png",
+        "sha256": "a667f692ef6074c3fa5f1de9af4188ae189dfb1bf390c3b2b0fb5f31d47eb7c7",
+        "sizeBytes": 23818
+      },
+      "candidateId": "cover-01",
+      "factsConsistent": true,
+      "mobileReadable": true,
+      "prompt": "Synthetic 16:9 commercial thumbnail direction 1; do not treat as online data.",
+      "renderStatus": "GENERATED",
+      "score": 9.0,
+      "textAccurate": true,
+      "visualDifference": "Distinct composition 1"
+    },
+    {
+      "candidateId": "cover-02",
+      "factsConsistent": true,
+      "mobileReadable": true,
+      "prompt": "Synthetic 16:9 commercial thumbnail direction 2; do not treat as online data.",
+      "renderStatus": "PROMPT_ONLY",
+      "score": 8.9,
+      "textAccurate": true,
+      "visualDifference": "Distinct composition 2"
+    },
+    {
+      "candidateId": "cover-03",
+      "factsConsistent": true,
+      "mobileReadable": true,
+      "prompt": "Synthetic 16:9 commercial thumbnail direction 3; do not treat as online data.",
+      "renderStatus": "PROMPT_ONLY",
+      "score": 8.799999999999999,
+      "textAccurate": true,
+      "visualDifference": "Distinct composition 3"
+    },
+    {
+      "candidateId": "cover-04",
+      "factsConsistent": true,
+      "mobileReadable": true,
+      "prompt": "Synthetic 16:9 commercial thumbnail direction 4; do not treat as online data.",
+      "renderStatus": "PROMPT_ONLY",
+      "score": 8.7,
+      "textAccurate": true,
+      "visualDifference": "Distinct composition 4"
+    },
+    {
+      "candidateId": "cover-05",
+      "factsConsistent": true,
+      "mobileReadable": true,
+      "prompt": "Synthetic 16:9 commercial thumbnail direction 5; do not treat as online data.",
+      "renderStatus": "PROMPT_ONLY",
+      "score": 8.6,
+      "textAccurate": true,
+      "visualDifference": "Distinct composition 5"
+    }
+  ],
+  "thumbnailProvider": {
+    "integrationMode": "fixture",
+    "interfaceVersion": "1.0.0",
+    "providerId": "synthetic-png-fixture",
+    "status": "available"
+  },
+  "thumbnailSelection": {
+    "reason": "The selected synthetic fixture visualizes the verified story promise.",
+    "selectedCandidateId": "cover-01"
+  },
+  "thumbnailStrategy": {
+    "composition": "protagonist foreground, threatened place and record behind",
+    "conflict": "a shared place faces closure",
+    "expression": "determined hope",
+    "mobileReadabilityTarget": "legible at 160 pixels wide",
+    "subject": "one community protagonist",
+    "targetLanguageText": "ONE RECORDING SAVED IT",
+    "textSafeArea": "right third with 8 percent margin"
+  },
+  "title": "Seven Days Before the Station Closed, One Recording Changed Its Future",
+  "titleSelection": {
+    "candidates": [
+      {
+        "audienceFit": 9.0,
+        "factBasis": "The selected synthetic fixture visualizes the verified story promise.",
+        "promiseFulfilled": true,
+        "sampleWordingCopied": false,
+        "text": "Seven Days Before the Station Closed, One Recording Changed Its Future",
+        "titleId": "title-selected-001",
+        "zhTranslation": "电台关闭前七天，一段录音改变了它的未来"
+      }
+    ],
+    "factConsistencyPassed": true,
+    "selectedTitleId": "title-selected-001",
+    "similarityGatePassed": true
+  },
+  "titleZhTranslation": "电台关闭前七天，一段录音改变了它的未来",
+  "uploadPolicy": "REQUIRE_REVIEW",
+  "upstream": [
+    {
+      "targetContractType": "manuscript-package",
+      "targetHash": "de2131571470b0542b44f53472da26895097f0ec1ee1ac62737d3475a7c93a6a",
+      "targetId": "manuscript_synthetic-us-content-loop_v1_0_0",
+      "targetSchemaVersion": "1.0.0",
+      "targetVersion": "1.0.0"
+    }
+  ],
+  "version": "1.0.0"
+}

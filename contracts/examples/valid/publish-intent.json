@@ -6,21 +6,21 @@
   "createdAt": "2026-08-03T15:07:00Z",
   "hashAlgorithm": "SHA-256",
   "hashRule": "canonical-json-v1",
-  "contentHash": "e3e2755a25c992d61ad938861f36431c3849422cca786fbde35f1bac618def73",
+  "contentHash": "1789087df6164c4b238b4a5ba7b3c89dba430b0b69ed680e449ccae08c9dc689",
   "upstream": [
     {
       "targetContractType": "production-result-package",
       "targetId": "production_result_package_example_001",
       "targetVersion": "1.0.0",
       "targetSchemaVersion": "1.0.0",
-      "targetHash": "fbe1a215d31525b5f6e1bfaac2791682781934f84af996bc3f00a78b39bf605f"
+      "targetHash": "f029e0ed2562470a0fa333079ae4f9526c7d0ee01f9b93fd8de7b56931c38a9d"
     },
     {
       "targetContractType": "publishing-asset-package",
       "targetId": "publishing_asset_package_example_001",
       "targetVersion": "1.0.0",
       "targetSchemaVersion": "1.0.0",
-      "targetHash": "e00e24db5f84d55eb8bcb4233dd63913a19756e8cd249a184c11e3e4fa384d61"
+      "targetHash": "f57f3a0157b5981c21166b0ad444ff12b37937846e8573335934c786a70e02e7"
     }
   ],
   "publishIntentId": "publish_intent_example_001",
@@ -37,14 +37,14 @@
     "targetId": "production_result_package_example_001",
     "targetVersion": "1.0.0",
     "targetSchemaVersion": "1.0.0",
-    "targetHash": "fbe1a215d31525b5f6e1bfaac2791682781934f84af996bc3f00a78b39bf605f"
+    "targetHash": "f029e0ed2562470a0fa333079ae4f9526c7d0ee01f9b93fd8de7b56931c38a9d"
   },
   "publishingAssetRef": {
     "targetContractType": "publishing-asset-package",
     "targetId": "publishing_asset_package_example_001",
     "targetVersion": "1.0.0",
     "targetSchemaVersion": "1.0.0",
-    "targetHash": "e00e24db5f84d55eb8bcb4233dd63913a19756e8cd249a184c11e3e4fa384d61"
+    "targetHash": "f57f3a0157b5981c21166b0ad444ff12b37937846e8573335934c786a70e02e7"
   },
   "uploadPolicy": "REQUIRE_REVIEW",
   "privacyStatus": "private",

@@ -1,0 +1,23 @@
+{
+  "descriptionBody": "只剩七天，社区修理铺就要关门。她整理的每一份旧记录，最终拼出了被遗忘的公共承诺。\n这是关于边界、互助与重新开始的合成故事。",
+  "hashtags": [
+    "#故事",
+    "#有声故事",
+    "#原创",
+    "#社区",
+    "#逆转",
+    "#重新开始",
+    "#情感故事",
+    "#合成数据"
+  ],
+  "privacyStatus": "private",
+  "targetChannel": {
+    "channelSerial": "01",
+    "publisherProfileId": "publisher_synthetic_cn",
+    "youtubeChannelId": "UCSYNTHETICCN0001"
+  },
+  "thumbnail": "confirmed-thumbnail.png",
+  "thumbnailMode": "real",
+  "title": "修理铺停业前七天，她从旧钟里找回了社区的未来",
+  "uploadPolicy": "REQUIRE_REVIEW"
+}

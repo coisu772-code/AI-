@@ -1,0 +1,41 @@
+{
+  "language": "ja-JP",
+  "lines": [
+    {
+      "emotion": "calm",
+      "episodeNumber": 1,
+      "lineId": "E01-L001",
+      "lineType": "narration",
+      "sequence": 1,
+      "speakerId": "narrator",
+      "text": "町の図書室には、閉館を知らせる紙が一枚だけ貼られていた。"
+    },
+    {
+      "emotion": "calm",
+      "episodeNumber": 1,
+      "lineId": "E01-L002",
+      "lineType": "dialogue",
+      "sequence": 2,
+      "speakerId": "protagonist",
+      "text": "司書の美咲は、失われる前に住民の記憶を集めようと決めた。"
+    },
+    {
+      "emotion": "calm",
+      "episodeNumber": 2,
+      "lineId": "E02-L001",
+      "lineType": "narration",
+      "sequence": 1,
+      "speakerId": "narrator",
+      "text": "最初の朗読会で、誰も知らなかった寄贈台帳の手掛かりが見つかった。"
+    },
+    {
+      "emotion": "hopeful",
+      "episodeNumber": 2,
+      "lineId": "E02-L002",
+      "lineType": "dialogue",
+      "sequence": 2,
+      "speakerId": "protagonist",
+      "text": "台帳は図書室を守る証拠となり、町は新しい共同運営を選んだ。"
+    }
+  ]
+}

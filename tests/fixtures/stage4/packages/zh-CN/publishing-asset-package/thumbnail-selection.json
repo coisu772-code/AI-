@@ -1,0 +1,62 @@
+{
+  "candidates": [
+    {
+      "asset": {
+        "assetId": "confirmed-thumbnail",
+        "mediaType": "image/png",
+        "relativePath": "confirmed-thumbnail.png",
+        "sha256": "a667f692ef6074c3fa5f1de9af4188ae189dfb1bf390c3b2b0fb5f31d47eb7c7",
+        "sizeBytes": 23818
+      },
+      "candidateId": "cover-01",
+      "factsConsistent": true,
+      "mobileReadable": true,
+      "prompt": "Synthetic 16:9 commercial thumbnail direction 1; do not treat as online data.",
+      "renderStatus": "GENERATED",
+      "score": 9.0,
+      "textAccurate": true,
+      "visualDifference": "Distinct composition 1"
+    },
+    {
+      "candidateId": "cover-02",
+      "factsConsistent": true,
+      "mobileReadable": true,
+      "prompt": "Synthetic 16:9 commercial thumbnail direction 2; do not treat as online data.",
+      "renderStatus": "PROMPT_ONLY",
+      "score": 8.9,
+      "textAccurate": true,
+      "visualDifference": "Distinct composition 2"
+    },
+    {
+      "candidateId": "cover-03",
+      "factsConsistent": true,
+      "mobileReadable": true,
+      "prompt": "Synthetic 16:9 commercial thumbnail direction 3; do not treat as online data.",
+      "renderStatus": "PROMPT_ONLY",
+      "score": 8.799999999999999,
+      "textAccurate": true,
+      "visualDifference": "Distinct composition 3"
+    },
+    {
+      "candidateId": "cover-04",
+      "factsConsistent": true,
+      "mobileReadable": true,
+      "prompt": "Synthetic 16:9 commercial thumbnail direction 4; do not treat as online data.",
+      "renderStatus": "PROMPT_ONLY",
+      "score": 8.7,
+      "textAccurate": true,
+      "visualDifference": "Distinct composition 4"
+    },
+    {
+      "candidateId": "cover-05",
+      "factsConsistent": true,
+      "mobileReadable": true,
+      "prompt": "Synthetic 16:9 commercial thumbnail direction 5; do not treat as online data.",
+      "renderStatus": "PROMPT_ONLY",
+      "score": 8.6,
+      "textAccurate": true,
+      "visualDifference": "Distinct composition 5"
+    }
+  ],
+  "selectedThumbnailId": "cover-01"
+}

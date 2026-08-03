@@ -193,13 +193,15 @@ class Stage2ToolTestCase(unittest.TestCase):
         )
         return completed, proof
 
-    def test_capabilities_preserve_stage2_and_open_only_stage3_sources(self) -> None:
+    def test_capabilities_preserve_stage2_and_stage3_when_stage4_opens(self) -> None:
         result = self.service.call("system_capabilities")
         self.assertEqual(result["protocolVersion"], "1.0.0")
         self.assertTrue(result["capabilities"]["channelOnboarding"])
         self.assertTrue(result["capabilities"]["sourceCollection"])
-        self.assertFalse(result["capabilities"]["contentProduction"])
+        self.assertTrue(result["capabilities"]["contentProduction"])
+        self.assertFalse(result["capabilities"]["workshop"])
         self.assertFalse(result["capabilities"]["upload"])
+        self.assertFalse(result["capabilities"]["analytics"])
         self.assertFalse(result["security"]["privateMaterialAccepted"])
 
     def test_two_phase_onboarding_contracts_and_idempotency(self) -> None:

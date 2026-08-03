@@ -1,0 +1,77 @@
+{
+  "syntheticFixture": true,
+  "channelProfile": {
+    "schemaVersion": "1.0.0",
+    "contractType": "channel-profile",
+    "id": "ch_cd9ddc329e704242b5d7d8fd4d475b06",
+    "version": "1.0.0",
+    "createdAt": "2026-08-03T18:26:59Z",
+    "hashAlgorithm": "SHA-256",
+    "hashRule": "canonical-json-v1",
+    "upstream": [],
+    "channelProfileId": "ch_cd9ddc329e704242b5d7d8fd4d475b06",
+    "displayName": "Synthetic us Channel",
+    "lifecycleStatus": "READY",
+    "targetRegion": "United States",
+    "outputLanguage": "en-US",
+    "publisherBinding": {
+      "publisherProfileId": "publisher_synthetic_us",
+      "channelSerial": "01",
+      "youtubeChannelId": "UCSYNTHETICUS0001"
+    },
+    "contentHash": "7f833a09f024f22b92a9c7ab1bcc95e88ebadec8df2cadcce404f2706bb916b5"
+  },
+  "productionProfile": {
+    "channelProfileId": "ch_cd9ddc329e704242b5d7d8fd4d475b06",
+    "contentHash": "3c4184f4cfd8705f21891b0bfe4e8def11b61cad365eb4a047f45dbd2192fc05",
+    "contractType": "production-profile",
+    "createdAt": "2026-08-03T18:26:59Z",
+    "defaults": {
+      "deliveryMode": "auto_render",
+      "episodes": {
+        "maxCount": 4,
+        "minCount": 1,
+        "mode": "auto_by_topic",
+        "preferredCount": 2
+      },
+      "manuscript": {
+        "maxCharacters": 1000,
+        "minCharacters": 20,
+        "mode": "auto_by_topic",
+        "preferredCharacters": 200
+      },
+      "uploadPolicy": "REQUIRE_REVIEW",
+      "videoGeneration": {
+        "enabled": false,
+        "fallbackPolicy": "pause",
+        "selectionMode": "none"
+      },
+      "voice": {
+        "engineId": "fixture-tts",
+        "voiceId": "fixture-us-001"
+      }
+    },
+    "executionMode": "review",
+    "firstConfirmation": {
+      "confirmed": true,
+      "confirmedAt": "2026-08-03T18:26:59Z",
+      "source": "user"
+    },
+    "hashAlgorithm": "SHA-256",
+    "hashRule": "canonical-json-v1",
+    "id": "preset_d068bae4ab8d4b17b8c0bb597bbecec5",
+    "presetId": "preset_d068bae4ab8d4b17b8c0bb597bbecec5",
+    "presetVersion": "1.0.0",
+    "schemaVersion": "1.0.0",
+    "upstream": [
+      {
+        "targetContractType": "channel-profile",
+        "targetHash": "7f833a09f024f22b92a9c7ab1bcc95e88ebadec8df2cadcce404f2706bb916b5",
+        "targetId": "ch_cd9ddc329e704242b5d7d8fd4d475b06",
+        "targetSchemaVersion": "1.0.0",
+        "targetVersion": "1.0.0"
+      }
+    ],
+    "version": "1.0.0"
+  }
+}

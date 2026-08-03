@@ -1,0 +1,41 @@
+{
+  "language": "zh-CN",
+  "lines": [
+    {
+      "emotion": "calm",
+      "episodeNumber": 1,
+      "lineId": "E01-L001",
+      "lineType": "narration",
+      "sequence": 1,
+      "speakerId": "narrator",
+      "text": "社区修理铺门口贴出了停业通知，屋里的旧钟仍在走动。"
+    },
+    {
+      "emotion": "calm",
+      "episodeNumber": 1,
+      "lineId": "E01-L002",
+      "lineType": "dialogue",
+      "sequence": 2,
+      "speakerId": "protagonist",
+      "text": "钟表匠林夏决定整理每件旧物背后的维修记录。"
+    },
+    {
+      "emotion": "calm",
+      "episodeNumber": 2,
+      "lineId": "E02-L001",
+      "lineType": "narration",
+      "sequence": 1,
+      "speakerId": "narrator",
+      "text": "邻居们带着故事回来，也找到了被遗漏的公共服务协议。"
+    },
+    {
+      "emotion": "hopeful",
+      "episodeNumber": 2,
+      "lineId": "E02-L002",
+      "lineType": "dialogue",
+      "sequence": 2,
+      "speakerId": "protagonist",
+      "text": "协议通过核验，修理铺改为社区共管，并重新亮起灯牌。"
+    }
+  ]
+}

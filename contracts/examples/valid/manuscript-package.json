@@ -6,14 +6,14 @@
   "createdAt": "2026-08-03T15:04:00Z",
   "hashAlgorithm": "SHA-256",
   "hashRule": "canonical-json-v1",
-  "contentHash": "193eb87538843081e21c4fdc427cb036e75ba4584a791c27e29413da7d2075a7",
+  "contentHash": "8081b157c8b7091e147c61294c53f3ca5a3dd3bd442563cffb0505f8a94e343f",
   "upstream": [
     {
       "targetContractType": "topic-package",
       "targetId": "topic_package_example_001",
       "targetVersion": "1.0.0",
       "targetSchemaVersion": "1.0.0",
-      "targetHash": "379784765d70998fb5d739a3b6dd1cd75cf0ce2fbaf7ebf635dbe2aed8ea0d9e"
+      "targetHash": "15dbb01f714973c93a499e03d17159722148fdf647fd42f9096cc491295be52b"
     }
   ],
   "manuscriptPackageId": "manuscript_package_example_001",
@@ -21,21 +21,214 @@
   "channelProfileId": "channel_profile_example_001",
   "status": "SCRIPT_READY",
   "targetLanguage": "ja-JP",
-  "episodeCount": 8,
-  "lineCount": 320,
+  "episodeCount": 1,
+  "lineCount": 2,
+  "storyBible": {
+    "version": "1.0.0",
+    "contentHash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "sourceStoryFactsHash": "2222222222222222222222222222222222222222222222222222222222222222",
+    "lockedFacts": [
+      "Haruka reopens the fictional town library after publicly acknowledging her mistake."
+    ],
+    "worldRules": [
+      "The story is contemporary and contains no supernatural mechanism."
+    ],
+    "relationships": [
+      "Haruka and her former friend move from distrust to transparent cooperation."
+    ],
+    "timeline": [
+      "Haruka returns, finds the ledger, admits her mistake, and reopens the library."
+    ],
+    "foreshadowing": [
+      "The missing ledger page anticipates the friend's return."
+    ],
+    "climax": "Haruka acknowledges her mistake before the town and the missing records are returned.",
+    "ending": "The library reopens and the two former friends cooperate under transparent rules."
+  },
+  "characters": [
+    {
+      "characterId": "character_example_001",
+      "targetLanguageName": "遥",
+      "aliases": [],
+      "role": "protagonist and librarian",
+      "goal": "Reopen the library without hiding the earlier failure.",
+      "relationship": "Former friend who must regain trust.",
+      "speakingStyle": "Calm, direct, and accountable.",
+      "visualConsistencyRequired": true,
+      "visualAnchorPromptZh": "单人，三十岁日本女性图书管理员，深棕短发，米色开衫，沉静而坚定的表情"
+    }
+  ],
+  "voices": [
+    {
+      "speakerId": "narrator_example_001",
+      "engine": "synthetic-tts-fixture",
+      "voiceId": "ja-narrator-001",
+      "voiceName": "Synthetic Japanese Narrator",
+      "bindingStatus": "BOUND",
+      "catalogVersion": "1.0.0",
+      "catalogHash": "abababababababababababababababababababababababababababababababab"
+    },
+    {
+      "speakerId": "character_example_001",
+      "engine": "synthetic-tts-fixture",
+      "voiceId": "ja-character-001",
+      "voiceName": "Synthetic Japanese Character",
+      "bindingStatus": "BOUND",
+      "catalogVersion": "1.0.0",
+      "catalogHash": "abababababababababababababababababababababababababababababababab"
+    }
+  ],
   "targetScript": {
-    "assetId": "target_script_example_001",
-    "relativePath": "target-script.json",
-    "mediaType": "application/json",
-    "sizeBytes": 4096,
-    "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    "version": "1.0.0",
+    "contentHash": "1212121212121212121212121212121212121212121212121212121212121212",
+    "role": "target-language-production-master",
+    "isSoleProductionSource": true,
+    "asset": {
+      "assetId": "target_script_example_001",
+      "relativePath": "target-script.json",
+      "mediaType": "application/json",
+      "sizeBytes": 512,
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    "textAsset": {
+      "assetId": "target_script_text_example_001",
+      "relativePath": "target-script.txt",
+      "mediaType": "text/plain",
+      "sizeBytes": 192,
+      "sha256": "3434343434343434343434343434343434343434343434343434343434343434"
+    },
+    "lines": [
+      {
+        "lineId": "ep01_line001",
+        "episodeNumber": 1,
+        "sequence": 1,
+        "speakerId": "narrator_example_001",
+        "lineType": "narration",
+        "emotion": "静か",
+        "text": "遥が町へ戻ると、図書館の扉は閉ざされていた。"
+      },
+      {
+        "lineId": "ep01_line002",
+        "episodeNumber": 1,
+        "sequence": 2,
+        "speakerId": "character_example_001",
+        "lineType": "dialogue",
+        "emotion": "決意",
+        "text": "失敗を隠さず、もう一度ここを開きます。"
+      }
+    ]
   },
   "auditScript": {
-    "assetId": "audit_script_example_001",
-    "relativePath": "chinese-audit-script.json",
-    "mediaType": "application/json",
-    "sizeBytes": 4096,
-    "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+    "version": "1.0.0",
+    "contentHash": "1313131313131313131313131313131313131313131313131313131313131313",
+    "language": "zh-CN",
+    "mode": "backtranslation",
+    "sourceTargetScriptHash": "1212121212121212121212121212121212121212121212121212121212121212",
+    "productionUseAllowed": false,
+    "duplicateFileCreated": true,
+    "asset": {
+      "assetId": "audit_script_example_001",
+      "relativePath": "chinese-audit-script.json",
+      "mediaType": "application/json",
+      "sizeBytes": 512,
+      "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    "textAsset": {
+      "assetId": "audit_script_text_example_001",
+      "relativePath": "chinese-audit-script.txt",
+      "mediaType": "text/plain",
+      "sizeBytes": 192,
+      "sha256": "4545454545454545454545454545454545454545454545454545454545454545"
+    },
+    "lines": [
+      {
+        "lineId": "ep01_line001",
+        "episodeNumber": 1,
+        "sequence": 1,
+        "speakerId": "narrator_example_001",
+        "lineType": "narration",
+        "emotion": "静か",
+        "text": "遥回到小镇时，图书馆的大门紧闭着。"
+      },
+      {
+        "lineId": "ep01_line002",
+        "episodeNumber": 1,
+        "sequence": 2,
+        "speakerId": "character_example_001",
+        "lineType": "dialogue",
+        "emotion": "決意",
+        "text": "我不会隐瞒失败，要再次打开这里。"
+      }
+    ]
   },
-  "qualityGateHash": "5555555555555555555555555555555555555555555555555555555555555555"
+  "lineMapping": {
+    "status": "PASSED",
+    "mappingMode": "backtranslation",
+    "targetLineCount": 2,
+    "auditLineCount": 2,
+    "checks": {
+      "lineIdsMatch": true,
+      "episodeNumbersMatch": true,
+      "sequenceMatches": true,
+      "speakersMatch": true,
+      "lineTypesMatch": true,
+      "emotionsMatch": true
+    },
+    "items": [
+      {
+        "targetLineId": "ep01_line001",
+        "auditLineId": "ep01_line001",
+        "episodeNumber": 1,
+        "sequence": 1,
+        "speakerId": "narrator_example_001",
+        "lineType": "narration",
+        "emotion": "静か"
+      },
+      {
+        "targetLineId": "ep01_line002",
+        "auditLineId": "ep01_line002",
+        "episodeNumber": 1,
+        "sequence": 2,
+        "speakerId": "character_example_001",
+        "lineType": "dialogue",
+        "emotion": "決意"
+      }
+    ]
+  },
+  "qualityGate": {
+    "version": "1.0.0",
+    "contentHash": "5555555555555555555555555555555555555555555555555555555555555555",
+    "targetScriptHash": "1212121212121212121212121212121212121212121212121212121212121212",
+    "status": "PASSED",
+    "revisionRounds": 0,
+    "episodeResults": [
+      {
+        "episodeNumber": 1,
+        "status": "PASSED",
+        "checks": {
+          "storyFacts": true,
+          "progressAndStateChange": true,
+          "characterVoice": true,
+          "targetLanguageNaturalness": true,
+          "regionalExpression": true,
+          "terminologyConsistency": true,
+          "ttsSemanticBoundaries": true,
+          "audienceRetelling": true
+        }
+      }
+    ]
+  },
+  "qualityGateHash": "5555555555555555555555555555555555555555555555555555555555555555",
+  "selectiveInvalidation": {
+    "policy": "affected-episodes-only",
+    "invalidatedEpisodeNumbers": [],
+    "upstreamStoryChangeRequiresNewTopicVersion": true
+  },
+  "confirmation": {
+    "gate": "G4_MANUSCRIPT",
+    "status": "APPROVED",
+    "mode": "review",
+    "source": "synthetic-contract-fixture",
+    "confirmedAt": "2026-08-03T15:04:00Z"
+  }
 }

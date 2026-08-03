@@ -1,0 +1,37 @@
+{
+  "contentHash": "a01e1e66f8e037f3e9149fc7b98eb3d8b21ab487da06a8f30a4a117a414df715",
+  "episodeResults": [
+    {
+      "checks": {
+        "audienceRetelling": true,
+        "characterVoice": true,
+        "progressAndStateChange": true,
+        "regionalExpression": true,
+        "storyFacts": true,
+        "targetLanguageNaturalness": true,
+        "terminologyConsistency": true,
+        "ttsSemanticBoundaries": true
+      },
+      "episodeNumber": 1,
+      "status": "PASSED"
+    },
+    {
+      "checks": {
+        "audienceRetelling": true,
+        "characterVoice": true,
+        "progressAndStateChange": true,
+        "regionalExpression": true,
+        "storyFacts": true,
+        "targetLanguageNaturalness": true,
+        "terminologyConsistency": true,
+        "ttsSemanticBoundaries": true
+      },
+      "episodeNumber": 2,
+      "status": "PASSED"
+    }
+  ],
+  "revisionRounds": 1,
+  "status": "PASSED",
+  "targetScriptHash": "1854c94dbded170a01f0a2cabba5ed191711b056356b7fc210cb875a34b94c63",
+  "version": "1.0.0"
+}

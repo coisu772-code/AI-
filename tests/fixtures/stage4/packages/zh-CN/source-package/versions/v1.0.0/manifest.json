@@ -1,0 +1,65 @@
+{
+  "assets": [
+    {
+      "assetId": "asset_2ed99fe6855f6264bf7c4d29",
+      "mediaType": "text/plain",
+      "relativePath": "raw/v001000000/pasted.txt",
+      "sha256": "81961b3fe3f9dc1779c8724b7e2408852d66bfde9351b9c8a1b2b0eb8ecf19f6",
+      "sizeBytes": 240
+    },
+    {
+      "assetId": "asset_2d8945b444a060e5d55ddf64",
+      "mediaType": "text/plain",
+      "relativePath": "normalized/v001000000/content.txt",
+      "sha256": "81961b3fe3f9dc1779c8724b7e2408852d66bfde9351b9c8a1b2b0eb8ecf19f6",
+      "sizeBytes": 240
+    },
+    {
+      "assetId": "asset_1a880ca5a98224bffaa67bea",
+      "mediaType": "application/json",
+      "relativePath": "normalized/v001000000/metadata.json",
+      "sha256": "17d37a868feade39938dc692f9df056d160544e20a3aefbd406c7e0b2f686e30",
+      "sizeBytes": 201
+    },
+    {
+      "assetId": "asset_9f7cff9dc332c51fcc607d00",
+      "mediaType": "application/json",
+      "relativePath": "reports/v001000000/acquisition-report.json",
+      "sha256": "c00a0de0dff845b8510e44e1a29469ad07ea84cd288678dc28f45927eeb39bc1",
+      "sizeBytes": 57
+    }
+  ],
+  "channelProfileId": "ch_12836a36f9dc43159361ed6a83e17713",
+  "contentHash": "5a9f08bbcb6df930f77e76442d09d8c978bb323beb8e9a71e000b1d2d91344d9",
+  "contractType": "source-package",
+  "createdAt": "2026-08-03T18:26:59Z",
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "id": "source_019a491636cb9b36e2ff768d",
+  "provenance": {
+    "adapterId": "builtin-pasted-text",
+    "adapterVersion": "1.0.0",
+    "collectedAt": "2026-08-03T18:26:59Z",
+    "kind": "user-input",
+    "locator": "user-input:81961b3fe3f9dc1779c8724b7e2408852d66bfde9351b9c8a1b2b0eb8ecf19f6"
+  },
+  "rightsBoundary": {
+    "accessLevel": "user-authorized",
+    "basis": "用户在当前任务中主动提供文字。",
+    "confirmedByUser": true
+  },
+  "schemaVersion": "1.0.0",
+  "sourcePackageId": "source_019a491636cb9b36e2ff768d",
+  "sourceType": "pasted-text",
+  "status": "CONTENT_READY",
+  "upstream": [
+    {
+      "targetContractType": "channel-profile",
+      "targetHash": "62750a581bdf03bdab36462e6296ce7e84389cccfd52b4663329e0b6ec6ec152",
+      "targetId": "ch_12836a36f9dc43159361ed6a83e17713",
+      "targetSchemaVersion": "1.0.0",
+      "targetVersion": "1.0.0"
+    }
+  ],
+  "version": "1.0.0"
+}

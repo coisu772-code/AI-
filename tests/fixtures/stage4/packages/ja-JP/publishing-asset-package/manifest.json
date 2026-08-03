@@ -1,0 +1,185 @@
+{
+  "channelProfileId": "ch_63e3676a208e4309ae72704b7f1e49e2",
+  "confirmation": {
+    "confirmedAt": "2026-08-04T03:00:00Z",
+    "gate": "G5_PUBLISHING_ASSETS",
+    "mode": "review",
+    "source": "synthetic-fixture-user",
+    "status": "APPROVED"
+  },
+  "contentHash": "88190063164be2ca8f75dfc1c629cafa40c09057d42ac1db794e89ee5c5eb692",
+  "contractType": "publishing-asset-package",
+  "createdAt": "2026-08-03T18:26:59Z",
+  "ctrReview": {
+    "conclusion": "The selected synthetic fixture visualizes the verified story promise.",
+    "factsConsistent": true,
+    "mobileReadable": true,
+    "score": 9.0,
+    "status": "PASSED",
+    "textComplementsTitle": true,
+    "titleHookVisualized": true
+  },
+  "descriptionBody": "閉館まで残り七日。若い司書が集めた町の記憶は、最後に図書室を救う証拠へ変わります。\n静かな再出発と共同体の選択を描く合成フィクションです。",
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "hashtags": [
+    "#物語",
+    "#朗読",
+    "#創作",
+    "#図書室",
+    "#再出発",
+    "#町",
+    "#人間ドラマ",
+    "#合成データ"
+  ],
+  "id": "publishing_synthetic-jp-content-loop_v1_0_0",
+  "manuscriptBinding": {
+    "manuscriptPackage": {
+      "targetContractType": "manuscript-package",
+      "targetHash": "e457c5503cf592fae05894ab0c3295a48a13c0a78512d35031916b81cc7213e4",
+      "targetId": "manuscript_synthetic-jp-content-loop_v1_0_0",
+      "targetSchemaVersion": "1.0.0",
+      "targetVersion": "1.0.0"
+    },
+    "qualityGateHash": "a01e1e66f8e037f3e9149fc7b98eb3d8b21ab487da06a8f30a4a117a414df715",
+    "targetScriptHash": "1854c94dbded170a01f0a2cabba5ed191711b056356b7fc210cb875a34b94c63"
+  },
+  "privacyStatus": "private",
+  "productionHandoff": {
+    "assessedAt": "2026-08-03T18:26:59Z",
+    "blockers": [],
+    "eligible": true
+  },
+  "projectId": "synthetic-jp-content-loop",
+  "publishingAssetPackageId": "publishing_synthetic-jp-content-loop_v1_0_0",
+  "schemaVersion": "1.0.0",
+  "status": "PUBLISHING_ASSETS_READY",
+  "targetChannel": {
+    "channelSerial": "01",
+    "publisherProfileId": "publisher_synthetic_jp",
+    "youtubeChannelId": "UCSYNTHETICJP0001"
+  },
+  "targetLanguage": "ja-JP",
+  "thumbnail": {
+    "aspectRatio": "16:9",
+    "asset": {
+      "assetId": "confirmed-thumbnail",
+      "mediaType": "image/png",
+      "relativePath": "confirmed-thumbnail.png",
+      "sha256": "a667f692ef6074c3fa5f1de9af4188ae189dfb1bf390c3b2b0fb5f31d47eb7c7",
+      "sizeBytes": 23818
+    },
+    "fileReadable": true,
+    "hashVerified": true,
+    "heightPixels": 900,
+    "mode": "real_file",
+    "widthPixels": 1600
+  },
+  "thumbnailCandidates": [
+    {
+      "asset": {
+        "assetId": "confirmed-thumbnail",
+        "mediaType": "image/png",
+        "relativePath": "confirmed-thumbnail.png",
+        "sha256": "a667f692ef6074c3fa5f1de9af4188ae189dfb1bf390c3b2b0fb5f31d47eb7c7",
+        "sizeBytes": 23818
+      },
+      "candidateId": "cover-01",
+      "factsConsistent": true,
+      "mobileReadable": true,
+      "prompt": "Synthetic 16:9 commercial thumbnail direction 1; do not treat as online data.",
+      "renderStatus": "GENERATED",
+      "score": 9.0,
+      "textAccurate": true,
+      "visualDifference": "Distinct composition 1"
+    },
+    {
+      "candidateId": "cover-02",
+      "factsConsistent": true,
+      "mobileReadable": true,
+      "prompt": "Synthetic 16:9 commercial thumbnail direction 2; do not treat as online data.",
+      "renderStatus": "PROMPT_ONLY",
+      "score": 8.9,
+      "textAccurate": true,
+      "visualDifference": "Distinct composition 2"
+    },
+    {
+      "candidateId": "cover-03",
+      "factsConsistent": true,
+      "mobileReadable": true,
+      "prompt": "Synthetic 16:9 commercial thumbnail direction 3; do not treat as online data.",
+      "renderStatus": "PROMPT_ONLY",
+      "score": 8.799999999999999,
+      "textAccurate": true,
+      "visualDifference": "Distinct composition 3"
+    },
+    {
+      "candidateId": "cover-04",
+      "factsConsistent": true,
+      "mobileReadable": true,
+      "prompt": "Synthetic 16:9 commercial thumbnail direction 4; do not treat as online data.",
+      "renderStatus": "PROMPT_ONLY",
+      "score": 8.7,
+      "textAccurate": true,
+      "visualDifference": "Distinct composition 4"
+    },
+    {
+      "candidateId": "cover-05",
+      "factsConsistent": true,
+      "mobileReadable": true,
+      "prompt": "Synthetic 16:9 commercial thumbnail direction 5; do not treat as online data.",
+      "renderStatus": "PROMPT_ONLY",
+      "score": 8.6,
+      "textAccurate": true,
+      "visualDifference": "Distinct composition 5"
+    }
+  ],
+  "thumbnailProvider": {
+    "integrationMode": "fixture",
+    "interfaceVersion": "1.0.0",
+    "providerId": "synthetic-png-fixture",
+    "status": "available"
+  },
+  "thumbnailSelection": {
+    "reason": "The selected synthetic fixture visualizes the verified story promise.",
+    "selectedCandidateId": "cover-01"
+  },
+  "thumbnailStrategy": {
+    "composition": "protagonist foreground, threatened place and record behind",
+    "conflict": "a shared place faces closure",
+    "expression": "determined hope",
+    "mobileReadabilityTarget": "legible at 160 pixels wide",
+    "subject": "one community protagonist",
+    "targetLanguageText": "記憶が未来を救う",
+    "textSafeArea": "right third with 8 percent margin"
+  },
+  "title": "閉館寸前の図書室で、町の記憶が未来を変えた",
+  "titleSelection": {
+    "candidates": [
+      {
+        "audienceFit": 9.0,
+        "factBasis": "The selected synthetic fixture visualizes the verified story promise.",
+        "promiseFulfilled": true,
+        "sampleWordingCopied": false,
+        "text": "閉館寸前の図書室で、町の記憶が未来を変えた",
+        "titleId": "title-selected-001",
+        "zhTranslation": "濒临闭馆的图书室里，小镇记忆改变了未来"
+      }
+    ],
+    "factConsistencyPassed": true,
+    "selectedTitleId": "title-selected-001",
+    "similarityGatePassed": true
+  },
+  "titleZhTranslation": "濒临闭馆的图书室里，小镇记忆改变了未来",
+  "uploadPolicy": "REQUIRE_REVIEW",
+  "upstream": [
+    {
+      "targetContractType": "manuscript-package",
+      "targetHash": "e457c5503cf592fae05894ab0c3295a48a13c0a78512d35031916b81cc7213e4",
+      "targetId": "manuscript_synthetic-jp-content-loop_v1_0_0",
+      "targetSchemaVersion": "1.0.0",
+      "targetVersion": "1.0.0"
+    }
+  ],
+  "version": "1.0.0"
+}

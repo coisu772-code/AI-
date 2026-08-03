@@ -6,44 +6,180 @@
   "createdAt": "2026-08-03T15:05:00Z",
   "hashAlgorithm": "SHA-256",
   "hashRule": "canonical-json-v1",
-  "contentHash": "e00e24db5f84d55eb8bcb4233dd63913a19756e8cd249a184c11e3e4fa384d61",
+  "contentHash": "f57f3a0157b5981c21166b0ad444ff12b37937846e8573335934c786a70e02e7",
   "upstream": [
     {
       "targetContractType": "manuscript-package",
       "targetId": "manuscript_package_example_001",
       "targetVersion": "1.0.0",
       "targetSchemaVersion": "1.0.0",
-      "targetHash": "193eb87538843081e21c4fdc427cb036e75ba4584a791c27e29413da7d2075a7"
+      "targetHash": "8081b157c8b7091e147c61294c53f3ca5a3dd3bd442563cffb0505f8a94e343f"
     }
   ],
   "publishingAssetPackageId": "publishing_asset_package_example_001",
   "projectId": "project_example_001",
   "channelProfileId": "channel_profile_example_001",
   "status": "PUBLISHING_ASSETS_READY",
-  "title": "架空の物語：静かな町で始まる再出発",
-  "descriptionBody": "これは契約検証専用の架空サンプルです。実在の作品・人物・チャンネルとは関係ありません。",
+  "targetLanguage": "ja-JP",
+  "manuscriptBinding": {
+    "manuscriptPackage": {
+      "targetContractType": "manuscript-package",
+      "targetId": "manuscript_package_example_001",
+      "targetVersion": "1.0.0",
+      "targetSchemaVersion": "1.0.0",
+      "targetHash": "8081b157c8b7091e147c61294c53f3ca5a3dd3bd442563cffb0505f8a94e343f"
+    },
+    "targetScriptHash": "1212121212121212121212121212121212121212121212121212121212121212",
+    "qualityGateHash": "5555555555555555555555555555555555555555555555555555555555555555"
+  },
+  "title": "閉ざされた図書館で、彼女は失敗を告白した",
+  "titleZhTranslation": "在紧闭的图书馆前，她坦白了自己的失败",
+  "titleSelection": {
+    "selectedTitleId": "title_example_001",
+    "factConsistencyPassed": true,
+    "similarityGatePassed": true,
+    "candidates": [
+      {
+        "titleId": "title_example_001",
+        "text": "閉ざされた図書館で、彼女は失敗を告白した",
+        "zhTranslation": "在紧闭的图书馆前，她坦白了自己的失败",
+        "audienceFit": 8.4,
+        "factBasis": "The locked script shows the closed library and Haruka's public admission.",
+        "promiseFulfilled": true,
+        "sampleWordingCopied": false
+      }
+    ]
+  },
+  "descriptionBody": "閉ざされた図書館を開くため、遥は隠していた失敗を町の人々に語ります。静かな告白が、失われた記録と友情を取り戻す短編物語です。",
   "hashtags": [
     "#物語",
     "#朗読",
     "#創作",
-    "#ドラマ",
+    "#図書館",
     "#再出発",
     "#人間関係",
     "#短編",
     "#架空"
   ],
+  "thumbnailProvider": {
+    "providerId": "synthetic-png-fixture",
+    "interfaceVersion": "1.0.0",
+    "integrationMode": "fixture",
+    "status": "available"
+  },
+  "thumbnailStrategy": {
+    "subject": "Haruka standing at the locked library door with the recovered ledger.",
+    "conflict": "The closed door and her decision to confess the failure.",
+    "composition": "One large character on the left, library door and ledger on the right.",
+    "expression": "Nervous but determined.",
+    "targetLanguageText": "失敗を告白",
+    "textSafeArea": "Upper-right quadrant, clear of the face and mobile crop.",
+    "mobileReadabilityTarget": "One face, one door, and four large Japanese characters remain clear at small size."
+  },
+  "thumbnailCandidates": [
+    {
+      "candidateId": "thumbnail_candidate_001",
+      "prompt": "Synthetic 16:9 fixture: librarian, locked door, ledger, Japanese text.",
+      "renderStatus": "GENERATED",
+      "visualDifference": "Front-facing confession composition.",
+      "score": 8.7,
+      "textAccurate": true,
+      "factsConsistent": true,
+      "mobileReadable": true,
+      "asset": {
+        "assetId": "thumbnail_example_001",
+        "relativePath": "fixtures/confirmed-thumbnail-1600x900.png",
+        "mediaType": "image/png",
+        "sizeBytes": 23818,
+        "sha256": "a667f692ef6074c3fa5f1de9af4188ae189dfb1bf390c3b2b0fb5f31d47eb7c7"
+      }
+    },
+    {
+      "candidateId": "thumbnail_candidate_002",
+      "prompt": "Synthetic alternate: ledger foreground and library in the distance.",
+      "renderStatus": "PROMPT_ONLY",
+      "visualDifference": "Object-led close-up.",
+      "score": 7.9,
+      "textAccurate": true,
+      "factsConsistent": true,
+      "mobileReadable": true
+    },
+    {
+      "candidateId": "thumbnail_candidate_003",
+      "prompt": "Synthetic alternate: two former friends divided by a closed door.",
+      "renderStatus": "PROMPT_ONLY",
+      "visualDifference": "Relationship split composition.",
+      "score": 8.0,
+      "textAccurate": true,
+      "factsConsistent": true,
+      "mobileReadable": true
+    },
+    {
+      "candidateId": "thumbnail_candidate_004",
+      "prompt": "Synthetic alternate: library key held above the recovered ledger.",
+      "renderStatus": "PROMPT_ONLY",
+      "visualDifference": "Symbolic hand-and-key composition.",
+      "score": 7.5,
+      "textAccurate": true,
+      "factsConsistent": true,
+      "mobileReadable": true
+    },
+    {
+      "candidateId": "thumbnail_candidate_005",
+      "prompt": "Synthetic alternate: reopened library with Haruka in the doorway.",
+      "renderStatus": "PROMPT_ONLY",
+      "visualDifference": "After-state payoff composition.",
+      "score": 7.8,
+      "textAccurate": true,
+      "factsConsistent": true,
+      "mobileReadable": true
+    }
+  ],
+  "thumbnailSelection": {
+    "selectedCandidateId": "thumbnail_candidate_001",
+    "reason": "The synthetic fixture records the strongest title-hook alignment and mobile readability."
+  },
   "thumbnail": {
-    "assetId": "thumbnail_example_001",
-    "relativePath": "confirmed-thumbnail.webp",
-    "mediaType": "image/webp",
-    "sizeBytes": 2048,
-    "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+    "mode": "real_file",
+    "asset": {
+      "assetId": "thumbnail_example_001",
+      "relativePath": "fixtures/confirmed-thumbnail-1600x900.png",
+      "mediaType": "image/png",
+      "sizeBytes": 23818,
+      "sha256": "a667f692ef6074c3fa5f1de9af4188ae189dfb1bf390c3b2b0fb5f31d47eb7c7"
+    },
+    "widthPixels": 1600,
+    "heightPixels": 900,
+    "aspectRatio": "16:9",
+    "fileReadable": true,
+    "hashVerified": true
+  },
+  "ctrReview": {
+    "status": "PASSED",
+    "score": 8.6,
+    "titleHookVisualized": true,
+    "textComplementsTitle": true,
+    "mobileReadable": true,
+    "factsConsistent": true,
+    "conclusion": "The title promise, confession text, locked door, and ledger communicate one consistent synthetic story."
   },
   "targetChannel": {
     "publisherProfileId": "publisher_profile_example_001",
     "channelSerial": "01",
     "youtubeChannelId": "UCEXAMPLECHANNEL0001"
   },
-  "uploadPolicy": "REQUIRE_REVIEW",
-  "privacyStatus": "private"
+  "uploadPolicy": "DO_NOT_UPLOAD",
+  "privacyStatus": "private",
+  "confirmation": {
+    "gate": "G5_PUBLISHING_ASSETS",
+    "status": "APPROVED",
+    "mode": "review",
+    "source": "synthetic-contract-fixture",
+    "confirmedAt": "2026-08-03T15:05:00Z"
+  },
+  "productionHandoff": {
+    "eligible": true,
+    "assessedAt": "2026-08-03T15:05:00Z",
+    "blockers": []
+  }
 }

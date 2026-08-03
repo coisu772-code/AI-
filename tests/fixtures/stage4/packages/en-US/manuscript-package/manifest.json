@@ -1,0 +1,314 @@
+{
+  "auditScript": {
+    "asset": {
+      "assetId": "chinese-audit-script",
+      "mediaType": "application/json",
+      "relativePath": "chinese-audit-script.json",
+      "sha256": "16041a496081b14f0a4e6cf6c48f1323183bb2f2a01baf49d10be280b07cafd7",
+      "sizeBytes": 1091
+    },
+    "contentHash": "a89cc93054910838937c416faa68e7998334225b60f68265f1e0642826031bb6",
+    "duplicateFileCreated": true,
+    "language": "zh-CN",
+    "lines": [
+      {
+        "emotion": "calm",
+        "episodeNumber": 1,
+        "lineId": "E01-L001",
+        "lineType": "narration",
+        "sequence": 1,
+        "speakerId": "narrator",
+        "text": "社区电台在一个安静的周一早晨公布了最后播出日期。"
+      },
+      {
+        "emotion": "calm",
+        "episodeNumber": 1,
+        "lineId": "E01-L002",
+        "lineType": "dialogue",
+        "sequence": 2,
+        "speakerId": "protagonist",
+        "text": "主持人玛雅邀请居民录下这座城市忽略的小小记忆。"
+      },
+      {
+        "emotion": "calm",
+        "episodeNumber": 2,
+        "lineId": "E02-L001",
+        "lineType": "narration",
+        "sequence": 1,
+        "speakerId": "narrator",
+        "text": "一段录音揭示了保障演播室公共用途的遗忘协议。"
+      },
+      {
+        "emotion": "hopeful",
+        "episodeNumber": 2,
+        "lineId": "E02-L002",
+        "lineType": "dialogue",
+        "sequence": 2,
+        "speakerId": "protagonist",
+        "text": "协议核验后，电台以社区合作社的形式重新开放。"
+      }
+    ],
+    "mode": "backtranslation",
+    "productionUseAllowed": false,
+    "sourceTargetScriptHash": "99469e272913ac92663bc3e69ba64cbb54e4edcf1c7ee1d76fd73786d9239c51",
+    "textAsset": {
+      "assetId": "chinese-audit-script-text",
+      "mediaType": "text/plain",
+      "relativePath": "chinese-audit-script.txt",
+      "sha256": "526c19fbafc30b0207f384505a2178d1d3471e7d02bcb1fce19105969c594696",
+      "sizeBytes": 367
+    },
+    "version": "1.0.0"
+  },
+  "channelProfileId": "ch_cd9ddc329e704242b5d7d8fd4d475b06",
+  "characters": [
+    {
+      "characterId": "narrator",
+      "goal": "guide the community story",
+      "relationship": "connects the audience to the community",
+      "role": "narration",
+      "speakingStyle": "clear, warm, and concise",
+      "targetLanguageName": "Narrator",
+      "visualConsistencyRequired": false
+    },
+    {
+      "characterId": "protagonist",
+      "goal": "guide the community story",
+      "relationship": "connects the audience to the community",
+      "role": "protagonist",
+      "speakingStyle": "clear, warm, and concise",
+      "targetLanguageName": "Maya",
+      "visualAnchorPromptZh": "单人，年轻社区记录者，深色短发，温暖坚定的眼神，简洁日常服装",
+      "visualConsistencyRequired": true
+    }
+  ],
+  "confirmation": {
+    "confirmedAt": "2026-08-04T02:00:00Z",
+    "gate": "G4_MANUSCRIPT",
+    "mode": "review",
+    "source": "synthetic-fixture-user",
+    "status": "APPROVED"
+  },
+  "contentHash": "de2131571470b0542b44f53472da26895097f0ec1ee1ac62737d3475a7c93a6a",
+  "contractType": "manuscript-package",
+  "createdAt": "2026-08-03T18:27:00Z",
+  "episodeCount": 2,
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "id": "manuscript_synthetic-us-content-loop_v1_0_0",
+  "lineCount": 4,
+  "lineMapping": {
+    "auditLineCount": 4,
+    "checks": {
+      "emotionsMatch": true,
+      "episodeNumbersMatch": true,
+      "lineIdsMatch": true,
+      "lineTypesMatch": true,
+      "sequenceMatches": true,
+      "speakersMatch": true
+    },
+    "items": [
+      {
+        "auditLineId": "E01-L001",
+        "emotion": "calm",
+        "episodeNumber": 1,
+        "lineType": "narration",
+        "sequence": 1,
+        "speakerId": "narrator",
+        "targetLineId": "E01-L001"
+      },
+      {
+        "auditLineId": "E01-L002",
+        "emotion": "calm",
+        "episodeNumber": 1,
+        "lineType": "dialogue",
+        "sequence": 2,
+        "speakerId": "protagonist",
+        "targetLineId": "E01-L002"
+      },
+      {
+        "auditLineId": "E02-L001",
+        "emotion": "calm",
+        "episodeNumber": 2,
+        "lineType": "narration",
+        "sequence": 1,
+        "speakerId": "narrator",
+        "targetLineId": "E02-L001"
+      },
+      {
+        "auditLineId": "E02-L002",
+        "emotion": "hopeful",
+        "episodeNumber": 2,
+        "lineType": "dialogue",
+        "sequence": 2,
+        "speakerId": "protagonist",
+        "targetLineId": "E02-L002"
+      }
+    ],
+    "mappingMode": "backtranslation",
+    "status": "PASSED",
+    "targetLineCount": 4
+  },
+  "manuscriptPackageId": "manuscript_synthetic-us-content-loop_v1_0_0",
+  "projectId": "synthetic-us-content-loop",
+  "qualityGate": {
+    "contentHash": "d5c037beb1825bd11c895178f194b6610bbaf75a884f1650732c5affacc3dfc1",
+    "episodeResults": [
+      {
+        "checks": {
+          "audienceRetelling": true,
+          "characterVoice": true,
+          "progressAndStateChange": true,
+          "regionalExpression": true,
+          "storyFacts": true,
+          "targetLanguageNaturalness": true,
+          "terminologyConsistency": true,
+          "ttsSemanticBoundaries": true
+        },
+        "episodeNumber": 1,
+        "status": "PASSED"
+      },
+      {
+        "checks": {
+          "audienceRetelling": true,
+          "characterVoice": true,
+          "progressAndStateChange": true,
+          "regionalExpression": true,
+          "storyFacts": true,
+          "targetLanguageNaturalness": true,
+          "terminologyConsistency": true,
+          "ttsSemanticBoundaries": true
+        },
+        "episodeNumber": 2,
+        "status": "PASSED"
+      }
+    ],
+    "revisionRounds": 1,
+    "status": "PASSED",
+    "targetScriptHash": "99469e272913ac92663bc3e69ba64cbb54e4edcf1c7ee1d76fd73786d9239c51",
+    "version": "1.0.0"
+  },
+  "qualityGateHash": "d5c037beb1825bd11c895178f194b6610bbaf75a884f1650732c5affacc3dfc1",
+  "schemaVersion": "1.0.0",
+  "selectiveInvalidation": {
+    "invalidatedEpisodeNumbers": [],
+    "policy": "affected-episodes-only",
+    "upstreamStoryChangeRequiresNewTopicVersion": true
+  },
+  "status": "SCRIPT_READY",
+  "storyBible": {
+    "climax": "The forgotten agreement is publicly verified.",
+    "contentHash": "09f19f5e620f66c50f9aa2022bc7a6eb778c032cbfec2e381d586f6fcd802d78",
+    "ending": "The place reopens under community stewardship.",
+    "foreshadowing": [
+      "The first record hints at a forgotten agreement"
+    ],
+    "lockedFacts": [
+      "The threatened place serves the community",
+      "The protagonist preserves local memories"
+    ],
+    "relationships": [
+      "The protagonist and residents move from distance to cooperation"
+    ],
+    "sourceStoryFactsHash": "214e20ff512b299b5d3bc249d691768ef3ebffc9de1385f5d21d2e643d7ec015",
+    "timeline": [
+      "closure notice",
+      "memory collection",
+      "verification",
+      "reopening"
+    ],
+    "version": "1.0.0",
+    "worldRules": [
+      "A public decision changes only after evidence is verified"
+    ]
+  },
+  "targetLanguage": "en-US",
+  "targetScript": {
+    "asset": {
+      "assetId": "target-script",
+      "mediaType": "application/json",
+      "relativePath": "target-script.json",
+      "sha256": "76d62063c4bf0e9b8e8209c30246be4a8d35ec1351e0379f3a46dc4389932f33",
+      "sizeBytes": 1148
+    },
+    "contentHash": "99469e272913ac92663bc3e69ba64cbb54e4edcf1c7ee1d76fd73786d9239c51",
+    "isSoleProductionSource": true,
+    "lines": [
+      {
+        "emotion": "calm",
+        "episodeNumber": 1,
+        "lineId": "E01-L001",
+        "lineType": "narration",
+        "sequence": 1,
+        "speakerId": "narrator",
+        "text": "The neighborhood station posted its final broadcast date on a quiet Monday morning."
+      },
+      {
+        "emotion": "calm",
+        "episodeNumber": 1,
+        "lineId": "E01-L002",
+        "lineType": "dialogue",
+        "sequence": 2,
+        "speakerId": "protagonist",
+        "text": "Host Maya asked residents to record the small memories the city had overlooked."
+      },
+      {
+        "emotion": "calm",
+        "episodeNumber": 2,
+        "lineId": "E02-L001",
+        "lineType": "narration",
+        "sequence": 1,
+        "speakerId": "narrator",
+        "text": "One recording revealed a forgotten agreement that protected the studio for public use."
+      },
+      {
+        "emotion": "hopeful",
+        "episodeNumber": 2,
+        "lineId": "E02-L002",
+        "lineType": "dialogue",
+        "sequence": 2,
+        "speakerId": "protagonist",
+        "text": "After the agreement was verified, the station reopened as a community cooperative."
+      }
+    ],
+    "role": "target-language-production-master",
+    "textAsset": {
+      "assetId": "target-script-text",
+      "mediaType": "text/plain",
+      "relativePath": "target-script.txt",
+      "sha256": "6a0e3a9cd75f580e0e1ae4eb8bce5513b2dac72a927f4985693f54fd41cd0e2e",
+      "sizeBytes": 424
+    },
+    "version": "1.0.0"
+  },
+  "upstream": [
+    {
+      "targetContractType": "topic-package",
+      "targetHash": "d53480ed9d321d28ed8156e1c0f2c01b15542579f0f150e3acc85dbbfb1feb95",
+      "targetId": "topic_synthetic-us-content-loop_v1_0_0",
+      "targetSchemaVersion": "1.0.0",
+      "targetVersion": "1.0.0"
+    }
+  ],
+  "version": "1.0.0",
+  "voices": [
+    {
+      "bindingStatus": "BOUND",
+      "catalogHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "catalogVersion": "1.0.0",
+      "engine": "fixture-tts",
+      "speakerId": "narrator",
+      "voiceId": "fixture-us-001",
+      "voiceName": "Synthetic en-US Voice"
+    },
+    {
+      "bindingStatus": "BOUND",
+      "catalogHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "catalogVersion": "1.0.0",
+      "engine": "fixture-tts",
+      "speakerId": "protagonist",
+      "voiceId": "fixture-us-001",
+      "voiceName": "Synthetic en-US Voice"
+    }
+  ]
+}

@@ -4,7 +4,7 @@
 
 阶段2正式读取 YouTube 发布中心已经冻结的只读命令接口，不另定义或要求发布中心实现新的 stdin 协议。OAuth、Client Secret、Cookie、验证码、密码和系统安全存储内容必须留在发布中心进程内。
 
-本地工具服务当前候选版本为 `0.3.0-dev.1`，内部 MCP／工具协议仍为向后兼容的 `1.0.0`。发布中心正式接口版本仍为：
+本地工具服务当前候选版本为 `0.4.0-dev.1`，内部 MCP／工具协议仍为向后兼容的 `1.0.0`。发布中心正式接口版本仍为：
 
 ```text
 youtube-publisher-center/channel-list/v1
@@ -141,6 +141,20 @@ MCP 使用逐行 JSON-RPC 2.0，支持 `initialize`、`ping`、`tools/list` 和 
 
 资料写入每频道独立 `channel.db` 和 `sources/`。平台 ID、规范 URL 和内容 SHA-256 用于去重；来源变化建立新的语义版本，已引用版本不原地覆盖。`Source Package v1` 继续使用冻结的 `schemaVersion=1.0.0`，详细元数据、原始内容、标准化内容和采集报告作为带哈希的包内资产保存。
 
+阶段4继续追加以下工具，不改变阶段2/3工具名称和参数主结构：
+
+- `content_capabilities`
+- `content_project_start`
+- `content_topic_checkpoint`
+- `content_topic_finalize`
+- `content_manuscript_finalize`
+- `content_publishing_finalize`
+- `content_project_get`
+- `content_integrity_check`
+- `content_handoff_check`
+
+阶段4工具只生成和校验 Topic、Manuscript 与 Publishing Asset 三类版本化内容包。`content_handoff_check` 是只读资格检查；它不会调用制作中心、工坊、发布中心、OAuth、上传或 Analytics。趋势、单作品、多作品、拆书和仿写扩展未安装时返回 `CONTENT_EXTENSION_UNAVAILABLE`，不根据标题或元数据伪造分析。
+
 ## 5. 数据与安全
 
 - 默认数据根目录为 `%LOCALAPPDATA%\AI Video Channel Production\data`，隔离测试使用 `AIVCP_DATA_ROOT` 覆盖。
@@ -151,6 +165,8 @@ MCP 使用逐行 JSON-RPC 2.0，支持 `initialize`、`ping`、`tools/list` 和 
 - 测试频道夹具只有同时设置 `AIVCP_ALLOW_TEST_FIXTURES=1` 时才可使用，正式流程不接受虚拟频道。
 - `uploadPolicy=AUTO` 只是发布中心当前默认值；阶段2建库明确拒绝以此获得真实自动上传权限。
 - 阶段3采集不执行拆视频、拆书、仿写、选题、文稿、工坊、OAuth 或上传。
+- 阶段4只读消费频道上下文、Source Package 和频道学习快照；拒绝长期学习写回，一次性修改只进入当前项目记录。
+- 阶段4的 `READY_FOR_PRODUCTION` 只表示三个内容包已确认且完整，不构成制作、授权、上传或发布许可。
 - YouTube 无足够字幕且未配置可用本地转录时保存可核验元数据并标记 `BLOCKED`，要求用户补充本地媒体、字幕或文字；不得由标题、封面或简介编造正文。
 - 网站适配器只执行版本化能力清单允许的公开读取；不得绕过登录、付费墙、DRM、验证码或访问限制。
 

@@ -1,0 +1,23 @@
+{
+  "descriptionBody": "The station has seven days left. One forgotten recording turns a farewell broadcast into a path forward.\nA synthetic story about memory, proof, and a community choosing to rebuild.",
+  "hashtags": [
+    "#Storytime",
+    "#AudioStory",
+    "#OriginalFiction",
+    "#Community",
+    "#SecondChance",
+    "#PlotTwist",
+    "#HumanDrama",
+    "#SyntheticData"
+  ],
+  "privacyStatus": "private",
+  "targetChannel": {
+    "channelSerial": "01",
+    "publisherProfileId": "publisher_synthetic_us",
+    "youtubeChannelId": "UCSYNTHETICUS0001"
+  },
+  "thumbnail": "confirmed-thumbnail.png",
+  "thumbnailMode": "real",
+  "title": "Seven Days Before the Station Closed, One Recording Changed Its Future",
+  "uploadPolicy": "REQUIRE_REVIEW"
+}

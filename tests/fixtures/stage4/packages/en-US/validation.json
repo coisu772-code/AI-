@@ -1,0 +1,46 @@
+{
+  "syntheticFixture": true,
+  "onlineData": false,
+  "userData": false,
+  "language": "en-US",
+  "integrity": {
+    "status": "PASS",
+    "projectId": "synthetic-us-content-loop",
+    "checkedPackages": [
+      "manuscript",
+      "publishing",
+      "topic"
+    ],
+    "errors": [],
+    "boundaries": {
+      "workshop": false,
+      "publisherAuthorization": false,
+      "upload": false,
+      "analytics": false,
+      "longTermLearningWrite": false
+    }
+  },
+  "handoff": {
+    "eligible": true,
+    "projectId": "synthetic-us-content-loop",
+    "nextCenter": "production",
+    "packageHashes": {
+      "manuscript": "de2131571470b0542b44f53472da26895097f0ec1ee1ac62737d3475a7c93a6a",
+      "publishing": "e1110c7072d508cdefac386da7a072dfe41b04c88d5246d46abcd434b7f38ad8",
+      "topic": "d53480ed9d321d28ed8156e1c0f2c01b15542579f0f150e3acc85dbbfb1feb95"
+    },
+    "notExecuted": [
+      "production-package",
+      "workshop",
+      "publisher-authorization",
+      "upload",
+      "analytics",
+      "long-term-learning-write"
+    ]
+  },
+  "packagePaths": {
+    "topic": "topic-package",
+    "manuscript": "manuscript-package",
+    "publishing": "publishing-asset-package"
+  }
+}

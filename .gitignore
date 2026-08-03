@@ -35,6 +35,10 @@ backups/
 *.mov
 *.mkv
 *.png
+!contracts/examples/valid/fixtures/confirmed-thumbnail-1600x900.png
+!tests/fixtures/stage4/packages/en-US/publishing-asset-package/confirmed-thumbnail.png
+!tests/fixtures/stage4/packages/ja-JP/publishing-asset-package/confirmed-thumbnail.png
+!tests/fixtures/stage4/packages/zh-CN/publishing-asset-package/confirmed-thumbnail.png
 *.jpg
 *.jpeg
 *.webp

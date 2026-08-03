@@ -1,0 +1,9 @@
+{
+  "manuscriptPackage": {
+    "targetContractType": "manuscript-package",
+    "targetHash": "de2131571470b0542b44f53472da26895097f0ec1ee1ac62737d3475a7c93a6a",
+    "targetId": "manuscript_synthetic-us-content-loop_v1_0_0",
+    "targetSchemaVersion": "1.0.0",
+    "targetVersion": "1.0.0"
+  }
+}
