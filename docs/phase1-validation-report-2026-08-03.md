@@ -1,10 +1,10 @@
-# 阶段 1 本地验收报告（2026-08-03）
+# 阶段 1 发布与验收报告（2026-08-03）
 
 ## 结论
 
-阶段 1 Beta `0.1.0-beta.2` 已完成，且没有进入阶段 2。插件、marketplace、安装生命周期、10 类跨中心契约、统一发布清单和最小自动验证均已落地。
+阶段 1 Beta `0.1.0-beta.2` 已完成发布与安装验收，且没有进入阶段 2。插件、marketplace、安装生命周期、10 类跨中心契约、统一发布清单和最小自动验证均已落地。
 
-本地验收通过不等于 GitHub 已发布。远端仓库、推送、GitHub Release 和无源码新电脑验收仍等待用户单独授权。
+GitHub 首次推送、Beta 预发布、标签来源安装和 Release 压缩包安装／卸载均已通过。所有安装验收均使用仓库内的隔离目录，没有改动真实用户 Codex 配置、用户资料或凭据。
 
 ## 已通过项目
 
@@ -20,6 +20,9 @@
 | 仓库安全 | 通过 | 未发现凭据型文件名、私钥材料、数据库、可执行文件或媒体资产 |
 | 安装生命周期 | 通过 | 隔离目录安装、幂等重装、强制升级备份、回滚和卸载均通过 |
 | 自动化入口 | 通过 | Windows 本地脚本和 GitHub Actions 工作流均已提供 |
+| GitHub Actions | 通过 | Beta 2 的 `validate` 与 `beta-release` 工作流均成功完成 |
+| GitHub 标签来源安装 | 通过 | 隔离 `CODEX_HOME` 从 `v0.1.0-beta.2` 添加远端 marketplace，发现、安装并启用 Beta 2 插件 |
+| GitHub Release 安装包 | 通过 | 下载 ZIP 与 `SHA256SUMS.txt`，校验哈希后完成安装、状态核对和卸载 |
 
 本地完整验收命令：
 
@@ -28,6 +31,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage1.ps1
 ```
 
 最近一次结果：插件检查通过，10 个示例通过，发布清单通过，仓库安全检查通过，6 个单元测试通过，安装生命周期和隔离 Codex 加载通过，测试目录已清除。
+
+## GitHub 发布与外部安装验收
+
+- 仓库：[`coisu772-code/AI-`](https://github.com/coisu772-code/AI-)
+- Beta 预发布：[`v0.1.0-beta.2`](https://github.com/coisu772-code/AI-/releases/tag/v0.1.0-beta.2)，状态为非草稿预发布，发布时间为 `2026-08-03T16:10:46Z`。
+- 标签提交：`2a5b69adb5c28e2f54b53238aa0c3ce72d5975aa`；发布清单绑定并在干净克隆中复验通过的源码提交为 `acb8586775804bec25d05cdca74c2d141dea9878`。
+- 工作流：[`validate`](https://github.com/coisu772-code/AI-/actions/runs/30830889758) 与 [`beta-release`](https://github.com/coisu772-code/AI-/actions/runs/30830892649) 均为 `success`。
+- 发布附件：`ai-video-channel-production-v0.1.0-beta.2.zip`（52,889 字节）和 `SHA256SUMS.txt`。
+- 远端 ZIP SHA-256：`7c1e851c12e87db7f562b19b78d6140721926d3f6db5979949f573697fa9a767`，与远端校验文件一致。
+- Codex 标签来源验收：使用隔离 `CODEX_HOME` 执行 marketplace 添加、可用插件发现、插件安装和启用状态检查，版本均为 `0.1.0-beta.2`。
+- Release 包验收：从发布页重新下载附件，校验 SHA-256，运行包内安装器，确认 `productId=ai-video-channel-production`、`productVersion=0.1.0-beta.2`，再运行卸载器并确认程序目录已移除。
+- 验收后已删除仓库内的隔离测试目录；真实用户 Codex 配置、频道数据和凭据均未触碰。
 
 ## 真实起点差异与处理
 
@@ -42,9 +57,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage1.ps1
 - `main` 已完成首次推送，源码基线为 `caae41e8a09c3267310a0f39ad46b6da16f775da`。
 - Git 作者由用户确认并设置为 `Codex <coisu772@gmail.com>`。
 - `v0.1.0-beta.1` 标签的跨平台目录哈希检查失败，未创建 Release；标签保留作为失败构建记录。
-- `v0.1.0-beta.2` 修复换行规范化后触发 GitHub Actions 全量验证、打包与预发布。
+- `v0.1.0-beta.2` 修复换行规范化后，GitHub Actions 全量验证、打包与预发布均已成功。
 - Beta 2 发布清单状态为 `published`，并绑定干净克隆复验通过的源码提交 `acb8586775804bec25d05cdca74c2d141dea9878`。
-- GitHub 来源和 Release 压缩包安装结果在发布后进行外部复验，不以工作流启动代替验收成功。
+- GitHub 标签来源和 Release 压缩包均已在发布后独立复验，不以工作流启动代替验收成功。
 - 本地工具服务、频道读取接口和频道资料库仍为明确的阶段 2 范围。
 
 ## 阶段 2 进入条件
