@@ -1,0 +1,7 @@
+interface:
+  display_name: "制作中心"
+  short_description: "安全组装生产包、移交工坊、恢复任务并验收成片到VIDEO_READY"
+  default_prompt: "Use $production-handoff to validate confirmed content packages, run or resume production, and stop safely at VIDEO_READY."
+
+policy:
+  allow_implicit_invocation: false

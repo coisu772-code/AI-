@@ -1,5 +1,13 @@
 # 更新记录
 
+## 未发布 - 阶段 5 工作树
+
+- 增加 Production Package v2.1、Production Task v1、P0–P11 依赖、输入指纹和选择性失效。
+- 增加安全工坊桥、严格字段往返、幂等导入、暂停恢复、失败资产重试和重启恢复。
+- 增加自动成片与 Jianying Draft Package v1／导出回收双路径，统一使用 FFmpeg／ffprobe 技术门。
+- 增加 Production Result Package v1、三市场离线合成制作和 `$production-handoff` 制作中心 Skill。
+- 制作终态只到 `VIDEO_READY`；`.ready`、发布中心、OAuth、上传、Analytics 和长期学习写回继续关闭。
+
 ## 未发布 - 阶段 4 工作树
 
 - 增加 Source Library 到 Topic、Manuscript、Publishing Asset 三类 v1 冻结包的内容最小闭环。

@@ -70,6 +70,7 @@ codex plugin add ai-video-channel-production@novel-manga-production
 - `docs/phase2-channel-library-validation-2026-08-04.md`
 - `docs/phase3-source-library-validation-2026-08-04.md`
 - `docs/phase4-content-loop-validation-2026-08-04.md`
+- `docs/phase5-production-handoff-validation-2026-08-04.md`
 
 `0.1.0-beta.2` 是阶段 1 骨架预发布，不包含频道建库、资料采集、内容生成、视频生产、真实上传或 Analytics。
 
@@ -114,3 +115,23 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage4.ps1
 ```
 
 三组日／中／英短小合成包位于 `tests/fixtures/stage4/packages/`。它们使用同一 Schema、状态机、质量门、文件与哈希校验，仅用于离线验收，不是线上数据或用户内容。完整证据见 `docs/phase4-content-loop-validation-2026-08-04.md`。
+
+## 阶段5未发布制作移交闭环
+
+本地 `0.5.0-dev.1` 候选把已确认的 Manuscript Package v1 与 Publishing Asset Package v1 组装为 `schemaVersion=2.1` 的标准 Production Package v2，并提供：
+
+- 只含目标语言母稿、锁定角色／音色、唯一标题、真实封面和上游 source lock 的九文件生产包；
+- 权威 Production Task v1，P0–P11 依赖、单通道、只读进度、暂停／恢复、失败资产重试和选择性失效；
+- 自动成片与自包含 Jianying Draft Package v1 两条路径；
+- FFmpeg／ffprobe 实测的视频音频流、16:9、时长、字幕映射与结果包技术门；
+- `VIDEO_READY` Production Result Package v1，明确不创建 `.ready`、不调用发布中心、不执行 OAuth 或上传。
+
+离线验收 runner 使用清楚标记的 deterministic synthetic 媒体，经同一任务、资产登记和技术质量门运行，不代表真实图片、视频或 TTS 模型调用。非合成任务没有实际工坊 2.1 适配桥时会在创建活动任务前失败。
+
+阶段5完整隔离验收入口：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage5.ps1
+```
+
+当前最新工坊源码的 2.1 导入已在隔离构建中验证；正式已安装工坊程序未被覆盖，因此正式部署仍须单独审核升级。

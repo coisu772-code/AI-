@@ -9,14 +9,16 @@ from typing import Any
 from .content import CONTENT_LOOP_VERSION, SOURCE_MODES, ContentLoop
 from .errors import ToolError
 from .publisher import PUBLISHER_PROTOCOL_VERSION, PublisherChannelProvider, provider_from_environment
+from .production import PRODUCTION_CENTER_VERSION, ProductionCenter
 from .security import redact
 from .source_library import SOURCE_LIBRARY_VERSION, SourceLibrary
 from .store import ARCHIVE_FORMAT_VERSION, CHANNEL_SCHEMA_VERSION, SYSTEM_SCHEMA_VERSION, ChannelStore
 from .voices import VoiceCatalog
+from .workshop_bridge import WorkshopBridge
 
 
 LOCAL_TOOL_PROTOCOL_VERSION = "1.0.0"
-SERVICE_VERSION = "0.4.0-dev.1"
+SERVICE_VERSION = "0.5.0-dev.1"
 
 
 def default_data_root(plugin_root: Path | None = None) -> Path:
@@ -39,6 +41,8 @@ class ServiceConfig:
     data_root: Path
     plugin_root: Path | None = None
     voice_catalog_path: Path | None = None
+    workshop_executable: Path | None = None
+    workshop_isolation_root: Path | None = None
 
     @classmethod
     def from_environment(cls, plugin_root: Path | None = None) -> "ServiceConfig":
@@ -47,7 +51,15 @@ class ServiceConfig:
         if catalog_path is None and plugin_root:
             candidate = plugin_root / "assets" / "voice-catalog.json"
             catalog_path = candidate if candidate.is_file() else None
-        return cls(data_root=default_data_root(plugin_root), plugin_root=plugin_root, voice_catalog_path=catalog_path)
+        workshop_executable = os.environ.get("AIVCP_WORKSHOP_EXECUTABLE")
+        isolation_root = os.environ.get("AIVCP_WORKSHOP_ISOLATION_ROOT")
+        return cls(
+            data_root=default_data_root(plugin_root),
+            plugin_root=plugin_root,
+            voice_catalog_path=catalog_path,
+            workshop_executable=Path(workshop_executable).resolve() if workshop_executable else None,
+            workshop_isolation_root=Path(isolation_root).resolve() if isolation_root else None,
+        )
 
 
 class LocalToolService:
@@ -63,6 +75,15 @@ class LocalToolService:
         self.store = ChannelStore(config.data_root)
         self.sources = SourceLibrary(self.store)
         self.content = ContentLoop(self.store, self.sources, plugin_root=config.plugin_root)
+        bridge = None
+        if config.workshop_executable and config.workshop_isolation_root:
+            bridge = WorkshopBridge(config.workshop_executable, config.workshop_isolation_root)
+        self.production = ProductionCenter(
+            config.data_root,
+            plugin_root=config.plugin_root,
+            voice_catalog_path=config.voice_catalog_path,
+            workshop_bridge=bridge,
+        )
 
     def capabilities(self) -> dict[str, Any]:
         return {
@@ -77,11 +98,15 @@ class LocalToolService:
                 "archiveFormat": ARCHIVE_FORMAT_VERSION,
                 "sourceLibrary": SOURCE_LIBRARY_VERSION,
                 "contentLoop": CONTENT_LOOP_VERSION,
+                "productionCenter": PRODUCTION_CENTER_VERSION,
                 "channelProfileContract": "1.0.0",
                 "productionProfileContract": "1.0.0",
                 "topicPackageContract": "1.0.0",
                 "manuscriptPackageContract": "1.0.0",
                 "publishingAssetPackageContract": "1.0.0",
+                "productionPackageContract": "2.1",
+                "productionTaskContract": "1.0.0",
+                "productionResultPackageContract": "1.0.0",
             },
             "capabilities": {
                 "publisherChannelList": self.publisher.capabilities().get("available", False),
@@ -98,7 +123,10 @@ class LocalToolService:
                 "sourceTaskRecovery": True,
                 "contentProduction": True,
                 "contentPackageHandoffCheck": True,
-                "workshop": False,
+                "productionPackage": True,
+                "productionTask": True,
+                "productionResultPackage": True,
+                "workshop": self.production.workshop_bridge is not None,
                 "upload": False,
                 "analytics": False,
             },
@@ -445,6 +473,80 @@ class LocalToolService:
                 channel_profile_id=args.get("channelProfileId"),
                 project_id=args.get("projectId"),
             )
+        elif name == "production_capabilities":
+            result = self.production.capabilities()
+            if self.production.workshop_bridge is not None:
+                result["workshopHealth"] = self.production.workshop_bridge.health_check()
+                result["workshopCapabilities"] = self.production.workshop_bridge.capabilities()
+        elif name == "production_package_assemble":
+            self.store.assert_binding(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+            )
+            state = self.content.get_project(
+                channel_profile_id=args.get("channelProfileId"),
+                project_id=args.get("projectId"),
+            )["state"]
+            manuscript_ref = state.get("activePackages", {}).get("manuscript")
+            publishing_ref = state.get("activePackages", {}).get("publishing")
+            if not manuscript_ref or not publishing_ref:
+                raise ToolError("PRODUCTION_UPSTREAM_NOT_CONFIRMED", "缺少已确认文稿包或发布素材包。")
+            result = self.production.assemble_package(
+                manuscript_path=Path(manuscript_ref["path"]),
+                publishing_path=Path(publishing_ref["path"]),
+                production_config=args.get("productionConfig"),
+                production_preset=args.get("productionPreset"),
+                workshop_compatibility=args.get("workshopCompatibility"),
+                synthetic=bool(args.get("synthetic", False)),
+            )
+        elif name == "production_task_start":
+            self.store.assert_binding(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+            )
+            result = self.production.start_task(
+                production_task_id=args.get("productionTaskId"),
+                package_root=Path(args.get("productionPackagePath", "")),
+            )
+        elif name == "production_task_get":
+            result = self.production.get_task(args.get("productionTaskId"))
+        elif name in {
+            "production_task_run",
+            "production_task_pause",
+            "production_task_resume",
+            "production_task_retry",
+            "production_task_invalidate",
+            "production_jianying_export_ingest",
+        }:
+            self.store.assert_binding(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+            )
+            if name == "production_task_run":
+                result = self.production.run_task(
+                    args.get("productionTaskId"),
+                    pause_after_step=args.get("pauseAfterStep"),
+                    fail_storyboard_ids=args.get("failStoryboardIds"),
+                )
+            elif name == "production_task_pause":
+                result = self.production.request_pause(args.get("productionTaskId"))
+            elif name == "production_task_resume":
+                result = self.production.resume_task(args.get("productionTaskId"))
+            elif name == "production_task_retry":
+                result = self.production.retry_failed(args.get("productionTaskId"))
+            elif name == "production_task_invalidate":
+                result = self.production.invalidate(args.get("productionTaskId"), changes=args.get("changes"))
+            else:
+                result = self.production.ingest_jianying_export(
+                    args.get("productionTaskId"),
+                    export_path=Path(args.get("exportPath", "")),
+                    identity_path=Path(args.get("identityPath", "")),
+                )
+        elif name == "production_result_validate":
+            result = self.production.validate_result_package(Path(args.get("resultPackagePath", "")))
         else:
             raise ToolError("TOOL_NOT_FOUND", "本地工具服务没有该工具。", details={"tool": name})
         return redact(result)
@@ -675,6 +777,88 @@ def tool_definitions() -> list[dict[str, Any]]:
             "只读判断全部确认门与真实封面是否满足；不生成生产包、不启动工坊。",
             {"channelProfileId": {"type": "string"}, "projectId": {"type": "string"}},
             ["channelProfileId", "projectId"],
+        ),
+        (
+            "production_capabilities",
+            "只读检查标准生产包、制作任务、FFmpeg、工坊桥和发布隔离边界。",
+            {},
+            [],
+        ),
+        (
+            "production_package_assemble",
+            "从已确认的 Manuscript 与 Publishing Asset 组装并硬门校验 Production Package v2.1。",
+            {
+                **binding_properties,
+                "projectId": {"type": "string"},
+                "productionConfig": {"type": "object"},
+                "productionPreset": {"type": "object"},
+                "workshopCompatibility": {"type": "object"},
+                "synthetic": {"type": "boolean"},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "projectId", "productionConfig", "productionPreset", "workshopCompatibility"],
+        ),
+        (
+            "production_task_start",
+            "严格导入 Production Package v2.1，并创建唯一权威 Production Task v1。",
+            {
+                **binding_properties,
+                "productionTaskId": {"type": "string"},
+                "productionPackagePath": {"type": "string"},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "productionTaskId", "productionPackagePath"],
+        ),
+        (
+            "production_task_get",
+            "只读查看权威制作任务的步骤、资产、失败和 VIDEO_READY 状态，不修改任务。",
+            {"productionTaskId": {"type": "string"}},
+            ["productionTaskId"],
+        ),
+        (
+            "production_task_run",
+            "按 P0–P11 依赖运行或恢复任务；合成验收必须显式 synthetic 标记。",
+            {
+                **binding_properties,
+                "productionTaskId": {"type": "string"},
+                "pauseAfterStep": {"type": "string", "enum": [f"P{value}" for value in range(12)]},
+                "failStoryboardIds": {"type": "array", "items": {"type": "string"}},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "productionTaskId"],
+        ),
+        (
+            "production_task_pause",
+            "请求安全暂停当前制作任务，保留全部已完成资产。",
+            {**binding_properties, "productionTaskId": {"type": "string"}},
+            ["taskId", "channelProfileId", "bindingProof", "productionTaskId"],
+        ),
+        (
+            "production_task_resume",
+            "从权威任务检查点恢复，不重做已通过且指纹有效的资产。",
+            {**binding_properties, "productionTaskId": {"type": "string"}},
+            ["taskId", "channelProfileId", "bindingProof", "productionTaskId"],
+        ),
+        (
+            "production_task_retry",
+            "只把失败资产及其步骤排入重试，不清空其他已完成资产。",
+            {**binding_properties, "productionTaskId": {"type": "string"}},
+            ["taskId", "channelProfileId", "bindingProof", "productionTaskId"],
+        ),
+        (
+            "production_task_invalidate",
+            "按输入指纹和依赖表选择性失效；发布文字或封面变化不得失效正片。",
+            {**binding_properties, "productionTaskId": {"type": "string"}, "changes": {"type": "array", "minItems": 1, "items": {"type": "string"}}},
+            ["taskId", "channelProfileId", "bindingProof", "productionTaskId", "changes"],
+        ),
+        (
+            "production_jianying_export_ingest",
+            "隔离回收带项目、任务和包指纹的剪映导出 MP4，并执行统一技术验收。",
+            {**binding_properties, "productionTaskId": {"type": "string"}, "exportPath": {"type": "string"}, "identityPath": {"type": "string"}},
+            ["taskId", "channelProfileId", "bindingProof", "productionTaskId", "exportPath", "identityPath"],
+        ),
+        (
+            "production_result_validate",
+            "只读校验 VIDEO_READY Production Result Package v1 及发布越权边界。",
+            {"resultPackagePath": {"type": "string"}},
+            ["resultPackagePath"],
         ),
     ]
     return [

@@ -78,3 +78,23 @@
 | 制作与发布 | 不执行 | 只返回移交资格；不启动工坊、不授权、不上传、不读取 Analytics |
 
 阶段4 draft 事实源为 `release-manifests/release-v0.4.0-dev.1.json`，验证报告为 `docs/phase4-content-loop-validation-2026-08-04.md`。该结论只覆盖阶段4内容最小闭环，不能解释为阶段5制作、真实发布或 GitHub Release 的许可。
+
+## 阶段5未发布候选兼容矩阵
+
+以下能力只属于 2026-08-04 本地 `0.5.0-dev.1` 工作树，不代表新的 GitHub Release。
+
+| 边界 | 阶段5候选 | 兼容结论 |
+| --- | --- | --- |
+| Production Package v2 | `schemaVersion=2.1` | 九个清单文件；包内相对路径、大小、SHA-256；目标语言母稿是唯一制作源 |
+| Production Task | `1.0.0` | 权威状态、P0–P11、单通道、暂停／恢复、失败重试、重启恢复、输入指纹和选择性失效 |
+| Jianying Draft Package | `1.0.0` | 自包含媒体、原生字幕轨描述、SRT、项目／任务／包指纹；不启动剪映 |
+| Production Result Package | `1.0.0` | `VIDEO_READY`、最终 MP4、SRT、技术报告、资产索引、发布资产引用和 source lock |
+| 本地工具协议 | `1.0.0` | 阶段2–4工具保持兼容，新增 11 个 `production_*` 工具 |
+| Codex Skills | 7 个 | 新增面向非技术用户的 `$production-handoff`；默认不隐式执行制作 |
+| 控制中心 | 外部 `0.11.0` 基线 | 既有仓库有用户改动；分发侧只读桥复用其单通道语义，禁止旧 `.ready` 自动移交链 |
+| 最新工坊源码 | 隔离 `2.1.0-stage5` 适配 | 实际 CLI 导入、逐字段往返和幂等导入通过；源码仓库有用户改动，未提交 |
+| 正式已安装工坊 | 仍只声明 `1.0`／`2.0` | 未覆盖；正式 2.1 部署为 NO-GO，须单独审核升级 |
+| 外部媒体服务 | 未调用 | 离线三市场使用 deterministic synthetic runner，不冒充真实模型 |
+| 发布中心 | 不进入 | 不创建 `.ready`，不调用 OAuth、上传、Analytics 或长期学习写回 |
+
+阶段5 draft 事实源为 `release-manifests/release-v0.5.0-dev.1.json`，验证报告为 `docs/phase5-production-handoff-validation-2026-08-04.md`。分发候选和隔离源码集成通过，不代表正式工坊部署或真实媒体服务已批准。

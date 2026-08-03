@@ -3,6 +3,10 @@ dist/
 .stage1-smoke/
 .stage1-codex-home/
 .stage2-isolated/
+.stage3-isolated/
+.stage4-plugin-isolated/
+.stage5-plugin-isolated/
+.stage5-output-isolated/
 .github-install-smoke/
 .release-tools/
 node_modules/

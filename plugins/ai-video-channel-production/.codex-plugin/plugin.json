@@ -1,7 +1,7 @@
 {
   "name": "ai-video-channel-production",
-  "version": "0.4.0-dev.1",
-  "description": "AI 视频频道生产系统的 Codex 工作流入口、频道资料库、Source Library 与可追溯内容最小闭环。",
+  "version": "0.5.0-dev.1",
+  "description": "AI 视频频道生产系统的 Codex 工作流入口、内容闭环与安全制作移交。",
   "author": {
     "name": "coisu772-code",
     "url": "https://github.com/coisu772-code"
@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "AI 视频频道生产系统",
     "shortDescription": "频道建库、内容生产、制作、发布与数据流程的统一入口。",
-    "longDescription": "以 Codex Skills 驱动六大中心工作流，并通过安全本地工具和版本化契约连接频道资料库、新漫剧工坊与 YouTube 发布中心。阶段4本地开发树开放真实频道读取、频道建库、统一资料闭环，以及 Topic、Manuscript、Publishing Asset 三类版本化内容包；工坊、授权、上传、数据分析和长期学习写回仍保持关闭。",
+    "longDescription": "以 Codex Skills 驱动六大中心工作流，并通过安全本地工具和版本化契约连接频道资料库与新漫剧工坊。阶段5本地开发树开放 Topic、Manuscript、Publishing Asset、Production Package v2.1、权威制作任务、自动成片、剪映草稿回收和 VIDEO_READY 技术验收；发布包、OAuth、上传、数据分析和长期学习写回仍保持关闭。",
     "developerName": "coisu772-code",
     "category": "Creative",
     "capabilities": [
@@ -29,7 +29,7 @@
     "defaultPrompt": [
       "启动 AI 视频频道生产系统，检查当前频道、资料与内容项目状态。",
       "根据当前频道资料生成并确认一个完整选题，再继续目标语言正式文稿。",
-      "从已确认文稿准备唯一标题、简介、Hashtags、封面与 CTR 联评。"
+      "从已确认文稿准备发布素材，再安全移交工坊并在 VIDEO_READY 停止。"
     ],
     "brandColor": "#6D4AFF"
   }

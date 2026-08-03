@@ -1,0 +1,131 @@
+{
+  "manifestVersion": "1.0.0",
+  "productId": "ai-video-channel-production",
+  "productName": "AI 视频频道生产系统",
+  "productVersion": "0.5.0-dev.1",
+  "releaseChannel": "beta",
+  "releaseStatus": "draft",
+  "generatedAt": "2026-08-03T19:40:55Z",
+  "repository": "https://github.com/coisu772-code/AI-/",
+  "gitCommit": null,
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "contentHash": "ae864ea5cb57744daf14525367db1f18b92edf8e3dacf3f931a9bb471a0ec803",
+  "schemaVersions": {
+    "channel-profile": "1.0.0",
+    "production-profile": "1.0.0",
+    "source-package": "1.0.0",
+    "topic-package": "1.0.0",
+    "manuscript-package": "1.0.0",
+    "publishing-asset-package": "1.0.0",
+    "production-result-package": "1.0.0",
+    "publish-intent": "1.0.0",
+    "publication-receipt": "1.0.0",
+    "analytics-snapshot": "1.0.0"
+  },
+  "protocolVersions": {
+    "contractExchange": "1.0.0",
+    "localToolService": "1.0.0",
+    "installerState": "1.0.0"
+  },
+  "components": [
+    {
+      "componentId": "codex-plugin",
+      "version": "0.5.0-dev.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.5.0-dev.1",
+      "maximumProductVersion": "0.5.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "plugins/ai-video-channel-production",
+          "sha256": "3eb677aed6791ab28a559f398f21fe964f230dbbc8862d70926f02806099023c",
+          "sizeBytes": 572873
+        }
+      ],
+      "notes": "七个 Skills、阶段2–4内容链、Production Package v2.1、权威制作任务和 VIDEO_READY 闭环。"
+    },
+    {
+      "componentId": "windows-installer",
+      "version": "0.5.0-dev.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.5.0-dev.1",
+      "maximumProductVersion": "0.5.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "installer",
+          "sha256": "f0557b1452fbdaa0190ef52e83811a6936023188d9995dbfe959d5d509a6d8c7",
+          "sizeBytes": 25304
+        }
+      ],
+      "notes": "隔离安装、升级、回滚、卸载，以及阶段5 Skill、工具和生产能力健康检查。"
+    },
+    {
+      "componentId": "cross-center-contracts",
+      "version": "1.0.0",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.5.0-dev.1",
+      "maximumProductVersion": "0.5.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "contracts",
+          "sha256": "e06911a8dd0e94f93cbea7e718949b3b6c4b405aa5a8a49760b15e6d8207c05e",
+          "sizeBytes": 161544
+        }
+      ],
+      "notes": "十类跨中心 v1 契约保持兼容，新增 Production Package 2.1、Production Task 与 Jianying Draft 辅助 Schema。"
+    },
+    {
+      "componentId": "local-tool-service",
+      "version": "0.5.0-dev.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.5.0-dev.1",
+      "maximumProductVersion": "0.5.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "plugins/ai-video-channel-production/mcp",
+          "sha256": "38055130f6d8343b0802d56d71cdb868cab96a38665e8a79f2266db861e99dca",
+          "sizeBytes": 522916
+        }
+      ],
+      "notes": "阶段2–4工具、11个制作工具、安全工坊桥、P0–P11任务和统一技术验收。"
+    },
+    {
+      "componentId": "control-center",
+      "version": "0.11.0",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.5.0-dev.1",
+      "maximumProductVersion": "0.5.0-dev.1",
+      "artifacts": [],
+      "notes": "仅复用既有单通道语义并以分发侧只读桥隔离；旧 .ready 自动移交链禁止进入阶段5。"
+    },
+    {
+      "componentId": "workshop",
+      "version": "2.1.0-stage5",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.5.0-dev.1",
+      "maximumProductVersion": "0.5.0-dev.1",
+      "artifacts": [],
+      "notes": "最新源码和隔离构建已通过 2.1 严格导入；正式安装程序未覆盖，部署仍需单独升级。"
+    },
+    {
+      "componentId": "publisher-center",
+      "version": "0.1.0",
+      "includedInRelease": false,
+      "status": "withheld",
+      "minimumProductVersion": "0.5.0-dev.1",
+      "maximumProductVersion": "0.5.0-dev.1",
+      "artifacts": [],
+      "notes": "阶段5不创建 .ready、不调用发布中心、不授权或上传。"
+    }
+  ]
+}

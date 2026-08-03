@@ -9,19 +9,40 @@
   ],
   "type": "object",
   "unevaluatedProperties": false,
-  "required": ["productionResultPackageId", "projectId", "channelProfileId", "status", "workshopVersion", "finalVideo", "subtitles", "validationReportHash", "timelineMapHash"],
+  "required": ["productionResultPackageId", "projectId", "channelProfileId", "productionTaskId", "productionPackageVersion", "productionPackageHash", "status", "workshopVersion", "finalVideo", "subtitles", "artifactIndex", "validationReportHash", "timelineMapHash", "synthetic", "files", "publishingTriggered"],
   "properties": {
     "schemaVersion": { "const": "1.0.0" },
     "contractType": { "const": "production-result-package" },
     "productionResultPackageId": { "type": "string", "minLength": 3, "maxLength": 128 },
     "projectId": { "type": "string", "minLength": 3, "maxLength": 128 },
     "channelProfileId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "productionTaskId": { "type": "string", "minLength": 3, "maxLength": 160 },
+    "productionPackageVersion": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/semver" },
+    "productionPackageHash": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256" },
     "status": { "const": "VIDEO_READY" },
     "workshopVersion": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/semver" },
     "finalVideo": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/asset" },
     "subtitles": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/asset" },
+    "artifactIndex": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/asset" },
     "validationReportHash": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256" },
     "timelineMapHash": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256" },
+    "synthetic": { "type": "boolean" },
+    "publishingTriggered": { "const": false },
+    "files": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sizeBytes", "sha256"],
+        "properties": {
+          "path": { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" },
+          "sizeBytes": { "type": "integer", "minimum": 1 },
+          "sha256": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256" }
+        }
+      }
+    },
     "fallbacks": {
       "type": "array",
       "items": {

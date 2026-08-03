@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/production-task.schema.json",
+  "title": "Production Task v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "contractType",
+    "productionTaskId",
+    "projectId",
+    "packageVersion",
+    "packageHash",
+    "state",
+    "authority",
+    "queueChannel",
+    "revision",
+    "steps",
+    "assets",
+    "selectedStoryboardIds",
+    "boundaries"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "contractType": { "const": "production-task" },
+    "productionTaskId": { "type": "string", "minLength": 3 },
+    "projectId": { "type": "string", "minLength": 3 },
+    "packageVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "packageHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "state": {
+      "enum": [
+        "PREFLIGHT",
+        "READY_TO_PRODUCE",
+        "IMPORTING",
+        "RUNNING",
+        "ASSET_DIAGNOSTICS",
+        "AUTO_RENDERING",
+        "JIANYING_DRAFT_READY",
+        "AWAITING_JIANYING_EXPORT",
+        "INGESTING_EXPORT",
+        "RESULT_VALIDATING",
+        "VIDEO_READY",
+        "PAUSE_REQUESTED",
+        "PAUSED",
+        "NEEDS_CONFIGURATION",
+        "NEEDS_REPAIR",
+        "RETRYING",
+        "FAILED",
+        "CANCELLED",
+        "ARCHIVED"
+      ]
+    },
+    "authority": { "const": "production-task-v1" },
+    "queueChannel": { "const": "workshop-single" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "steps": {
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "required": ["stepId", "dependencies", "status", "attempts", "assetIds"],
+        "properties": {
+          "stepId": { "enum": ["P0", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P11"] },
+          "dependencies": { "type": "array", "items": { "type": "string" } },
+          "status": { "enum": ["PENDING", "RUNNING", "COMPLETED", "SKIPPED", "FAILED"] },
+          "attempts": { "type": "integer", "minimum": 0 },
+          "assetIds": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "assets": { "type": "array", "items": { "type": "object" } },
+    "selectedStoryboardIds": { "type": "array", "items": { "type": "string" } },
+    "boundaries": {
+      "type": "object",
+      "required": ["readyPackageCreated", "publisherCenterCalled", "oauthExecuted", "uploadExecuted", "longTermLearningWrite"],
+      "properties": {
+        "readyPackageCreated": { "const": false },
+        "publisherCenterCalled": { "const": false },
+        "oauthExecuted": { "const": false },
+        "uploadExecuted": { "const": false },
+        "longTermLearningWrite": { "const": false }
+      }
+    }
+  }
+}

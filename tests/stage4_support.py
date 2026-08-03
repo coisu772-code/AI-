@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import binascii
+import hashlib
 import json
 import shutil
 import struct
@@ -130,11 +131,12 @@ def create_service(root: Path, language: str, *, plugin_root: Path, local_tool_s
     market = MARKETS[language]
     root.mkdir(parents=True, exist_ok=True)
     voice_catalog = root / "voice-catalog.json"
-    voice_catalog.write_text(
-        json.dumps(
-            {
+    catalog = {
                 "schemaVersion": "1.0.0",
+                "catalogId": f"synthetic-{market['key']}-voice-catalog",
+                "version": "1.0.0",
                 "generatedAt": "2026-08-04T00:00:00Z",
+                "syntheticFixture": True,
                 "engines": [
                     {
                         "engineId": "fixture-tts",
@@ -150,11 +152,11 @@ def create_service(root: Path, language: str, *, plugin_root: Path, local_tool_s
                         ],
                     }
                 ],
-            },
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
-    )
+            }
+    catalog["contentHash"] = hashlib.sha256(
+        json.dumps(catalog, ensure_ascii=False, allow_nan=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    voice_catalog.write_text(json.dumps(catalog, ensure_ascii=False), encoding="utf-8")
     service = local_tool_service(
         service_config(data_root=root / "data", plugin_root=plugin_root, voice_catalog_path=voice_catalog),
         publisher_provider=StaticPublisherProvider(language, market["key"]),
@@ -368,7 +370,8 @@ def manuscript_payload(ctx: PipelineContext) -> dict[str, Any]:
         "tts-semantic-lines": True,
         "audience-reward": True,
     }
-    catalog_hash = "a" * 64
+    catalog = json.loads((ctx.root / "voice-catalog.json").read_text(encoding="utf-8"))
+    catalog_hash = catalog["contentHash"]
     characters = []
     for character_id, name, role in (("narrator", "Narrator", "narration"), ("protagonist", "Maya", "protagonist")):
         characters.append(

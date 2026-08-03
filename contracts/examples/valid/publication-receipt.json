@@ -6,14 +6,14 @@
   "createdAt": "2026-08-03T15:08:00Z",
   "hashAlgorithm": "SHA-256",
   "hashRule": "canonical-json-v1",
-  "contentHash": "2d1b8f11f861febe826bfc5fee11f147fed7b8c05da0060b3540d0c9d1c89dc3",
+  "contentHash": "1e7310115231e14ac5bd5475a309d84db318694013844ed01cec62ba29d3d9a3",
   "upstream": [
     {
       "targetContractType": "publish-intent",
       "targetId": "publish_intent_example_001",
       "targetVersion": "1.0.0",
       "targetSchemaVersion": "1.0.0",
-      "targetHash": "1789087df6164c4b238b4a5ba7b3c89dba430b0b69ed680e449ccae08c9dc689"
+      "targetHash": "7837756f76edd8ed8b3623d203caa2926078b5a9571d5627515f07006d3f6277"
     }
   ],
   "receiptId": "publication_receipt_example_001",
@@ -22,7 +22,7 @@
     "targetId": "publish_intent_example_001",
     "targetVersion": "1.0.0",
     "targetSchemaVersion": "1.0.0",
-    "targetHash": "1789087df6164c4b238b4a5ba7b3c89dba430b0b69ed680e449ccae08c9dc689"
+    "targetHash": "7837756f76edd8ed8b3623d203caa2926078b5a9571d5627515f07006d3f6277"
   },
   "projectId": "project_example_001",
   "channelProfileId": "channel_profile_example_001",

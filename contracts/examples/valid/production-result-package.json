@@ -6,7 +6,7 @@
   "createdAt": "2026-08-03T15:06:00Z",
   "hashAlgorithm": "SHA-256",
   "hashRule": "canonical-json-v1",
-  "contentHash": "f029e0ed2562470a0fa333079ae4f9526c7d0ee01f9b93fd8de7b56931c38a9d",
+  "contentHash": "eccbe9c850d68955c5d0e1f7a9721ac41874081025dd82bbc2468c46dca08673",
   "upstream": [
     {
       "targetContractType": "manuscript-package",
@@ -26,6 +26,9 @@
   "productionResultPackageId": "production_result_package_example_001",
   "projectId": "project_example_001",
   "channelProfileId": "channel_profile_example_001",
+  "productionTaskId": "production_task_example_001",
+  "productionPackageVersion": "1.0.0",
+  "productionPackageHash": "6666666666666666666666666666666666666666666666666666666666666666",
   "status": "VIDEO_READY",
   "workshopVersion": "1.0.0",
   "finalVideo": {
@@ -42,7 +45,58 @@
     "sizeBytes": 8192,
     "sha256": "8888888888888888888888888888888888888888888888888888888888888888"
   },
+  "artifactIndex": {
+    "assetId": "artifact_index_example_001",
+    "relativePath": "artifact-index.json",
+    "mediaType": "application/json",
+    "sizeBytes": 4096,
+    "sha256": "abababababababababababababababababababababababababababababababab"
+  },
   "validationReportHash": "9999999999999999999999999999999999999999999999999999999999999999",
   "timelineMapHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "fallbacks": []
+  "fallbacks": [],
+  "synthetic": true,
+  "publishingTriggered": false,
+  "files": [
+    {
+      "path": "production-task.json",
+      "sizeBytes": 100,
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "path": "production-report.json",
+      "sizeBytes": 100,
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    {
+      "path": "artifact-index.json",
+      "sizeBytes": 100,
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    {
+      "path": "validation-report.json",
+      "sizeBytes": 100,
+      "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    {
+      "path": "final-video.mp4",
+      "sizeBytes": 100,
+      "sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+    },
+    {
+      "path": "subtitles.srt",
+      "sizeBytes": 100,
+      "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    {
+      "path": "publishing-assets-reference.json",
+      "sizeBytes": 100,
+      "sha256": "7777777777777777777777777777777777777777777777777777777777777777"
+    },
+    {
+      "path": "source-lock.json",
+      "sizeBytes": 100,
+      "sha256": "8888888888888888888888888888888888888888888888888888888888888888"
+    }
+  ]
 }

@@ -14,7 +14,7 @@ PLUGIN_NAME = "ai-video-channel-production"
 MARKETPLACE_NAME = "novel-manga-production"
 PLUGIN_ROOT = ROOT / "plugins" / PLUGIN_NAME
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-CURRENT_PRODUCT_VERSION = "0.4.0-dev.1"
+CURRENT_PRODUCT_VERSION = "0.5.0-dev.1"
 
 EXPECTED_SKILLS = {
     "channel-production",
@@ -23,6 +23,7 @@ EXPECTED_SKILLS = {
     "topic-selection",
     "manuscript-production",
     "publishing-assets",
+    "production-handoff",
 }
 EXPECTED_CONTENT_TOOLS = {
     "content_capabilities",
@@ -34,6 +35,19 @@ EXPECTED_CONTENT_TOOLS = {
     "content_project_get",
     "content_integrity_check",
     "content_handoff_check",
+}
+EXPECTED_PRODUCTION_TOOLS = {
+    "production_capabilities",
+    "production_package_assemble",
+    "production_task_start",
+    "production_task_get",
+    "production_task_run",
+    "production_task_pause",
+    "production_task_resume",
+    "production_task_retry",
+    "production_task_invalidate",
+    "production_jianying_export_ingest",
+    "production_result_validate",
 }
 
 
@@ -73,7 +87,7 @@ def validate_plugin() -> list[str]:
     if plugin.get("name") != PLUGIN_NAME or not NAME_PATTERN.fullmatch(plugin.get("name", "")):
         errors.append("plugin name is invalid")
     if plugin.get("version") != CURRENT_PRODUCT_VERSION:
-        errors.append(f"plugin version must be {CURRENT_PRODUCT_VERSION} for the stage 4 candidate")
+        errors.append(f"plugin version must be {CURRENT_PRODUCT_VERSION} for the stage 5 candidate")
     if plugin.get("skills") != "./skills/":
         errors.append("plugin skills path must be ./skills/")
     if plugin.get("mcpServers") != "./.mcp.json":
@@ -140,6 +154,9 @@ def validate_plugin() -> list[str]:
     missing_router_tools = sorted(tool for tool in EXPECTED_CONTENT_TOOLS if tool not in router_text)
     if missing_router_tools:
         errors.append(f"channel-production is missing stage 4 tool routes: {missing_router_tools}")
+    missing_production_routes = sorted(tool for tool in ("production_capabilities",) if tool not in router_text)
+    if missing_production_routes or "$production-handoff" not in router_text or "VIDEO_READY" not in router_text:
+        errors.append("channel-production is missing the Stage5 production route")
 
     topic_text = skill_texts.get("topic-selection", "")
     for marker in (
@@ -184,6 +201,28 @@ def validate_plugin() -> list[str]:
     ):
         if marker not in publishing_text:
             errors.append(f"publishing-assets is missing required marker: {marker}")
+    production_text = skill_texts.get("production-handoff", "")
+    for marker in (
+        "Production Package v2.1",
+        "Production Task v1",
+        "P0–P11",
+        "production_package_assemble",
+        "production_task_start",
+        "production_task_get",
+        "production_task_run",
+        "production_task_retry",
+        "production_jianying_export_ingest",
+        "production_result_validate",
+        "VIDEO_READY",
+        ".ready",
+        "OAuth",
+    ):
+        if marker not in production_text:
+            errors.append(f"production-handoff is missing required marker: {marker}")
+    service_text = (PLUGIN_ROOT / "mcp" / "aivcp_tools" / "service.py").read_text(encoding="utf-8")
+    missing_tools = sorted(tool for tool in EXPECTED_PRODUCTION_TOOLS if tool not in service_text)
+    if missing_tools:
+        errors.append(f"local service is missing Stage5 tools: {missing_tools}")
     return errors
 
 

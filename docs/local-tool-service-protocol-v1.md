@@ -4,7 +4,7 @@
 
 阶段2正式读取 YouTube 发布中心已经冻结的只读命令接口，不另定义或要求发布中心实现新的 stdin 协议。OAuth、Client Secret、Cookie、验证码、密码和系统安全存储内容必须留在发布中心进程内。
 
-本地工具服务当前候选版本为 `0.4.0-dev.1`，内部 MCP／工具协议仍为向后兼容的 `1.0.0`。发布中心正式接口版本仍为：
+本地工具服务当前候选版本为 `0.5.0-dev.1`，内部 MCP／工具协议仍为向后兼容的 `1.0.0`。发布中心正式接口版本仍为：
 
 ```text
 youtube-publisher-center/channel-list/v1
@@ -155,6 +155,24 @@ MCP 使用逐行 JSON-RPC 2.0，支持 `initialize`、`ping`、`tools/list` 和 
 
 阶段4工具只生成和校验 Topic、Manuscript 与 Publishing Asset 三类版本化内容包。`content_handoff_check` 是只读资格检查；它不会调用制作中心、工坊、发布中心、OAuth、上传或 Analytics。趋势、单作品、多作品、拆书和仿写扩展未安装时返回 `CONTENT_EXTENSION_UNAVAILABLE`，不根据标题或元数据伪造分析。
 
+阶段5在同一 `1.0.0` 本地工具协议中追加 11 个工具：
+
+- `production_capabilities`
+- `production_package_assemble`
+- `production_task_start`
+- `production_task_get`
+- `production_task_run`
+- `production_task_pause`
+- `production_task_resume`
+- `production_task_retry`
+- `production_task_invalidate`
+- `production_jianying_export_ingest`
+- `production_result_validate`
+
+除 `production_capabilities` 外，写入调用继续要求任务、频道和 binding proof。`production_task_get` 与 `production_capabilities` 只读；不得因查询进度改变任务。Production Package 必须为 `2.1`，非合成任务必须配置实际工坊 2.1 适配桥。桥只允许健康检查、能力读取、隔离导入、制作启动和只读状态，拒绝 `.ready`、发布、上传、OAuth、回执、Analytics 和长期学习相关命令。
+
+合成 runner 只在 manifest 和 production config 同时明确标记 synthetic 时可用。它仍经过 Production Task、资产登记、FFmpeg／ffprobe 和结果包验证；返回值明确记录外部图片、视频和 TTS 服务未调用。
+
 ## 5. 数据与安全
 
 - 默认数据根目录为 `%LOCALAPPDATA%\AI Video Channel Production\data`，隔离测试使用 `AIVCP_DATA_ROOT` 覆盖。
@@ -167,6 +185,7 @@ MCP 使用逐行 JSON-RPC 2.0，支持 `initialize`、`ping`、`tools/list` 和 
 - 阶段3采集不执行拆视频、拆书、仿写、选题、文稿、工坊、OAuth 或上传。
 - 阶段4只读消费频道上下文、Source Package 和频道学习快照；拒绝长期学习写回，一次性修改只进入当前项目记录。
 - 阶段4的 `READY_FOR_PRODUCTION` 只表示三个内容包已确认且完整，不构成制作、授权、上传或发布许可。
+- 阶段5只到 `VIDEO_READY`。不得创建 `.ready` 发布包、Publish Intent 或发布队列，不得调用发布中心、OAuth、上传或长期频道学习写回。
 - YouTube 无足够字幕且未配置可用本地转录时保存可核验元数据并标记 `BLOCKED`，要求用户补充本地媒体、字幕或文字；不得由标题、封面或简介编造正文。
 - 网站适配器只执行版本化能力清单允许的公开读取；不得绕过登录、付费墙、DRM、验证码或访问限制。
 

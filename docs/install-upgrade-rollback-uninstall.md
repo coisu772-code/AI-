@@ -36,6 +36,16 @@ powershell -ExecutionPolicy Bypass -File .\installer\Upgrade-AIVideoChannelProdu
 
 升级只替换程序文件，旧 `current` 会成为带时间戳的备份。阶段 1 不迁移用户数据。
 
+阶段5候选升级后可运行健康检查：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\installer\Test-AIVideoChannelProductionHealth.ps1 -AsJson
+```
+
+通过结果必须显示 7 个 Skills、20 个阶段4／5内容与制作工具，并分别确认内容能力和 Production Package `2.1` 能力。健康检查不启动正式工坊生产、不创建真实任务、不读取用户项目，也不调用 OAuth 或上传。
+
+安装器只部署分发插件、契约与本地工具，不覆盖 `Z 漫剧工坊.exe`。如需启用正式 2.1 工坊，必须另行审核、构建、备份和部署；缺少实际 2.1 适配桥时非合成制作任务会安全失败。
+
 ## 回滚
 
 列出默认安装目录下的 `backups`，然后运行：

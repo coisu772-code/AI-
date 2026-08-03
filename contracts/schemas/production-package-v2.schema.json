@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/production-package-v2.schema.json",
+  "title": "Production Package v2 manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "packageType",
+    "packageVersion",
+    "productionPackageId",
+    "projectId",
+    "status",
+    "synthetic",
+    "createdAt",
+    "files",
+    "manifestSelfExcluded",
+    "packageHash"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "2.1" },
+    "packageType": { "const": "production-package-v2" },
+    "packageVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "productionPackageId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,159}$" },
+    "projectId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,159}$" },
+    "status": { "const": "READY_TO_PRODUCE" },
+    "synthetic": { "type": "boolean" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "manifestSelfExcluded": { "const": true },
+    "packageHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "files": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sizeBytes", "sha256", "mediaType"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$",
+            "enum": [
+              "project.json",
+              "characters.json",
+              "episodes.json",
+              "script_lines.json",
+              "production_config.json",
+              "target_script_quality_gate.json",
+              "publishing.json",
+              "confirmed_thumbnail.png",
+              "source_lock.json"
+            ]
+          },
+          "sizeBytes": { "type": "integer", "minimum": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "mediaType": { "type": "string", "minLength": 3 }
+        }
+      }
+    }
+  }
+}

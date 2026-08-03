@@ -16,6 +16,7 @@ $requiredSkills = @(
     "topic-selection",
     "manuscript-production",
     "publishing-assets"
+    "production-handoff"
 )
 $requiredContentTools = @(
     "content_capabilities",
@@ -27,6 +28,17 @@ $requiredContentTools = @(
     "content_project_get",
     "content_integrity_check",
     "content_handoff_check"
+    "production_capabilities"
+    "production_package_assemble"
+    "production_task_start"
+    "production_task_get"
+    "production_task_run"
+    "production_task_pause"
+    "production_task_resume"
+    "production_task_retry"
+    "production_task_invalidate"
+    "production_jianying_export_ingest"
+    "production_result_validate"
 )
 
 $installState = $null
@@ -67,14 +79,17 @@ foreach ($skill in $requiredSkills) {
 }
 
 $routerText = Get-Content -LiteralPath (Join-Path $skillsRoot "channel-production\SKILL.md") -Raw -Encoding UTF8
+$productionSkillText = Get-Content -LiteralPath (Join-Path $skillsRoot "production-handoff\SKILL.md") -Raw -Encoding UTF8
+$declaredToolText = $routerText + "`n" + $productionSkillText
 foreach ($toolName in $requiredContentTools) {
-    if (-not $routerText.Contains($toolName)) {
-        throw "Installation health check failed: total router does not declare $toolName."
+    if (-not $declaredToolText.Contains($toolName)) {
+        throw "Installation health check failed: Skills do not declare $toolName."
     }
 }
 
 $serviceChecked = $false
 $contentCapabilitiesChecked = $false
+$productionCapabilitiesChecked = $false
 if (-not $SkipServiceCheck) {
     $startScript = Join-Path $pluginFull "mcp\start.ps1"
     if (-not (Test-Path -LiteralPath $startScript -PathType Leaf)) {
@@ -103,6 +118,17 @@ if (-not $SkipServiceCheck) {
         throw "Installation health check failed: content capabilities are not healthy."
     }
     $contentCapabilitiesChecked = $true
+    $productionRequest = '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"production_capabilities","arguments":{}}}'
+    $productionResponseText = $productionRequest | powershell -NoProfile -ExecutionPolicy Bypass -File $startScript | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        throw "Installation health check failed: production capabilities call did not complete."
+    }
+    $productionResponse = $productionResponseText | ConvertFrom-Json
+    $productionPayload = $productionResponse.result.structuredContent
+    if ($null -eq $productionPayload -or -not [bool]$productionPayload.ok -or [string]$productionPayload.result.contracts.productionPackage -ne "2.1") {
+        throw "Installation health check failed: Production Package v2.1 is not healthy."
+    }
+    $productionCapabilitiesChecked = $true
     $serviceChecked = $true
 }
 
@@ -115,6 +141,7 @@ $result = [ordered]@{
     contentToolCount = $requiredContentTools.Count
     serviceChecked = $serviceChecked
     contentCapabilitiesChecked = $contentCapabilitiesChecked
+    productionCapabilitiesChecked = $productionCapabilitiesChecked
     boundaries = [ordered]@{
         workshop = "not_called"
         oauth = "not_called"

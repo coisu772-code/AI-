@@ -1,0 +1,327 @@
+from __future__ import annotations
+
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+
+ROOT = Path(__file__).resolve().parents[1]
+MCP_ROOT = ROOT / "plugins" / "ai-video-channel-production" / "mcp"
+if str(MCP_ROOT) not in sys.path:
+    sys.path.insert(0, str(MCP_ROOT))
+
+from aivcp_tools.errors import ToolError  # noqa: E402
+from aivcp_tools.workshop_bridge import WorkshopBridge  # noqa: E402
+
+
+class _Completed:
+    def __init__(self, returncode: int = 0, stdout: str = "", stderr: str = "") -> None:
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+class _RunningProcess:
+    pid = 4242
+
+    def poll(self) -> None:
+        return None
+
+
+class WorkshopBridgeTests(unittest.TestCase):
+    PACKAGE_HASH = "a" * 64
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.executable = self.root / "workshop.exe"
+        self.executable.write_bytes(b"fixture executable")
+        self.isolation = self.root / "isolated"
+        self.bridge = WorkshopBridge(self.executable, self.isolation)
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    @staticmethod
+    def _write_result(argv: list[str], payload: dict) -> _Completed:
+        result_path = Path(argv[argv.index("--result-file") + 1])
+        result_path.write_text(json.dumps(payload), encoding="utf-8")
+        return _Completed()
+
+    def _write_package_manifest(self, package: Path, project_id: str = "fixture-project") -> None:
+        package.mkdir(exist_ok=True)
+        (package / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "2.1",
+                    "projectId": project_id,
+                    "packageVersion": "v001",
+                    "packageHash": self.PACKAGE_HASH,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def _official_import_meta(self) -> dict:
+        return {
+            "source": "production_package",
+            "schemaVersion": "2.1",
+            "packageVersion": "v001",
+            "packageHash": self.PACKAGE_HASH,
+            "contentLocked": True,
+            "roundTripValidated": True,
+        }
+
+    def test_health_check_is_read_only_and_redacts_local_paths(self) -> None:
+        def fake_run(argv: list[str], **_kwargs: object) -> _Completed:
+            self.assertEqual("health-check", argv[1])
+            return self._write_result(
+                argv,
+                {
+                    "success": True,
+                    "application": "Z Manga Workshop",
+                    "version": "1.0.0",
+                    "frontendEmbedded": True,
+                    "ffmpegAvailable": True,
+                    "ffmpegPath": "C:/private/ffmpeg.exe",
+                    "ffprobePath": "C:/private/ffprobe.exe",
+                },
+            )
+
+        with patch("aivcp_tools.workshop_bridge.subprocess.run", side_effect=fake_run):
+            result = self.bridge.health_check()
+        self.assertTrue(result["ffmpegAvailable"])
+        self.assertTrue(result["ffmpegPathSet"])
+        self.assertNotIn("C:/private", json.dumps(result))
+        self.assertEqual("read_only_no_external_services", result["boundary"])
+
+    def test_capabilities_forces_no_probe(self) -> None:
+        def fake_run(argv: list[str], **_kwargs: object) -> _Completed:
+            self.assertEqual("get-production-capabilities", argv[1])
+            self.assertIn("--no-probe", argv)
+            return self._write_result(
+                argv,
+                {
+                    "success": True,
+                    "voiceEngines": [{"engine": "fixture", "available": False}],
+                    "supportedPackageVersions": ["2.1"],
+                },
+            )
+
+        with patch("aivcp_tools.workshop_bridge.subprocess.run", side_effect=fake_run):
+            result = self.bridge.capabilities()
+        self.assertFalse(result["externalServiceProbeExecuted"])
+        self.assertEqual(["2.1"], result["supportedPackageVersions"])
+
+    def test_import_is_limited_to_isolation_and_preserves_duplicate_flag(self) -> None:
+        package = self.root / "production-package"
+        self._write_package_manifest(package)
+        target = self.isolation / "workshop-project"
+
+        def fake_run(argv: list[str], **_kwargs: object) -> _Completed:
+            project_path = target / "novel_manga_project.json"
+            project_path.write_text(
+                json.dumps(
+                    {
+                        "id": "fixture-project",
+                        "importMeta": self._official_import_meta(),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            return self._write_result(
+                argv,
+                {
+                    "success": True,
+                    "projectId": "fixture-project",
+                    "projectName": "Fixture",
+                    "projectPath": str(target / "novel_manga_project.json"),
+                    "episodesImported": 1,
+                    "charactersImported": 2,
+                    "scriptLinesImported": 3,
+                    "duplicate": True,
+                    "packageVersion": "v001",
+                    "packageHash": self.PACKAGE_HASH,
+                    "roundTripValidated": True,
+                    "warnings": [],
+                },
+            )
+
+        with patch("aivcp_tools.workshop_bridge.subprocess.run", side_effect=fake_run):
+            result = self.bridge.import_package(package, target, expected_project_id="fixture-project")
+        self.assertTrue(result["duplicate"])
+        self.assertFalse(result["publishingTriggered"])
+
+    def test_import_rejects_target_outside_isolation_before_process_start(self) -> None:
+        package = self.root / "production-package"
+        self._write_package_manifest(package)
+        with patch("aivcp_tools.workshop_bridge.subprocess.run") as run:
+            with self.assertRaises(ToolError) as caught:
+                self.bridge.import_package(
+                    package,
+                    self.root / "real-projects",
+                    expected_project_id="fixture-project",
+                )
+        self.assertEqual("WORKSHOP_TARGET_NOT_ISOLATED", caught.exception.code)
+        run.assert_not_called()
+
+    def test_import_rejects_publisher_ready_package(self) -> None:
+        package = self.root / "publisher-package.ready"
+        self._write_package_manifest(package)
+        with patch("aivcp_tools.workshop_bridge.subprocess.run") as run:
+            with self.assertRaises(ToolError) as caught:
+                self.bridge.import_package(
+                    package,
+                    self.isolation / "workshop-project",
+                    expected_project_id="fixture",
+                )
+        self.assertEqual("PUBLISHING_PACKAGE_FORBIDDEN", caught.exception.code)
+        run.assert_not_called()
+
+    def test_import_rejects_project_identity_mismatch(self) -> None:
+        package = self.root / "production-package"
+        self._write_package_manifest(package)
+        target = self.isolation / "workshop-project"
+
+        def fake_run(argv: list[str], **_kwargs: object) -> _Completed:
+            return self._write_result(
+                argv,
+                {
+                    "success": True,
+                    "projectId": "wrong-project",
+                    "projectPath": str(target / "novel_manga_project.json"),
+                },
+            )
+
+        with patch("aivcp_tools.workshop_bridge.subprocess.run", side_effect=fake_run):
+            with self.assertRaises(ToolError) as caught:
+                self.bridge.import_package(package, target, expected_project_id="fixture-project")
+        self.assertEqual("WORKSHOP_IMPORT_PROJECT_MISMATCH", caught.exception.code)
+
+    def test_policy_has_no_publish_or_upload_escape_hatch(self) -> None:
+        with self.assertRaises(ToolError) as caught:
+            self.bridge._run_json("assemble-youtube-publish-package", [])
+        self.assertEqual("WORKSHOP_COMMAND_FORBIDDEN", caught.exception.code)
+
+    def test_start_production_uses_direct_argv_and_isolated_project(self) -> None:
+        project = self.isolation / "workshop-project" / "novel_manga_project.json"
+        project.parent.mkdir(parents=True)
+        project.write_text(
+            json.dumps({"id": "fixture-project", "importMeta": self._official_import_meta()}),
+            encoding="utf-8",
+        )
+
+        def fake_popen(argv: list[str], **_kwargs: object) -> _RunningProcess:
+            self.assertEqual("run-production", argv[1])
+            self.assertIn("--auto-start", argv)
+            self.assertIn("audio,storyboard", argv)
+            result_path = Path(argv[argv.index("--result-file") + 1])
+            result_path.write_text(
+                json.dumps({"success": True, "processId": 4242, "forwarded": True, "status": "accepted"}),
+                encoding="utf-8",
+            )
+            return _RunningProcess()
+
+        with patch("aivcp_tools.workshop_bridge.subprocess.Popen", side_effect=fake_popen):
+            result = self.bridge.start_production(
+                project,
+                selected_step_ids=["audio", "storyboard"],
+                selected_episode_ids=["ep_001"],
+                request_id="task-run-001",
+                expected_project_id="fixture-project",
+            )
+        self.assertEqual(4242, result["processId"])
+        self.assertTrue(result["forwarded"])
+        self.assertFalse(result["publishingTriggered"])
+
+    def test_production_status_is_read_only(self) -> None:
+        project = self.isolation / "workshop-project" / "novel_manga_project.json"
+        project.parent.mkdir(parents=True)
+        project.write_text(
+            json.dumps(
+                {
+                    "id": "fixture-project",
+                    "importMeta": self._official_import_meta(),
+                    "autoProductionTask": {
+                        "id": "workshop-task-1",
+                        "externalRequestId": "task-run-001",
+                        "status": "paused",
+                        "currentEpisodeId": "ep_001",
+                        "currentStepId": "audio",
+                        "selectedStepIds": ["audio"],
+                        "selectedEpisodeIds": ["ep_001"],
+                        "episodeStates": {"ep_001": {"audio": "failed"}},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        before = project.read_bytes()
+        result = self.bridge.production_status(
+            project,
+            expected_project_id="fixture-project",
+            expected_request_id="task-run-001",
+        )
+        after = project.read_bytes()
+        self.assertEqual(before, after)
+        self.assertTrue(result["readOnly"])
+        self.assertEqual("paused", result["status"])
+
+    def test_start_production_rejects_publish_named_step(self) -> None:
+        project = self.isolation / "workshop-project" / "novel_manga_project.json"
+        project.parent.mkdir(parents=True)
+        project.write_text(
+            json.dumps({"id": "fixture-project", "importMeta": self._official_import_meta()}),
+            encoding="utf-8",
+        )
+        with patch("aivcp_tools.workshop_bridge.subprocess.Popen") as popen:
+            with self.assertRaises(ToolError) as caught:
+                self.bridge.start_production(project, selected_step_ids=["publish"])
+        self.assertEqual("WORKSHOP_COMMAND_FORBIDDEN", caught.exception.code)
+        popen.assert_not_called()
+
+    def test_start_production_rejects_legacy_manual_project(self) -> None:
+        project = self.isolation / "manual-project" / "novel_manga_project.json"
+        project.parent.mkdir(parents=True)
+        project.write_text(json.dumps({"id": "fixture-project"}), encoding="utf-8")
+        with patch("aivcp_tools.workshop_bridge.subprocess.Popen") as popen:
+            with self.assertRaises(ToolError) as caught:
+                self.bridge.start_production(
+                    project,
+                    selected_step_ids=["audio"],
+                    expected_project_id="fixture-project",
+                )
+        self.assertEqual("WORKSHOP_COMPATIBILITY_PROJECT_FORBIDDEN", caught.exception.code)
+        popen.assert_not_called()
+
+    def test_production_status_rejects_stale_workshop_run(self) -> None:
+        project = self.isolation / "workshop-project" / "novel_manga_project.json"
+        project.parent.mkdir(parents=True)
+        project.write_text(
+            json.dumps(
+                {
+                    "id": "fixture-project",
+                    "importMeta": self._official_import_meta(),
+                    "autoProductionTask": {
+                        "externalRequestId": "old-run",
+                        "status": "running",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        before = project.read_bytes()
+        with self.assertRaises(ToolError) as caught:
+            self.bridge.production_status(
+                project,
+                expected_project_id="fixture-project",
+                expected_request_id="current-run",
+            )
+        self.assertEqual("WORKSHOP_STATUS_TASK_MISMATCH", caught.exception.code)
+        self.assertEqual(before, project.read_bytes())
+
+
+if __name__ == "__main__":
+    unittest.main()

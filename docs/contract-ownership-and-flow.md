@@ -48,3 +48,11 @@
 目标语言正式母稿是制作唯一事实源。非中文项目的中文稿只是严格逐行审核映射；中文项目直接引用母稿，不生成重复审核资产。发布资产只能引用已确认母稿，并以唯一标题、8～12 个 Hashtags、封面候选与正式封面文件／提示词状态明确区分可移交与待补齐。
 
 `READY_FOR_PRODUCTION` 仅表示三个内容包具备移交资格，不触发制作中心、工坊、OAuth、上传、Analytics 或长期频道学习写回。
+
+## 阶段5制作移交约束
+
+阶段5在两个上游包均已确认、项目／版本／哈希绑定一致后组装 Production Package v2.1。包中固定包含 `manifest/project/characters/episodes/script_lines/production_config/target_script_quality_gate/publishing/confirmed_thumbnail/source_lock`；中文审核稿、缓存、凭据、Token、个人绝对路径和包外路径均被拒绝。
+
+Production Task v1 是唯一权威制作状态。P0–P11 的完成、失败、资产指纹、暂停／恢复和重试都持久化到任务；进度查询只读。标题、简介、Hashtags 或封面改变只使发布引用失效，不使正片媒体失效。显式视频失败默认暂停，只有生产配置明确写入 `use_static_image` 才逐项登记回退。
+
+自动成片与剪映精修最终汇合到相同的 FFmpeg／ffprobe 技术门和 Production Result Package v1。结果状态止于 `VIDEO_READY`；Publish Intent、`.ready`、发布队列、OAuth、上传和长期学习不属于本阶段授权。

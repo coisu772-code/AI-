@@ -38,6 +38,14 @@ Channel Profile + Production Profile + Source Package
 
 `contracts/examples/valid/fixtures/confirmed-thumbnail-1600x900.png` 是清楚标注的本地合成 PNG，只用于契约测试，不是线上数据、用户数据或正式封面。
 
+## 阶段 5 制作契约
+
+`production-package-v2.schema.json` 校验 Production Package v2.1 的 manifest。清单恰好声明九个包内文件，路径按字典序排列并绑定大小、媒体类型和 SHA-256；`manifest.json` 自身按明确的 `manifestSelfExcluded` 规则计算包哈希。
+
+`production-task.schema.json` 和 `jianying-draft-package.schema.json` 是制作中心内部、但可安装验证的辅助 Schema。前者描述权威 Production Task v1 和 P0–P11；后者描述自包含剪映草稿的项目、任务、生产包指纹和字幕轨。它们不扩充十类跨中心 `contract-catalog`，因此不改变阶段1的跨中心契约集合。
+
+Production Result Package v1 仍是制作中心对发布中心的跨中心输出，但阶段5实例只允许 `VIDEO_READY`，必须携带任务、报告、资产索引、验证报告、最终视频、字幕、发布资产引用和 source lock。任何 `.ready` 或 `publishingTriggered=true` 都是越权失败。
+
 ## 路径与安全
 
 - 契约中的文件路径只允许包内相对路径。
