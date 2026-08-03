@@ -43,7 +43,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage1.ps1
 - Git 作者由用户确认并设置为 `Codex <coisu772@gmail.com>`。
 - `v0.1.0-beta.1` 标签的跨平台目录哈希检查失败，未创建 Release；标签保留作为失败构建记录。
 - `v0.1.0-beta.2` 修复换行规范化后触发 GitHub Actions 全量验证、打包与预发布。
-- 发布清单状态为 `published`，并绑定上述源码基线提交。
+- Beta 2 发布清单状态为 `published`，并绑定干净克隆复验通过的源码提交 `acb8586775804bec25d05cdca74c2d141dea9878`。
 - GitHub 来源和 Release 压缩包安装结果在发布后进行外部复验，不以工作流启动代替验收成功。
 - 本地工具服务、频道读取接口和频道资料库仍为明确的阶段 2 范围。
 

@@ -2,6 +2,8 @@
 
 这是阶段 1“GitHub 发布骨架与跨中心契约”的首个 Beta，只用于验证安装、Codex 入口和跨中心数据契约。
 
+相较未生成 Release 的 `beta.1` 标签，本版本增加跨平台文本换行规范化，确保 Windows 工作区、Git 克隆与 GitHub Actions 对目录工件计算出相同 SHA-256。
+
 ## 本次包含
 
 - Codex marketplace 与 `ai-video-channel-production` 插件；
