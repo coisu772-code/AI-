@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/manuscript-package.schema.json",
+  "title": "Manuscript Package v1",
+  "allOf": [
+    {
+      "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/envelope"
+    }
+  ],
+  "type": "object",
+  "unevaluatedProperties": false,
+  "required": ["manuscriptPackageId", "projectId", "channelProfileId", "status", "targetLanguage", "episodeCount", "lineCount", "targetScript", "auditScript", "qualityGateHash"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "contractType": { "const": "manuscript-package" },
+    "manuscriptPackageId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "projectId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "channelProfileId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "status": { "const": "SCRIPT_READY" },
+    "targetLanguage": { "type": "string", "pattern": "^[a-z]{2,3}(?:-[A-Z]{2})?$" },
+    "episodeCount": { "type": "integer", "minimum": 1 },
+    "lineCount": { "type": "integer", "minimum": 1 },
+    "targetScript": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/asset" },
+    "auditScript": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/asset" },
+    "qualityGateHash": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256" }
+  }
+}

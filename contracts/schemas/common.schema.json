@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json",
+  "title": "AI Video Channel Production Common Contract Definitions",
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "contractReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "targetContractType",
+        "targetId",
+        "targetVersion",
+        "targetSchemaVersion",
+        "targetHash"
+      ],
+      "properties": {
+        "targetContractType": {
+          "type": "string",
+          "enum": [
+            "channel-profile",
+            "production-profile",
+            "source-package",
+            "topic-package",
+            "manuscript-package",
+            "publishing-asset-package",
+            "production-result-package",
+            "publish-intent",
+            "publication-receipt",
+            "analytics-snapshot"
+          ]
+        },
+        "targetId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "targetVersion": {
+          "$ref": "#/$defs/semver"
+        },
+        "targetSchemaVersion": {
+          "$ref": "#/$defs/semver"
+        },
+        "targetHash": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assetId",
+        "relativePath",
+        "mediaType",
+        "sizeBytes",
+        "sha256"
+      ],
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "relativePath": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$"
+        },
+        "mediaType": {
+          "type": "string",
+          "minLength": 3
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "envelope": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "contractType",
+        "id",
+        "version",
+        "createdAt",
+        "hashAlgorithm",
+        "hashRule",
+        "contentHash",
+        "upstream"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/semver"
+        },
+        "contractType": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "version": {
+          "$ref": "#/$defs/semver"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "hashAlgorithm": {
+          "const": "SHA-256"
+        },
+        "hashRule": {
+          "const": "canonical-json-v1"
+        },
+        "contentHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "upstream": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/contractReference"
+          }
+        }
+      }
+    }
+  }
+}

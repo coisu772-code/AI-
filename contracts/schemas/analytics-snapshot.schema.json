@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/analytics-snapshot.schema.json",
+  "title": "Analytics Snapshot v1",
+  "allOf": [
+    {
+      "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/envelope"
+    }
+  ],
+  "type": "object",
+  "unevaluatedProperties": false,
+  "required": ["snapshotId", "publicationReceiptRef", "channelProfileId", "youtubeVideoId", "window", "collectedAt", "dataCutoff", "completeness", "metrics"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "contractType": { "const": "analytics-snapshot" },
+    "snapshotId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "publicationReceiptRef": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/contractReference" },
+    "channelProfileId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "youtubeVideoId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{6,32}$" },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "start", "end", "timezone"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["publication-baseline", "T+24H", "T+7D", "T+28D", "custom"] },
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" },
+        "timezone": { "type": "string", "minLength": 1 }
+      }
+    },
+    "collectedAt": { "type": "string", "format": "date-time" },
+    "dataCutoff": { "type": "string", "format": "date-time" },
+    "completeness": { "type": "string", "enum": ["provisional", "complete", "revised", "superseded"] },
+    "metrics": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["value", "unit", "factLevel", "source"],
+        "properties": {
+          "value": { "type": ["number", "integer", "null"] },
+          "unit": { "type": "string", "minLength": 1 },
+          "factLevel": {
+            "type": "string",
+            "enum": ["SYSTEM_FACT", "PUBLIC_API_FACT", "OWNER_ANALYTICS_FACT", "SAMPLE_OBSERVATION", "INFERENCE", "UNKNOWN"]
+          },
+          "source": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

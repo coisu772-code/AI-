@@ -1,0 +1,113 @@
+from __future__ import annotations
+
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+
+ROOT = Path(__file__).resolve().parents[1]
+PLUGIN_NAME = "ai-video-channel-production"
+MARKETPLACE_NAME = "novel-manga-production"
+PLUGIN_ROOT = ROOT / "plugins" / PLUGIN_NAME
+NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
+def load_json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_skill_frontmatter(path: Path) -> dict[str, Any]:
+    text = path.read_text(encoding="utf-8")
+    if not text.startswith("---\n"):
+        raise ValueError("missing opening YAML frontmatter delimiter")
+    _, raw, _ = text.split("---", 2)
+    document = yaml.safe_load(raw)
+    if not isinstance(document, dict):
+        raise ValueError("frontmatter must be an object")
+    return document
+
+
+def validate_plugin() -> list[str]:
+    errors: list[str] = []
+    marketplace = load_json(ROOT / ".agents" / "plugins" / "marketplace.json")
+    plugin = load_json(PLUGIN_ROOT / ".codex-plugin" / "plugin.json")
+
+    if marketplace.get("name") != MARKETPLACE_NAME:
+        errors.append("marketplace name mismatch")
+    entries = marketplace.get("plugins", [])
+    if len(entries) != 1:
+        errors.append("marketplace must expose exactly one plugin in 0.1.0-beta.1")
+    else:
+        entry = entries[0]
+        if entry.get("name") != PLUGIN_NAME:
+            errors.append("marketplace plugin name mismatch")
+        source = entry.get("source", {})
+        if source != {"source": "local", "path": f"./plugins/{PLUGIN_NAME}"}:
+            errors.append("marketplace local source path mismatch")
+
+    if plugin.get("name") != PLUGIN_NAME or not NAME_PATTERN.fullmatch(plugin.get("name", "")):
+        errors.append("plugin name is invalid")
+    if plugin.get("version") != "0.1.0-beta.1":
+        errors.append("plugin version must be 0.1.0-beta.1 for the first beta")
+    if plugin.get("skills") != "./skills/":
+        errors.append("plugin skills path must be ./skills/")
+    prompts = plugin.get("interface", {}).get("defaultPrompt", [])
+    if not isinstance(prompts, list) or not 1 <= len(prompts) <= 3:
+        errors.append("plugin defaultPrompt must contain 1 to 3 prompts")
+
+    expected_skills = {"channel-production", "channel-onboarding"}
+    skill_dirs = {path.name for path in (PLUGIN_ROOT / "skills").iterdir() if path.is_dir()}
+    if skill_dirs != expected_skills:
+        errors.append(f"unexpected skill set: {sorted(skill_dirs)}")
+
+    policies: dict[str, bool] = {}
+    for skill_name in sorted(expected_skills):
+        skill_root = PLUGIN_ROOT / "skills" / skill_name
+        try:
+            frontmatter = load_skill_frontmatter(skill_root / "SKILL.md")
+        except Exception as exc:  # noqa: BLE001 - aggregate validation failures
+            errors.append(f"{skill_name}: invalid SKILL.md: {exc}")
+            continue
+        if frontmatter.get("name") != skill_name:
+            errors.append(f"{skill_name}: frontmatter name mismatch")
+        description = frontmatter.get("description")
+        if not isinstance(description, str) or not 20 <= len(description) <= 1024:
+            errors.append(f"{skill_name}: description must be 20 to 1024 characters")
+        try:
+            interface = yaml.safe_load((skill_root / "agents" / "openai.yaml").read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"{skill_name}: invalid agents/openai.yaml: {exc}")
+            continue
+        for field in ("display_name", "short_description", "default_prompt"):
+            if not isinstance(interface.get("interface", {}).get(field), str):
+                errors.append(f"{skill_name}: missing interface.{field}")
+        implicit = interface.get("policy", {}).get("allow_implicit_invocation")
+        if not isinstance(implicit, bool):
+            errors.append(f"{skill_name}: allow_implicit_invocation must be boolean")
+        else:
+            policies[skill_name] = implicit
+
+    if policies.get("channel-production") is not True:
+        errors.append("channel-production must be the implicit total entry")
+    if policies.get("channel-onboarding") is not False:
+        errors.append("channel-onboarding must remain explicit/orchestrated")
+    return errors
+
+
+def main() -> int:
+    errors = validate_plugin()
+    if errors:
+        for error in errors:
+            print(f"ERROR: {error}")
+        print(f"Plugin validation failed with {len(errors)} error(s).")
+        return 1
+    print("Plugin and marketplace validation passed.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

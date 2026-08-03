@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/publish-intent.schema.json",
+  "title": "Publish Intent v1",
+  "allOf": [
+    {
+      "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/envelope"
+    }
+  ],
+  "type": "object",
+  "unevaluatedProperties": false,
+  "required": ["publishIntentId", "projectId", "channelProfileId", "state", "targetChannel", "productionResultRef", "publishingAssetRef", "uploadPolicy", "privacyStatus", "idempotencyKey"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "contractType": { "const": "publish-intent" },
+    "publishIntentId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "projectId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "channelProfileId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "state": { "type": "string", "enum": ["PACKAGE_READY", "WAITING_REVIEW", "READY", "UPLOADING", "VIDEO_CREATED_PRIVATE", "POST_PROCESSING"] },
+    "targetChannel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["publisherProfileId", "channelSerial", "expectedYoutubeChannelId"],
+      "properties": {
+        "publisherProfileId": { "type": "string", "minLength": 3 },
+        "channelSerial": { "type": "string", "pattern": "^[0-9]{2,}$" },
+        "expectedYoutubeChannelId": { "type": "string", "minLength": 8, "maxLength": 64 }
+      }
+    },
+    "productionResultRef": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/contractReference" },
+    "publishingAssetRef": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/contractReference" },
+    "uploadPolicy": { "type": "string", "enum": ["DO_NOT_UPLOAD", "REQUIRE_REVIEW", "AUTO"] },
+    "privacyStatus": { "type": "string", "enum": ["private", "unlisted", "public", "scheduled"] },
+    "scheduledAt": { "type": ["string", "null"], "format": "date-time" },
+    "timezone": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "idempotencyKey": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256" }
+  }
+}

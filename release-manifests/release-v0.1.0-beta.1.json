@@ -1,0 +1,124 @@
+{
+  "manifestVersion": "1.0.0",
+  "productId": "ai-video-channel-production",
+  "productName": "AI 视频频道生产系统",
+  "productVersion": "0.1.0-beta.1",
+  "releaseChannel": "beta",
+  "releaseStatus": "draft",
+  "generatedAt": "2026-08-03T15:59:58Z",
+  "repository": "https://github.com/coisu772-code/AI-",
+  "gitCommit": null,
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "contentHash": "7e886bed76ee2c3c07a82428d937a03a63a81f759fa63c8ab65d7d2bc6ba5331",
+  "schemaVersions": {
+    "channel-profile": "1.0.0",
+    "production-profile": "1.0.0",
+    "source-package": "1.0.0",
+    "topic-package": "1.0.0",
+    "manuscript-package": "1.0.0",
+    "publishing-asset-package": "1.0.0",
+    "production-result-package": "1.0.0",
+    "publish-intent": "1.0.0",
+    "publication-receipt": "1.0.0",
+    "analytics-snapshot": "1.0.0"
+  },
+  "protocolVersions": {
+    "contractExchange": "1.0.0",
+    "localToolService": "0.0.0",
+    "installerState": "1.0.0"
+  },
+  "components": [
+    {
+      "componentId": "codex-plugin",
+      "version": "0.1.0-beta.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.1.0-beta.1",
+      "maximumProductVersion": "0.1.0-beta.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "plugins/ai-video-channel-production",
+          "sha256": "d7945724a01291b0964623776562527b15b04cfedcb78a4238e21491c936edf0",
+          "sizeBytes": 5998
+        }
+      ],
+      "notes": "Codex 总入口与显式频道建库入口；阶段 1 仅开放边界说明和契约导航。"
+    },
+    {
+      "componentId": "windows-installer",
+      "version": "0.1.0-beta.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.1.0-beta.1",
+      "maximumProductVersion": "0.1.0-beta.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "installer",
+          "sha256": "e72b750871325d91a8184eb543b0024235a30dc24d2a42d6747b6a87b8f3dae1",
+          "sizeBytes": 16644
+        }
+      ],
+      "notes": "Windows 本地安装、升级、回滚与卸载脚本；用户配置注册可显式跳过。"
+    },
+    {
+      "componentId": "cross-center-contracts",
+      "version": "1.0.0",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.1.0-beta.1",
+      "maximumProductVersion": "0.1.0-beta.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "contracts",
+          "sha256": "825565bf0c5cc738f2412cb4683ab42f49ce586a6063d3c916688e6f724d3b82",
+          "sizeBytes": 43826
+        }
+      ],
+      "notes": "10 类 JSON Schema 契约、完整示例链、内容哈希和上游引用校验。"
+    },
+    {
+      "componentId": "local-tool-service",
+      "version": "0.0.0",
+      "includedInRelease": false,
+      "status": "skeleton",
+      "minimumProductVersion": "0.1.0-beta.1",
+      "maximumProductVersion": "0.1.0-beta.1",
+      "artifacts": [],
+      "notes": "阶段 2 才实现；阶段 1 不启动、不调用任何本地业务服务。"
+    },
+    {
+      "componentId": "control-center",
+      "version": "0.11.0",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.1.0-beta.1",
+      "maximumProductVersion": "0.1.0-beta.1",
+      "artifacts": [],
+      "notes": "现有工作区基线，仅记录兼容信息；本阶段未复制、打包或修改。"
+    },
+    {
+      "componentId": "workshop",
+      "version": "1.0.0",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.1.0-beta.1",
+      "maximumProductVersion": "0.1.0-beta.1",
+      "artifacts": [],
+      "notes": "现有新漫剧工坊基线，仅记录兼容信息；本阶段未复制、打包或修改。"
+    },
+    {
+      "componentId": "publisher-center",
+      "version": "0.1.0",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.1.0-beta.1",
+      "maximumProductVersion": "0.1.0-beta.1",
+      "artifacts": [],
+      "notes": "现有 YouTube 发布中心基线，仅记录兼容信息；本阶段未复制、打包或修改。"
+    }
+  ]
+}

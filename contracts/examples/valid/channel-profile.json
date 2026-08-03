@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "contractType": "channel-profile",
+  "id": "channel_profile_example_001",
+  "version": "1.0.0",
+  "createdAt": "2026-08-03T15:00:00Z",
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "contentHash": "03ceb7e6dc566a59a1d3e1fbb76bbf21a8040092beb9c337dc794f8392468ec9",
+  "upstream": [],
+  "channelProfileId": "channel_profile_example_001",
+  "displayName": "Example Channel",
+  "lifecycleStatus": "READY",
+  "targetRegion": "Japan",
+  "outputLanguage": "ja-JP",
+  "publisherBinding": {
+    "publisherProfileId": "publisher_profile_example_001",
+    "channelSerial": "01",
+    "youtubeChannelId": "UCEXAMPLECHANNEL0001"
+  }
+}

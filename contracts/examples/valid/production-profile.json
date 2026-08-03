@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "1.0.0",
+  "contractType": "production-profile",
+  "id": "production_profile_example_001",
+  "version": "1.0.0",
+  "createdAt": "2026-08-03T15:01:00Z",
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "contentHash": "4454375d6f99a09f9d9992906defa9b607530aea315aaf511155fff719f56444",
+  "upstream": [
+    {
+      "targetContractType": "channel-profile",
+      "targetId": "channel_profile_example_001",
+      "targetVersion": "1.0.0",
+      "targetSchemaVersion": "1.0.0",
+      "targetHash": "03ceb7e6dc566a59a1d3e1fbb76bbf21a8040092beb9c337dc794f8392468ec9"
+    }
+  ],
+  "presetId": "production_profile_example_001",
+  "channelProfileId": "channel_profile_example_001",
+  "presetVersion": "1.0.0",
+  "executionMode": "review",
+  "defaults": {
+    "voice": {
+      "engineId": "example-tts",
+      "voiceId": "example-voice-ja-001"
+    },
+    "manuscript": {
+      "mode": "auto_by_topic",
+      "preferredCharacters": 12000,
+      "minCharacters": 8000,
+      "maxCharacters": 16000
+    },
+    "episodes": {
+      "mode": "auto_by_topic",
+      "preferredCount": 8,
+      "minCount": 6,
+      "maxCount": 12
+    },
+    "deliveryMode": "auto_render",
+    "videoGeneration": {
+      "enabled": false,
+      "selectionMode": "none",
+      "fallbackPolicy": "pause"
+    },
+    "uploadPolicy": "REQUIRE_REVIEW"
+  },
+  "firstConfirmation": {
+    "confirmed": true,
+    "confirmedAt": "2026-08-03T15:01:00Z",
+    "source": "user"
+  }
+}

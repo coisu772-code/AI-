@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "1.0.0",
+  "contractType": "topic-package",
+  "id": "topic_package_example_001",
+  "version": "1.0.0",
+  "createdAt": "2026-08-03T15:03:00Z",
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "contentHash": "379784765d70998fb5d739a3b6dd1cd75cf0ce2fbaf7ebf635dbe2aed8ea0d9e",
+  "upstream": [
+    {
+      "targetContractType": "production-profile",
+      "targetId": "production_profile_example_001",
+      "targetVersion": "1.0.0",
+      "targetSchemaVersion": "1.0.0",
+      "targetHash": "4454375d6f99a09f9d9992906defa9b607530aea315aaf511155fff719f56444"
+    },
+    {
+      "targetContractType": "source-package",
+      "targetId": "source_package_example_001",
+      "targetVersion": "1.0.0",
+      "targetSchemaVersion": "1.0.0",
+      "targetHash": "d5358e4ef28a32b170c6bc8115203eaf7541d415c6dc4300c7ed909d93352fb6"
+    }
+  ],
+  "topicPackageId": "topic_package_example_001",
+  "projectId": "project_example_001",
+  "channelProfileId": "channel_profile_example_001",
+  "sourceMode": "channel-library",
+  "selectedCandidateId": "topic_candidate_example_001",
+  "storyFactsHash": "2222222222222222222222222222222222222222222222222222222222222222",
+  "productionRecommendation": {
+    "targetCharacters": 12000,
+    "estimatedDurationSeconds": 2400,
+    "episodeCount": 8,
+    "reason": "Synthetic fixture for contract validation."
+  }
+}

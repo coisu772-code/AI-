@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/publication-receipt.schema.json",
+  "title": "Publication Receipt v1",
+  "allOf": [
+    {
+      "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/envelope"
+    }
+  ],
+  "type": "object",
+  "unevaluatedProperties": false,
+  "required": ["receiptId", "publishIntentRef", "projectId", "channelProfileId", "status", "youtubeVideoId", "youtubeUrl", "targetChannel", "uploadedAt", "remoteState"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "contractType": { "const": "publication-receipt" },
+    "receiptId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "publishIntentRef": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/contractReference" },
+    "projectId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "channelProfileId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "status": { "const": "RECEIPT_COMPLETE" },
+    "youtubeVideoId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{6,32}$" },
+    "youtubeUrl": { "type": "string", "format": "uri", "pattern": "^https://(?:www\\.)?youtube\\.com/watch\\?v=" },
+    "targetChannel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["publisherProfileId", "channelSerial", "youtubeChannelId"],
+      "properties": {
+        "publisherProfileId": { "type": "string", "minLength": 3 },
+        "channelSerial": { "type": "string", "pattern": "^[0-9]{2,}$" },
+        "youtubeChannelId": { "type": "string", "minLength": 8, "maxLength": 64 }
+      }
+    },
+    "uploadedAt": { "type": "string", "format": "date-time" },
+    "remoteState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["thumbnail", "captions", "processing", "visibility"],
+      "properties": {
+        "thumbnail": { "type": "string", "enum": ["COMPLETE", "MANUAL_REQUIRED", "FAILED"] },
+        "captions": { "type": "string", "enum": ["COMPLETE", "NOT_REQUESTED", "FAILED"] },
+        "processing": { "type": "string", "enum": ["COMPLETE", "PROCESSING", "FAILED"] },
+        "visibility": { "type": "string", "enum": ["UPLOADED_PRIVATE", "UPLOADED_UNLISTED", "SCHEDULED", "PUBLISHED"] }
+      }
+    }
+  }
+}

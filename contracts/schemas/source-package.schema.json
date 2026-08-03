@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/source-package.schema.json",
+  "title": "Source Package v1",
+  "allOf": [
+    {
+      "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/envelope"
+    }
+  ],
+  "type": "object",
+  "unevaluatedProperties": false,
+  "required": ["sourcePackageId", "channelProfileId", "sourceType", "status", "provenance", "rightsBoundary", "assets"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "contractType": { "const": "source-package" },
+    "sourcePackageId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "channelProfileId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "sourceType": {
+      "type": "string",
+      "enum": ["reference-channel", "youtube-video", "novel-web", "local-file", "pasted-text", "batch-links"]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["DISCOVERED", "METADATA_READY", "CONTENT_READY", "PARTIAL", "BLOCKED", "FAILED", "ARCHIVED"]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "locator", "collectedAt", "adapterId", "adapterVersion"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["public-url", "local-file", "user-input"] },
+        "locator": { "type": "string", "minLength": 1 },
+        "collectedAt": { "type": "string", "format": "date-time" },
+        "adapterId": { "type": "string", "minLength": 1 },
+        "adapterVersion": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/semver" }
+      }
+    },
+    "rightsBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accessLevel", "basis", "confirmedByUser"],
+      "properties": {
+        "accessLevel": { "type": "string", "enum": ["metadata-only", "public-domain", "open-license", "user-authorized", "unknown"] },
+        "basis": { "type": "string", "minLength": 1 },
+        "confirmedByUser": { "type": "boolean" }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/asset" }
+    }
+  }
+}

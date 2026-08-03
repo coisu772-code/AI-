@@ -1,0 +1,17 @@
+{
+  "catalogVersion": "1.0.0",
+  "jsonSchemaDraft": "2020-12",
+  "hashRule": "canonical-json-v1",
+  "contracts": [
+    { "contractType": "channel-profile", "schema": "schemas/channel-profile.schema.json", "idField": "channelProfileId" },
+    { "contractType": "production-profile", "schema": "schemas/production-profile.schema.json", "idField": "presetId" },
+    { "contractType": "source-package", "schema": "schemas/source-package.schema.json", "idField": "sourcePackageId" },
+    { "contractType": "topic-package", "schema": "schemas/topic-package.schema.json", "idField": "topicPackageId" },
+    { "contractType": "manuscript-package", "schema": "schemas/manuscript-package.schema.json", "idField": "manuscriptPackageId" },
+    { "contractType": "publishing-asset-package", "schema": "schemas/publishing-asset-package.schema.json", "idField": "publishingAssetPackageId" },
+    { "contractType": "production-result-package", "schema": "schemas/production-result-package.schema.json", "idField": "productionResultPackageId" },
+    { "contractType": "publish-intent", "schema": "schemas/publish-intent.schema.json", "idField": "publishIntentId" },
+    { "contractType": "publication-receipt", "schema": "schemas/publication-receipt.schema.json", "idField": "receiptId" },
+    { "contractType": "analytics-snapshot", "schema": "schemas/analytics-snapshot.schema.json", "idField": "snapshotId" }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "1.0.0",
+  "contractType": "publish-intent",
+  "id": "publish_intent_example_001",
+  "version": "1.0.0",
+  "createdAt": "2026-08-03T15:07:00Z",
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "contentHash": "e3e2755a25c992d61ad938861f36431c3849422cca786fbde35f1bac618def73",
+  "upstream": [
+    {
+      "targetContractType": "production-result-package",
+      "targetId": "production_result_package_example_001",
+      "targetVersion": "1.0.0",
+      "targetSchemaVersion": "1.0.0",
+      "targetHash": "fbe1a215d31525b5f6e1bfaac2791682781934f84af996bc3f00a78b39bf605f"
+    },
+    {
+      "targetContractType": "publishing-asset-package",
+      "targetId": "publishing_asset_package_example_001",
+      "targetVersion": "1.0.0",
+      "targetSchemaVersion": "1.0.0",
+      "targetHash": "e00e24db5f84d55eb8bcb4233dd63913a19756e8cd249a184c11e3e4fa384d61"
+    }
+  ],
+  "publishIntentId": "publish_intent_example_001",
+  "projectId": "project_example_001",
+  "channelProfileId": "channel_profile_example_001",
+  "state": "WAITING_REVIEW",
+  "targetChannel": {
+    "publisherProfileId": "publisher_profile_example_001",
+    "channelSerial": "01",
+    "expectedYoutubeChannelId": "UCEXAMPLECHANNEL0001"
+  },
+  "productionResultRef": {
+    "targetContractType": "production-result-package",
+    "targetId": "production_result_package_example_001",
+    "targetVersion": "1.0.0",
+    "targetSchemaVersion": "1.0.0",
+    "targetHash": "fbe1a215d31525b5f6e1bfaac2791682781934f84af996bc3f00a78b39bf605f"
+  },
+  "publishingAssetRef": {
+    "targetContractType": "publishing-asset-package",
+    "targetId": "publishing_asset_package_example_001",
+    "targetVersion": "1.0.0",
+    "targetSchemaVersion": "1.0.0",
+    "targetHash": "e00e24db5f84d55eb8bcb4233dd63913a19756e8cd249a184c11e3e4fa384d61"
+  },
+  "uploadPolicy": "REQUIRE_REVIEW",
+  "privacyStatus": "private",
+  "scheduledAt": null,
+  "timezone": "Asia/Tokyo",
+  "idempotencyKey": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+}

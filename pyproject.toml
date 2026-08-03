@@ -1,0 +1,12 @@
+[project]
+name = "ai-video-channel-production-contract-tools"
+version = "0.1.0-beta.1"
+description = "Stage 1 contract and release-skeleton validation tools"
+requires-python = ">=3.10"
+dependencies = [
+  "jsonschema>=4.23,<5",
+  "pyyaml>=6.0,<7"
+]
+
+[tool.uv]
+package = false

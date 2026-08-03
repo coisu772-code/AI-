@@ -1,0 +1,7 @@
+interface:
+  display_name: "频道建库与绑定"
+  short_description: "检查真实发布频道绑定并引导建立独立可迁移的频道资料库"
+  default_prompt: "使用 $channel-onboarding 检查发布频道并开始频道资料库建库前提确认。"
+
+policy:
+  allow_implicit_invocation: false

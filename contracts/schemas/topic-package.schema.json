@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/topic-package.schema.json",
+  "title": "Topic Package v1",
+  "allOf": [
+    {
+      "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/envelope"
+    }
+  ],
+  "type": "object",
+  "unevaluatedProperties": false,
+  "required": ["topicPackageId", "projectId", "channelProfileId", "sourceMode", "selectedCandidateId", "storyFactsHash", "productionRecommendation"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "contractType": { "const": "topic-package" },
+    "topicPackageId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "projectId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "channelProfileId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "sourceMode": {
+      "type": "string",
+      "enum": ["channel-library", "market-original", "single-reference", "multi-reference", "provided-outline"]
+    },
+    "selectedCandidateId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "storyFactsHash": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256" },
+    "productionRecommendation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targetCharacters", "estimatedDurationSeconds", "episodeCount", "reason"],
+      "properties": {
+        "targetCharacters": { "type": "integer", "minimum": 1 },
+        "estimatedDurationSeconds": { "type": "integer", "minimum": 1 },
+        "episodeCount": { "type": "integer", "minimum": 1 },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

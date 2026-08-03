@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/release-manifests/release-manifest.schema.json",
+  "title": "AI Video Channel Production Release Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifestVersion",
+    "productId",
+    "productName",
+    "productVersion",
+    "releaseChannel",
+    "releaseStatus",
+    "generatedAt",
+    "repository",
+    "gitCommit",
+    "hashAlgorithm",
+    "hashRule",
+    "contentHash",
+    "schemaVersions",
+    "protocolVersions",
+    "components"
+  ],
+  "properties": {
+    "manifestVersion": { "$ref": "#/$defs/semver" },
+    "productId": { "const": "ai-video-channel-production" },
+    "productName": { "const": "AI 视频频道生产系统" },
+    "productVersion": { "$ref": "#/$defs/semver" },
+    "releaseChannel": { "enum": ["stable", "beta"] },
+    "releaseStatus": { "enum": ["draft", "published", "withdrawn"] },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "repository": { "type": "string", "format": "uri" },
+    "gitCommit": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "hashAlgorithm": { "const": "SHA-256" },
+    "hashRule": { "const": "canonical-json-v1" },
+    "contentHash": { "$ref": "#/$defs/sha256" },
+    "schemaVersions": {
+      "type": "object",
+      "minProperties": 10,
+      "additionalProperties": { "$ref": "#/$defs/semver" }
+    },
+    "protocolVersions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractExchange", "localToolService", "installerState"],
+      "properties": {
+        "contractExchange": { "$ref": "#/$defs/semver" },
+        "localToolService": { "$ref": "#/$defs/semver" },
+        "installerState": { "$ref": "#/$defs/semver" }
+      }
+    },
+    "components": {
+      "type": "array",
+      "minItems": 7,
+      "items": { "$ref": "#/$defs/component" }
+    }
+  },
+  "$defs": {
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "relativePath", "sha256", "sizeBytes"],
+      "properties": {
+        "kind": { "enum": ["file", "directory-tree"] },
+        "relativePath": {
+          "type": "string",
+          "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$"
+        },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "sizeBytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "componentId",
+        "version",
+        "includedInRelease",
+        "status",
+        "minimumProductVersion",
+        "maximumProductVersion",
+        "artifacts",
+        "notes"
+      ],
+      "properties": {
+        "componentId": {
+          "enum": [
+            "codex-plugin",
+            "windows-installer",
+            "cross-center-contracts",
+            "local-tool-service",
+            "control-center",
+            "workshop",
+            "publisher-center"
+          ]
+        },
+        "version": { "$ref": "#/$defs/semver" },
+        "includedInRelease": { "type": "boolean" },
+        "status": { "enum": ["ready", "skeleton", "external-baseline", "withheld"] },
+        "minimumProductVersion": { "$ref": "#/$defs/semver" },
+        "maximumProductVersion": { "$ref": "#/$defs/semver" },
+        "artifacts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifact" }
+        },
+        "notes": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

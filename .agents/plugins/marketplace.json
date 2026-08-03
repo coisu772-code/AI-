@@ -1,0 +1,20 @@
+{
+  "name": "novel-manga-production",
+  "interface": {
+    "displayName": "AI 视频频道生产系统"
+  },
+  "plugins": [
+    {
+      "name": "ai-video-channel-production",
+      "source": {
+        "source": "local",
+        "path": "./plugins/ai-video-channel-production"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Creative"
+    }
+  ]
+}

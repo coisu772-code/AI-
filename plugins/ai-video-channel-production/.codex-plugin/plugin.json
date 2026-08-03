@@ -1,0 +1,35 @@
+{
+  "name": "ai-video-channel-production",
+  "version": "0.1.0-beta.1",
+  "description": "AI 视频频道生产系统的 Codex 工作流入口与跨中心契约骨架。",
+  "author": {
+    "name": "coisu772-code",
+    "url": "https://github.com/coisu772-code"
+  },
+  "homepage": "https://github.com/coisu772-code/AI-",
+  "repository": "https://github.com/coisu772-code/AI-",
+  "license": "LicenseRef-AI-Video-Channel-Production-1.0",
+  "keywords": [
+    "ai-video",
+    "youtube",
+    "novel-manga",
+    "channel-production"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "AI 视频频道生产系统",
+    "shortDescription": "频道建库、内容生产、制作、发布与数据流程的统一入口。",
+    "longDescription": "以 Codex Skills 驱动六大中心工作流，并通过版本化契约连接本地工具、新漫剧工坊与 YouTube 发布中心。当前 0.1.0-beta.1 仅提供安装、入口与契约骨架。",
+    "developerName": "coisu772-code",
+    "category": "Creative",
+    "capabilities": [
+      "Interactive"
+    ],
+    "defaultPrompt": [
+      "启动 AI 视频频道生产系统，显示当前版本、可用入口和未开放能力。",
+      "检查频道建库前提，但不要创建真实资料库或读取频道凭据。",
+      "检查跨中心数据契约和本地安装状态。"
+    ],
+    "brandColor": "#6D4AFF"
+  }
+}

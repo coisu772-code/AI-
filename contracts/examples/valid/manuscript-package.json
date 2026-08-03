@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "1.0.0",
+  "contractType": "manuscript-package",
+  "id": "manuscript_package_example_001",
+  "version": "1.0.0",
+  "createdAt": "2026-08-03T15:04:00Z",
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "contentHash": "193eb87538843081e21c4fdc427cb036e75ba4584a791c27e29413da7d2075a7",
+  "upstream": [
+    {
+      "targetContractType": "topic-package",
+      "targetId": "topic_package_example_001",
+      "targetVersion": "1.0.0",
+      "targetSchemaVersion": "1.0.0",
+      "targetHash": "379784765d70998fb5d739a3b6dd1cd75cf0ce2fbaf7ebf635dbe2aed8ea0d9e"
+    }
+  ],
+  "manuscriptPackageId": "manuscript_package_example_001",
+  "projectId": "project_example_001",
+  "channelProfileId": "channel_profile_example_001",
+  "status": "SCRIPT_READY",
+  "targetLanguage": "ja-JP",
+  "episodeCount": 8,
+  "lineCount": 320,
+  "targetScript": {
+    "assetId": "target_script_example_001",
+    "relativePath": "target-script.json",
+    "mediaType": "application/json",
+    "sizeBytes": 4096,
+    "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "auditScript": {
+    "assetId": "audit_script_example_001",
+    "relativePath": "chinese-audit-script.json",
+    "mediaType": "application/json",
+    "sizeBytes": 4096,
+    "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+  },
+  "qualityGateHash": "5555555555555555555555555555555555555555555555555555555555555555"
+}

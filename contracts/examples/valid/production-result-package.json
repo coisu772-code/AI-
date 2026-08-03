@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "1.0.0",
+  "contractType": "production-result-package",
+  "id": "production_result_package_example_001",
+  "version": "1.0.0",
+  "createdAt": "2026-08-03T15:06:00Z",
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "contentHash": "fbe1a215d31525b5f6e1bfaac2791682781934f84af996bc3f00a78b39bf605f",
+  "upstream": [
+    {
+      "targetContractType": "manuscript-package",
+      "targetId": "manuscript_package_example_001",
+      "targetVersion": "1.0.0",
+      "targetSchemaVersion": "1.0.0",
+      "targetHash": "193eb87538843081e21c4fdc427cb036e75ba4584a791c27e29413da7d2075a7"
+    },
+    {
+      "targetContractType": "publishing-asset-package",
+      "targetId": "publishing_asset_package_example_001",
+      "targetVersion": "1.0.0",
+      "targetSchemaVersion": "1.0.0",
+      "targetHash": "e00e24db5f84d55eb8bcb4233dd63913a19756e8cd249a184c11e3e4fa384d61"
+    }
+  ],
+  "productionResultPackageId": "production_result_package_example_001",
+  "projectId": "project_example_001",
+  "channelProfileId": "channel_profile_example_001",
+  "status": "VIDEO_READY",
+  "workshopVersion": "1.0.0",
+  "finalVideo": {
+    "assetId": "final_video_example_001",
+    "relativePath": "final-video.mp4",
+    "mediaType": "video/mp4",
+    "sizeBytes": 1048576,
+    "sha256": "7777777777777777777777777777777777777777777777777777777777777777"
+  },
+  "subtitles": {
+    "assetId": "subtitles_example_001",
+    "relativePath": "subtitles.srt",
+    "mediaType": "application/x-subrip",
+    "sizeBytes": 8192,
+    "sha256": "8888888888888888888888888888888888888888888888888888888888888888"
+  },
+  "validationReportHash": "9999999999999999999999999999999999999999999999999999999999999999",
+  "timelineMapHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "fallbacks": []
+}

@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/production-profile.schema.json",
+  "title": "Production Profile v1",
+  "allOf": [
+    {
+      "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/envelope"
+    }
+  ],
+  "type": "object",
+  "unevaluatedProperties": false,
+  "required": [
+    "presetId",
+    "channelProfileId",
+    "presetVersion",
+    "executionMode",
+    "defaults",
+    "firstConfirmation"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "contractType": { "const": "production-profile" },
+    "presetId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "channelProfileId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "presetVersion": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/semver" },
+    "executionMode": { "type": "string", "enum": ["review", "auto"] },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["voice", "manuscript", "episodes", "deliveryMode", "videoGeneration", "uploadPolicy"],
+      "properties": {
+        "voice": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["engineId", "voiceId"],
+          "properties": {
+            "engineId": { "type": "string", "minLength": 1 },
+            "voiceId": { "type": "string", "minLength": 1 }
+          }
+        },
+        "manuscript": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "preferredCharacters", "minCharacters", "maxCharacters"],
+          "properties": {
+            "mode": { "const": "auto_by_topic" },
+            "preferredCharacters": { "type": "integer", "minimum": 1 },
+            "minCharacters": { "type": "integer", "minimum": 1 },
+            "maxCharacters": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "episodes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "preferredCount", "minCount", "maxCount"],
+          "properties": {
+            "mode": { "const": "auto_by_topic" },
+            "preferredCount": { "type": "integer", "minimum": 1 },
+            "minCount": { "type": "integer", "minimum": 1 },
+            "maxCount": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "deliveryMode": { "type": "string", "enum": ["auto_render", "jianying_refine"] },
+        "videoGeneration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "selectionMode", "fallbackPolicy"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "selectionMode": { "type": "string", "enum": ["none", "project_first_n_storyboards", "episode_first_n_storyboards", "all_storyboards"] },
+            "count": { "type": "integer", "minimum": 1 },
+            "fallbackPolicy": { "type": "string", "enum": ["pause", "use_static_image"] }
+          }
+        },
+        "uploadPolicy": { "type": "string", "enum": ["DO_NOT_UPLOAD", "REQUIRE_REVIEW", "AUTO"] }
+      }
+    },
+    "firstConfirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confirmed", "confirmedAt", "source"],
+      "properties": {
+        "confirmed": { "type": "boolean" },
+        "confirmedAt": { "type": ["string", "null"], "format": "date-time" },
+        "source": { "type": "string", "enum": ["user", "migration", "pending"] }
+      }
+    }
+  }
+}

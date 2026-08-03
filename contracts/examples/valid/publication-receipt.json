@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "1.0.0",
+  "contractType": "publication-receipt",
+  "id": "publication_receipt_example_001",
+  "version": "1.0.0",
+  "createdAt": "2026-08-03T15:08:00Z",
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "contentHash": "370b1e9638fb0c44f354cce5b4d2cf7b9148e58678424f62ce8bbe7df9727fc1",
+  "upstream": [
+    {
+      "targetContractType": "publish-intent",
+      "targetId": "publish_intent_example_001",
+      "targetVersion": "1.0.0",
+      "targetSchemaVersion": "1.0.0",
+      "targetHash": "e3e2755a25c992d61ad938861f36431c3849422cca786fbde35f1bac618def73"
+    }
+  ],
+  "receiptId": "publication_receipt_example_001",
+  "publishIntentRef": {
+    "targetContractType": "publish-intent",
+    "targetId": "publish_intent_example_001",
+    "targetVersion": "1.0.0",
+    "targetSchemaVersion": "1.0.0",
+    "targetHash": "e3e2755a25c992d61ad938861f36431c3849422cca786fbde35f1bac618def73"
+  },
+  "projectId": "project_example_001",
+  "channelProfileId": "channel_profile_example_001",
+  "status": "RECEIPT_COMPLETE",
+  "youtubeVideoId": "Example01",
+  "youtubeUrl": "https://www.youtube.com/watch?v=Example01",
+  "targetChannel": {
+    "publisherProfileId": "publisher_profile_example_001",
+    "channelSerial": "01",
+    "youtubeChannelId": "UCEXAMPLECHANNEL0001"
+  },
+  "uploadedAt": "2026-08-03T15:08:00Z",
+  "remoteState": {
+    "thumbnail": "COMPLETE",
+    "captions": "COMPLETE",
+    "processing": "COMPLETE",
+    "visibility": "UPLOADED_PRIVATE"
+  }
+}

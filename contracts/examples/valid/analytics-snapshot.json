@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1.0.0",
+  "contractType": "analytics-snapshot",
+  "id": "analytics_snapshot_example_001",
+  "version": "1.0.0",
+  "createdAt": "2026-08-03T15:09:00Z",
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "contentHash": "f698cc64b1094dac48e1baa14d8dceea924a481bc1fa0d859ef2237c19726568",
+  "upstream": [
+    {
+      "targetContractType": "publication-receipt",
+      "targetId": "publication_receipt_example_001",
+      "targetVersion": "1.0.0",
+      "targetSchemaVersion": "1.0.0",
+      "targetHash": "370b1e9638fb0c44f354cce5b4d2cf7b9148e58678424f62ce8bbe7df9727fc1"
+    }
+  ],
+  "snapshotId": "analytics_snapshot_example_001",
+  "publicationReceiptRef": {
+    "targetContractType": "publication-receipt",
+    "targetId": "publication_receipt_example_001",
+    "targetVersion": "1.0.0",
+    "targetSchemaVersion": "1.0.0",
+    "targetHash": "370b1e9638fb0c44f354cce5b4d2cf7b9148e58678424f62ce8bbe7df9727fc1"
+  },
+  "channelProfileId": "channel_profile_example_001",
+  "youtubeVideoId": "Example01",
+  "window": {
+    "kind": "T+24H",
+    "start": "2026-08-03T15:08:00Z",
+    "end": "2026-08-04T15:08:00Z",
+    "timezone": "UTC"
+  },
+  "collectedAt": "2026-08-04T15:09:00Z",
+  "dataCutoff": "2026-08-04T15:00:00Z",
+  "completeness": "provisional",
+  "metrics": {
+    "viewCount": {
+      "value": 123,
+      "unit": "count",
+      "factLevel": "PUBLIC_API_FACT",
+      "source": "synthetic-fixture"
+    },
+    "impressionsCtr": {
+      "value": null,
+      "unit": "ratio",
+      "factLevel": "UNKNOWN",
+      "source": "not-authorized-in-fixture"
+    }
+  }
+}

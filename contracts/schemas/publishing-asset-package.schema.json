@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/publishing-asset-package.schema.json",
+  "title": "Publishing Asset Package v1",
+  "allOf": [
+    {
+      "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/envelope"
+    }
+  ],
+  "type": "object",
+  "unevaluatedProperties": false,
+  "required": ["publishingAssetPackageId", "projectId", "channelProfileId", "status", "title", "descriptionBody", "hashtags", "thumbnail", "targetChannel", "uploadPolicy", "privacyStatus"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "contractType": { "const": "publishing-asset-package" },
+    "publishingAssetPackageId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "projectId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "channelProfileId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "status": { "const": "PUBLISHING_ASSETS_READY" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "descriptionBody": { "type": "string", "minLength": 1, "maxLength": 5000 },
+    "hashtags": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 12,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^#[^#\\s]{1,99}$" }
+    },
+    "thumbnail": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/asset" },
+    "targetChannel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["publisherProfileId", "channelSerial", "youtubeChannelId"],
+      "properties": {
+        "publisherProfileId": { "type": "string", "minLength": 3 },
+        "channelSerial": { "type": "string", "pattern": "^[0-9]{2,}$" },
+        "youtubeChannelId": { "type": "string", "minLength": 8, "maxLength": 64 }
+      }
+    },
+    "uploadPolicy": { "type": "string", "enum": ["DO_NOT_UPLOAD", "REQUIRE_REVIEW", "AUTO"] },
+    "privacyStatus": { "type": "string", "enum": ["private", "unlisted", "public", "scheduled"] }
+  }
+}

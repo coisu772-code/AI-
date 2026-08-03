@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "1.0.0",
+  "contractType": "source-package",
+  "id": "source_package_example_001",
+  "version": "1.0.0",
+  "createdAt": "2026-08-03T15:02:00Z",
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "contentHash": "d5358e4ef28a32b170c6bc8115203eaf7541d415c6dc4300c7ed909d93352fb6",
+  "upstream": [
+    {
+      "targetContractType": "channel-profile",
+      "targetId": "channel_profile_example_001",
+      "targetVersion": "1.0.0",
+      "targetSchemaVersion": "1.0.0",
+      "targetHash": "03ceb7e6dc566a59a1d3e1fbb76bbf21a8040092beb9c337dc794f8392468ec9"
+    }
+  ],
+  "sourcePackageId": "source_package_example_001",
+  "channelProfileId": "channel_profile_example_001",
+  "sourceType": "youtube-video",
+  "status": "CONTENT_READY",
+  "provenance": {
+    "kind": "public-url",
+    "locator": "https://example.invalid/watch/example-video",
+    "collectedAt": "2026-08-03T15:02:00Z",
+    "adapterId": "example-youtube-adapter",
+    "adapterVersion": "1.0.0"
+  },
+  "rightsBoundary": {
+    "accessLevel": "metadata-only",
+    "basis": "Synthetic fixture; no third-party content is stored.",
+    "confirmedByUser": false
+  },
+  "assets": [
+    {
+      "assetId": "source_metadata_example_001",
+      "relativePath": "normalized/metadata.json",
+      "mediaType": "application/json",
+      "sizeBytes": 128,
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    }
+  ]
+}
