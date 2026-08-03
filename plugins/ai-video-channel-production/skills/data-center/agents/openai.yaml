@@ -1,0 +1,7 @@
+interface:
+  display_name: "频道数据中心"
+  short_description: "检查频道数据、复盘视频、生成报告并安全确认频道学习建议"
+  default_prompt: "Use $data-center to 检查当前频道数据并说明下一步。"
+
+policy:
+  allow_implicit_invocation: true

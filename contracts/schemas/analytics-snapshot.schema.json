@@ -31,6 +31,7 @@
     "collectedAt": { "type": "string", "format": "date-time" },
     "dataCutoff": { "type": "string", "format": "date-time" },
     "completeness": { "type": "string", "enum": ["provisional", "complete", "revised", "superseded"] },
+    "syntheticFixture": { "type": "boolean" },
     "metrics": {
       "type": "object",
       "minProperties": 1,

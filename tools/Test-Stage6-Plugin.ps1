@@ -39,11 +39,12 @@ try {
     $health = $healthJson | ConvertFrom-Json
     if (
         [string]$health.status -ne "PASS" -or
-        [int]$health.skillCount -ne 8 -or
-        [int]$health.contentToolCount -ne 25 -or
+        [int]$health.skillCount -ne 9 -or
+        [int]$health.contentToolCount -ne 32 -or
         -not [bool]$health.serviceChecked -or
         -not [bool]$health.contentCapabilitiesChecked -or
-        -not [bool]$health.productionCapabilitiesChecked
+        -not [bool]$health.productionCapabilitiesChecked -or
+        -not [bool]$health.dataCenterCapabilitiesChecked
     ) {
         throw "Installed health result did not verify all Stage 6 Skills and tools."
     }

@@ -72,6 +72,7 @@ codex plugin add ai-video-channel-production@novel-manga-production
 - `docs/phase4-content-loop-validation-2026-08-04.md`
 - `docs/phase5-production-handoff-validation-2026-08-04.md`
 - `docs/phase6-publisher-integration-validation-2026-08-04.md`
+- `docs/phase7-data-center-validation-2026-08-04.md`
 
 `0.1.0-beta.2` 是阶段 1 骨架预发布，不包含频道建库、资料采集、内容生成、视频生产、真实上传或 Analytics。
 
@@ -147,4 +148,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage5.ps1
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage6.ps1
+```
+
+## 阶段7未发布数据中心闭环
+
+本地 `0.7.0-dev.1` 候选新增 `$data-center`、Metric Catalog v1 和七个本地数据工具。正式视频注册只接受哈希有效的 Publication Receipt v1、真实 YouTube video ID，以及 Topic／Manuscript／Publishing／Production／Publish Intent 的版本和 SHA-256 绑定。阶段6当前只有本地发布包，因此正式注册会正确停在 `WAITING_FOR_PUBLICATION_RECEIPT`。
+
+数据中心按频道隔离保存 raw／normalized／Analytics Snapshot v1／基线／timeline map／视频与频道报告／Recommendation Card。公开导入只产生 `PUBLIC_API_FACT`；没有独立 owner Analytics 授权时 CTR、留存、流量、设备、人口和订阅等保持 `UNKNOWN`。授权默认 `AUTH_REQUIRED`、`available=false`，收入 scope 关闭，工具不会发起 OAuth 或接收 Token。
+
+三市场验收全部使用明确的 recorded synthetic fixtures，并只写入 `data/synthetic-fixtures/` 隔离命名空间。任何长期 `channel_default`／`must_avoid` 学习请求返回 `LONG_TERM_LEARNING_APPROVAL_REQUIRED`；自动模式也不能绕过。
+
+阶段7完整隔离验收入口：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage7.ps1
 ```

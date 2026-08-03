@@ -1,7 +1,7 @@
 [project]
 name = "ai-video-channel-production-contract-tools"
-version = "0.6.0-dev.1"
-description = "AI video channel production contracts, content loop, and safe production handoff tools"
+version = "0.7.0-dev.1"
+description = "AI video channel production contracts, safe production handoff, publishing, and isolated analytics tools"
 requires-python = ">=3.10"
 dependencies = [
   "jsonschema>=4.23,<5",

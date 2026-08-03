@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .content import CONTENT_LOOP_VERSION, SOURCE_MODES, ContentLoop
+from .data_center import DATA_CENTER_VERSION, DataCenter
 from .errors import ToolError
 from .publisher import PUBLISHER_PROTOCOL_VERSION, PublisherChannelProvider, provider_from_environment
 from .production import PRODUCTION_CENTER_VERSION, ProductionCenter
@@ -24,7 +25,7 @@ from .workshop_bridge import WorkshopBridge
 
 
 LOCAL_TOOL_PROTOCOL_VERSION = "1.0.0"
-SERVICE_VERSION = "0.6.0-dev.1"
+SERVICE_VERSION = "0.7.0-dev.1"
 
 
 def default_data_root(plugin_root: Path | None = None) -> Path:
@@ -90,6 +91,7 @@ class LocalToolService:
             voice_catalog_path=config.voice_catalog_path,
             workshop_bridge=bridge,
         )
+        self.data_center = DataCenter(config.data_root, plugin_root=config.plugin_root)
 
     def capabilities(self) -> dict[str, Any]:
         return {
@@ -115,6 +117,11 @@ class LocalToolService:
                 "productionResultPackageContract": "1.0.0",
                 "publishPackageProtocol": "2.0.0",
                 "publisherLocalToolProtocol": "1.0.0",
+                "dataCenter": DATA_CENTER_VERSION,
+                "analyticsSnapshotContract": "1.0.0",
+                "videoPerformanceReport": "1.0.0",
+                "channelStrategyReport": "1.0.0",
+                "recommendationCard": "1.0.0",
             },
             "capabilities": {
                 "publisherChannelList": self.publisher.capabilities().get("available", False),
@@ -140,12 +147,18 @@ class LocalToolService:
                 "workshop": self.production.workshop_bridge is not None,
                 "upload": False,
                 "analytics": False,
+                "analyticsOwnerAuthorizationAvailable": False,
+                "dataCenter": True,
+                "dataCenterPublicRecordedImport": True,
+                "dataCenterSyntheticFixtureIsolation": True,
             },
             "security": {
                 "privateMaterialAccepted": False,
                 "publisherPrivateMaterialVisible": False,
                 "providerResponseAllowlist": True,
                 "taskBindingProofRequiredForWrites": True,
+                "analyticsCredentialsVisible": False,
+                "longTermLearningAutomaticWrite": False,
             },
         }
 
@@ -619,6 +632,22 @@ class LocalToolService:
             result = PublisherV2Bridge.from_arguments(args).read_status(args, receipt=False)
         elif name == "get_publication_receipt":
             result = PublisherV2Bridge.from_arguments(args).read_status(args, receipt=True)
+        elif name == "data_center_capabilities":
+            result = self.data_center.capabilities(
+                existing_channel_database_path=args.get("existingChannelDatabasePath")
+            )
+        elif name == "data_video_register":
+            result = self.data_center.register_video(args)
+        elif name == "data_collection_run":
+            result = self.data_center.collect(args)
+        elif name == "data_report_generate":
+            result = self.data_center.generate_report(args)
+        elif name == "data_recommendations_list":
+            result = self.data_center.list_recommendations(args)
+        elif name == "data_learning_decide":
+            result = self.data_center.learning_decision(args)
+        elif name == "data_progress_get":
+            result = self.data_center.progress(args)
         else:
             raise ToolError("TOOL_NOT_FOUND", "本地工具服务没有该工具。", details={"tool": name})
         return redact(result)
@@ -1009,6 +1038,78 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "networkExecution": {"const": False},
             },
             ["publisherCliPath", "databasePath", "isolationRoot", "publishIntentId", "networkExecution"],
+        ),
+        (
+            "data_center_capabilities",
+            "只读检查数据中心、Metric Catalog、独立 Analytics 授权占位、迁移审批门和安全边界。",
+            {"existingChannelDatabasePath": {"type": "string"}},
+            [],
+        ),
+        (
+            "data_video_register",
+            "用真实 Publication Receipt v1 和五类上游哈希注册正式视频；synthetic fixture 只能进入隔离命名空间。",
+            {
+                "channelProfileId": {"type": "string"},
+                "publicationReceiptPath": {"type": "string"},
+                "upstreamDocuments": {"type": "object"},
+                "videoMetadata": {"type": "object"},
+                "syntheticFixture": {"type": "boolean"},
+                "syntheticRegistration": {"type": "object"},
+            },
+            ["channelProfileId", "syntheticFixture"],
+        ),
+        (
+            "data_collection_run",
+            "在 T+24/T+7/T+28 触发检查点导入公开、owner fixture 或本地系统事实并生成不可变 Analytics Snapshot v1。",
+            {
+                "channelProfileId": {"type": "string"},
+                "videoId": {"type": "string"},
+                "checkpoint": {"type": "string", "enum": ["T+24H", "T+7D", "T+28D"]},
+                "collectedAt": {"type": "string"},
+                "windowStart": {"type": "string"},
+                "windowEnd": {"type": "string"},
+                "dataCutoff": {"type": "string"},
+                "timezone": {"type": "string"},
+                "completeness": {"type": "string", "enum": ["provisional", "complete"]},
+                "sources": {"type": "object"},
+                "syntheticFixture": {"type": "boolean"},
+            },
+            ["channelProfileId", "videoId", "checkpoint", "collectedAt", "windowStart", "windowEnd", "dataCutoff", "timezone", "sources", "syntheticFixture"],
+        ),
+        (
+            "data_report_generate",
+            "从当前频道有效快照同时生成 JSON/Markdown 视频报告、频道报告和等待学习决定的建议卡。",
+            {
+                "channelProfileId": {"type": "string"},
+                "videoId": {"type": "string"},
+                "checkpoint": {"type": "string", "enum": ["T+24H", "T+7D", "T+28D"]},
+                "syntheticFixture": {"type": "boolean"},
+            },
+            ["channelProfileId", "videoId", "checkpoint", "syntheticFixture"],
+        ),
+        (
+            "data_recommendations_list",
+            "只读列出当前频道建议卡及其学习决定状态，不读取其他频道。",
+            {"channelProfileId": {"type": "string"}, "syntheticFixture": {"type": "boolean"}},
+            ["channelProfileId", "syntheticFixture"],
+        ),
+        (
+            "data_learning_decide",
+            "记录仅本次实验、继续观察或拒绝；任何长期学习请求一律停在单独审批门。",
+            {
+                "channelProfileId": {"type": "string"},
+                "recommendationId": {"type": "string"},
+                "decision": {"type": "string", "enum": ["test_only", "channel_default", "must_avoid", "observe", "reject"]},
+                "projectId": {"type": "string"},
+                "syntheticFixture": {"type": "boolean"},
+            },
+            ["channelProfileId", "recommendationId", "decision", "syntheticFixture"],
+        ),
+        (
+            "data_progress_get",
+            "只读查看视频注册与 T+24/T+7/T+28 采集/报告进度，不推进或改写任务。",
+            {"channelProfileId": {"type": "string"}, "videoId": {"type": "string"}, "syntheticFixture": {"type": "boolean"}},
+            ["channelProfileId", "syntheticFixture"],
         ),
     ]
     return [

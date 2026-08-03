@@ -14,7 +14,7 @@ PLUGIN_NAME = "ai-video-channel-production"
 MARKETPLACE_NAME = "novel-manga-production"
 PLUGIN_ROOT = ROOT / "plugins" / PLUGIN_NAME
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-CURRENT_PRODUCT_VERSION = "0.6.0-dev.1"
+CURRENT_PRODUCT_VERSION = "0.7.0-dev.1"
 
 EXPECTED_SKILLS = {
     "channel-production",
@@ -25,6 +25,7 @@ EXPECTED_SKILLS = {
     "publishing-assets",
     "production-handoff",
     "publish-video",
+    "data-center",
 }
 EXPECTED_CONTENT_TOOLS = {
     "content_capabilities",
@@ -56,6 +57,15 @@ EXPECTED_PUBLISH_TOOLS = {
     "import_publish_package_v2",
     "get_publication_status",
     "get_publication_receipt",
+}
+EXPECTED_DATA_TOOLS = {
+    "data_center_capabilities",
+    "data_video_register",
+    "data_collection_run",
+    "data_report_generate",
+    "data_recommendations_list",
+    "data_learning_decide",
+    "data_progress_get",
 }
 
 
@@ -95,7 +105,7 @@ def validate_plugin() -> list[str]:
     if plugin.get("name") != PLUGIN_NAME or not NAME_PATTERN.fullmatch(plugin.get("name", "")):
         errors.append("plugin name is invalid")
     if plugin.get("version") != CURRENT_PRODUCT_VERSION:
-        errors.append(f"plugin version must be {CURRENT_PRODUCT_VERSION} for the stage 6 candidate")
+        errors.append(f"plugin version must be {CURRENT_PRODUCT_VERSION} for the stage 7 candidate")
     if plugin.get("skills") != "./skills/":
         errors.append("plugin skills path must be ./skills/")
     if plugin.get("mcpServers") != "./.mcp.json":
@@ -156,7 +166,9 @@ def validate_plugin() -> list[str]:
         errors.append("source-library must remain explicit/orchestrated")
     if policies.get("publish-video") is not True:
         errors.append("publish-video must allow natural-language Stage6 invocation")
-    for skill_name in EXPECTED_SKILLS - {"channel-production", "publish-video"}:
+    if policies.get("data-center") is not True:
+        errors.append("data-center must allow natural-language Stage7 invocation")
+    for skill_name in EXPECTED_SKILLS - {"channel-production", "publish-video", "data-center"}:
         if policies.get(skill_name) is not False:
             errors.append(f"{skill_name} must remain explicit/orchestrated")
 
@@ -169,6 +181,8 @@ def validate_plugin() -> list[str]:
         errors.append("channel-production is missing the Stage5 production route")
     if "$publish-video" not in router_text or any(tool not in router_text for tool in EXPECTED_PUBLISH_TOOLS):
         errors.append("channel-production is missing the Stage6 publisher route")
+    if "$data-center" not in router_text or any(tool not in router_text for tool in EXPECTED_DATA_TOOLS):
+        errors.append("channel-production is missing the Stage7 data-center route")
 
     topic_text = skill_texts.get("topic-selection", "")
     for marker in (
@@ -235,10 +249,38 @@ def validate_plugin() -> list[str]:
     for marker in (*sorted(EXPECTED_PUBLISH_TOOLS), "networkExecution=false", "EXTERNAL_APPROVAL_REQUIRED", "youtubeVideoId"):
         if marker not in publish_text:
             errors.append(f"publish-video is missing required marker: {marker}")
+    data_text = skill_texts.get("data-center", "")
+    data_skill_root = PLUGIN_ROOT / "skills" / "data-center"
+    for relative_path in (
+        "agents/openai.yaml",
+        "references/tool-protocol.md",
+        "scripts/check_data_center_install.py",
+    ):
+        if not (data_skill_root / relative_path).is_file():
+            errors.append(f"data-center is missing required file: {relative_path}")
+    for marker in (
+        *sorted(EXPECTED_DATA_TOOLS),
+        "WAITING_FOR_PUBLICATION_RECEIPT",
+        "AUTH_REQUIRED",
+        "available=false",
+        "syntheticFixture=true",
+        "AWAITING_LEARNING_DECISION",
+        "LONG_TERM_LEARNING_APPROVAL_REQUIRED",
+        "OWNER_ANALYTICS_FACT",
+        "UNKNOWN",
+    ):
+        if marker not in data_text:
+            errors.append(f"data-center is missing required marker: {marker}")
+    if len(EXPECTED_CONTENT_TOOLS | EXPECTED_PRODUCTION_TOOLS | EXPECTED_PUBLISH_TOOLS | EXPECTED_DATA_TOOLS) != 32:
+        errors.append("health tool subset must contain exactly 32 tools")
     service_text = (PLUGIN_ROOT / "mcp" / "aivcp_tools" / "service.py").read_text(encoding="utf-8")
-    missing_tools = sorted(tool for tool in EXPECTED_PRODUCTION_TOOLS | EXPECTED_PUBLISH_TOOLS if tool not in service_text)
+    missing_tools = sorted(
+        tool
+        for tool in EXPECTED_PRODUCTION_TOOLS | EXPECTED_PUBLISH_TOOLS | EXPECTED_DATA_TOOLS
+        if tool not in service_text
+    )
     if missing_tools:
-        errors.append(f"local service is missing Stage5 tools: {missing_tools}")
+        errors.append(f"local service is missing Stage5-7 tools: {missing_tools}")
     return errors
 
 

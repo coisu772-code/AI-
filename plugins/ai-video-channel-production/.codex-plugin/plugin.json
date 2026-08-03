@@ -1,7 +1,7 @@
 {
   "name": "ai-video-channel-production",
-  "version": "0.6.0-dev.1",
-  "description": "AI 视频频道生产系统的 Codex 工作流入口、内容闭环、安全制作与本地发布准备。",
+  "version": "0.7.0-dev.1",
+  "description": "AI 视频频道生产系统的 Codex 工作流入口、内容闭环、安全制作、本地发布准备与频道隔离数据复盘。",
   "author": {
     "name": "coisu772-code",
     "url": "https://github.com/coisu772-code"
@@ -20,16 +20,16 @@
   "interface": {
     "displayName": "AI 视频频道生产系统",
     "shortDescription": "频道建库、内容生产、制作、发布与数据流程的统一入口。",
-    "longDescription": "以 Codex Skills 驱动六大中心工作流，并通过安全本地工具和版本化契约连接频道资料库、新漫剧工坊与 YouTube 发布中心。阶段6本地开发树新增发布包 v2、隔离导入、人工确认和三重自动授权资格门；所有网络执行强制关闭，OAuth、真实上传、远端修改、真实 video ID 与发布回执仍需外部明确批准。",
+    "longDescription": "以 Codex Skills 驱动七大中心工作流，并通过安全本地工具和版本化契约连接频道资料库、新漫剧工坊与 YouTube 发布中心。阶段7本地开发树新增 Publication Receipt 后的视频注册、公开／导入数据适配、版本化快照和报告、频道学习建议确认门；Analytics 默认未授权，不接触 Token、不发起 OAuth，真实上传、真实 video ID、发布回执、私有 Analytics 数据和长期学习写回仍需外部明确批准。",
     "developerName": "coisu772-code",
     "category": "Creative",
     "capabilities": [
       "Interactive"
     ],
     "defaultPrompt": [
-      "启动 AI 视频频道生产系统，检查当前频道、资料与内容项目状态。",
+      "启动 AI 视频频道生产系统，检查当前频道、资料、内容项目与数据中心状态。",
       "根据当前频道资料生成并确认一个完整选题，再继续目标语言正式文稿。",
-      "从已确认文稿准备发布素材，安全移交工坊，并在成片后准备一个不执行网络上传的发布包。"
+      "从已确认文稿准备发布素材，安全移交工坊，并在成片后准备本地发布包或检查频道数据报告与待确认建议。"
     ],
     "brandColor": "#6D4AFF"
   }

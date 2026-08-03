@@ -11,7 +11,8 @@
     { "documentType": "publish-package-v2-upload-status", "schema": "schemas/publish-package-v2-upload-status.schema.json" }
   ],
   "rulesCatalogs": [
-    { "catalogType": "youtube-constraints", "document": "youtube-constraints/catalog-2026.08.04.1.json", "schema": "schemas/youtube-constraints-catalog.schema.json" }
+    { "catalogType": "youtube-constraints", "document": "youtube-constraints/catalog-2026.08.04.1.json", "schema": "schemas/youtube-constraints-catalog.schema.json" },
+    { "catalogType": "metric-catalog", "document": "metric-catalog/catalog-2026.08.04.1.json", "schema": "schemas/metric-catalog.schema.json" }
   ],
   "contracts": [
     { "contractType": "channel-profile", "schema": "schemas/channel-profile.schema.json", "idField": "channelProfileId" },

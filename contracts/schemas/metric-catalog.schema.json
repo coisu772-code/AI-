@@ -1,0 +1,321 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/metric-catalog.schema.json",
+  "title": "Metric Catalog v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "catalog_version",
+    "catalogVersion",
+    "checked_at",
+    "checkedAt",
+    "effective_at",
+    "supersedes",
+    "update_policy",
+    "fact_levels",
+    "authorization_policy",
+    "source_capabilities",
+    "dimensions",
+    "metrics",
+    "official_sources"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "catalog_version": {"type": "string", "pattern": "^2026\\.08\\.04\\.[1-9][0-9]*$"},
+    "catalogVersion": {"const": "2026.08.04.1"},
+    "checked_at": {"const": "2026-08-04"},
+    "checkedAt": {"const": "2026-08-04"},
+    "effective_at": {"type": "string", "format": "date"},
+    "supersedes": {"type": ["string", "null"], "pattern": "^2026\\.08\\.04\\.[1-9][0-9]*$"},
+    "update_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["versioned", "immutable_versions", "same_query_hash_reuse", "unknown_is_never_zero"],
+      "properties": {
+        "versioned": {"const": true},
+        "immutable_versions": {"const": true},
+        "same_query_hash_reuse": {"const": true},
+        "unknown_is_never_zero": {"const": true}
+      }
+    },
+    "fact_levels": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/factLevelDefinition"}
+    },
+    "authorization_policy": {"$ref": "#/$defs/authorizationPolicy"},
+    "source_capabilities": {
+      "type": "array",
+      "minItems": 4,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/sourceCapability"}
+    },
+    "dimensions": {
+      "type": "array",
+      "minItems": 12,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/dimension"}
+    },
+    "metrics": {
+      "type": "array",
+      "minItems": 20,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/metric"}
+    },
+    "official_sources": {
+      "type": "array",
+      "minItems": 8,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/officialSource"}
+    }
+  },
+  "$defs": {
+    "factLevel": {
+      "enum": [
+        "SYSTEM_FACT",
+        "PUBLIC_API_FACT",
+        "OWNER_ANALYTICS_FACT",
+        "SAMPLE_OBSERVATION",
+        "INFERENCE",
+        "UNKNOWN"
+      ]
+    },
+    "factLevelDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "definition", "numeric_metric_allowed", "requirements"],
+      "properties": {
+        "level": {"$ref": "#/$defs/factLevel"},
+        "definition": {"type": "string", "minLength": 10},
+        "numeric_metric_allowed": {"type": "boolean"},
+        "requirements": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 3}}
+      }
+    },
+    "authorizationPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["upload_authorization_independent", "analytics", "monetary", "token_boundary", "oauth_execution"],
+      "properties": {
+        "upload_authorization_independent": {"const": true},
+        "analytics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "available", "minimum_readonly_scopes"],
+          "properties": {
+            "state": {"const": "AUTH_REQUIRED"},
+            "available": {"const": false},
+            "minimum_readonly_scopes": {
+              "const": ["https://www.googleapis.com/auth/yt-analytics.readonly"]
+            }
+          }
+        },
+        "monetary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "requested", "enabled", "available", "scope"],
+          "properties": {
+            "state": {"const": "DISABLED"},
+            "requested": {"const": false},
+            "enabled": {"const": false},
+            "available": {"const": false},
+            "scope": {"const": "https://www.googleapis.com/auth/yt-analytics-monetary.readonly"}
+          }
+        },
+        "token_boundary": {"const": "Codex receives normalized data only and must not read or persist tokens, secrets, or OAuth client credentials."},
+        "oauth_execution": {"const": "NOT_STARTED"}
+      }
+    },
+    "sourceCapability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "surface", "default_state", "available", "fact_level", "required_permissions", "raw_immutability", "notes"],
+      "properties": {
+        "source_id": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]+$"},
+        "surface": {"enum": ["YOUTUBE_DATA_API", "YOUTUBE_ANALYTICS_API", "YOUTUBE_REPORTING_API", "LOCAL_SYSTEM"]},
+        "default_state": {"enum": ["AVAILABLE", "IMPORT_ONLY", "AUTH_REQUIRED", "DISABLED"]},
+        "available": {"type": "boolean"},
+        "fact_level": {"$ref": "#/$defs/factLevel"},
+        "required_permissions": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "raw_immutability": {"enum": ["APPEND_ONLY", "NOT_APPLICABLE"]},
+        "notes": {"type": "string", "minLength": 10}
+      }
+    },
+    "dimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dimension_id", "definition", "value_type", "source_bindings", "privacy_sensitive", "threshold_behavior"],
+      "properties": {
+        "dimension_id": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]+$"},
+        "definition": {"type": "string", "minLength": 10},
+        "value_type": {"enum": ["STRING", "DATE", "DATETIME", "NUMBER"]},
+        "source_bindings": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/sourceBinding"}},
+        "privacy_sensitive": {"type": "boolean"},
+        "threshold_behavior": {"enum": ["NOT_APPLICABLE", "MAY_BE_WITHHELD", "UNKNOWN_WHEN_WITHHELD"]}
+      }
+    },
+    "sourceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "official_field", "official_source_ids"],
+      "properties": {
+        "source_id": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]+$"},
+        "official_field": {"type": "string", "minLength": 1},
+        "official_source_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]+$"}},
+        "report_type_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metric_id",
+        "group",
+        "definition",
+        "source_bindings",
+        "required_permissions",
+        "unit",
+        "value_type",
+        "dimensions",
+        "aggregation",
+        "timezone",
+        "latency",
+        "completeness",
+        "content_forms",
+        "fact_level",
+        "official_core_metric",
+        "may_change",
+        "deprecated",
+        "monetary",
+        "availability",
+        "notes"
+      ],
+      "properties": {
+        "metric_id": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]+$"},
+        "group": {"enum": ["PUBLIC_PERFORMANCE", "WATCH_QUALITY", "ENGAGEMENT_CONVERSION", "PACKAGING_REACH", "RETENTION", "SYSTEM_EFFICIENCY", "REVENUE_BOUNDARY"]},
+        "definition": {"type": "string", "minLength": 15},
+        "source_bindings": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/sourceBinding"}},
+        "required_permissions": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "unit": {"enum": ["COUNT", "MINUTES", "SECONDS", "PERCENT", "RATIO", "DATETIME", "CURRENCY", "CURRENCY_MICROUNITS"]},
+        "value_type": {"enum": ["UNSIGNED_INTEGER", "INTEGER", "NUMBER", "DATETIME"]},
+        "dimensions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["supported", "required", "combination_rule"],
+          "properties": {
+            "supported": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]+$"}},
+            "required": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]+$"}},
+            "combination_rule": {"enum": ["SNAPSHOT_ONLY", "VALIDATE_AGAINST_OFFICIAL_REPORT", "POINT_SERIES", "LOCAL_EVENT_SCHEMA"]}
+          }
+        },
+        "aggregation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "additivity", "direct_sum_allowed"],
+          "properties": {
+            "method": {"enum": ["LAST_OBSERVATION", "SUM_DISJOINT_ROWS", "WEIGHTED_AVERAGE", "RATIO_RECOMPUTE", "POINT_SERIES", "EVENT_TIMESTAMP"]},
+            "additivity": {"enum": ["ADDITIVE", "SEMI_ADDITIVE", "NON_ADDITIVE", "NOT_APPLICABLE"]},
+            "direct_sum_allowed": {"type": "boolean"}
+          }
+        },
+        "timezone": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["basis", "zone", "notes"],
+          "properties": {
+            "basis": {"enum": ["COLLECTION_INSTANT", "PACIFIC_CALENDAR_DAY", "REPORTING_PST_DAY", "SOURCE_EVENT_TIME"]},
+            "zone": {"type": "string", "minLength": 1},
+            "notes": {"type": "string", "minLength": 5}
+          }
+        },
+        "latency": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["official_guarantee", "refresh_policy", "late_revision_possible"],
+          "properties": {
+            "official_guarantee": {"type": "string", "minLength": 5},
+            "refresh_policy": {"type": "string", "minLength": 5},
+            "late_revision_possible": {"type": "boolean"}
+          }
+        },
+        "completeness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["states", "missing_behavior", "zero_behavior", "threshold_behavior", "data_cutoff_required"],
+          "properties": {
+            "states": {"const": ["COMPLETE", "PROVISIONAL", "REVISED", "DELAYED", "MISSING", "THRESHOLD_PROTECTED", "UNKNOWN"]},
+            "missing_behavior": {"const": "MISSING or withheld data is UNKNOWN and must never be imputed as numeric zero."},
+            "zero_behavior": {"const": "Zero is valid only when the source explicitly returned or the valid aggregation derived zero."},
+            "threshold_behavior": {"enum": ["NOT_APPLICABLE", "UNKNOWN_IF_WITHHELD"]},
+            "data_cutoff_required": {"const": true}
+          }
+        },
+        "content_forms": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["LONG_FORM", "SHORTS", "LIVE", "OTHER"]}},
+        "fact_level": {"$ref": "#/$defs/factLevel"},
+        "official_core_metric": {"type": "boolean"},
+        "may_change": {"type": "boolean"},
+        "deprecated": {"type": "boolean"},
+        "monetary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["is_monetary", "is_revenue", "default_enabled", "required_scope"],
+          "properties": {
+            "is_monetary": {"type": "boolean"},
+            "is_revenue": {"type": "boolean"},
+            "default_enabled": {"type": "boolean"},
+            "required_scope": {"type": ["string", "null"]}
+          }
+        },
+        "availability": {"enum": ["AVAILABLE", "CONDITIONAL", "AUTH_REQUIRED", "DISABLED_BY_POLICY"]},
+        "notes": {"type": "string", "minLength": 5}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"metric_id": {"pattern": "^youtube\\.public\\."}}},
+          "then": {"properties": {"fact_level": {"const": "PUBLIC_API_FACT"}, "group": {"const": "PUBLIC_PERFORMANCE"}}}
+        },
+        {
+          "if": {"properties": {"metric_id": {"pattern": "^youtube\\.(?:analytics|reporting)\\."}}},
+          "then": {"properties": {"fact_level": {"const": "OWNER_ANALYTICS_FACT"}}}
+        },
+        {
+          "if": {"properties": {"metric_id": {"pattern": "^system\\."}}},
+          "then": {"properties": {"fact_level": {"const": "SYSTEM_FACT"}}}
+        },
+        {
+          "if": {"properties": {"fact_level": {"const": "PUBLIC_API_FACT"}}},
+          "then": {"properties": {"group": {"const": "PUBLIC_PERFORMANCE"}, "availability": {"enum": ["AVAILABLE", "CONDITIONAL"]}}}
+        },
+        {
+          "if": {"properties": {"monetary": {"properties": {"is_revenue": {"const": true}}}}},
+          "then": {
+            "properties": {
+              "availability": {"const": "DISABLED_BY_POLICY"},
+              "monetary": {
+                "properties": {
+                  "is_monetary": {"const": true},
+                  "default_enabled": {"const": false},
+                  "required_scope": {"const": "https://www.googleapis.com/auth/yt-analytics-monetary.readonly"}
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "officialSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "title", "url", "checked_at", "supports"],
+      "properties": {
+        "source_id": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]+$"},
+        "title": {"type": "string", "minLength": 5},
+        "url": {"type": "string", "format": "uri", "pattern": "^https://developers\\.google\\.com/youtube/"},
+        "checked_at": {"const": "2026-08-04"},
+        "supports": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 3}}
+      }
+    }
+  }
+}

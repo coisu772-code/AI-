@@ -43,11 +43,12 @@ try {
     $health = $healthJson | ConvertFrom-Json
     if (
         [string]$health.status -ne "PASS" -or
-        [int]$health.skillCount -ne 8 -or
-        [int]$health.contentToolCount -ne 25 -or
+        [int]$health.skillCount -ne 9 -or
+        [int]$health.contentToolCount -ne 32 -or
         -not [bool]$health.serviceChecked -or
         -not [bool]$health.contentCapabilitiesChecked -or
-        -not [bool]$health.productionCapabilitiesChecked
+        -not [bool]$health.productionCapabilitiesChecked -or
+        -not [bool]$health.dataCenterCapabilitiesChecked
     ) {
         throw "Installed health result did not verify all stage 4 Skills and tools."
     }
@@ -62,4 +63,4 @@ finally {
     Pop-Location
 }
 
-Write-Output "Stage 4 regression passed against the forward-compatible Stage 6 Skill and tool surface."
+Write-Output "Stage 4 regression passed against the forward-compatible Stage 7 Skill and tool surface."

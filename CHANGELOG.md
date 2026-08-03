@@ -1,5 +1,14 @@
 # 更新记录
 
+## 未发布 - 阶段 7 工作树
+
+- 增加 Metric Catalog v1、六级事实等级、公开／owner／system 来源边界和收入权限关闭策略。
+- 增加正式 Publication Receipt 注册门、synthetic fixture 隔离空间、原始追加、快照幂等、迟到修订和重启恢复。
+- 增加 T+24／T+7／T+28 视频表现报告、频道策略报告、timeline 留存证据与同频道可比基线。
+- 增加 Recommendation Card v1、项目级实验和不可绕过的长期频道学习审批门。
+- 增加 `$data-center`、七个数据工具、九 Skills／三十二工具安装健康检查及日中英三市场 recorded synthetic 离线链。
+- 阶段7未发起 OAuth、未读取 Token、未接入真实 Studio、未迁移现有数据库、未写长期学习、未 push 或 Release。
+
 ## 未发布 - 阶段 6 工作树
 
 - 增加发布包 v2、幂等 Publish Intent、`.creating → .ready` 原子生命周期及六文档 JSON Schema。

@@ -18,6 +18,7 @@ $requiredSkills = @(
     "publishing-assets"
     "production-handoff"
     "publish-video"
+    "data-center"
 )
 $requiredContentTools = @(
     "content_capabilities",
@@ -45,6 +46,13 @@ $requiredContentTools = @(
     "import_publish_package_v2"
     "get_publication_status"
     "get_publication_receipt"
+    "data_center_capabilities"
+    "data_video_register"
+    "data_collection_run"
+    "data_report_generate"
+    "data_recommendations_list"
+    "data_learning_decide"
+    "data_progress_get"
 )
 
 $installState = $null
@@ -73,6 +81,9 @@ if ($null -ne $installState -and [string]$installState.productVersion -ne [strin
 
 $skillsRoot = Join-Path $pluginFull "skills"
 $installedSkills = @(Get-ChildItem -LiteralPath $skillsRoot -Directory | ForEach-Object { $_.Name })
+if ($installedSkills.Count -ne $requiredSkills.Count) {
+    throw "Installation health check failed: expected exactly $($requiredSkills.Count) Skills, found $($installedSkills.Count)."
+}
 foreach ($skill in $requiredSkills) {
     if ($installedSkills -notcontains $skill) {
         throw "Installation health check failed: required Skill is missing: $skill"
@@ -87,7 +98,13 @@ foreach ($skill in $requiredSkills) {
 $routerText = Get-Content -LiteralPath (Join-Path $skillsRoot "channel-production\SKILL.md") -Raw -Encoding UTF8
 $productionSkillText = Get-Content -LiteralPath (Join-Path $skillsRoot "production-handoff\SKILL.md") -Raw -Encoding UTF8
 $publishSkillText = Get-Content -LiteralPath (Join-Path $skillsRoot "publish-video\SKILL.md") -Raw -Encoding UTF8
-$declaredToolText = $routerText + "`n" + $productionSkillText + "`n" + $publishSkillText
+$dataCenterSkillText = Get-Content -LiteralPath (Join-Path $skillsRoot "data-center\SKILL.md") -Raw -Encoding UTF8
+$dataCenterProtocolText = Get-Content -LiteralPath (Join-Path $skillsRoot "data-center\references\tool-protocol.md") -Raw -Encoding UTF8
+$dataCenterHealthScript = Join-Path $skillsRoot "data-center\scripts\check_data_center_install.py"
+if (-not (Test-Path -LiteralPath $dataCenterHealthScript -PathType Leaf)) {
+    throw "Installation health check failed: data-center health script is missing."
+}
+$declaredToolText = $routerText + "`n" + $productionSkillText + "`n" + $publishSkillText + "`n" + $dataCenterSkillText + "`n" + $dataCenterProtocolText
 foreach ($toolName in $requiredContentTools) {
     if (-not $declaredToolText.Contains($toolName)) {
         throw "Installation health check failed: Skills do not declare $toolName."
@@ -97,7 +114,17 @@ foreach ($toolName in $requiredContentTools) {
 $serviceChecked = $false
 $contentCapabilitiesChecked = $false
 $productionCapabilitiesChecked = $false
+$dataCenterCapabilitiesChecked = $false
 if (-not $SkipServiceCheck) {
+    $healthDataRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("aivcp-stage7-health-" + [guid]::NewGuid().ToString("N"))
+    $hadDataRoot = Test-Path Env:AIVCP_DATA_ROOT
+    $previousDataRoot = $env:AIVCP_DATA_ROOT
+    $hadNetworkExecution = Test-Path Env:AIVCP_NETWORK_EXECUTION
+    $previousNetworkExecution = $env:AIVCP_NETWORK_EXECUTION
+    New-Item -ItemType Directory -Path $healthDataRoot -Force | Out-Null
+    $env:AIVCP_DATA_ROOT = $healthDataRoot
+    $env:AIVCP_NETWORK_EXECUTION = "false"
+    try {
     $startScript = Join-Path $pluginFull "mcp\start.ps1"
     if (-not (Test-Path -LiteralPath $startScript -PathType Leaf)) {
         throw "Installation health check failed: local tool launcher is missing."
@@ -136,7 +163,38 @@ if (-not $SkipServiceCheck) {
         throw "Installation health check failed: Production Package v2.1 is not healthy."
     }
     $productionCapabilitiesChecked = $true
+    $dataRequest = '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"data_center_capabilities","arguments":{}}}'
+    $dataResponseText = $dataRequest | powershell -NoProfile -ExecutionPolicy Bypass -File $startScript | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        throw "Installation health check failed: data-center capabilities call did not complete."
+    }
+    $dataResponse = $dataResponseText | ConvertFrom-Json
+    $dataCapabilityPayload = $dataResponse.result.structuredContent
+    if ($null -eq $dataCapabilityPayload -or -not [bool]$dataCapabilityPayload.ok -or $null -eq $dataCapabilityPayload.result) {
+        throw "Installation health check failed: data-center capabilities are not healthy."
+    }
+    $authorization = $dataCapabilityPayload.result.analyticsAuthorization
+    if (
+        $null -eq $authorization -or
+        [string]$authorization.status -ne "AUTH_REQUIRED" -or
+        [bool]$authorization.available -or
+        $null -eq $authorization.monetaryScope -or
+        [bool]$authorization.monetaryScope.enabled -or
+        [bool]$authorization.monetaryScope.available -or
+        [bool]$authorization.oauthStarted
+    ) {
+        throw "Installation health check failed: Analytics must default to AUTH_REQUIRED, unavailable, no monetary scope, and no OAuth."
+    }
+    $dataCenterCapabilitiesChecked = $true
     $serviceChecked = $true
+    }
+    finally {
+        if ($hadDataRoot) { $env:AIVCP_DATA_ROOT = $previousDataRoot } else { Remove-Item Env:AIVCP_DATA_ROOT -ErrorAction SilentlyContinue }
+        if ($hadNetworkExecution) { $env:AIVCP_NETWORK_EXECUTION = $previousNetworkExecution } else { Remove-Item Env:AIVCP_NETWORK_EXECUTION -ErrorAction SilentlyContinue }
+        if (Test-Path -LiteralPath $healthDataRoot) {
+            Remove-Item -LiteralPath $healthDataRoot -Recurse -Force
+        }
+    }
 }
 
 $result = [ordered]@{
@@ -149,11 +207,14 @@ $result = [ordered]@{
     serviceChecked = $serviceChecked
     contentCapabilitiesChecked = $contentCapabilitiesChecked
     productionCapabilitiesChecked = $productionCapabilitiesChecked
+    dataCenterCapabilitiesChecked = $dataCenterCapabilitiesChecked
     boundaries = [ordered]@{
         workshop = "not_called"
         oauth = "not_called"
         upload = "not_called"
-        analytics = "not_called"
+        analyticsAuthorization = "AUTH_REQUIRED"
+        analyticsPrivateApi = "not_called"
+        token = "not_read"
         longTermLearningWrite = "not_called"
     }
 }

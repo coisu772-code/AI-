@@ -1,0 +1,131 @@
+{
+  "manifestVersion": "1.0.0",
+  "productId": "ai-video-channel-production",
+  "productName": "AI 视频频道生产系统",
+  "productVersion": "0.7.0-dev.1",
+  "releaseChannel": "beta",
+  "releaseStatus": "draft",
+  "generatedAt": "2026-08-03T21:21:19Z",
+  "repository": "https://github.com/coisu772-code/AI-/",
+  "gitCommit": null,
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "contentHash": "a61c4ff9976923ad3a3c08a1bc6fa30778d59dc6a6573d4bd1760197e893e3ae",
+  "schemaVersions": {
+    "channel-profile": "1.0.0",
+    "production-profile": "1.0.0",
+    "source-package": "1.0.0",
+    "topic-package": "1.0.0",
+    "manuscript-package": "1.0.0",
+    "publishing-asset-package": "1.0.0",
+    "production-result-package": "1.0.0",
+    "publish-intent": "1.0.0",
+    "publication-receipt": "1.0.0",
+    "analytics-snapshot": "1.0.0"
+  },
+  "protocolVersions": {
+    "contractExchange": "1.0.0",
+    "localToolService": "1.0.0",
+    "installerState": "1.0.0"
+  },
+  "components": [
+    {
+      "componentId": "codex-plugin",
+      "version": "0.7.0-dev.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.7.0-dev.1",
+      "maximumProductVersion": "0.7.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "plugins/ai-video-channel-production",
+          "sha256": "45bbfe9a46842a8d93ba7a6a5fa987b2e35f275e5730ed95890a3b715a2972bf",
+          "sizeBytes": 768504
+        }
+      ],
+      "notes": "九个 Skills；阶段2–6内容、制作与本地发布链；阶段7新增七个本地数据工具、Metric Catalog v1、按频道隔离的快照／报告／建议与严格长期学习确认门。"
+    },
+    {
+      "componentId": "windows-installer",
+      "version": "0.7.0-dev.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.7.0-dev.1",
+      "maximumProductVersion": "0.7.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "installer",
+          "sha256": "247ba0a0b1772186781d6f1f4aef2d5ddfb7a0eb8bea0b8fe4c9defe7d639f64",
+          "sizeBytes": 29136
+        }
+      ],
+      "notes": "隔离安装、升级、回滚、卸载，以及九个 Skills、三十二个内容／制作／发布／数据工具的静态与动态健康检查。"
+    },
+    {
+      "componentId": "cross-center-contracts",
+      "version": "1.2.0",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.7.0-dev.1",
+      "maximumProductVersion": "0.7.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "contracts",
+          "sha256": "b5106f8cf4ff67b4ff3fefec7d7b70d95b43863cf8d3b06ef418e99c822c20ca",
+          "sizeBytes": 272420
+        }
+      ],
+      "notes": "十类跨中心 v1 契约保持兼容；新增经 2026-08-04 官方资料核验的 Metric Catalog v1 及数据事实、权限、时区、延迟、完整性和内容形态边界。"
+    },
+    {
+      "componentId": "local-tool-service",
+      "version": "0.7.0-dev.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.7.0-dev.1",
+      "maximumProductVersion": "0.7.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "plugins/ai-video-channel-production/mcp",
+          "sha256": "d5afe627d3a244610ad7185f63697053b0e23f86521f2edd34485f869b692194",
+          "sizeBytes": 674255
+        }
+      ],
+      "notes": "新增正式回执注册阻断、公开/owner/system 适配、原始追加与快照幂等、T+24/T+7/T+28 修订报告、timeline 证据和建议审批门；不发起 OAuth 或私有 Analytics 网络调用。"
+    },
+    {
+      "componentId": "control-center",
+      "version": "0.11.0",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.7.0-dev.1",
+      "maximumProductVersion": "0.7.0-dev.1",
+      "artifacts": [],
+      "notes": "阶段7未修改控制中心，也未调用现有 channel_learning record；长期学习继续等待单独用户批准。"
+    },
+    {
+      "componentId": "workshop",
+      "version": "2.1.0-stage5",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.7.0-dev.1",
+      "maximumProductVersion": "0.7.0-dev.1",
+      "artifacts": [],
+      "notes": "阶段7只读取哈希绑定的系统时间线与生产事实接口；未修改工坊源码、程序或用户数据。"
+    },
+    {
+      "componentId": "publisher-center",
+      "version": "0.2.0-stage6",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.7.0-dev.1",
+      "maximumProductVersion": "0.7.0-dev.1",
+      "artifacts": [],
+      "notes": "阶段6只有本地发布包且无真实 video ID/Publication Receipt；阶段7未接入正式数据库、OAuth、上传或真实 Studio 数据。"
+    }
+  ]
+}
