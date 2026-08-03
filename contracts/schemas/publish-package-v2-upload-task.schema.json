@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/publish-package-v2-upload-task.schema.json",
+  "title": "YouTube Publish Package v2 Upload Task",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "publish_intent_id", "project_id", "channel_profile_id", "publisher_profile_id", "channel_serial", "expected_channel_id", "upload_policy", "privacy_status", "timezone", "scheduled_at", "schedule_conflict", "category_id", "made_for_kids", "notify_subscribers", "authorization", "limits", "constraints_catalog_version", "network_execution"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "publish_intent_id": {"type": "string", "pattern": "^pi_[0-9a-f]{32}$"},
+    "project_id": {"type": "string", "minLength": 3},
+    "channel_profile_id": {"type": "string", "minLength": 3},
+    "publisher_profile_id": {"type": "string", "minLength": 3},
+    "channel_serial": {"type": "string", "pattern": "^[0-9]{2,}$"},
+    "expected_channel_id": {"type": "string", "minLength": 8, "maxLength": 64},
+    "upload_policy": {"enum": ["DO_NOT_UPLOAD", "REQUIRE_REVIEW", "AUTO"]},
+    "privacy_status": {"enum": ["private", "unlisted", "public", "scheduled"]},
+    "timezone": {"type": "string", "minLength": 1, "maxLength": 80},
+    "scheduled_at": {"oneOf": [{"type": "string", "format": "date-time"}, {"type": "null"}]},
+    "schedule_conflict": {"type": "boolean"},
+    "category_id": {"type": "string", "pattern": "^[0-9]+$"},
+    "made_for_kids": {"type": "boolean"},
+    "notify_subscribers": {"type": "boolean"},
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspace", "channel", "intent"],
+      "properties": {
+        "workspace": {"$ref": "#/$defs/grant"},
+        "channel": {"$ref": "#/$defs/grant"},
+        "intent": {"$ref": "#/$defs/grant"}
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["daily_limit", "used_today", "concurrency_limit", "active_uploads"],
+      "properties": {
+        "daily_limit": {"type": "integer", "minimum": 1},
+        "used_today": {"type": "integer", "minimum": 0},
+        "concurrency_limit": {"type": "integer", "minimum": 1},
+        "active_uploads": {"type": "integer", "minimum": 0}
+      }
+    },
+    "constraints_catalog_version": {"const": "2026.08.04.1"},
+    "network_execution": {"const": false}
+  },
+  "$defs": {
+    "grant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["granted", "version", "confirmed_at"],
+      "properties": {
+        "granted": {"type": "boolean"},
+        "version": {"type": "string"},
+        "confirmed_at": {"type": "string"}
+      }
+    }
+  }
+}

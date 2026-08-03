@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/publish-package-v2-upload-status.schema.json",
+  "title": "YouTube Publish Package v2 Initial Upload Status",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "publish_intent_id", "status", "last_updated_at", "network_execution", "external_approval_required", "blockers", "youtube_video_id", "youtube_url", "upload_session", "publication_receipt_created", "synthetic_fixture"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "publish_intent_id": {"type": "string", "pattern": "^pi_[0-9a-f]{32}$"},
+    "status": {"enum": ["PACKAGE_READY", "WAITING_REVIEW", "READY_TO_UPLOAD"]},
+    "last_updated_at": {"type": "string", "format": "date-time"},
+    "network_execution": {"const": false},
+    "external_approval_required": {"type": "boolean"},
+    "blockers": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "youtube_video_id": {"type": "null"},
+    "youtube_url": {"type": "null"},
+    "upload_session": {"type": "null"},
+    "publication_receipt_created": {"const": false},
+    "synthetic_fixture": {"type": "boolean"}
+  }
+}

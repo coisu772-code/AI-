@@ -1,0 +1,74 @@
+{
+  "schema_version": "1.0",
+  "catalog_version": "2026.08.04.1",
+  "verified_at": "2026-08-04",
+  "rules": {
+    "title_max_characters": 100,
+    "title_forbidden_characters": ["<", ">"],
+    "description_max_bytes": 5000,
+    "description_forbidden_characters": ["<", ">"],
+    "backend_tags_max_characters": 500,
+    "package_hashtags_min": 8,
+    "package_hashtags_max": 12,
+    "youtube_hashtags_ignored_over": 60,
+    "thumbnail_api_max_bytes": 2097152,
+    "thumbnail_api_media_types": ["image/jpeg", "image/png", "application/octet-stream"],
+    "caption_max_bytes": 104857600,
+    "video_max_bytes": 274877906944,
+    "video_max_duration_seconds": 43200,
+    "recommended_container": "mp4",
+    "recommended_video_codec": "h264",
+    "recommended_audio_codec": "aac",
+    "scheduled_requires_private": true,
+    "scheduled_requires_future_time": true
+  },
+  "sources": [
+    {
+      "url": "https://developers.google.com/youtube/v3/docs/videos",
+      "surface": "YouTube Data API videos resource",
+      "verified_at": "2026-08-04",
+      "supports": ["title_max_characters", "description_max_bytes", "backend_tags_max_characters"]
+    },
+    {
+      "url": "https://developers.google.com/youtube/v3/docs/videos/update",
+      "surface": "YouTube Data API videos.update",
+      "verified_at": "2026-08-04",
+      "supports": ["scheduled_requires_private", "scheduled_requires_future_time"]
+    },
+    {
+      "url": "https://developers.google.com/youtube/v3/docs/captions/insert",
+      "surface": "YouTube Data API captions.insert",
+      "verified_at": "2026-08-04",
+      "supports": ["caption_max_bytes"]
+    },
+    {
+      "url": "https://developers.google.com/youtube/v3/docs/thumbnails/set",
+      "surface": "YouTube Data API thumbnails.set",
+      "verified_at": "2026-08-04",
+      "supports": ["thumbnail_api_max_bytes", "thumbnail_api_media_types"]
+    },
+    {
+      "url": "https://support.google.com/youtube/answer/6390658",
+      "surface": "YouTube Help hashtags",
+      "verified_at": "2026-08-04",
+      "supports": ["youtube_hashtags_ignored_over"]
+    },
+    {
+      "url": "https://support.google.com/youtube/answer/71673",
+      "surface": "YouTube Help upload limits",
+      "verified_at": "2026-08-04",
+      "supports": ["video_max_bytes", "video_max_duration_seconds"]
+    },
+    {
+      "url": "https://support.google.com/youtube/answer/1722171",
+      "surface": "YouTube Help recommended encoding settings",
+      "verified_at": "2026-08-04",
+      "supports": ["recommended_container", "recommended_video_codec", "recommended_audio_codec"]
+    }
+  ],
+  "policy_notes": {
+    "thumbnail_limit_surface": "The 2 MiB limit is the thumbnails.set API upload surface used by the publisher. A different YouTube Studio UI limit is not substituted.",
+    "package_hashtag_gate": "The production workflow intentionally requires 8-12 public hashtags even though YouTube's broader ignored-over-60 behavior is less restrictive.",
+    "network_scope": "This catalog contains public platform constraints only. It never fetches private channel data."
+  }
+}

@@ -76,6 +76,27 @@ def validate_contracts(examples_dir: Path) -> list[str]:
     index: dict[tuple[str, str, str], dict[str, Any]] = {}
     errors: list[str] = []
 
+    for entry in catalog.get("packageDocuments", []):
+        schema_path = CONTRACTS_ROOT / entry["schema"]
+        if not schema_path.is_file():
+            errors.append(f"{entry.get('documentType')}: schema is missing: {entry['schema']}")
+            continue
+        try:
+            Draft202012Validator.check_schema(load_json(schema_path))
+        except Exception as exc:  # noqa: BLE001 - report every broken package document schema
+            errors.append(f"{entry.get('documentType')}: invalid schema: {exc}")
+
+    for entry in catalog.get("rulesCatalogs", []):
+        schema_path = CONTRACTS_ROOT / entry["schema"]
+        document_path = CONTRACTS_ROOT / entry["document"]
+        if not schema_path.is_file() or not document_path.is_file():
+            errors.append(f"{entry.get('catalogType')}: catalog document or schema is missing")
+            continue
+        validator = Draft202012Validator(load_json(schema_path), registry=registry, format_checker=FormatChecker())
+        for validation_error in validator.iter_errors(load_json(document_path)):
+            location = "/".join(str(part) for part in validation_error.absolute_path) or "<root>"
+            errors.append(f"{entry.get('catalogType')}:{location}: {validation_error.message}")
+
     for path in sorted(examples_dir.glob("*.json")):
         try:
             document = load_json(path)

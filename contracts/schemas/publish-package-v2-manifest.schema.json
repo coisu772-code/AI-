@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/publish-package-v2-manifest.schema.json",
+  "title": "YouTube Publish Package v2 Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "protocol",
+    "package_version",
+    "publish_intent_id",
+    "project_id",
+    "created_at",
+    "synthetic_fixture",
+    "network_execution",
+    "constraints_catalog",
+    "content_hash",
+    "files"
+  ],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "protocol": {"const": "youtube-publish-package-v2"},
+    "package_version": {"const": "2.0.0"},
+    "publish_intent_id": {"type": "string", "pattern": "^pi_[0-9a-f]{32}$"},
+    "project_id": {"type": "string", "minLength": 3, "maxLength": 128},
+    "created_at": {"type": "string", "format": "date-time"},
+    "synthetic_fixture": {"type": "boolean"},
+    "network_execution": {"const": false},
+    "constraints_catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "sha256"],
+      "properties": {
+        "version": {"const": "2026.08.04.1"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "files": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256", "size_bytes", "media_type", "role"],
+        "properties": {
+          "path": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?![A-Za-z]:)[^\\\\]+$"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "size_bytes": {"type": "integer", "minimum": 0},
+          "media_type": {"type": "string", "minLength": 1},
+          "role": {
+            "enum": ["metadata", "upload_task", "validation", "production_binding", "upload_status", "final_video", "thumbnail", "subtitle"]
+          }
+        }
+      }
+    }
+  }
+}

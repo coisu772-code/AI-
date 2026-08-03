@@ -10,6 +10,12 @@ from .content import CONTENT_LOOP_VERSION, SOURCE_MODES, ContentLoop
 from .errors import ToolError
 from .publisher import PUBLISHER_PROTOCOL_VERSION, PublisherChannelProvider, provider_from_environment
 from .production import PRODUCTION_CENTER_VERSION, ProductionCenter
+from .publish_package_v2 import (
+    PublishPackageError,
+    assemble_publish_package_v2,
+    validate_publish_package_v2,
+)
+from .publisher_v2_bridge import PublisherV2Bridge
 from .security import redact
 from .source_library import SOURCE_LIBRARY_VERSION, SourceLibrary
 from .store import ARCHIVE_FORMAT_VERSION, CHANNEL_SCHEMA_VERSION, SYSTEM_SCHEMA_VERSION, ChannelStore
@@ -18,7 +24,7 @@ from .workshop_bridge import WorkshopBridge
 
 
 LOCAL_TOOL_PROTOCOL_VERSION = "1.0.0"
-SERVICE_VERSION = "0.5.0-dev.1"
+SERVICE_VERSION = "0.6.0-dev.1"
 
 
 def default_data_root(plugin_root: Path | None = None) -> Path:
@@ -107,6 +113,8 @@ class LocalToolService:
                 "productionPackageContract": "2.1",
                 "productionTaskContract": "1.0.0",
                 "productionResultPackageContract": "1.0.0",
+                "publishPackageProtocol": "2.0.0",
+                "publisherLocalToolProtocol": "1.0.0",
             },
             "capabilities": {
                 "publisherChannelList": self.publisher.capabilities().get("available", False),
@@ -126,6 +134,9 @@ class LocalToolService:
                 "productionPackage": True,
                 "productionTask": True,
                 "productionResultPackage": True,
+                "publishPackageAssembly": True,
+                "publishPackageValidation": True,
+                "publisherIsolatedImport": True,
                 "workshop": self.production.workshop_bridge is not None,
                 "upload": False,
                 "analytics": False,
@@ -547,9 +558,78 @@ class LocalToolService:
                 )
         elif name == "production_result_validate":
             result = self.production.validate_result_package(Path(args.get("resultPackagePath", "")))
+        elif name == "assemble_publish_package_v2":
+            if args.get("networkExecution") is not False:
+                raise ToolError("PUBLISHER_NETWORK_EXECUTION_FORBIDDEN", "Stage6 必须显式传入 networkExecution=false。")
+            publisher_channel = args.get("publisherChannel")
+            if not isinstance(publisher_channel, dict):
+                raise ToolError("INVALID_ARGUMENT", "publisherChannel 必须是只读频道档案对象。")
+            channel_profile = {
+                "channel_profile_id": args.get("channelProfileId"),
+                "publisher_profile_id": publisher_channel.get("publisherProfileId"),
+                "channel_serial": publisher_channel.get("channelSerial"),
+                "expected_channel_id": publisher_channel.get("youtubeChannelId"),
+                "enabled": publisher_channel.get("enabled"),
+                "authorization_status": publisher_channel.get("authorizationStatus"),
+                "default_language": publisher_channel.get("defaultLanguage", ""),
+                "timezone": publisher_channel.get("timeZone"),
+                "upload_mode": publisher_channel.get("uploadPolicy"),
+            }
+            authorization = args.get("authorization")
+            if isinstance(authorization, dict):
+                authorization = {
+                    key: {
+                        "granted": bool(value.get("granted", False)),
+                        "version": value.get("version", ""),
+                        "confirmed_at": value.get("confirmedAt", ""),
+                    }
+                    for key, value in authorization.items()
+                    if key in {"workspace", "channel", "intent"} and isinstance(value, dict)
+                }
+            try:
+                result = assemble_publish_package_v2(
+                    production_result_root=Path(args.get("productionResultPath", "")),
+                    publishing_asset_root=Path(args.get("publishingAssetPath", "")),
+                    inbox_root=Path(args.get("inboxPath", "")),
+                    channel_profile=channel_profile,
+                    constraints_catalog_path=self._publisher_constraints_catalog(),
+                    authorization=authorization,
+                    limits=args.get("limits"),
+                    scheduled_at=args.get("scheduledAt"),
+                    schedule_conflict=bool(args.get("scheduleConflict", False)),
+                    timezone=args.get("timeZone"),
+                    ffprobe_path=args.get("ffprobePath"),
+                )
+            except PublishPackageError as exc:
+                raise ToolError(exc.code, str(exc), details=exc.details) from exc
+        elif name == "validate_publish_package_v2":
+            if args.get("networkExecution") is not False:
+                raise ToolError("PUBLISHER_NETWORK_EXECUTION_FORBIDDEN", "Stage6 必须显式传入 networkExecution=false。")
+            try:
+                result = validate_publish_package_v2(
+                    Path(args.get("packagePath", "")),
+                    constraints_catalog_path=self._publisher_constraints_catalog(),
+                    ffprobe_path=args.get("ffprobePath"),
+                )
+            except PublishPackageError as exc:
+                raise ToolError(exc.code, str(exc), details=exc.details) from exc
+        elif name == "import_publish_package_v2":
+            result = PublisherV2Bridge.from_arguments(args).import_package(args)
+        elif name == "get_publication_status":
+            result = PublisherV2Bridge.from_arguments(args).read_status(args, receipt=False)
+        elif name == "get_publication_receipt":
+            result = PublisherV2Bridge.from_arguments(args).read_status(args, receipt=True)
         else:
             raise ToolError("TOOL_NOT_FOUND", "本地工具服务没有该工具。", details={"tool": name})
         return redact(result)
+
+    def _publisher_constraints_catalog(self) -> Path:
+        if self.config.plugin_root is None:
+            raise ToolError("PUBLISHER_CONSTRAINTS_UNAVAILABLE", "缺少插件根目录，无法定位版本化 YouTube 规则目录。")
+        candidate = self.config.plugin_root.resolve().parents[1] / "contracts" / "youtube-constraints" / "catalog-2026.08.04.1.json"
+        if not candidate.is_file():
+            raise ToolError("PUBLISHER_CONSTRAINTS_UNAVAILABLE", "版本化 YouTube 规则目录缺失。")
+        return candidate
 
 
 def tool_definitions() -> list[dict[str, Any]]:
@@ -859,6 +939,76 @@ def tool_definitions() -> list[dict[str, Any]]:
             "只读校验 VIDEO_READY Production Result Package v1 及发布越权边界。",
             {"resultPackagePath": {"type": "string"}},
             ["resultPackagePath"],
+        ),
+        (
+            "assemble_publish_package_v2",
+            "离线组装发布包 v2；只在全部校验成功后把 .creating 原子提升为 .ready。",
+            {
+                "productionResultPath": {"type": "string"},
+                "publishingAssetPath": {"type": "string"},
+                "inboxPath": {"type": "string"},
+                "channelProfileId": {"type": "string"},
+                "publisherChannel": {"type": "object"},
+                "authorization": {"type": "object"},
+                "limits": {"type": "object"},
+                "scheduledAt": {"type": ["string", "null"]},
+                "scheduleConflict": {"type": "boolean"},
+                "timeZone": {"type": "string"},
+                "ffprobePath": {"type": "string"},
+                "networkExecution": {"const": False},
+            },
+            ["productionResultPath", "publishingAssetPath", "inboxPath", "channelProfileId", "publisherChannel", "networkExecution"],
+        ),
+        (
+            "validate_publish_package_v2",
+            "只读独立重验完整 .ready 发布包 v2；拒绝半包、路径、哈希、媒体和状态伪造。",
+            {
+                "packagePath": {"type": "string"},
+                "ffprobePath": {"type": "string"},
+                "networkExecution": {"const": False},
+            },
+            ["packagePath", "networkExecution"],
+        ),
+        (
+            "import_publish_package_v2",
+            "通过隔离发布中心 CLI 导入 .ready 包；强制 networkExecution=false，不触碰正式数据库。",
+            {
+                "publisherCliPath": {"type": "string"},
+                "packagePath": {"type": "string"},
+                "inboxPath": {"type": "string"},
+                "databasePath": {"type": "string"},
+                "isolationRoot": {"type": "string"},
+                "channelCliPath": {"type": "string"},
+                "channelDatabasePath": {"type": "string"},
+                "syntheticChannelProfilePath": {"type": "string"},
+                "ffprobePath": {"type": "string"},
+                "networkExecution": {"const": False},
+            },
+            ["publisherCliPath", "packagePath", "inboxPath", "databasePath", "isolationRoot", "networkExecution"],
+        ),
+        (
+            "get_publication_status",
+            "从隔离发布中心 SQLite 只读查询本地或真实状态，不推进任务。",
+            {
+                "publisherCliPath": {"type": "string"},
+                "databasePath": {"type": "string"},
+                "isolationRoot": {"type": "string"},
+                "publishIntentId": {"type": "string"},
+                "networkExecution": {"const": False},
+            },
+            ["publisherCliPath", "databasePath", "isolationRoot", "publishIntentId", "networkExecution"],
+        ),
+        (
+            "get_publication_receipt",
+            "只读获取真实发布回执；没有真实 YouTube video ID 时明确返回 not_available。",
+            {
+                "publisherCliPath": {"type": "string"},
+                "databasePath": {"type": "string"},
+                "isolationRoot": {"type": "string"},
+                "publishIntentId": {"type": "string"},
+                "networkExecution": {"const": False},
+            },
+            ["publisherCliPath", "databasePath", "isolationRoot", "publishIntentId", "networkExecution"],
         ),
     ]
     return [

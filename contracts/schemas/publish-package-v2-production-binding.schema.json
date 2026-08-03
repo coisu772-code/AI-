@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/publish-package-v2-production-binding.schema.json",
+  "title": "YouTube Publish Package v2 Production Binding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "publish_intent_id", "project_id", "production_result", "publishing_asset", "final_video", "subtitle", "technical_report"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "publish_intent_id": {"type": "string", "pattern": "^pi_[0-9a-f]{32}$"},
+    "project_id": {"type": "string", "minLength": 3},
+    "production_result": {"$ref": "#/$defs/contract"},
+    "publishing_asset": {"$ref": "#/$defs/contract"},
+    "final_video": {"$ref": "#/$defs/file"},
+    "subtitle": {
+      "allOf": [
+        {"$ref": "#/$defs/file"},
+        {"type": "object", "required": ["language"], "properties": {"language": {"type": "string", "minLength": 2}}}
+      ]
+    },
+    "technical_report": {
+      "allOf": [
+        {"$ref": "#/$defs/file"},
+        {"type": "object", "required": ["source_sha256"], "properties": {"source_sha256": {"$ref": "#/$defs/sha256"}}}
+      ]
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?![A-Za-z]:)[^\\\\]+$"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "language": {"type": "string"},
+        "source_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "content_hash", "schema_version", "status"],
+      "properties": {
+        "id": {"type": "string", "minLength": 3},
+        "version": {"type": "string", "minLength": 1},
+        "content_hash": {"$ref": "#/$defs/sha256"},
+        "schema_version": {"type": "string", "minLength": 1},
+        "status": {"enum": ["VIDEO_READY", "PUBLISHING_ASSETS_READY"]}
+      }
+    }
+  }
+}

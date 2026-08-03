@@ -39,7 +39,7 @@ class McpServer:
                 "protocolVersion": MCP_PROTOCOL_VERSION,
                 "capabilities": {"tools": {"listChanged": False}},
                 "serverInfo": {"name": "ai-video-channel-local-tools", "version": SERVICE_VERSION},
-                "instructions": "处理频道身份、资料、内容冻结，以及阶段5标准生产包、权威制作任务和 VIDEO_READY 技术验收；不接受或返回凭据，不创建发布包、不授权或上传、不写长期学习。",
+                "instructions": "处理频道身份、资料、内容冻结、制作到 VIDEO_READY，以及阶段6发布包 v2 的离线组装、重验和隔离导入；不接受凭据，不发起 OAuth、YouTube 上传、远端修改或长期学习。",
             }
         elif method == "ping":
             result = {}

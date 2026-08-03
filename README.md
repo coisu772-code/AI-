@@ -71,6 +71,7 @@ codex plugin add ai-video-channel-production@novel-manga-production
 - `docs/phase3-source-library-validation-2026-08-04.md`
 - `docs/phase4-content-loop-validation-2026-08-04.md`
 - `docs/phase5-production-handoff-validation-2026-08-04.md`
+- `docs/phase6-publisher-integration-validation-2026-08-04.md`
 
 `0.1.0-beta.2` 是阶段 1 骨架预发布，不包含频道建库、资料采集、内容生成、视频生产、真实上传或 Analytics。
 
@@ -135,3 +136,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage5.ps1
 ```
 
 当前最新工坊源码的 2.1 导入已在隔离构建中验证；正式已安装工坊程序未被覆盖，因此正式部署仍须单独审核升级。
+
+## 阶段6未发布本地发布安全门
+
+本地 `0.6.0-dev.1` 候选从 `VIDEO_READY` Production Result Package v1 与已冻结 Publishing Asset Package v1 幂等组装发布包 v2。包先写入 `<publish_intent_id>.creating`，全部 Schema、路径、哈希、FFprobe、封面、字幕、元数据、频道、计划与额度检查成功后才原子形成 `.ready`。
+
+阶段6提供 `$publish-video` 和五个本地工具，支持三种策略：`DO_NOT_UPLOAD` 只保存包，`REQUIRE_REVIEW` 停在人工确认，`AUTO` 必须通过工作区／频道／当前意图三重授权版本与时间门。即使资格齐全也只到 `READY_TO_UPLOAD` 并返回 `EXTERNAL_APPROVAL_REQUIRED`。本阶段所有工具强制 `networkExecution=false`，不会发起 OAuth、YouTube API、真实上传、远端修改或删除；没有真实 YouTube video ID 时不会生成 Publication Receipt。
+
+阶段6完整隔离验收入口：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage6.ps1
+```

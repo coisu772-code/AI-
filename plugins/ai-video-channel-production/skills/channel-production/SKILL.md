@@ -1,6 +1,6 @@
 ---
 name: channel-production
-description: 作为 AI 视频频道生产系统唯一默认总入口，识别系统管理、频道建库、资料、选题、文稿、发布素材、制作、上传或数据复盘意图，并只路由到当前安装版本真实具备的能力。用户说“启动系统”“开始频道生产”“建立或进入频道资料库”“添加资料”“给我选题”“按大纲写”“生成口播稿”“准备标题封面”“开始或继续制作”“修复失败素材”或询问六大中心状态时使用；阶段5开放安全制作到 VIDEO_READY，不模拟上传、数据分析或长期学习成功。
+description: 作为 AI 视频频道生产系统唯一默认总入口，识别系统管理、频道建库、资料、选题、文稿、发布素材、制作、上传准备或数据复盘意图，并只路由到当前安装版本真实具备的能力。用户说“启动系统”“开始频道生产”“建立或进入频道资料库”“添加资料”“给我选题”“按大纲写”“生成口播稿”“准备标题封面”“开始或继续制作”“修复失败素材”“准备上传成片”“查看上传状态与回执”或询问六大中心状态时使用；阶段6只开放本地发布包与隔离发布门，不模拟 OAuth、真实上传、真实 video ID、回执、数据分析或长期学习成功。
 ---
 
 # AI 视频频道生产系统总入口
@@ -21,9 +21,10 @@ description: 作为 AI 视频频道生产系统唯一默认总入口，识别系
 - 目标语言正式母稿、逐行中文审核稿、文稿质量门、逐集恢复或联合确认：调用 `$manuscript-production`。
 - 唯一标题、简介、8～12 个 Hashtags、封面、CTR 联评或发布素材确认：调用 `$publishing-assets`。
 - 标准生产包、工坊移交、制作进度、暂停恢复、失败重试、自动成片、剪映草稿、成片回收或技术验收：调用 `$production-handoff`。
+- `VIDEO_READY` 后准备上传成片、重验／隔离导入发布包、查看上传状态与回执：调用 `$publish-video`。五个冻结工具为 `assemble_publish_package_v2`、`validate_publish_package_v2`、`import_publish_package_v2`、`get_publication_status`、`get_publication_receipt`。
 - 趋势、单作品、多作品、拆书、拆文、拆视频、同类型改写或仿写：先由 `$topic-selection` 检查稳定 `Analysis Package v1` 扩展接口。提供方或对应 Skill 未安装时明确显示 unavailable，并提供原创、频道锚定或大纲直通路线；不得临时伪造分析结果。
 - 工坊制作只允许走阶段 5 的 Production Package v2.1、Production Task v1 与隔离桥；不得调用旧 `.ready` 自动移交链。
-- Google／YouTube 授权、发布包、真实上传或回执属于阶段 6，当前安装不调用。`VIDEO_READY` 不等于可发布或已上传。
+- 阶段6只允许发布包 v2 本地组装、独立验证、隔离导入和只读状态／回执查询；始终 `networkExecution=false`。Google／YouTube OAuth、真实上传、远端修改和删除仍需外部明确批准。`VIDEO_READY`、`.ready`、`READY_TO_UPLOAD` 均不等于已上传。
 - Analytics、数据报告或长期频道学习属于阶段 7，当前安装不执行；一次性内容修改只记在项目中。
 
 ## 内容包主链
@@ -38,6 +39,7 @@ Stage 2 Channel Profile / Production Profile
 → Production Package v2.1
 → Production Task v1（P0–P11）
 → Production Result Package v1（VIDEO_READY）
+→ Publish Package v2（PACKAGE_READY／WAITING_REVIEW／READY_TO_UPLOAD，仅本地资格）
 ```
 
 - 来源只接 `CONTENT_READY`；`PARTIAL` 必须先展示缺失项并取得本次明确接受。所有下游保留 `fact`、`inference`、`unknown`、来源版本和 SHA-256。
@@ -63,5 +65,5 @@ Stage 2 Channel Profile / Production Profile
 - 目标发布频道身份只来自发布中心只读接口；参考频道永远只是资料来源。
 - 一个任务只绑定一个 `channelProfileId`；仅本次覆盖不得污染频道默认值。
 - 只读频道学习快照，不执行长期学习写回。
-- 工坊只通过阶段 5 安全桥进入隔离项目；不调用旧控制中心发布自动移交，不创建 `.ready`，不执行 Google／YouTube OAuth、上传、远端删除或 Analytics。
+- 工坊只通过阶段 5 安全桥进入隔离项目；工坊本身不创建 `.ready`。只有 `$publish-video` 可在 Stage6 本地工具中组装／重验／隔离导入 `.ready`，并且不得执行 Google／YouTube OAuth、上传、远端删除或 Analytics。
 - 所有成功结论以本地持久化状态、Schema、确认记录和哈希校验为准，不凭对话记忆自评通过。

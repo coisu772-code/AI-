@@ -16,6 +16,7 @@ EXCLUDED_DIRS = {
     ".stage4-plugin-isolated",
     ".stage5-plugin-isolated",
     ".stage5-output-isolated",
+    ".stage6-r3-source",
     ".github-install-smoke",
     ".release-tools",
     "__pycache__",

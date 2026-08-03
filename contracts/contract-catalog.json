@@ -2,6 +2,17 @@
   "catalogVersion": "1.0.0",
   "jsonSchemaDraft": "2020-12",
   "hashRule": "canonical-json-v1",
+  "packageDocuments": [
+    { "documentType": "publish-package-v2-manifest", "schema": "schemas/publish-package-v2-manifest.schema.json" },
+    { "documentType": "publish-package-v2-metadata", "schema": "schemas/publish-package-v2-metadata.schema.json" },
+    { "documentType": "publish-package-v2-upload-task", "schema": "schemas/publish-package-v2-upload-task.schema.json" },
+    { "documentType": "publish-package-v2-validation", "schema": "schemas/publish-package-v2-validation.schema.json" },
+    { "documentType": "publish-package-v2-production-binding", "schema": "schemas/publish-package-v2-production-binding.schema.json" },
+    { "documentType": "publish-package-v2-upload-status", "schema": "schemas/publish-package-v2-upload-status.schema.json" }
+  ],
+  "rulesCatalogs": [
+    { "catalogType": "youtube-constraints", "document": "youtube-constraints/catalog-2026.08.04.1.json", "schema": "schemas/youtube-constraints-catalog.schema.json" }
+  ],
   "contracts": [
     { "contractType": "channel-profile", "schema": "schemas/channel-profile.schema.json", "idField": "channelProfileId" },
     { "contractType": "production-profile", "schema": "schemas/production-profile.schema.json", "idField": "presetId" },

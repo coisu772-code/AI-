@@ -14,7 +14,7 @@ PLUGIN_NAME = "ai-video-channel-production"
 MARKETPLACE_NAME = "novel-manga-production"
 PLUGIN_ROOT = ROOT / "plugins" / PLUGIN_NAME
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-CURRENT_PRODUCT_VERSION = "0.5.0-dev.1"
+CURRENT_PRODUCT_VERSION = "0.6.0-dev.1"
 
 EXPECTED_SKILLS = {
     "channel-production",
@@ -24,6 +24,7 @@ EXPECTED_SKILLS = {
     "manuscript-production",
     "publishing-assets",
     "production-handoff",
+    "publish-video",
 }
 EXPECTED_CONTENT_TOOLS = {
     "content_capabilities",
@@ -48,6 +49,13 @@ EXPECTED_PRODUCTION_TOOLS = {
     "production_task_invalidate",
     "production_jianying_export_ingest",
     "production_result_validate",
+}
+EXPECTED_PUBLISH_TOOLS = {
+    "assemble_publish_package_v2",
+    "validate_publish_package_v2",
+    "import_publish_package_v2",
+    "get_publication_status",
+    "get_publication_receipt",
 }
 
 
@@ -87,7 +95,7 @@ def validate_plugin() -> list[str]:
     if plugin.get("name") != PLUGIN_NAME or not NAME_PATTERN.fullmatch(plugin.get("name", "")):
         errors.append("plugin name is invalid")
     if plugin.get("version") != CURRENT_PRODUCT_VERSION:
-        errors.append(f"plugin version must be {CURRENT_PRODUCT_VERSION} for the stage 5 candidate")
+        errors.append(f"plugin version must be {CURRENT_PRODUCT_VERSION} for the stage 6 candidate")
     if plugin.get("skills") != "./skills/":
         errors.append("plugin skills path must be ./skills/")
     if plugin.get("mcpServers") != "./.mcp.json":
@@ -146,7 +154,9 @@ def validate_plugin() -> list[str]:
         errors.append("channel-onboarding must remain explicit/orchestrated")
     if policies.get("source-library") is not False:
         errors.append("source-library must remain explicit/orchestrated")
-    for skill_name in EXPECTED_SKILLS - {"channel-production"}:
+    if policies.get("publish-video") is not True:
+        errors.append("publish-video must allow natural-language Stage6 invocation")
+    for skill_name in EXPECTED_SKILLS - {"channel-production", "publish-video"}:
         if policies.get(skill_name) is not False:
             errors.append(f"{skill_name} must remain explicit/orchestrated")
 
@@ -157,6 +167,8 @@ def validate_plugin() -> list[str]:
     missing_production_routes = sorted(tool for tool in ("production_capabilities",) if tool not in router_text)
     if missing_production_routes or "$production-handoff" not in router_text or "VIDEO_READY" not in router_text:
         errors.append("channel-production is missing the Stage5 production route")
+    if "$publish-video" not in router_text or any(tool not in router_text for tool in EXPECTED_PUBLISH_TOOLS):
+        errors.append("channel-production is missing the Stage6 publisher route")
 
     topic_text = skill_texts.get("topic-selection", "")
     for marker in (
@@ -219,8 +231,12 @@ def validate_plugin() -> list[str]:
     ):
         if marker not in production_text:
             errors.append(f"production-handoff is missing required marker: {marker}")
+    publish_text = skill_texts.get("publish-video", "")
+    for marker in (*sorted(EXPECTED_PUBLISH_TOOLS), "networkExecution=false", "EXTERNAL_APPROVAL_REQUIRED", "youtubeVideoId"):
+        if marker not in publish_text:
+            errors.append(f"publish-video is missing required marker: {marker}")
     service_text = (PLUGIN_ROOT / "mcp" / "aivcp_tools" / "service.py").read_text(encoding="utf-8")
-    missing_tools = sorted(tool for tool in EXPECTED_PRODUCTION_TOOLS if tool not in service_text)
+    missing_tools = sorted(tool for tool in EXPECTED_PRODUCTION_TOOLS | EXPECTED_PUBLISH_TOOLS if tool not in service_text)
     if missing_tools:
         errors.append(f"local service is missing Stage5 tools: {missing_tools}")
     return errors

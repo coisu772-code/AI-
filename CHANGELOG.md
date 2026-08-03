@@ -1,5 +1,13 @@
 # 更新记录
 
+## 未发布 - 阶段 6 工作树
+
+- 增加发布包 v2、幂等 Publish Intent、`.creating → .ready` 原子生命周期及六文档 JSON Schema。
+- 增加版本化 YouTube constraints catalog、FFprobe／封面／字幕／元数据／频道／计划／额度硬门。
+- 增加 `DO_NOT_UPLOAD`、`REQUIRE_REVIEW`、`AUTO` 三策略与三重自动授权资格门，所有工具强制 `networkExecution=false`。
+- 增加 `$publish-video`、五个发布工具、发布中心隔离 CLI 适配和日／中／英三市场离线包。
+- 阶段6只到 `PACKAGE_READY`、`WAITING_REVIEW` 或 `READY_TO_UPLOAD`；OAuth、真实上传、远端修改、真实 video ID 与 Publication Receipt 未执行。
+
 ## 未发布 - 阶段 5 工作树
 
 - 增加 Production Package v2.1、Production Task v1、P0–P11 依赖、输入指纹和选择性失效。

@@ -17,6 +17,7 @@ $requiredSkills = @(
     "manuscript-production",
     "publishing-assets"
     "production-handoff"
+    "publish-video"
 )
 $requiredContentTools = @(
     "content_capabilities",
@@ -39,6 +40,11 @@ $requiredContentTools = @(
     "production_task_invalidate"
     "production_jianying_export_ingest"
     "production_result_validate"
+    "assemble_publish_package_v2"
+    "validate_publish_package_v2"
+    "import_publish_package_v2"
+    "get_publication_status"
+    "get_publication_receipt"
 )
 
 $installState = $null
@@ -80,7 +86,8 @@ foreach ($skill in $requiredSkills) {
 
 $routerText = Get-Content -LiteralPath (Join-Path $skillsRoot "channel-production\SKILL.md") -Raw -Encoding UTF8
 $productionSkillText = Get-Content -LiteralPath (Join-Path $skillsRoot "production-handoff\SKILL.md") -Raw -Encoding UTF8
-$declaredToolText = $routerText + "`n" + $productionSkillText
+$publishSkillText = Get-Content -LiteralPath (Join-Path $skillsRoot "publish-video\SKILL.md") -Raw -Encoding UTF8
+$declaredToolText = $routerText + "`n" + $productionSkillText + "`n" + $publishSkillText
 foreach ($toolName in $requiredContentTools) {
     if (-not $declaredToolText.Contains($toolName)) {
         throw "Installation health check failed: Skills do not declare $toolName."

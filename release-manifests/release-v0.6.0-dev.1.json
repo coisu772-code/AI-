@@ -1,0 +1,131 @@
+{
+  "manifestVersion": "1.0.0",
+  "productId": "ai-video-channel-production",
+  "productName": "AI 视频频道生产系统",
+  "productVersion": "0.6.0-dev.1",
+  "releaseChannel": "beta",
+  "releaseStatus": "draft",
+  "generatedAt": "2026-08-03T20:50:44Z",
+  "repository": "https://github.com/coisu772-code/AI-/",
+  "gitCommit": null,
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "contentHash": "620cf9fe1851521d5bb2fd9bd358ce6ade0059925b1e1c38353d91412fe4a3bf",
+  "schemaVersions": {
+    "channel-profile": "1.0.0",
+    "production-profile": "1.0.0",
+    "source-package": "1.0.0",
+    "topic-package": "1.0.0",
+    "manuscript-package": "1.0.0",
+    "publishing-asset-package": "1.0.0",
+    "production-result-package": "1.0.0",
+    "publish-intent": "1.0.0",
+    "publication-receipt": "1.0.0",
+    "analytics-snapshot": "1.0.0"
+  },
+  "protocolVersions": {
+    "contractExchange": "1.0.0",
+    "localToolService": "1.0.0",
+    "installerState": "1.0.0"
+  },
+  "components": [
+    {
+      "componentId": "codex-plugin",
+      "version": "0.6.0-dev.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.6.0-dev.1",
+      "maximumProductVersion": "0.6.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "plugins/ai-video-channel-production",
+          "sha256": "0d12b2fad4dc0846c364bd9fcf761612caad3eddd712700fe4f8e0d046e8fc15",
+          "sizeBytes": 664033
+        }
+      ],
+      "notes": "八个 Skills；阶段2–5内容与制作链；阶段6发布包 v2、五个离线工具、隔离发布中心适配和不可绕过的本地安全门。"
+    },
+    {
+      "componentId": "windows-installer",
+      "version": "0.6.0-dev.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.6.0-dev.1",
+      "maximumProductVersion": "0.6.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "installer",
+          "sha256": "8af8ba66021af8b623e377bcbfb4232749d998b4b695c47ae4d40cc2510594bb",
+          "sizeBytes": 25624
+        }
+      ],
+      "notes": "隔离安装、升级、回滚、卸载，以及八个 Skills、二十五个内容／制作／发布工具的静态与动态健康检查。"
+    },
+    {
+      "componentId": "cross-center-contracts",
+      "version": "1.1.0",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.6.0-dev.1",
+      "maximumProductVersion": "0.6.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "contracts",
+          "sha256": "61a926793ee1a34cae1265fb10223ba366417f017867a64f03aed76b7452de03",
+          "sizeBytes": 180869
+        }
+      ],
+      "notes": "十类跨中心 v1 契约保持兼容，新增发布包 v2 六文档 Schema 与经官方资料核验的版本化 YouTube constraints catalog。"
+    },
+    {
+      "componentId": "local-tool-service",
+      "version": "0.6.0-dev.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.6.0-dev.1",
+      "maximumProductVersion": "0.6.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "plugins/ai-video-channel-production/mcp",
+          "sha256": "6c849b36a22500fa13e6cce77fdd1b0accf0c12320c8d819d6e0b285010ab440",
+          "sizeBytes": 593384
+        }
+      ],
+      "notes": "保留阶段2–5工具并新增发布包 v2 组装／重验、隔离导入、只读状态与真实回执查询工具；networkExecution 强制为 false。"
+    },
+    {
+      "componentId": "control-center",
+      "version": "0.11.0",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.6.0-dev.1",
+      "maximumProductVersion": "0.6.0-dev.1",
+      "artifacts": [],
+      "notes": "阶段6分发包不修改控制中心；旧工坊直接创建 .ready 的自动移交链不得复用。"
+    },
+    {
+      "componentId": "workshop",
+      "version": "2.1.0-stage5",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.6.0-dev.1",
+      "maximumProductVersion": "0.6.0-dev.1",
+      "artifacts": [],
+      "notes": "制作仍止于 VIDEO_READY Production Result Package v1；工坊不创建发布包、不授权也不上传。"
+    },
+    {
+      "componentId": "publisher-center",
+      "version": "0.2.0-stage6",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.6.0-dev.1",
+      "maximumProductVersion": "0.6.0-dev.1",
+      "artifacts": [],
+      "notes": "外部发布中心源码仅通过隔离 publish-package-v2.exe 接入；正式程序、正式数据库、OAuth 与真实上传均不属于本地分发包。"
+    }
+  ]
+}

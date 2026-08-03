@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/youtube-constraints-catalog.schema.json",
+  "title": "Versioned Public YouTube Constraints Catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "catalog_version", "verified_at", "rules", "sources", "policy_notes"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "catalog_version": {"const": "2026.08.04.1"},
+    "verified_at": {"type": "string", "format": "date"},
+    "rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title_max_characters", "title_forbidden_characters", "description_max_bytes", "description_forbidden_characters", "backend_tags_max_characters", "package_hashtags_min", "package_hashtags_max", "youtube_hashtags_ignored_over", "thumbnail_api_max_bytes", "thumbnail_api_media_types", "caption_max_bytes", "video_max_bytes", "video_max_duration_seconds", "recommended_container", "recommended_video_codec", "recommended_audio_codec", "scheduled_requires_private", "scheduled_requires_future_time"],
+      "properties": {
+        "title_max_characters": {"const": 100},
+        "title_forbidden_characters": {"const": ["<", ">"]},
+        "description_max_bytes": {"const": 5000},
+        "description_forbidden_characters": {"const": ["<", ">"]},
+        "backend_tags_max_characters": {"const": 500},
+        "package_hashtags_min": {"const": 8},
+        "package_hashtags_max": {"const": 12},
+        "youtube_hashtags_ignored_over": {"const": 60},
+        "thumbnail_api_max_bytes": {"const": 2097152},
+        "thumbnail_api_media_types": {"const": ["image/jpeg", "image/png", "application/octet-stream"]},
+        "caption_max_bytes": {"const": 104857600},
+        "video_max_bytes": {"const": 274877906944},
+        "video_max_duration_seconds": {"const": 43200},
+        "recommended_container": {"const": "mp4"},
+        "recommended_video_codec": {"const": "h264"},
+        "recommended_audio_codec": {"const": "aac"},
+        "scheduled_requires_private": {"const": true},
+        "scheduled_requires_future_time": {"const": true}
+      }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 7,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["url", "surface", "verified_at", "supports"],
+        "properties": {
+          "url": {"type": "string", "format": "uri", "pattern": "^https://(?:developers\\.google\\.com/youtube|support\\.google\\.com/youtube)/"},
+          "surface": {"type": "string", "minLength": 1},
+          "verified_at": {"type": "string", "format": "date"},
+          "supports": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "policy_notes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["thumbnail_limit_surface", "package_hashtag_gate", "network_scope"],
+      "properties": {
+        "thumbnail_limit_surface": {"type": "string", "minLength": 1},
+        "package_hashtag_gate": {"type": "string", "minLength": 1},
+        "network_scope": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

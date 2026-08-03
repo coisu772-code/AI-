@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/publish-package-v2-metadata.schema.json",
+  "title": "YouTube Publish Package v2 Metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "publish_intent_id", "project_id", "target_language", "title", "description_body", "hashtags", "description_for_youtube", "backend_tags", "thumbnail_path", "subtitle_path"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "publish_intent_id": {"type": "string", "pattern": "^pi_[0-9a-f]{32}$"},
+    "project_id": {"type": "string", "minLength": 3},
+    "target_language": {"type": "string", "pattern": "^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$"},
+    "title": {"type": "string", "minLength": 1, "maxLength": 100, "pattern": "^[^<>]+$"},
+    "description_body": {"type": "string", "minLength": 1},
+    "hashtags": {"type": "array", "minItems": 8, "maxItems": 12, "uniqueItems": true, "items": {"type": "string", "pattern": "^#[^#\\s]{1,99}$"}},
+    "description_for_youtube": {"type": "string", "minLength": 1},
+    "backend_tags": {"type": "array", "maxItems": 0},
+    "thumbnail_path": {"type": "string", "pattern": "^thumbnail\\.(?:png|jpg)$"},
+    "subtitle_path": {"type": "string", "pattern": "^subtitles\\.(?:srt|vtt)$"}
+  }
+}
