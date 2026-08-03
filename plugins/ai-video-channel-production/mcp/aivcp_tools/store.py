@@ -18,7 +18,7 @@ from .errors import ToolError
 
 
 SYSTEM_SCHEMA_VERSION = 1
-CHANNEL_SCHEMA_VERSION = 1
+CHANNEL_SCHEMA_VERSION = 2
 ARCHIVE_FORMAT_VERSION = "1.0.0"
 MAX_ARCHIVE_FILES = 200_000
 MAX_ARCHIVE_UNCOMPRESSED_BYTES = 512 * 1024 * 1024 * 1024
@@ -39,6 +39,108 @@ CHANNEL_DIRECTORIES = (
     "analytics",
     "learning",
 )
+
+SOURCE_LIBRARY_SQL = """
+CREATE TABLE IF NOT EXISTS source_packages (
+    source_package_id TEXT PRIMARY KEY,
+    source_type TEXT NOT NULL,
+    platform TEXT,
+    platform_id TEXT,
+    canonical_url TEXT,
+    canonical_locator TEXT NOT NULL,
+    current_version TEXT NOT NULL,
+    status TEXT NOT NULL,
+    language TEXT,
+    title TEXT,
+    content_sha256 TEXT,
+    manifest_relative_path TEXT NOT NULL,
+    adapter_id TEXT NOT NULL,
+    adapter_version TEXT NOT NULL,
+    rights_access_level TEXT NOT NULL,
+    metadata_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_source_platform_identity
+    ON source_packages(platform, platform_id)
+    WHERE platform IS NOT NULL AND platform_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_source_canonical_url
+    ON source_packages(canonical_url)
+    WHERE canonical_url IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_source_content_sha256 ON source_packages(content_sha256);
+CREATE INDEX IF NOT EXISTS idx_source_filter
+    ON source_packages(source_type, status, language, updated_at);
+CREATE TABLE IF NOT EXISTS source_versions (
+    source_package_id TEXT NOT NULL,
+    version TEXT NOT NULL,
+    status TEXT NOT NULL,
+    manifest_json TEXT NOT NULL,
+    metadata_json TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    collected_at TEXT NOT NULL,
+    is_current INTEGER NOT NULL CHECK(is_current IN (0,1)),
+    PRIMARY KEY(source_package_id, version),
+    FOREIGN KEY(source_package_id) REFERENCES source_packages(source_package_id)
+);
+CREATE TABLE IF NOT EXISTS source_assets (
+    source_package_id TEXT NOT NULL,
+    version TEXT NOT NULL,
+    asset_id TEXT NOT NULL,
+    relative_path TEXT NOT NULL,
+    media_type TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    sha256 TEXT NOT NULL,
+    role TEXT NOT NULL,
+    PRIMARY KEY(source_package_id, version, asset_id),
+    FOREIGN KEY(source_package_id, version)
+        REFERENCES source_versions(source_package_id, version)
+);
+CREATE TABLE IF NOT EXISTS source_aliases (
+    alias_id TEXT PRIMARY KEY,
+    source_package_id TEXT NOT NULL,
+    locator_kind TEXT NOT NULL,
+    original_locator TEXT NOT NULL,
+    canonical_locator TEXT NOT NULL,
+    original_sha256 TEXT,
+    first_seen_at TEXT NOT NULL,
+    UNIQUE(locator_kind, canonical_locator),
+    FOREIGN KEY(source_package_id) REFERENCES source_packages(source_package_id)
+);
+CREATE INDEX IF NOT EXISTS idx_source_alias_package ON source_aliases(source_package_id);
+CREATE TABLE IF NOT EXISTS acquisition_jobs (
+    acquisition_job_id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    channel_profile_id TEXT NOT NULL,
+    plan_hash TEXT NOT NULL,
+    state TEXT NOT NULL,
+    stage TEXT NOT NULL,
+    request_json TEXT NOT NULL,
+    confirmation_json TEXT,
+    checkpoint_json TEXT NOT NULL,
+    cancel_requested INTEGER NOT NULL DEFAULT 0 CHECK(cancel_requested IN (0,1)),
+    recoverable INTEGER NOT NULL DEFAULT 1 CHECK(recoverable IN (0,1)),
+    error_code TEXT,
+    error_message TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_acquisition_job_state
+    ON acquisition_jobs(state, updated_at);
+CREATE TABLE IF NOT EXISTS acquisition_job_items (
+    acquisition_job_id TEXT NOT NULL,
+    item_index INTEGER NOT NULL,
+    input_json TEXT NOT NULL,
+    state TEXT NOT NULL,
+    source_package_id TEXT,
+    outcome TEXT,
+    error_code TEXT,
+    error_message TEXT,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY(acquisition_job_id, item_index),
+    FOREIGN KEY(acquisition_job_id) REFERENCES acquisition_jobs(acquisition_job_id)
+);
+"""
 
 
 def _json_dumps(value: Any) -> str:
@@ -148,6 +250,7 @@ class ChannelStore:
                         applied_at TEXT NOT NULL, backup_path TEXT
                     );
                     """
+                    + SOURCE_LIBRARY_SQL
                 )
                 if os.environ.get("AIVCP_TEST_FAIL_MIGRATION") == "channel":
                     raise RuntimeError("injected channel migration failure")
@@ -326,6 +429,7 @@ class ChannelStore:
                     backup_path TEXT
                 );
                 """
+                + SOURCE_LIBRARY_SQL
             )
             connection.executemany(
                 "INSERT INTO library_meta(key,value) VALUES(?,?)",

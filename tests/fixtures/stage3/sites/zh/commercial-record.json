@@ -1,0 +1,6 @@
+{
+  "locator": "http://www.qidian.com/book/102030?source=fixture",
+  "expectedCanonicalUrl": "https://book.qidian.com/info/102030",
+  "expectedStatus": "METADATA_READY",
+  "fullTextMethod": "user-authorized-file"
+}

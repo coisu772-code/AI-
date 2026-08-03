@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "1.0.0",
+  "fixtures": [
+    {
+      "format": "epub",
+      "language": "ja",
+      "title": "風の図書室",
+      "author": "Fixture Author",
+      "chapters": ["第一章 風の図書室", "第二章 朝の返事"]
+    },
+    {
+      "format": "docx",
+      "language": "zh-CN",
+      "title": "旧站台",
+      "author": "Fixture Author",
+      "chapters": ["第一章 旧站台", "第二章 新车票"]
+    },
+    {
+      "format": "pdf",
+      "language": "en",
+      "title": "The Quiet Workshop",
+      "author": "Fixture Author",
+      "pages": ["Page one fixture text.", "Page two fixture text."]
+    }
+  ],
+  "note": "Tests build disposable container files from this non-sensitive recipe; no generated binary is committed."
+}

@@ -1,0 +1,37 @@
+{
+  "id": "UCStage3ReferenceFixture",
+  "channel_id": "UCStage3ReferenceFixture",
+  "channel": "Stage 3 Reference Fixture",
+  "channel_url": "https://www.youtube.com/channel/UCStage3ReferenceFixture",
+  "description": "A synthetic public channel inventory fixture.",
+  "language": "ja",
+  "entries": [
+    {
+      "id": "jaSuccess01",
+      "title": "公開字幕付きのテスト動画",
+      "description": "公開説明です。 #物語",
+      "upload_date": "20260801",
+      "duration": 30,
+      "view_count": 1400,
+      "thumbnail": "https://i.ytimg.com/vi/jaSuccess01/hqdefault.jpg"
+    },
+    {
+      "id": "zhNoSubs001",
+      "title": "没有字幕的公开测试视频",
+      "description": "公开视频说明。 #中文故事",
+      "upload_date": "20260802",
+      "duration": 60,
+      "view_count": 360,
+      "thumbnail": "https://i.ytimg.com/vi/zhNoSubs001/hqdefault.jpg"
+    },
+    {
+      "id": "enPartial01",
+      "title": "Public video with incomplete captions",
+      "description": "A new public entry. #StoryVideo",
+      "upload_date": "20260803",
+      "duration": 60,
+      "view_count": 910,
+      "thumbnail": "https://i.ytimg.com/vi/enPartial01/hqdefault.jpg"
+    }
+  ]
+}

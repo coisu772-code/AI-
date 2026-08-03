@@ -39,7 +39,7 @@ class McpServer:
                 "protocolVersion": MCP_PROTOCOL_VERSION,
                 "capabilities": {"tools": {"listChanged": False}},
                 "serverInfo": {"name": "ai-video-channel-local-tools", "version": SERVICE_VERSION},
-                "instructions": "只处理频道身份、建库、绑定、默认值、备份与迁移；不接受或返回凭据。",
+                "instructions": "处理频道身份、建库、备份迁移及阶段3资料添加、标准化、去重、检索与恢复；不接受或返回凭据，不执行内容分析或生成。",
             }
         elif method == "ping":
             result = {}

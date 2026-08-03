@@ -1,0 +1,25 @@
+{
+  "id": "enPartial01",
+  "title": "Public video with incomplete captions",
+  "description": "The caption track ends before the story does. #StoryVideo #English",
+  "channel_id": "UCStage3EnglishFixture",
+  "channel": "English Fixture Channel",
+  "language": "en",
+  "upload_date": "20260803",
+  "duration": 60,
+  "view_count": 910,
+  "like_count": 42,
+  "comment_count": 5,
+  "availability": "public",
+  "thumbnail": "https://i.ytimg.com/vi/enPartial01/hqdefault.jpg",
+  "subtitles": {
+    "en": [
+      {
+        "ext": "vtt",
+        "fixtureFile": "captions/incomplete-en.vtt",
+        "url": "https://www.youtube.com/api/timedtext?fixture=incomplete-en"
+      }
+    ]
+  },
+  "automatic_captions": {}
+}

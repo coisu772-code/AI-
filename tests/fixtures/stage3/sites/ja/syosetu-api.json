@@ -1,0 +1,25 @@
+{
+  "request": {
+    "locator": "https://ncode.syosetu.com/n1234ab/"
+  },
+  "response": {
+    "statusCode": 200,
+    "mediaType": "application/json; charset=utf-8",
+    "acquisitionMethod": "narou-novel-api",
+    "body": [
+      {"allcount": 1},
+      {
+        "title": "公開メタデータの物語",
+        "ncode": "N1234AB",
+        "writer": "Fixture Author",
+        "story": "公式 API のメタデータだけを検証する架空の紹介です。",
+        "keyword": "公開 テスト",
+        "general_all_no": 2,
+        "general_firstup": "2026-08-01 00:00:00",
+        "general_lastup": "2026-08-03 00:00:00",
+        "novelupdated_at": "2026-08-03 00:00:00"
+      }
+    ],
+    "etag": "narou-fixture-v1"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "request": {
+    "locator": "https://www.aozora.gr.jp/cards/000148/card789.html"
+  },
+  "response": {
+    "statusCode": 200,
+    "mediaType": "text/plain; charset=utf-8",
+    "acquisitionMethod": "official-download",
+    "metadata": {
+      "title": "公開資料の小さな物語",
+      "author": "Fixture Author",
+      "bibliography": "Public fixture edition",
+      "chapterDirectory": [
+        {"index": 1, "title": "第一章"},
+        {"index": 2, "title": "第二章"}
+      ],
+      "copyrightStatus": "public-domain",
+      "officialDownloadUrl": "https://www.aozora.gr.jp/cards/000148/files/789_fixture.txt"
+    },
+    "content": "第一章\n\n風の音を記録する小さな図書室がありました。\n\n第二章\n\n記録は町のみんなに公開されました。",
+    "language": "ja",
+    "rights": {
+      "accessLevel": "public-domain",
+      "basis": "Fixture represents a per-work public-domain verification from the official work card.",
+      "verified": true
+    },
+    "etag": "ja-v1",
+    "lastModified": "2026-08-01T00:00:00Z"
+  }
+}

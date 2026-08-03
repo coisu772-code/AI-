@@ -1,0 +1,31 @@
+{
+  "request": {
+    "locator": "http://gutenberg.org/ebooks/4242?utm_campaign=fixture"
+  },
+  "response": {
+    "statusCode": 200,
+    "mediaType": "text/plain; charset=utf-8",
+    "acquisitionMethod": "official-mirror",
+    "metadata": {
+      "title": "A Small Public-Domain Journey",
+      "author": "Fixture Author",
+      "subjects": ["Open records"],
+      "chapterDirectory": [
+        {"index": 1, "title": "Departure"},
+        {"index": 2, "title": "Return"}
+      ],
+      "language": "en",
+      "rightsNotice": "Public-domain fixture",
+      "officialDownloadUrl": "https://example.invalid/gutenberg-mirror/4242.txt"
+    },
+    "content": "Departure\n\nThe public ledger contained only verified events.\n\nReturn\n\nUnknown details remained explicitly unknown.",
+    "language": "en",
+    "rights": {
+      "accessLevel": "public-domain",
+      "basis": "Fixture represents an official mirror download with a per-work rights notice.",
+      "verified": true
+    },
+    "etag": "en-v1",
+    "lastModified": "2026-08-03T00:00:00Z"
+  }
+}

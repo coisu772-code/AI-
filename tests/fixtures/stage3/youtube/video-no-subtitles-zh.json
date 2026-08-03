@@ -1,0 +1,17 @@
+{
+  "id": "zhNoSubs001",
+  "title": "没有字幕的公开测试视频",
+  "description": "只提供标题、简介、公开指标和封面，不含字幕。 #中文故事",
+  "channel_id": "UCStage3ChineseFixture",
+  "channel": "中文测试频道",
+  "language": "zh-Hans",
+  "upload_date": "20260802",
+  "duration": 60,
+  "view_count": 360,
+  "like_count": 18,
+  "comment_count": 2,
+  "availability": "public",
+  "thumbnail": "https://i.ytimg.com/vi/zhNoSubs001/hqdefault.jpg",
+  "subtitles": {},
+  "automatic_captions": {}
+}

@@ -1,0 +1,7 @@
+{
+  "locator": "https://www.royalroad.com/fiction/24680/a-fixture-title?ref=fixture",
+  "duplicateLocator": "http://royalroad.com/fiction/24680/another-slug",
+  "expectedCanonicalUrl": "https://www.royalroad.com/fiction/24680",
+  "expectedStatus": "METADATA_READY",
+  "fullTextMethod": "user-authorized-file"
+}

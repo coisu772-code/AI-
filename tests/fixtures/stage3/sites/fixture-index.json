@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.0.0",
+  "markets": {
+    "ja": {
+      "document": "../documents/ja/short-story.txt",
+      "publicSite": "ja/aozora-public.json",
+      "commercialSite": "ja/commercial-record.json"
+    },
+    "zh": {
+      "document": "../documents/zh/short-story.md",
+      "publicSite": "zh/wikisource-public.json",
+      "commercialSite": "zh/commercial-record.json"
+    },
+    "en": {
+      "document": "../documents/en/short-story.txt",
+      "publicSite": "en/gutenberg-public.json",
+      "commercialSite": "en/commercial-record.json"
+    }
+  },
+  "coverage": [
+    "successful-import",
+    "duplicate-url",
+    "same-content-different-file",
+    "web-unavailable",
+    "user-supplied-file",
+    "incremental-update-signals"
+  ],
+  "sensitiveData": false,
+  "networkRequired": false
+}

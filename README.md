@@ -70,3 +70,24 @@ codex plugin add ai-video-channel-production@novel-manga-production
 - `docs/phase2-channel-library-validation-2026-08-04.md`
 
 `0.1.0-beta.2` 是阶段 1 骨架预发布，不包含频道建库、资料采集、内容生成、视频生产、真实上传或 Analytics。
+
+## 阶段3未发布资料闭环
+
+本地 `0.3.0-dev.1` 候选在阶段2频道库之上增加统一 Source Library，支持：
+
+- 资料添加确认卡、进度、取消、恢复、完成卡、检索和增量更新；
+- YouTube 频道轻量清单，以及单视频公开元数据、封面和字幕优先采集；
+- TXT、MD、EPUB、PDF、DOCX 用户文件标准化；
+- 日文、中文、英文共九个小说网站的版本化能力清单；
+- 平台 ID、规范 URL 和 SHA-256 去重，以及重启后的持久检索；
+- Source Package v1 清单、来源边界、版本化资产和采集报告。
+
+该候选仍是未发布工作树，不改变已发布 `v0.1.0-beta.2`。它不会执行拆视频、拆书、仿写、选题、文案生成、工坊生产、OAuth、上传或 Analytics。无足够字幕或正文时只返回失败原因和用户补充路径，不根据标题、封面或页面元数据编造内容。
+
+阶段3隔离验收入口：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage3.ps1
+```
+
+完整证据见 `docs/phase3-source-library-validation-2026-08-04.md`。

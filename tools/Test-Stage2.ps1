@@ -39,7 +39,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Stage 2 validation failed: uv $($arguments -join ' ')" }
     }
 
-    foreach ($skill in @("channel-production", "channel-onboarding")) {
+    foreach ($skill in @("channel-production", "channel-onboarding", "source-library")) {
         & $uv.Source run python "C:\Users\Administrator\.codex\skills\.system\skill-creator\scripts\quick_validate.py" (Join-Path $root "plugins\ai-video-channel-production\skills\$skill")
         if ($LASTEXITCODE -ne 0) { throw "Skill validation failed: $skill" }
     }
@@ -54,8 +54,8 @@ try {
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "installer\Install-AIVideoChannelProduction.ps1") -SourceRoot $root -InstallRoot $installRoot -SkipCodexRegistration
     if ($LASTEXITCODE -ne 0) { throw "Stage 2 candidate idempotent installation failed." }
     $installedState = Get-Content -LiteralPath (Join-Path $installRoot "current\install-state.json") -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ([string]$installedState.productVersion -ne "0.2.0-dev.1") {
-        throw "Stage 2 candidate installed an unexpected version."
+    if ([string]$installedState.productVersion -ne "0.3.0-dev.1") {
+        throw "Current candidate installed an unexpected version."
     }
     $isolatedPlugin = Join-Path $installRoot "current\plugins\ai-video-channel-production"
     $env:AIVCP_DATA_ROOT = Join-Path $isolated "data"

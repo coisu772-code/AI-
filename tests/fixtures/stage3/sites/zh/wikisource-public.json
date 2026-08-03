@@ -1,0 +1,31 @@
+{
+  "request": {
+    "locator": "https://zh.wikisource.org/wiki/%E6%B5%8B%E8%AF%95%E5%85%AC%E5%BC%80%E6%96%87%E6%9C%AC?utm_source=fixture"
+  },
+  "response": {
+    "statusCode": 200,
+    "mediaType": "application/json; charset=utf-8",
+    "acquisitionMethod": "mediawiki-api",
+    "metadata": {
+      "title": "测试公开文本",
+      "author": "Fixture Author",
+      "chapterDirectory": [
+        {"index": 1, "title": "上篇"},
+        {"index": 2, "title": "下篇"}
+      ],
+      "categories": ["公有领域测试夹具"],
+      "revisionId": "1001",
+      "license": "CC BY-SA 4.0",
+      "attribution": "中文维基文库测试夹具"
+    },
+    "content": "上篇\n\n公开资料只记录已经核验的文字。\n\n下篇\n\n无法核验的部分明确标记为未知。",
+    "language": "zh",
+    "rights": {
+      "accessLevel": "open-license",
+      "basis": "Fixture represents per-work open-license verification with attribution retained.",
+      "verified": true
+    },
+    "etag": "zh-v1",
+    "lastModified": "2026-08-02T00:00:00Z"
+  }
+}

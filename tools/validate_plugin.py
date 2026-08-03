@@ -14,7 +14,7 @@ PLUGIN_NAME = "ai-video-channel-production"
 MARKETPLACE_NAME = "novel-manga-production"
 PLUGIN_ROOT = ROOT / "plugins" / PLUGIN_NAME
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-CURRENT_PRODUCT_VERSION = "0.2.0-dev.1"
+CURRENT_PRODUCT_VERSION = "0.3.0-dev.1"
 
 
 def load_json(path: Path) -> Any:
@@ -41,7 +41,7 @@ def validate_plugin() -> list[str]:
         errors.append("marketplace name mismatch")
     entries = marketplace.get("plugins", [])
     if len(entries) != 1:
-        errors.append("marketplace must expose exactly one plugin in 0.1.0-beta.2")
+        errors.append("marketplace must expose exactly one plugin")
     else:
         entry = entries[0]
         if entry.get("name") != PLUGIN_NAME:
@@ -53,11 +53,11 @@ def validate_plugin() -> list[str]:
     if plugin.get("name") != PLUGIN_NAME or not NAME_PATTERN.fullmatch(plugin.get("name", "")):
         errors.append("plugin name is invalid")
     if plugin.get("version") != CURRENT_PRODUCT_VERSION:
-        errors.append(f"plugin version must be {CURRENT_PRODUCT_VERSION} for the stage 2 candidate")
+        errors.append(f"plugin version must be {CURRENT_PRODUCT_VERSION} for the stage 3 candidate")
     if plugin.get("skills") != "./skills/":
         errors.append("plugin skills path must be ./skills/")
     if plugin.get("mcpServers") != "./.mcp.json":
-        errors.append("stage 2 plugin must declare ./.mcp.json")
+        errors.append("plugin must declare ./.mcp.json")
     try:
         mcp = load_json(PLUGIN_ROOT / ".mcp.json")
         server = mcp.get("mcpServers", {}).get("ai-video-channel-tools", {})
@@ -73,7 +73,7 @@ def validate_plugin() -> list[str]:
     if not isinstance(prompts, list) or not 1 <= len(prompts) <= 3:
         errors.append("plugin defaultPrompt must contain 1 to 3 prompts")
 
-    expected_skills = {"channel-production", "channel-onboarding"}
+    expected_skills = {"channel-production", "channel-onboarding", "source-library"}
     skill_dirs = {path.name for path in (PLUGIN_ROOT / "skills").iterdir() if path.is_dir()}
     if skill_dirs != expected_skills:
         errors.append(f"unexpected skill set: {sorted(skill_dirs)}")
@@ -109,6 +109,8 @@ def validate_plugin() -> list[str]:
         errors.append("channel-production must be the implicit total entry")
     if policies.get("channel-onboarding") is not False:
         errors.append("channel-onboarding must remain explicit/orchestrated")
+    if policies.get("source-library") is not False:
+        errors.append("source-library must remain explicit/orchestrated")
     return errors
 
 

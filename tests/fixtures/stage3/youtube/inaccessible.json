@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "YOUTUBE_VIDEO_UNAVAILABLE",
+    "message": "Fixture video is unavailable without public access.",
+    "retryable": false
+  }
+}

@@ -27,7 +27,7 @@ from aivcp_tools.publisher import (  # noqa: E402
     provider_from_environment,
 )
 from aivcp_tools.service import LocalToolService, ServiceConfig  # noqa: E402
-from aivcp_tools.store import ChannelStore  # noqa: E402
+from aivcp_tools.store import CHANNEL_SCHEMA_VERSION, ChannelStore  # noqa: E402
 from server import McpServer  # noqa: E402
 
 
@@ -193,11 +193,12 @@ class Stage2ToolTestCase(unittest.TestCase):
         )
         return completed, proof
 
-    def test_capabilities_and_unimplemented_centers_are_explicit(self) -> None:
+    def test_capabilities_preserve_stage2_and_open_only_stage3_sources(self) -> None:
         result = self.service.call("system_capabilities")
         self.assertEqual(result["protocolVersion"], "1.0.0")
         self.assertTrue(result["capabilities"]["channelOnboarding"])
-        self.assertFalse(result["capabilities"]["sourceCollection"])
+        self.assertTrue(result["capabilities"]["sourceCollection"])
+        self.assertFalse(result["capabilities"]["contentProduction"])
         self.assertFalse(result["capabilities"]["upload"])
         self.assertFalse(result["security"]["privateMaterialAccepted"])
 
@@ -426,7 +427,7 @@ class Stage2ToolTestCase(unittest.TestCase):
         recovered = self.service.call("channel_get", {"channelProfileId": channel_id})
         self.assertEqual(recovered["lifecycleStatus"], "READY")
         with closing(sqlite3.connect(database)) as connection:
-            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 1)
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], CHANNEL_SCHEMA_VERSION)
         self.assertGreaterEqual(len(list((self.root / "data" / "backups" / "upgrade").glob("*.db"))), 2)
 
     def test_fixture_provider_rejects_sensitive_fields(self) -> None:

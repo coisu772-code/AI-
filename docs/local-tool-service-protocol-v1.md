@@ -4,7 +4,7 @@
 
 阶段2正式读取 YouTube 发布中心已经冻结的只读命令接口，不另定义或要求发布中心实现新的 stdin 协议。OAuth、Client Secret、Cookie、验证码、密码和系统安全存储内容必须留在发布中心进程内。
 
-本地工具服务版本为 `0.2.0-dev.1`，内部 MCP／工具协议版本为 `1.0.0`。发布中心正式接口版本为：
+本地工具服务当前候选版本为 `0.3.0-dev.1`，内部 MCP／工具协议仍为向后兼容的 `1.0.0`。发布中心正式接口版本仍为：
 
 ```text
 youtube-publisher-center/channel-list/v1
@@ -106,7 +106,7 @@ youtube-publisher-channel-list.exe --api-version v1
 
 MCP 使用逐行 JSON-RPC 2.0，支持 `initialize`、`ping`、`tools/list` 和 `tools/call`。单条消息上限 2 MiB，工具调用默认 60 秒。标准输出只用于协议响应。
 
-阶段2开放的工具：
+阶段2工具继续开放：
 
 - `system_capabilities`
 - `system_voice_catalog`
@@ -124,6 +124,23 @@ MCP 使用逐行 JSON-RPC 2.0，支持 `initialize`、`ping`、`tools/list` 和 
 - `channel_import`
 - `channel_restore`
 
+阶段3在同一协议中追加以下工具，不改变阶段2工具名称和参数主结构：
+
+- `source_library_capabilities`
+- `source_add_prepare`
+- `source_add_confirm`
+- `source_job_get`
+- `source_job_cancel`
+- `source_job_resume`
+- `source_search`
+- `source_get`
+- `source_update_prepare`
+- `source_integrity_check`
+
+`source_add_prepare` 只建立 `WAITING_CONFIRMATION` 任务并返回统一确认卡，不下载或分析内容；只有带相同 `acquisitionJobId`、`planHash`、频道绑定校验值和明确确认的 `source_add_confirm` 才会执行。任务逐项持久化，完成项在取消或恢复时不会重做。
+
+资料写入每频道独立 `channel.db` 和 `sources/`。平台 ID、规范 URL 和内容 SHA-256 用于去重；来源变化建立新的语义版本，已引用版本不原地覆盖。`Source Package v1` 继续使用冻结的 `schemaVersion=1.0.0`，详细元数据、原始内容、标准化内容和采集报告作为带哈希的包内资产保存。
+
 ## 5. 数据与安全
 
 - 默认数据根目录为 `%LOCALAPPDATA%\AI Video Channel Production\data`，隔离测试使用 `AIVCP_DATA_ROOT` 覆盖。
@@ -133,6 +150,9 @@ MCP 使用逐行 JSON-RPC 2.0，支持 `initialize`、`ping`、`tools/list` 和 
 - 禁用或授权异常频道仍可建立和读取本地资料库；对应状态只阻塞后续真实发布，不冒充整个系统不可用。
 - 测试频道夹具只有同时设置 `AIVCP_ALLOW_TEST_FIXTURES=1` 时才可使用，正式流程不接受虚拟频道。
 - `uploadPolicy=AUTO` 只是发布中心当前默认值；阶段2建库明确拒绝以此获得真实自动上传权限。
+- 阶段3采集不执行拆视频、拆书、仿写、选题、文稿、工坊、OAuth 或上传。
+- YouTube 无足够字幕且未配置可用本地转录时保存可核验元数据并标记 `BLOCKED`，要求用户补充本地媒体、字幕或文字；不得由标题、封面或简介编造正文。
+- 网站适配器只执行版本化能力清单允许的公开读取；不得绕过登录、付费墙、DRM、验证码或访问限制。
 
 ## 6. 隔离联合测试
 

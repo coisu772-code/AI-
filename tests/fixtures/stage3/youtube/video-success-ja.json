@@ -1,0 +1,40 @@
+{
+  "id": "jaSuccess01",
+  "title": "公開字幕付きのテスト動画",
+  "description": "これは公開情報だけを使う安全なテストです。 #物語 #日本語",
+  "channel_id": "UCStage3JapaneseFixture",
+  "channel": "日本語テストチャンネル",
+  "language": "ja",
+  "upload_date": "20260801",
+  "duration": 30,
+  "view_count": 1200,
+  "like_count": 84,
+  "comment_count": 9,
+  "availability": "public",
+  "thumbnails": [
+    {
+      "url": "https://i.ytimg.com/vi/jaSuccess01/maxresdefault.jpg",
+      "width": 1280,
+      "height": 720,
+      "ext": "jpg"
+    }
+  ],
+  "subtitles": {
+    "ja": [
+      {
+        "ext": "vtt",
+        "fixtureFile": "captions/manual-ja.vtt",
+        "url": "https://www.youtube.com/api/timedtext?fixture=manual-ja"
+      }
+    ]
+  },
+  "automatic_captions": {
+    "ja": [
+      {
+        "ext": "vtt",
+        "fixtureFile": "captions/automatic-ja.vtt",
+        "url": "https://www.youtube.com/api/timedtext?fixture=automatic-ja"
+      }
+    ]
+  }
+}

@@ -9,12 +9,13 @@ from typing import Any
 from .errors import ToolError
 from .publisher import PUBLISHER_PROTOCOL_VERSION, PublisherChannelProvider, provider_from_environment
 from .security import redact
+from .source_library import SOURCE_LIBRARY_VERSION, SourceLibrary
 from .store import ARCHIVE_FORMAT_VERSION, CHANNEL_SCHEMA_VERSION, SYSTEM_SCHEMA_VERSION, ChannelStore
 from .voices import VoiceCatalog
 
 
 LOCAL_TOOL_PROTOCOL_VERSION = "1.0.0"
-SERVICE_VERSION = "0.2.0-dev.1"
+SERVICE_VERSION = "0.3.0-dev.1"
 
 
 def default_data_root(plugin_root: Path | None = None) -> Path:
@@ -59,6 +60,7 @@ class LocalToolService:
         self.publisher = publisher_provider or provider_from_environment(config.data_root)
         self.voices = VoiceCatalog(config.voice_catalog_path)
         self.store = ChannelStore(config.data_root)
+        self.sources = SourceLibrary(self.store)
 
     def capabilities(self) -> dict[str, Any]:
         return {
@@ -71,6 +73,7 @@ class LocalToolService:
                 "systemDatabase": SYSTEM_SCHEMA_VERSION,
                 "channelDatabase": CHANNEL_SCHEMA_VERSION,
                 "archiveFormat": ARCHIVE_FORMAT_VERSION,
+                "sourceLibrary": SOURCE_LIBRARY_VERSION,
                 "channelProfileContract": "1.0.0",
                 "productionProfileContract": "1.0.0",
             },
@@ -83,7 +86,10 @@ class LocalToolService:
                 "channelDefaultVersioning": True,
                 "backupRestore": True,
                 "channelMigrationPackage": True,
-                "sourceCollection": False,
+                "sourceCollection": True,
+                "sourceDeduplication": True,
+                "sourceIncrementalUpdate": True,
+                "sourceTaskRecovery": True,
                 "contentProduction": False,
                 "workshop": False,
                 "upload": False,
@@ -278,6 +284,78 @@ class LocalToolService:
                 mode=args.get("mode", "verify_only"),
                 confirmation=args.get("confirmation"),
             )
+        elif name == "source_library_capabilities":
+            result = self.sources.capabilities()
+            try:
+                from .source_sites import SiteAdapterRegistry
+
+                registry = SiteAdapterRegistry.from_environment() if hasattr(SiteAdapterRegistry, "from_environment") else SiteAdapterRegistry()
+                capability_reader = getattr(registry, "capabilities", None) or getattr(registry, "list_capabilities", None)
+                if capability_reader:
+                    result["siteCapabilities"] = capability_reader()
+            except (ImportError, OSError, ToolError, TypeError, ValueError):
+                result["siteCapabilities"] = {"available": False, "reason": "site-adapter-not-ready"}
+        elif name == "source_add_prepare":
+            result = self.sources.prepare_add(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                inputs=args.get("inputs"),
+                options=args.get("options"),
+            )
+        elif name == "source_add_confirm":
+            result = self.sources.confirm_add(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                acquisition_job_id=args.get("acquisitionJobId"),
+                plan_hash=args.get("planHash"),
+                confirmation=args.get("confirmation"),
+            )
+        elif name == "source_job_get":
+            result = self.sources.get_job(
+                channel_profile_id=args.get("channelProfileId"),
+                acquisition_job_id=args.get("acquisitionJobId"),
+            )
+        elif name == "source_job_cancel":
+            result = self.sources.cancel_job(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                acquisition_job_id=args.get("acquisitionJobId"),
+            )
+        elif name == "source_job_resume":
+            result = self.sources.resume_job(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                acquisition_job_id=args.get("acquisitionJobId"),
+                supplements=args.get("supplements"),
+            )
+        elif name == "source_search":
+            result = self.sources.search(
+                channel_profile_id=args.get("channelProfileId"),
+                query=args.get("query"),
+                source_type=args.get("sourceType"),
+                status=args.get("status"),
+                language=args.get("language"),
+                limit=args.get("limit", 50),
+            )
+        elif name == "source_get":
+            result = self.sources.get_source(
+                channel_profile_id=args.get("channelProfileId"),
+                source_package_id=args.get("sourcePackageId"),
+            )
+        elif name == "source_update_prepare":
+            result = self.sources.update_source(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                source_package_id=args.get("sourcePackageId"),
+                options=args.get("options"),
+            )
+        elif name == "source_integrity_check":
+            result = self.sources.integrity_check(channel_profile_id=args.get("channelProfileId"))
         else:
             raise ToolError("TOOL_NOT_FOUND", "本地工具服务没有该工具。", details={"tool": name})
         return redact(result)
@@ -381,6 +459,70 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "bindingProof": {"type": "string"},
             },
             ["archivePath"],
+        ),
+        ("source_library_capabilities", "读取资料库、去重、恢复、格式与三市场站点能力；不执行内容分析。", {}, []),
+        (
+            "source_add_prepare",
+            "识别链接、文件或粘贴文字并生成唯一入库确认卡；尚不采集或分析。",
+            {**binding_properties, "inputs": {"type": "array", "minItems": 1, "maxItems": 500}, "options": {"type": "object"}},
+            ["taskId", "channelProfileId", "bindingProof", "inputs"],
+        ),
+        (
+            "source_add_confirm",
+            "确认入库卡后执行采集、标准化、三层去重、版本写入与完成卡。",
+            {
+                **binding_properties,
+                "acquisitionJobId": {"type": "string"},
+                "planHash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "confirmation": {"type": "object"},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "acquisitionJobId", "planHash", "confirmation"],
+        ),
+        (
+            "source_job_get",
+            "只读查看当前频道资料任务进度、失败项、补充路径与完成卡。",
+            {"channelProfileId": {"type": "string"}, "acquisitionJobId": {"type": "string"}},
+            ["channelProfileId", "acquisitionJobId"],
+        ),
+        (
+            "source_job_cancel",
+            "取消资料任务；保留已经完整入库的资料。",
+            {**binding_properties, "acquisitionJobId": {"type": "string"}},
+            ["taskId", "channelProfileId", "bindingProof", "acquisitionJobId"],
+        ),
+        (
+            "source_job_resume",
+            "从检查点恢复失败或等待补充的资料项，可附加用户提供的文件或文字。",
+            {**binding_properties, "acquisitionJobId": {"type": "string"}, "supplements": {"type": "array"}},
+            ["taskId", "channelProfileId", "bindingProof", "acquisitionJobId"],
+        ),
+        (
+            "source_search",
+            "按关键词、来源类型、状态和语言检索当前频道资料索引。",
+            {
+                "channelProfileId": {"type": "string"}, "query": {"type": "string"},
+                "sourceType": {"type": "string"}, "status": {"type": "string"},
+                "language": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 200},
+            },
+            ["channelProfileId"],
+        ),
+        (
+            "source_get",
+            "读取一个 Source Package v1 当前版本、历史版本、别名和来源边界。",
+            {"channelProfileId": {"type": "string"}, "sourcePackageId": {"type": "string"}},
+            ["channelProfileId", "sourcePackageId"],
+        ),
+        (
+            "source_update_prepare",
+            "为已有频道、视频或连载小说生成只下载增量的更新确认卡。",
+            {**binding_properties, "sourcePackageId": {"type": "string"}, "options": {"type": "object"}},
+            ["taskId", "channelProfileId", "bindingProof", "sourcePackageId"],
+        ),
+        (
+            "source_integrity_check",
+            "校验 Source Package manifest、canonical-json-v1 哈希和全部正式资产 SHA-256。",
+            {"channelProfileId": {"type": "string"}},
+            ["channelProfileId"],
         ),
     ]
     return [

@@ -8,6 +8,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $root = [System.IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
+$pluginManifest = Get-Content -LiteralPath (Join-Path $root "plugins\ai-video-channel-production\.codex-plugin\plugin.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+$expectedProductVersion = [string]$pluginManifest.version
 $uv = Get-Command uv -ErrorAction SilentlyContinue
 if ($null -eq $uv) {
     throw "uv was not found. Install uv or run the Python validators directly in an environment with project dependencies."
@@ -48,8 +50,8 @@ try {
         if ($null -eq $backup) { throw "Upgrade did not preserve a rollback backup." }
         & (Join-Path $root "installer\Rollback-AIVideoChannelProduction.ps1") -InstallRoot $smokeRoot -BackupName $backup.Name -SkipCodexRegistration -Confirm:$false
         $state = Get-Content -LiteralPath (Join-Path $smokeRoot "current\install-state.json") -Raw -Encoding UTF8 | ConvertFrom-Json
-        if ([string]$state.productId -ne "ai-video-channel-production" -or [string]$state.productVersion -ne "0.1.0-beta.2") {
-            throw "Installed state does not match the stage 1 product."
+        if ([string]$state.productId -ne "ai-video-channel-production" -or [string]$state.productVersion -ne $expectedProductVersion) {
+            throw "Installed state does not match the current candidate after lifecycle validation."
         }
         & (Join-Path $root "installer\Uninstall-AIVideoChannelProduction.ps1") -InstallRoot $smokeRoot -SkipCodexRemoval -Confirm:$false
         if ($LASTEXITCODE -ne 0 -or (Test-Path -LiteralPath $smokeRoot)) {

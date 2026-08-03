@@ -1,0 +1,131 @@
+{
+  "manifestVersion": "1.0.0",
+  "productId": "ai-video-channel-production",
+  "productName": "AI 视频频道生产系统",
+  "productVersion": "0.3.0-dev.1",
+  "releaseChannel": "beta",
+  "releaseStatus": "draft",
+  "generatedAt": "2026-08-03T17:42:11Z",
+  "repository": "https://github.com/coisu772-code/AI-/",
+  "gitCommit": null,
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "contentHash": "18f26a3198d79ed26779cdcb718d063ba251c97fd61fa3aebaa3b04ae89b297f",
+  "schemaVersions": {
+    "channel-profile": "1.0.0",
+    "production-profile": "1.0.0",
+    "source-package": "1.0.0",
+    "topic-package": "1.0.0",
+    "manuscript-package": "1.0.0",
+    "publishing-asset-package": "1.0.0",
+    "production-result-package": "1.0.0",
+    "publish-intent": "1.0.0",
+    "publication-receipt": "1.0.0",
+    "analytics-snapshot": "1.0.0"
+  },
+  "protocolVersions": {
+    "contractExchange": "1.0.0",
+    "localToolService": "1.0.0",
+    "installerState": "1.0.0"
+  },
+  "components": [
+    {
+      "componentId": "codex-plugin",
+      "version": "0.3.0-dev.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.3.0-dev.1",
+      "maximumProductVersion": "0.3.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "plugins/ai-video-channel-production",
+          "sha256": "7b5a93609b6f680a9deca00e6bb7a48c352484849e70a07f5e0f2ba8c497b6b1",
+          "sizeBytes": 335267
+        }
+      ],
+      "notes": "阶段3 Skills、MCP 与统一 Source Library。"
+    },
+    {
+      "componentId": "windows-installer",
+      "version": "0.3.0-dev.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.3.0-dev.1",
+      "maximumProductVersion": "0.3.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "installer",
+          "sha256": "6cf4ce6d75a7645b937662b2bf2da058c1fddc5c1280bf27ef655fc38610bd26",
+          "sizeBytes": 17706
+        }
+      ],
+      "notes": "隔离安装、升级、回滚与卸载。"
+    },
+    {
+      "componentId": "cross-center-contracts",
+      "version": "1.0.0",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.3.0-dev.1",
+      "maximumProductVersion": "0.3.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "contracts",
+          "sha256": "091c791da15decf29150f22973508e7a03c0733068d1977edb61399e1b3d70c4",
+          "sizeBytes": 43382
+        }
+      ],
+      "notes": "十类 v1 契约保持主版本兼容。"
+    },
+    {
+      "componentId": "local-tool-service",
+      "version": "0.3.0-dev.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.3.0-dev.1",
+      "maximumProductVersion": "0.3.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "plugins/ai-video-channel-production/mcp",
+          "sha256": "3a8546066e16189d7fb8ff8b9bf8b4e3b83156d932de984f6a8571f9dcddf59c",
+          "sizeBytes": 307360
+        }
+      ],
+      "notes": "频道库、资料适配器、任务恢复、去重、索引与检索。"
+    },
+    {
+      "componentId": "control-center",
+      "version": "0.11.0",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.3.0-dev.1",
+      "maximumProductVersion": "0.3.0-dev.1",
+      "artifacts": [],
+      "notes": "外部基线；阶段3不进入内容生成。"
+    },
+    {
+      "componentId": "workshop",
+      "version": "1.0.0",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.3.0-dev.1",
+      "maximumProductVersion": "0.3.0-dev.1",
+      "artifacts": [],
+      "notes": "阶段3不启动工坊。"
+    },
+    {
+      "componentId": "publisher-center",
+      "version": "0.1.0",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.3.0-dev.1",
+      "maximumProductVersion": "0.3.0-dev.1",
+      "artifacts": [],
+      "notes": "仅保留阶段2已经验收的正式频道只读 CLI。"
+    }
+  ]
+}

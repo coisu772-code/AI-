@@ -1,0 +1,6 @@
+{
+  "locator": "https://kakuyomu.jp/works/1234567890123456789?utm_source=fixture",
+  "expectedCanonicalUrl": "https://kakuyomu.jp/works/1234567890123456789",
+  "expectedStatus": "METADATA_READY",
+  "fullTextMethod": "user-authorized-file"
+}

@@ -1,0 +1,319 @@
+{
+  "schemaVersion": "1.0.0",
+  "manifestVersion": "1.0.0",
+  "generatedAt": "2026-08-04T00:00:00Z",
+  "defaultRuleMaxAgeDays": 180,
+  "capabilityLevels": [
+    "metadata-and-user-import",
+    "public-full-text-conditional",
+    "metadata-only-user-import"
+  ],
+  "sites": [
+    {
+      "siteId": "syosetu",
+      "displayName": "小説家になろう",
+      "market": "ja",
+      "defaultLanguage": "ja",
+      "hosts": ["ncode.syosetu.com", "syosetu.com", "api.syosetu.com"],
+      "urlPatterns": ["/n[0-9a-z]+/?", "/novelapi/api/"],
+      "adapterVersion": "1.0.0",
+      "capabilityLevel": "metadata-and-user-import",
+      "capabilities": {
+        "metadata": "official-api",
+        "chapterDirectory": "chapter-count-and-user-supplied-directory",
+        "automatedFullText": false,
+        "userAuthorizedImport": true
+      },
+      "allowedFields": [
+        "title", "author", "description", "genres", "keywords", "chapterCount",
+        "publicationStatus", "publishedAt", "updatedAt", "sourceUrl"
+      ],
+      "acquisitionMethods": ["narou-novel-api", "user-authorized-file"],
+      "rightsPolicy": {
+        "defaultAccessLevel": "metadata-only",
+        "fullTextRequires": "user-authorized-file",
+        "perWorkVerification": true
+      },
+      "rules": {
+        "verifiedAt": "2026-08-04",
+        "maxAgeDays": 180,
+        "certainty": "official",
+        "sources": [
+          "https://dev.syosetu.com/man/api/",
+          "https://static.syosetu.com/view/doc/siterule_20250820_001.pdf"
+        ]
+      },
+      "rateLimit": {"minimumIntervalMs": 1000, "maximumConcurrency": 1},
+      "fallback": "metadata-only-user-import"
+    },
+    {
+      "siteId": "kakuyomu",
+      "displayName": "カクヨム",
+      "market": "ja",
+      "defaultLanguage": "ja",
+      "hosts": ["kakuyomu.jp"],
+      "urlPatterns": ["/works/[0-9]+"],
+      "adapterVersion": "1.0.0",
+      "capabilityLevel": "metadata-and-user-import",
+      "capabilities": {
+        "metadata": "public-page-user-provided-or-manual",
+        "chapterDirectory": "public-page-user-provided-or-manual",
+        "automatedFullText": false,
+        "userAuthorizedImport": true
+      },
+      "allowedFields": ["title", "author", "description", "genres", "chapterDirectory", "updatedAt", "sourceUrl"],
+      "acquisitionMethods": ["source-record", "user-authorized-file"],
+      "rightsPolicy": {
+        "defaultAccessLevel": "metadata-only",
+        "fullTextRequires": "user-authorized-file",
+        "perWorkVerification": true
+      },
+      "rules": {
+        "verifiedAt": "2026-08-04",
+        "maxAgeDays": 180,
+        "certainty": "official-conservative",
+        "sources": ["https://kakuyomu.jp/legal/tos"]
+      },
+      "rateLimit": {"minimumIntervalMs": 2000, "maximumConcurrency": 1},
+      "fallback": "metadata-only-user-import"
+    },
+    {
+      "siteId": "aozora",
+      "displayName": "青空文庫",
+      "market": "ja",
+      "defaultLanguage": "ja",
+      "hosts": ["aozora.gr.jp", "www.aozora.gr.jp"],
+      "urlPatterns": ["/cards/[0-9]+/card[0-9]+\\.html", "/cards/[0-9]+/files/"],
+      "adapterVersion": "1.0.0",
+      "capabilityLevel": "public-full-text-conditional",
+      "capabilities": {
+        "metadata": "official-work-card",
+        "chapterDirectory": "official-file-structure",
+        "automatedFullText": "official-download-after-rights-check",
+        "userAuthorizedImport": true
+      },
+      "allowedFields": [
+        "title", "author", "description", "bibliography", "chapterDirectory",
+        "copyrightStatus", "license", "sourceUrl", "officialDownloadUrl"
+      ],
+      "acquisitionMethods": ["official-work-card", "official-download", "user-authorized-file"],
+      "rightsPolicy": {
+        "defaultAccessLevel": "unknown",
+        "fullTextRequires": "per-work-public-domain-or-open-license-verification",
+        "perWorkVerification": true,
+        "attributionRequired": true
+      },
+      "rules": {
+        "verifiedAt": "2026-08-04",
+        "maxAgeDays": 180,
+        "certainty": "official",
+        "sources": [
+          "https://www.aozora.gr.jp/guide/kijyunn.html",
+          "https://www.aozora.gr.jp/guide/download.html"
+        ]
+      },
+      "rateLimit": {"minimumIntervalMs": 1500, "maximumConcurrency": 1},
+      "fallback": "metadata-only-user-import"
+    },
+    {
+      "siteId": "qidian",
+      "displayName": "起点中文网",
+      "market": "zh",
+      "defaultLanguage": "zh-CN",
+      "hosts": ["qidian.com", "www.qidian.com", "book.qidian.com"],
+      "urlPatterns": ["/info/[0-9]+", "/book/[0-9]+"],
+      "adapterVersion": "1.0.0",
+      "capabilityLevel": "metadata-and-user-import",
+      "capabilities": {
+        "metadata": "public-page-user-provided-or-manual",
+        "chapterDirectory": "public-page-user-provided-or-manual",
+        "automatedFullText": false,
+        "userAuthorizedImport": true
+      },
+      "allowedFields": ["title", "author", "description", "genres", "chapterDirectory", "publicationStatus", "updatedAt", "sourceUrl"],
+      "acquisitionMethods": ["source-record", "user-authorized-file"],
+      "rightsPolicy": {
+        "defaultAccessLevel": "metadata-only",
+        "fullTextRequires": "user-authorized-file",
+        "perWorkVerification": true
+      },
+      "rules": {
+        "verifiedAt": "2026-08-04",
+        "maxAgeDays": 120,
+        "certainty": "conservative",
+        "sources": ["https://c.qidian.com/agreement.htm"]
+      },
+      "rateLimit": {"minimumIntervalMs": 3000, "maximumConcurrency": 1},
+      "fallback": "metadata-only-user-import"
+    },
+    {
+      "siteId": "fanqie",
+      "displayName": "番茄小说",
+      "market": "zh",
+      "defaultLanguage": "zh-CN",
+      "hosts": ["fanqienovel.com", "www.fanqienovel.com"],
+      "urlPatterns": ["/page/[0-9]+", "/reader/[0-9]+"],
+      "adapterVersion": "1.0.0",
+      "capabilityLevel": "metadata-and-user-import",
+      "capabilities": {
+        "metadata": "public-page-user-provided-or-manual",
+        "chapterDirectory": "public-page-user-provided-or-manual",
+        "automatedFullText": false,
+        "userAuthorizedImport": true
+      },
+      "allowedFields": ["title", "author", "description", "genres", "chapterDirectory", "publicationStatus", "updatedAt", "sourceUrl"],
+      "acquisitionMethods": ["source-record", "user-authorized-file"],
+      "rightsPolicy": {
+        "defaultAccessLevel": "metadata-only",
+        "fullTextRequires": "user-authorized-file",
+        "perWorkVerification": true
+      },
+      "rules": {
+        "verifiedAt": "2026-08-04",
+        "maxAgeDays": 120,
+        "certainty": "unclear-conservative",
+        "sources": ["https://fanqienovel.com/"]
+      },
+      "rateLimit": {"minimumIntervalMs": 3000, "maximumConcurrency": 1},
+      "fallback": "metadata-only-user-import"
+    },
+    {
+      "siteId": "zh-wikisource",
+      "displayName": "中文维基文库",
+      "market": "zh",
+      "defaultLanguage": "zh",
+      "hosts": ["zh.wikisource.org"],
+      "urlPatterns": ["/wiki/.+", "/w/api\\.php"],
+      "adapterVersion": "1.0.0",
+      "capabilityLevel": "public-full-text-conditional",
+      "capabilities": {
+        "metadata": "mediawiki-api",
+        "chapterDirectory": "mediawiki-api",
+        "automatedFullText": "mediawiki-api-after-rights-check",
+        "userAuthorizedImport": true
+      },
+      "allowedFields": [
+        "title", "author", "description", "chapterDirectory", "categories",
+        "revisionId", "license", "attribution", "sourceUrl"
+      ],
+      "acquisitionMethods": ["mediawiki-api", "user-authorized-file"],
+      "rightsPolicy": {
+        "defaultAccessLevel": "unknown",
+        "fullTextRequires": "per-work-public-domain-or-open-license-verification",
+        "perWorkVerification": true,
+        "attributionRequired": true
+      },
+      "rules": {
+        "verifiedAt": "2026-08-04",
+        "maxAgeDays": 180,
+        "certainty": "official",
+        "sources": [
+          "https://zh.wikisource.org/wiki/Wikisource:%E7%89%88%E6%9D%83%E4%BF%A1%E6%81%AF",
+          "https://www.mediawiki.org/wiki/API:Main_page"
+        ]
+      },
+      "rateLimit": {"minimumIntervalMs": 1000, "maximumConcurrency": 1},
+      "fallback": "metadata-only-user-import"
+    },
+    {
+      "siteId": "royal-road",
+      "displayName": "Royal Road",
+      "market": "en",
+      "defaultLanguage": "en",
+      "hosts": ["royalroad.com", "www.royalroad.com"],
+      "urlPatterns": ["/fiction/[0-9]+(?:/[^/?#]+)?"],
+      "adapterVersion": "1.0.0",
+      "capabilityLevel": "metadata-and-user-import",
+      "capabilities": {
+        "metadata": "source-record-or-user-supplied",
+        "chapterDirectory": "user-supplied",
+        "automatedFullText": false,
+        "userAuthorizedImport": true
+      },
+      "allowedFields": ["title", "author", "description", "genres", "chapterDirectory", "publicationStatus", "updatedAt", "sourceUrl"],
+      "acquisitionMethods": ["source-record", "user-authorized-file"],
+      "rightsPolicy": {
+        "defaultAccessLevel": "metadata-only",
+        "fullTextRequires": "user-authorized-file",
+        "perWorkVerification": true
+      },
+      "rules": {
+        "verifiedAt": "2026-08-04",
+        "maxAgeDays": 120,
+        "certainty": "official",
+        "sources": ["https://www.royalroad.com/tos"]
+      },
+      "rateLimit": {"minimumIntervalMs": 3000, "maximumConcurrency": 1},
+      "fallback": "metadata-only-user-import"
+    },
+    {
+      "siteId": "scribble-hub",
+      "displayName": "Scribble Hub",
+      "market": "en",
+      "defaultLanguage": "en",
+      "hosts": ["scribblehub.com", "www.scribblehub.com"],
+      "urlPatterns": ["/series/[0-9]+(?:/[^/?#]+)?"],
+      "adapterVersion": "1.0.0",
+      "capabilityLevel": "metadata-and-user-import",
+      "capabilities": {
+        "metadata": "source-record-or-user-supplied",
+        "chapterDirectory": "user-supplied",
+        "automatedFullText": false,
+        "userAuthorizedImport": true
+      },
+      "allowedFields": ["title", "author", "description", "genres", "chapterDirectory", "publicationStatus", "updatedAt", "sourceUrl"],
+      "acquisitionMethods": ["source-record", "user-authorized-file"],
+      "rightsPolicy": {
+        "defaultAccessLevel": "metadata-only",
+        "fullTextRequires": "user-authorized-file",
+        "perWorkVerification": true
+      },
+      "rules": {
+        "verifiedAt": "2026-08-04",
+        "maxAgeDays": 120,
+        "certainty": "official-conservative",
+        "sources": ["https://www.scribblehub.com/terms-of-service/"]
+      },
+      "rateLimit": {"minimumIntervalMs": 3000, "maximumConcurrency": 1},
+      "fallback": "metadata-only-user-import"
+    },
+    {
+      "siteId": "project-gutenberg",
+      "displayName": "Project Gutenberg",
+      "market": "en",
+      "defaultLanguage": "en",
+      "hosts": ["gutenberg.org", "www.gutenberg.org", "dev.gutenberg.org"],
+      "urlPatterns": ["/ebooks/[0-9]+", "/cache/epub/[0-9]+/"],
+      "adapterVersion": "1.0.0",
+      "capabilityLevel": "public-full-text-conditional",
+      "capabilities": {
+        "metadata": "official-offline-catalog-or-opds",
+        "chapterDirectory": "official-file-structure",
+        "automatedFullText": "official-mirror-or-robot-harvest-after-rights-check",
+        "userAuthorizedImport": true
+      },
+      "allowedFields": [
+        "title", "author", "description", "subjects", "bookshelves", "chapterDirectory",
+        "language", "rightsNotice", "sourceUrl", "officialDownloadUrl"
+      ],
+      "acquisitionMethods": ["official-offline-catalog", "opds", "official-mirror", "robot-harvest", "user-authorized-file"],
+      "rightsPolicy": {
+        "defaultAccessLevel": "unknown",
+        "fullTextRequires": "per-work-rights-notice-and-location-verification",
+        "perWorkVerification": true,
+        "attributionRequired": true
+      },
+      "rules": {
+        "verifiedAt": "2026-08-04",
+        "maxAgeDays": 180,
+        "certainty": "official",
+        "sources": [
+          "https://www.gutenberg.org/policy/terms_of_use.html",
+          "https://dev.gutenberg.org/ebooks/offline_catalogs.html"
+        ]
+      },
+      "rateLimit": {"minimumIntervalMs": 1500, "maximumConcurrency": 1},
+      "fallback": "metadata-only-user-import"
+    }
+  ]
+}
