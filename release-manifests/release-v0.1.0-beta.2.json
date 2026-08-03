@@ -2,15 +2,15 @@
   "manifestVersion": "1.0.0",
   "productId": "ai-video-channel-production",
   "productName": "AI 视频频道生产系统",
-  "productVersion": "0.1.0-beta.1",
+  "productVersion": "0.1.0-beta.2",
   "releaseChannel": "beta",
-  "releaseStatus": "published",
-  "generatedAt": "2026-08-03T16:02:47Z",
+  "releaseStatus": "draft",
+  "generatedAt": "2026-08-03T16:08:15Z",
   "repository": "https://github.com/coisu772-code/AI-",
-  "gitCommit": "caae41e8a09c3267310a0f39ad46b6da16f775da",
+  "gitCommit": null,
   "hashAlgorithm": "SHA-256",
   "hashRule": "canonical-json-v1",
-  "contentHash": "f9d500f7aa5861a428164dcc57e5e21cce2a5871ea4bd2ec2b054305ac720962",
+  "contentHash": "77a432d6a2c0913b6874193b79fb8f74049ffced928a51a078991e047de7df8e",
   "schemaVersions": {
     "channel-profile": "1.0.0",
     "production-profile": "1.0.0",
@@ -31,34 +31,34 @@
   "components": [
     {
       "componentId": "codex-plugin",
-      "version": "0.1.0-beta.1",
+      "version": "0.1.0-beta.2",
       "includedInRelease": true,
       "status": "ready",
-      "minimumProductVersion": "0.1.0-beta.1",
-      "maximumProductVersion": "0.1.0-beta.1",
+      "minimumProductVersion": "0.1.0-beta.2",
+      "maximumProductVersion": "0.1.0-beta.2",
       "artifacts": [
         {
           "kind": "directory-tree",
           "relativePath": "plugins/ai-video-channel-production",
-          "sha256": "d7945724a01291b0964623776562527b15b04cfedcb78a4238e21491c936edf0",
-          "sizeBytes": 5998
+          "sha256": "5ab1018d857bece79ba32a76d74b09fe5564fd502dfb1bb4b26a357939ae7286",
+          "sizeBytes": 5992
         }
       ],
       "notes": "Codex 总入口与显式频道建库入口；阶段 1 仅开放边界说明和契约导航。"
     },
     {
       "componentId": "windows-installer",
-      "version": "0.1.0-beta.1",
+      "version": "0.1.0-beta.2",
       "includedInRelease": true,
       "status": "ready",
-      "minimumProductVersion": "0.1.0-beta.1",
-      "maximumProductVersion": "0.1.0-beta.1",
+      "minimumProductVersion": "0.1.0-beta.2",
+      "maximumProductVersion": "0.1.0-beta.2",
       "artifacts": [
         {
           "kind": "directory-tree",
           "relativePath": "installer",
-          "sha256": "e72b750871325d91a8184eb543b0024235a30dc24d2a42d6747b6a87b8f3dae1",
-          "sizeBytes": 16644
+          "sha256": "2b8d35a51705f7b28cc69eaa15bcc012ea09a91ebcbf11285b7f6f1cf81f1a00",
+          "sizeBytes": 17258
         }
       ],
       "notes": "Windows 本地安装、升级、回滚与卸载脚本；用户配置注册可显式跳过。"
@@ -68,14 +68,14 @@
       "version": "1.0.0",
       "includedInRelease": true,
       "status": "ready",
-      "minimumProductVersion": "0.1.0-beta.1",
-      "maximumProductVersion": "0.1.0-beta.1",
+      "minimumProductVersion": "0.1.0-beta.2",
+      "maximumProductVersion": "0.1.0-beta.2",
       "artifacts": [
         {
           "kind": "directory-tree",
           "relativePath": "contracts",
-          "sha256": "825565bf0c5cc738f2412cb4683ab42f49ce586a6063d3c916688e6f724d3b82",
-          "sizeBytes": 43826
+          "sha256": "091c791da15decf29150f22973508e7a03c0733068d1977edb61399e1b3d70c4",
+          "sizeBytes": 43382
         }
       ],
       "notes": "10 类 JSON Schema 契约、完整示例链、内容哈希和上游引用校验。"
@@ -85,8 +85,8 @@
       "version": "0.0.0",
       "includedInRelease": false,
       "status": "skeleton",
-      "minimumProductVersion": "0.1.0-beta.1",
-      "maximumProductVersion": "0.1.0-beta.1",
+      "minimumProductVersion": "0.1.0-beta.2",
+      "maximumProductVersion": "0.1.0-beta.2",
       "artifacts": [],
       "notes": "阶段 2 才实现；阶段 1 不启动、不调用任何本地业务服务。"
     },
@@ -95,8 +95,8 @@
       "version": "0.11.0",
       "includedInRelease": false,
       "status": "external-baseline",
-      "minimumProductVersion": "0.1.0-beta.1",
-      "maximumProductVersion": "0.1.0-beta.1",
+      "minimumProductVersion": "0.1.0-beta.2",
+      "maximumProductVersion": "0.1.0-beta.2",
       "artifacts": [],
       "notes": "现有工作区基线，仅记录兼容信息；本阶段未复制、打包或修改。"
     },
@@ -105,8 +105,8 @@
       "version": "1.0.0",
       "includedInRelease": false,
       "status": "external-baseline",
-      "minimumProductVersion": "0.1.0-beta.1",
-      "maximumProductVersion": "0.1.0-beta.1",
+      "minimumProductVersion": "0.1.0-beta.2",
+      "maximumProductVersion": "0.1.0-beta.2",
       "artifacts": [],
       "notes": "现有新漫剧工坊基线，仅记录兼容信息；本阶段未复制、打包或修改。"
     },
@@ -115,8 +115,8 @@
       "version": "0.1.0",
       "includedInRelease": false,
       "status": "external-baseline",
-      "minimumProductVersion": "0.1.0-beta.1",
-      "maximumProductVersion": "0.1.0-beta.1",
+      "minimumProductVersion": "0.1.0-beta.2",
+      "maximumProductVersion": "0.1.0-beta.2",
       "artifacts": [],
       "notes": "现有 YouTube 发布中心基线，仅记录兼容信息；本阶段未复制、打包或修改。"
     }

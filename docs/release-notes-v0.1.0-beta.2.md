@@ -1,4 +1,4 @@
-# AI 视频频道生产系统 0.1.0-beta.1
+# AI 视频频道生产系统 0.1.0-beta.2
 
 这是阶段 1“GitHub 发布骨架与跨中心契约”的首个 Beta，只用于验证安装、Codex 入口和跨中心数据契约。
 
@@ -16,11 +16,11 @@
 Codex CLI：
 
 ```powershell
-codex plugin marketplace add coisu772-code/AI- --ref v0.1.0-beta.1
+codex plugin marketplace add coisu772-code/AI- --ref v0.1.0-beta.2
 codex plugin add ai-video-channel-production@novel-manga-production
 ```
 
-或下载 `ai-video-channel-production-v0.1.0-beta.1.zip`，使用同一 Release 中的 `SHA256SUMS.txt` 核验后解压，运行 `installer\install.cmd`。
+或下载 `ai-video-channel-production-v0.1.0-beta.2.zip`，使用同一 Release 中的 `SHA256SUMS.txt` 核验后解压，运行 `installer\install.cmd`。
 
 ## Beta 边界
 

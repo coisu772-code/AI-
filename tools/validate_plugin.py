@@ -40,7 +40,7 @@ def validate_plugin() -> list[str]:
         errors.append("marketplace name mismatch")
     entries = marketplace.get("plugins", [])
     if len(entries) != 1:
-        errors.append("marketplace must expose exactly one plugin in 0.1.0-beta.1")
+        errors.append("marketplace must expose exactly one plugin in 0.1.0-beta.2")
     else:
         entry = entries[0]
         if entry.get("name") != PLUGIN_NAME:
@@ -51,8 +51,8 @@ def validate_plugin() -> list[str]:
 
     if plugin.get("name") != PLUGIN_NAME or not NAME_PATTERN.fullmatch(plugin.get("name", "")):
         errors.append("plugin name is invalid")
-    if plugin.get("version") != "0.1.0-beta.1":
-        errors.append("plugin version must be 0.1.0-beta.1 for the first beta")
+    if plugin.get("version") != "0.1.0-beta.2":
+        errors.append("plugin version must be 0.1.0-beta.2 for the current beta")
     if plugin.get("skills") != "./skills/":
         errors.append("plugin skills path must be ./skills/")
     prompts = plugin.get("interface", {}).get("defaultPrompt", [])

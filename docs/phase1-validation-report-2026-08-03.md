@@ -2,7 +2,7 @@
 
 ## 结论
 
-阶段 1 Beta `0.1.0-beta.1` 已完成，且没有进入阶段 2。插件、marketplace、安装生命周期、10 类跨中心契约、统一发布清单和最小自动验证均已落地。
+阶段 1 Beta `0.1.0-beta.2` 已完成，且没有进入阶段 2。插件、marketplace、安装生命周期、10 类跨中心契约、统一发布清单和最小自动验证均已落地。
 
 本地验收通过不等于 GitHub 已发布。远端仓库、推送、GitHub Release 和无源码新电脑验收仍等待用户单独授权。
 
@@ -41,7 +41,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage1.ps1
 - GitHub 远端由用户创建为 `coisu772-code/AI-`；与阶段 0 预定仓库名的差异已通过变更记录冻结。
 - `main` 已完成首次推送，源码基线为 `caae41e8a09c3267310a0f39ad46b6da16f775da`。
 - Git 作者由用户确认并设置为 `Codex <coisu772@gmail.com>`。
-- `v0.1.0-beta.1` 标签触发 GitHub Actions 全量验证、打包与预发布。
+- `v0.1.0-beta.1` 标签的跨平台目录哈希检查失败，未创建 Release；标签保留作为失败构建记录。
+- `v0.1.0-beta.2` 修复换行规范化后触发 GitHub Actions 全量验证、打包与预发布。
 - 发布清单状态为 `published`，并绑定上述源码基线提交。
 - GitHub 来源和 Release 压缩包安装结果在发布后进行外部复验，不以工作流启动代替验收成功。
 - 本地工具服务、频道读取接口和频道资料库仍为明确的阶段 2 范围。

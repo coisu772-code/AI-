@@ -2,7 +2,7 @@
 
 这是面向普通用户安装的 GitHub 发布仓库骨架。产品通过 Codex 插件组织工作流，通过本地工具和独立桌面程序执行确定性动作。
 
-当前版本为阶段 1 Beta `0.1.0-beta.1`，只交付：
+当前版本为阶段 1 Beta `0.1.0-beta.2`，只交付：
 
 - Codex 插件与 marketplace 骨架。
 - 总入口和频道建库入口 Skills。
@@ -40,11 +40,11 @@ powershell -ExecutionPolicy Bypass -File .\tools\Test-Stage1.ps1
 使用 Codex CLI 从 GitHub marketplace 安装固定版本：
 
 ```powershell
-codex plugin marketplace add coisu772-code/AI- --ref v0.1.0-beta.1
+codex plugin marketplace add coisu772-code/AI- --ref v0.1.0-beta.2
 codex plugin add ai-video-channel-production@novel-manga-production
 ```
 
-也可以从 GitHub Release 下载 `ai-video-channel-production-v0.1.0-beta.1.zip`，核对 `SHA256SUMS.txt` 后解压并运行 `installer\install.cmd`。安装完成后重启 Codex 并新建任务。
+也可以从 GitHub Release 下载 `ai-video-channel-production-v0.1.0-beta.2.zip`，核对 `SHA256SUMS.txt` 后解压并运行 `installer\install.cmd`。安装完成后重启 Codex 并新建任务。
 
 文档入口：
 
@@ -55,4 +55,4 @@ codex plugin add ai-video-channel-production@novel-manga-production
 - `docs/release-process.md`
 - `docs/phase1-validation-report-2026-08-03.md`
 
-`0.1.0-beta.1` 是阶段 1 骨架预发布，不包含频道建库、资料采集、内容生成、视频生产、真实上传或 Analytics。
+`0.1.0-beta.2` 是阶段 1 骨架预发布，不包含频道建库、资料采集、内容生成、视频生产、真实上传或 Analytics。

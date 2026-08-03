@@ -28,6 +28,27 @@ function Get-RelativePath([string]$RootPath, [string]$FilePath) {
     return [System.Uri]::UnescapeDataString($rootUri.MakeRelativeUri($fileUri).ToString())
 }
 
+function Get-NormalizedFileBytes([string]$FilePath) {
+    $textExtensions = @(".cmd", ".json", ".md", ".ps1", ".txt", ".yaml", ".yml")
+    $extension = [System.IO.Path]::GetExtension($FilePath).ToLowerInvariant()
+    if ($textExtensions -contains $extension) {
+        $content = [System.IO.File]::ReadAllText($FilePath)
+        $normalized = $content.Replace("`r`n", "`n").Replace("`r", "`n")
+        return [System.Text.UTF8Encoding]::new($false).GetBytes($normalized)
+    }
+    return [System.IO.File]::ReadAllBytes($FilePath)
+}
+
+function Get-Sha256Hex([byte[]]$Bytes) {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([System.BitConverter]::ToString($sha.ComputeHash($Bytes))).Replace("-", "").ToLowerInvariant()
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
 function Get-TreeHash([string]$RootPath) {
     $rootFull = Get-FullPath $RootPath
     $lines = New-Object System.Collections.Generic.List[string]
@@ -41,17 +62,12 @@ function Get-TreeHash([string]$RootPath) {
     $relativePaths.Sort([System.StringComparer]::Ordinal)
     foreach ($relative in $relativePaths) {
         $file = $filesByRelativePath[$relative]
-        $hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-        $lines.Add("$relative`t$($file.Length)`t$hash`n")
+        $fileBytes = Get-NormalizedFileBytes $file.FullName
+        $hash = Get-Sha256Hex $fileBytes
+        $lines.Add("$relative`t$($fileBytes.Length)`t$hash`n")
     }
     $bytes = [System.Text.UTF8Encoding]::new($false).GetBytes(($lines -join ""))
-    $sha = [System.Security.Cryptography.SHA256]::Create()
-    try {
-        return ([System.BitConverter]::ToString($sha.ComputeHash($bytes))).Replace("-", "").ToLowerInvariant()
-    }
-    finally {
-        $sha.Dispose()
-    }
+    return Get-Sha256Hex $bytes
 }
 
 $sourceFull = Get-FullPath $SourceRoot
@@ -60,7 +76,7 @@ $alreadyInstalled = $false
 $createdBackupPath = $null
 $pluginManifestPath = Join-Path $sourceFull "plugins\$productId\.codex-plugin\plugin.json"
 $marketplacePath = Join-Path $sourceFull ".agents\plugins\marketplace.json"
-$releaseManifestPath = Join-Path $sourceFull "release-manifests\release-v0.1.0-beta.1.json"
+$releaseManifestPath = Join-Path $sourceFull "release-manifests\release-v0.1.0-beta.2.json"
 
 if (-not (Test-Path -LiteralPath $pluginManifestPath -PathType Leaf)) {
     throw "Plugin manifest not found: $pluginManifestPath"

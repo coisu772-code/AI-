@@ -48,7 +48,7 @@ try {
         if ($null -eq $backup) { throw "Upgrade did not preserve a rollback backup." }
         & (Join-Path $root "installer\Rollback-AIVideoChannelProduction.ps1") -InstallRoot $smokeRoot -BackupName $backup.Name -SkipCodexRegistration -Confirm:$false
         $state = Get-Content -LiteralPath (Join-Path $smokeRoot "current\install-state.json") -Raw -Encoding UTF8 | ConvertFrom-Json
-        if ([string]$state.productId -ne "ai-video-channel-production" -or [string]$state.productVersion -ne "0.1.0-beta.1") {
+        if ([string]$state.productId -ne "ai-video-channel-production" -or [string]$state.productVersion -ne "0.1.0-beta.2") {
             throw "Installed state does not match the stage 1 product."
         }
         & (Join-Path $root "installer\Uninstall-AIVideoChannelProduction.ps1") -InstallRoot $smokeRoot -SkipCodexRemoval -Confirm:$false

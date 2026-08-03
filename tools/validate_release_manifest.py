@@ -12,7 +12,7 @@ from update_release_manifest import canonical_json_bytes, tree_digest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST_PATH = ROOT / "release-manifests" / "release-v0.1.0-beta.1.json"
+MANIFEST_PATH = ROOT / "release-manifests" / "release-v0.1.0-beta.2.json"
 SCHEMA_PATH = ROOT / "release-manifests" / "release-manifest.schema.json"
 
 
@@ -28,18 +28,18 @@ def validate_release_manifest() -> list[str]:
     validator = Draft202012Validator(schema, format_checker=FormatChecker())
     for error in sorted(validator.iter_errors(manifest), key=lambda item: list(item.absolute_path)):
         location = "/".join(str(part) for part in error.absolute_path) or "<root>"
-        errors.append(f"release-v0.1.0-beta.1.json:{location}: {error.message}")
+        errors.append(f"release-v0.1.0-beta.2.json:{location}: {error.message}")
 
     expected_hash = hashlib.sha256(canonical_json_bytes(manifest)).hexdigest()
     if manifest.get("contentHash") != expected_hash:
         errors.append(
-            "release-v0.1.0-beta.1.json: contentHash mismatch; "
+            "release-v0.1.0-beta.2.json: contentHash mismatch; "
             f"expected {expected_hash}, got {manifest.get('contentHash')}"
         )
 
     component_ids = [component.get("componentId") for component in manifest.get("components", [])]
     if len(component_ids) != len(set(component_ids)):
-        errors.append("release-v0.1.0-beta.1.json: componentId values must be unique")
+        errors.append("release-v0.1.0-beta.2.json: componentId values must be unique")
 
     for component in manifest.get("components", []):
         artifacts = component.get("artifacts", [])
