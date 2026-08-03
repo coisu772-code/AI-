@@ -6,7 +6,16 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXCLUDED_DIRS = {".git", ".venv", ".stage1-smoke", "__pycache__", "dist"}
+EXCLUDED_DIRS = {
+    ".git",
+    ".venv",
+    ".stage1-smoke",
+    ".stage1-codex-home",
+    ".github-install-smoke",
+    ".release-tools",
+    "__pycache__",
+    "dist",
+}
 FORBIDDEN_SUFFIXES = {
     ".db", ".sqlite", ".sqlite3", ".exe", ".msi", ".mp3", ".wav",
     ".mp4", ".mov", ".mkv", ".png", ".jpg", ".jpeg", ".webp",

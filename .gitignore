@@ -2,6 +2,8 @@
 dist/
 .stage1-smoke/
 .stage1-codex-home/
+.github-install-smoke/
+.release-tools/
 node_modules/
 .venv/
 __pycache__/
