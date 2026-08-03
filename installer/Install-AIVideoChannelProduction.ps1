@@ -29,7 +29,7 @@ function Get-RelativePath([string]$RootPath, [string]$FilePath) {
 }
 
 function Get-NormalizedFileBytes([string]$FilePath) {
-    $textExtensions = @(".cmd", ".json", ".md", ".ps1", ".txt", ".yaml", ".yml")
+    $textExtensions = @(".cmd", ".json", ".md", ".ps1", ".py", ".txt", ".yaml", ".yml")
     $extension = [System.IO.Path]::GetExtension($FilePath).ToLowerInvariant()
     if ($textExtensions -contains $extension) {
         $content = [System.IO.File]::ReadAllText($FilePath)
@@ -54,7 +54,9 @@ function Get-TreeHash([string]$RootPath) {
     $lines = New-Object System.Collections.Generic.List[string]
     $relativePaths = New-Object System.Collections.Generic.List[string]
     $filesByRelativePath = [System.Collections.Generic.Dictionary[string,System.IO.FileInfo]]::new([System.StringComparer]::Ordinal)
-    Get-ChildItem -LiteralPath $rootFull -File -Recurse | ForEach-Object {
+    Get-ChildItem -LiteralPath $rootFull -File -Recurse |
+        Where-Object { $_.Extension -ne ".pyc" -and $_.FullName -notmatch "[\\/]__pycache__[\\/]" } |
+        ForEach-Object {
         $relative = Get-RelativePath $rootFull $_.FullName
         $relativePaths.Add($relative)
         $filesByRelativePath.Add($relative, $_)
@@ -76,7 +78,6 @@ $alreadyInstalled = $false
 $createdBackupPath = $null
 $pluginManifestPath = Join-Path $sourceFull "plugins\$productId\.codex-plugin\plugin.json"
 $marketplacePath = Join-Path $sourceFull ".agents\plugins\marketplace.json"
-$releaseManifestPath = Join-Path $sourceFull "release-manifests\release-v0.1.0-beta.2.json"
 
 if (-not (Test-Path -LiteralPath $pluginManifestPath -PathType Leaf)) {
     throw "Plugin manifest not found: $pluginManifestPath"
@@ -84,11 +85,11 @@ if (-not (Test-Path -LiteralPath $pluginManifestPath -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $marketplacePath -PathType Leaf)) {
     throw "Marketplace manifest not found: $marketplacePath"
 }
+$pluginManifest = Get-Content -LiteralPath $pluginManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$releaseManifestPath = Join-Path $sourceFull "release-manifests\release-v$($pluginManifest.version).json"
 if (-not (Test-Path -LiteralPath $releaseManifestPath -PathType Leaf)) {
     throw "Release manifest not found: $releaseManifestPath"
 }
-
-$pluginManifest = Get-Content -LiteralPath $pluginManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $marketplace = Get-Content -LiteralPath $marketplacePath -Raw -Encoding UTF8 | ConvertFrom-Json
 $releaseManifest = Get-Content -LiteralPath $releaseManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
 if ([string]$pluginManifest.name -ne $productId) {
@@ -108,7 +109,12 @@ foreach ($item in $payloadItems) {
     }
 }
 
-foreach ($componentId in @("codex-plugin", "windows-installer", "cross-center-contracts")) {
+$requiredComponentIds = @("codex-plugin", "windows-installer", "cross-center-contracts")
+$localToolComponent = $releaseManifest.components | Where-Object { $_.componentId -eq "local-tool-service" } | Select-Object -First 1
+if ($null -ne $localToolComponent -and [bool]$localToolComponent.includedInRelease) {
+    $requiredComponentIds += "local-tool-service"
+}
+foreach ($componentId in $requiredComponentIds) {
     $component = $releaseManifest.components | Where-Object { $_.componentId -eq $componentId } | Select-Object -First 1
     if ($null -eq $component -or -not [bool]$component.includedInRelease -or $component.artifacts.Count -ne 1) {
         throw "Release manifest is missing one required stage 1 artifact: $componentId"

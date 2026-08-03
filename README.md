@@ -12,6 +12,18 @@
 
 当前版本不会创建真实频道资料库、下载资料、生成内容、调用工坊、上传视频或读取 Analytics。
 
+## 阶段2未发布工作树
+
+本地开发工作树已增加频道资料库与 stdio MCP 本地工具服务，支持发布中心正式只读 CLI、双阶段建库、任务单频道绑定、生产预设、本次覆盖、备份、恢复和 `.avchannel` 迁移。该能力尚未形成新的 GitHub Release；已发布的 `v0.1.0-beta.2` 标签仍保持阶段1内容。
+
+阶段2隔离验证：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage2.ps1 -PublisherCliPath <youtube-publisher-channel-list.exe>
+```
+
+正式建库还需要安装器配置发布中心只读程序和不含密钥的预扫描真实音色目录。没有这些依赖时，系统返回明确缺口，不制造频道或音色。
+
 ## 仓库结构
 
 - `.agents/plugins/marketplace.json`：Codex marketplace 入口。
@@ -54,5 +66,7 @@ codex plugin add ai-video-channel-production@novel-manga-production
 - `docs/install-upgrade-rollback-uninstall.md`
 - `docs/release-process.md`
 - `docs/phase1-validation-report-2026-08-03.md`
+- `docs/local-tool-service-protocol-v1.md`
+- `docs/phase2-channel-library-validation-2026-08-04.md`
 
 `0.1.0-beta.2` 是阶段 1 骨架预发布，不包含频道建库、资料采集、内容生成、视频生产、真实上传或 Analytics。

@@ -1,7 +1,7 @@
 interface:
   display_name: "AI 视频频道生产系统"
-  short_description: "统一路由频道建库、内容生产、制作、发布与数据中心流程"
-  default_prompt: "使用 $channel-production 启动系统并显示当前版本、可用入口和未开放能力。"
+  short_description: "启动系统并统一路由频道建库、生产、发布与数据中心流程"
+  default_prompt: "使用 $channel-production 启动系统，检查频道资料库并显示下一步。"
 
 policy:
   allow_implicit_invocation: true

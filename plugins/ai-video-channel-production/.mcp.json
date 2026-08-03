@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "ai-video-channel-tools": {
+      "cwd": ".",
+      "command": "powershell",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "./mcp/start.ps1"],
+      "tool_timeout_sec": 60
+    }
+  }
+}

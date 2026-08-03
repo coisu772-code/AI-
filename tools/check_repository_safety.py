@@ -11,6 +11,7 @@ EXCLUDED_DIRS = {
     ".venv",
     ".stage1-smoke",
     ".stage1-codex-home",
+    ".stage2-isolated",
     ".github-install-smoke",
     ".release-tools",
     "__pycache__",

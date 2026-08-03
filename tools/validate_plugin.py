@@ -14,6 +14,7 @@ PLUGIN_NAME = "ai-video-channel-production"
 MARKETPLACE_NAME = "novel-manga-production"
 PLUGIN_ROOT = ROOT / "plugins" / PLUGIN_NAME
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+CURRENT_PRODUCT_VERSION = "0.2.0-dev.1"
 
 
 def load_json(path: Path) -> Any:
@@ -51,10 +52,23 @@ def validate_plugin() -> list[str]:
 
     if plugin.get("name") != PLUGIN_NAME or not NAME_PATTERN.fullmatch(plugin.get("name", "")):
         errors.append("plugin name is invalid")
-    if plugin.get("version") != "0.1.0-beta.2":
-        errors.append("plugin version must be 0.1.0-beta.2 for the current beta")
+    if plugin.get("version") != CURRENT_PRODUCT_VERSION:
+        errors.append(f"plugin version must be {CURRENT_PRODUCT_VERSION} for the stage 2 candidate")
     if plugin.get("skills") != "./skills/":
         errors.append("plugin skills path must be ./skills/")
+    if plugin.get("mcpServers") != "./.mcp.json":
+        errors.append("stage 2 plugin must declare ./.mcp.json")
+    try:
+        mcp = load_json(PLUGIN_ROOT / ".mcp.json")
+        server = mcp.get("mcpServers", {}).get("ai-video-channel-tools", {})
+        if server.get("command") != "powershell":
+            errors.append("local tool service must use the guarded PowerShell launcher")
+        if "./mcp/start.ps1" not in server.get("args", []):
+            errors.append("local tool service launcher path mismatch")
+        if not (PLUGIN_ROOT / "mcp" / "server.py").is_file():
+            errors.append("local tool service server.py is missing")
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"invalid MCP configuration: {exc}")
     prompts = plugin.get("interface", {}).get("defaultPrompt", [])
     if not isinstance(prompts, list) or not 1 <= len(prompts) <= 3:
         errors.append("plugin defaultPrompt must contain 1 to 3 prompts")

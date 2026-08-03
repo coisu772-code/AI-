@@ -12,7 +12,6 @@ from update_release_manifest import canonical_json_bytes, tree_digest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST_PATH = ROOT / "release-manifests" / "release-v0.1.0-beta.2.json"
 SCHEMA_PATH = ROOT / "release-manifests" / "release-manifest.schema.json"
 
 
@@ -20,26 +19,33 @@ def load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def validate_release_manifest() -> list[str]:
-    manifest = load_json(MANIFEST_PATH)
+def current_manifest_path() -> Path:
+    plugin = load_json(ROOT / "plugins" / "ai-video-channel-production" / ".codex-plugin" / "plugin.json")
+    return ROOT / "release-manifests" / f"release-v{plugin['version']}.json"
+
+
+def validate_release_manifest(manifest_path: Path | None = None) -> list[str]:
+    selected_path = manifest_path or current_manifest_path()
+    manifest = load_json(selected_path)
+    manifest_name = selected_path.name
     schema = load_json(SCHEMA_PATH)
     errors: list[str] = []
 
     validator = Draft202012Validator(schema, format_checker=FormatChecker())
     for error in sorted(validator.iter_errors(manifest), key=lambda item: list(item.absolute_path)):
         location = "/".join(str(part) for part in error.absolute_path) or "<root>"
-        errors.append(f"release-v0.1.0-beta.2.json:{location}: {error.message}")
+        errors.append(f"{manifest_name}:{location}: {error.message}")
 
     expected_hash = hashlib.sha256(canonical_json_bytes(manifest)).hexdigest()
     if manifest.get("contentHash") != expected_hash:
         errors.append(
-            "release-v0.1.0-beta.2.json: contentHash mismatch; "
+            f"{manifest_name}: contentHash mismatch; "
             f"expected {expected_hash}, got {manifest.get('contentHash')}"
         )
 
     component_ids = [component.get("componentId") for component in manifest.get("components", [])]
     if len(component_ids) != len(set(component_ids)):
-        errors.append("release-v0.1.0-beta.2.json: componentId values must be unique")
+        errors.append(f"{manifest_name}: componentId values must be unique")
 
     for component in manifest.get("components", []):
         artifacts = component.get("artifacts", [])

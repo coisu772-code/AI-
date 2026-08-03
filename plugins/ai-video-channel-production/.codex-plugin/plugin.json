@@ -1,7 +1,7 @@
 {
   "name": "ai-video-channel-production",
-  "version": "0.1.0-beta.2",
-  "description": "AI 视频频道生产系统的 Codex 工作流入口与跨中心契约骨架。",
+  "version": "0.2.0-dev.1",
+  "description": "AI 视频频道生产系统的 Codex 工作流入口、频道资料库与跨中心契约。",
   "author": {
     "name": "coisu772-code",
     "url": "https://github.com/coisu772-code"
@@ -16,19 +16,20 @@
     "channel-production"
   ],
   "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "AI 视频频道生产系统",
     "shortDescription": "频道建库、内容生产、制作、发布与数据流程的统一入口。",
-    "longDescription": "以 Codex Skills 驱动六大中心工作流，并通过版本化契约连接本地工具、新漫剧工坊与 YouTube 发布中心。当前 0.1.0-beta.2 仅提供安装、入口与契约骨架。",
+    "longDescription": "以 Codex Skills 驱动六大中心工作流，并通过安全本地工具和版本化契约连接频道资料库、新漫剧工坊与 YouTube 发布中心。阶段2本地开发树开放真实频道读取、双阶段建库、任务绑定、生产默认值、备份和迁移；资料采集及后续中心仍保持关闭。",
     "developerName": "coisu772-code",
     "category": "Creative",
     "capabilities": [
       "Interactive"
     ],
     "defaultPrompt": [
-      "启动 AI 视频频道生产系统，显示当前版本、可用入口和未开放能力。",
-      "检查频道建库前提，但不要创建真实资料库或读取频道凭据。",
-      "检查跨中心数据契约和本地安装状态。"
+      "启动 AI 视频频道生产系统，检查本地工具和已有频道资料库。",
+      "从 YouTube 发布中心选择真实频道，分两阶段建立频道资料库。",
+      "进入已有频道，并确认本次是否覆盖长期生产默认值。"
     ],
     "brandColor": "#6D4AFF"
   }

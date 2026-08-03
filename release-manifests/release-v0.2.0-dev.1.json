@@ -1,0 +1,131 @@
+{
+  "manifestVersion": "1.0.0",
+  "productId": "ai-video-channel-production",
+  "productName": "AI 视频频道生产系统",
+  "productVersion": "0.2.0-dev.1",
+  "releaseChannel": "beta",
+  "releaseStatus": "draft",
+  "generatedAt": "2026-08-03T17:04:38Z",
+  "repository": "https://github.com/coisu772-code/AI-",
+  "gitCommit": null,
+  "hashAlgorithm": "SHA-256",
+  "hashRule": "canonical-json-v1",
+  "contentHash": "8ed7d8ff9d261be35832e1280674ee9344597019ef41065c94d8e9786e0c01fa",
+  "schemaVersions": {
+    "channel-profile": "1.0.0",
+    "production-profile": "1.0.0",
+    "source-package": "1.0.0",
+    "topic-package": "1.0.0",
+    "manuscript-package": "1.0.0",
+    "publishing-asset-package": "1.0.0",
+    "production-result-package": "1.0.0",
+    "publish-intent": "1.0.0",
+    "publication-receipt": "1.0.0",
+    "analytics-snapshot": "1.0.0"
+  },
+  "protocolVersions": {
+    "contractExchange": "1.0.0",
+    "localToolService": "1.0.0",
+    "installerState": "1.0.0"
+  },
+  "components": [
+    {
+      "componentId": "codex-plugin",
+      "version": "0.2.0-dev.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.2.0-dev.1",
+      "maximumProductVersion": "0.2.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "plugins/ai-video-channel-production",
+          "sha256": "bacda2c23469082c71ef68e4606e669064bc624850c6d18fb597b3ec2f39bff5",
+          "sizeBytes": 114840
+        }
+      ],
+      "notes": "阶段2 Codex Skills、MCP 配置与本地频道工具入口。"
+    },
+    {
+      "componentId": "windows-installer",
+      "version": "0.2.0-dev.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.2.0-dev.1",
+      "maximumProductVersion": "0.2.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "installer",
+          "sha256": "6cf4ce6d75a7645b937662b2bf2da058c1fddc5c1280bf27ef655fc38610bd26",
+          "sizeBytes": 17706
+        }
+      ],
+      "notes": "本地候选安装、升级、回滚与卸载；尚未发布。"
+    },
+    {
+      "componentId": "cross-center-contracts",
+      "version": "1.0.0",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.2.0-dev.1",
+      "maximumProductVersion": "0.2.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "contracts",
+          "sha256": "091c791da15decf29150f22973508e7a03c0733068d1977edb61399e1b3d70c4",
+          "sizeBytes": 43382
+        }
+      ],
+      "notes": "冻结的十类 v1 跨中心契约，未改变主版本。"
+    },
+    {
+      "componentId": "local-tool-service",
+      "version": "0.2.0-dev.1",
+      "includedInRelease": true,
+      "status": "ready",
+      "minimumProductVersion": "0.2.0-dev.1",
+      "maximumProductVersion": "0.2.0-dev.1",
+      "artifacts": [
+        {
+          "kind": "directory-tree",
+          "relativePath": "plugins/ai-video-channel-production/mcp",
+          "sha256": "f82062ad71b538c00dbe66963fbd661025a476c9ecdb4e7bf4a1c284d7e83942",
+          "sizeBytes": 105322
+        }
+      ],
+      "notes": "stdio MCP、本地数据库、任务绑定、备份迁移和发布中心正式 CLI 适配器。"
+    },
+    {
+      "componentId": "control-center",
+      "version": "0.11.0",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.2.0-dev.1",
+      "maximumProductVersion": "0.2.0-dev.1",
+      "artifacts": [],
+      "notes": "外部基线；阶段2本方向未修改。"
+    },
+    {
+      "componentId": "workshop",
+      "version": "1.0.0",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.2.0-dev.1",
+      "maximumProductVersion": "0.2.0-dev.1",
+      "artifacts": [],
+      "notes": "外部基线；阶段2不启动工坊。"
+    },
+    {
+      "componentId": "publisher-center",
+      "version": "0.1.0",
+      "includedInRelease": false,
+      "status": "external-baseline",
+      "minimumProductVersion": "0.2.0-dev.1",
+      "maximumProductVersion": "0.2.0-dev.1",
+      "artifacts": [],
+      "notes": "正式只读 channel-list/v1 CLI 已用隔离数据库联合验证，但程序仍是外部组件。"
+    }
+  ]
+}
