@@ -8,9 +8,9 @@
       "install": false,
       "installSubpath": "",
       "license": { "expression": "LicenseRef-AI-Video-Channel-Production-1.0", "reviewStatus": "product-license-applies", "source": "LICENSE.md" },
-      "sha256": "69099e4e5880d253d8d5d8161acabfa59266dfb2d65396178d31b7ef98cac48c",
-      "sizeBytes": 9242,
-      "source": { "commit": "511954e008e097bccb679ba53b3455aed35554cf", "repository": "https://github.com/coisu772-code/AI-/" },
+      "sha256": "cf5cb7637a8212487ac2b942714c49620f8750c334927a9301351926c5a5aac9",
+      "sizeBytes": 9246,
+      "source": { "commit": "421a935030ca5fa63a87c214c95ba7db7291248e", "repository": "https://github.com/coisu772-code/AI-/" },
       "version": "0.8.0-rc.2"
     },
     {
@@ -21,9 +21,9 @@
       "install": true,
       "installSubpath": "",
       "license": { "expression": "LicenseRef-AI-Video-Channel-Production-1.0", "reviewStatus": "product-license-applies", "source": "LICENSE.md" },
-      "sha256": "c00c49491857e4737ab71a371030136beac923dc3c99682ab9111b15f57862e4",
-      "sizeBytes": 364153,
-      "source": { "commit": "511954e008e097bccb679ba53b3455aed35554cf", "metadataCommit": "2a9346c0c6f6ce9516a8f807e24d8eff5f36b859", "repository": "https://github.com/coisu772-code/AI-/" },
+      "sha256": "4405703da7196b0f29d0abed0d31c9dcdf765e7b1daaff5dd060c42485c8ef01",
+      "sizeBytes": 366701,
+      "source": { "commit": "421a935030ca5fa63a87c214c95ba7db7291248e", "metadataCommit": "303b7917ba382ce3222e0381874e5637a4cc1072", "repository": "https://github.com/coisu772-code/AI-/" },
       "version": "0.8.0-rc.2"
     },
     {
