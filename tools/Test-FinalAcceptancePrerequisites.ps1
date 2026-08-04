@@ -62,7 +62,17 @@ $workshop = Get-ArtifactCheck $WorkshopExecutable $expectedWorkshop
 $publisher = Get-ArtifactCheck $PublisherCenterExecutable $expectedPublisher
 $publisherCli = Get-ArtifactCheck $PublisherReadOnlyCli ""
 $gates = @($checklist.gates | ForEach-Object {
-    [ordered]@{ id = $_.id; status = $_.status; approved = $false; executed = $false }
+    $statusProperty = $_.PSObject.Properties["status"]
+    $gateStatus = if ($null -ne $statusProperty) {
+        [string]$statusProperty.Value
+    }
+    elseif ([bool]$_.executed) {
+        "LOCAL_EVIDENCE_COMPLETE"
+    }
+    else {
+        "WAITING_FOR_APPROVAL"
+    }
+    [ordered]@{ id = $_.id; status = $gateStatus; approved = $false; executed = [bool]$_.executed }
 })
 $artifactsReady = [bool]$workshop.unchanged -and [bool]$publisher.unchanged -and [bool]$publisherCli.unchanged
 $result = [ordered]@{
