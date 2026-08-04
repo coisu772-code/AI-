@@ -42,7 +42,7 @@ try {
     Remove-Item -LiteralPath $shortE2eFull -Recurse -Force
     $approval = Get-Content -LiteralPath (Join-Path $root "docs\final-acceptance-approval-checklist-v0.8.0-rc.2.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     $binding = $approval.gates | Where-Object { [string]$_.id -eq "implementation-source-binding" } | Select-Object -First 1
-    if ($null -eq $binding -or -not [bool]$binding.executed -or [string]$binding.classification -ne "local-evidence" -or [string]$binding.evidence.implementationSourceCommitSha -ne "511954e008e097bccb679ba53b3455aed35554cf") {
+    if ($null -eq $binding -or -not [bool]$binding.executed -or [string]$binding.classification -ne "local-evidence" -or [string]$binding.evidence.implementationSourceCommitSha -ne "421a935030ca5fa63a87c214c95ba7db7291248e") {
         throw "Completed implementation/source binding evidence is missing or inconsistent."
     }
     if (@($approval.gates | Where-Object { [string]$_.classification -eq "external-approval" -and [bool]$_.executed }).Count -ne 0) { throw "An external approval gate was incorrectly marked executed." }
@@ -51,7 +51,7 @@ try {
         unitSuite="PASS"; officialPluginValidator="PASS"; repositoryMarketplaceValidator="PASS"; codexCliSmoke="NOT_RUN_REQUIRES_EXECUTABLE_CLI_OR_APP_RESTART"
         unifiedAssetScan="PASS"; winPs51McpFileRelay="PASS"; sandboxAttempt7="FAIL_FIXED_LOCALLY_WAITING_FOR_CONTROLLED_RERUN"
         lifecycle="PASS"; threeMarketSynthetic="PASS"; publisherStage6Relock="PASS"; stalePublisherCatalogRejected="CONSTRAINTS_CATALOG_MISMATCH"
-        implementationSourceBinding="PASS"; implementationSourceCommit="511954e008e097bccb679ba53b3455aed35554cf"; externalActionsExecuted=$false; approvalChecklist=(Join-Path $root "docs\final-acceptance-approval-checklist-v0.8.0-rc.2.json")
+        implementationSourceBinding="PASS"; implementationSourceCommit="421a935030ca5fa63a87c214c95ba7db7291248e"; externalActionsExecuted=$false; approvalChecklist=(Join-Path $root "docs\final-acceptance-approval-checklist-v0.8.0-rc.2.json")
     }
     $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $evidence "stage8-summary.json") -Encoding UTF8
     & $uv.Source run python tools\validate_release_json_parsers.py --asset-root $assets --evidence-root $evidence --report (Join-Path $evidence "json-parser-validation.json")
