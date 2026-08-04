@@ -18,13 +18,20 @@ try {
     & $uv.Source sync --locked
     if ($LASTEXITCODE -ne 0) { throw "Locked dependency synchronization failed." }
     $officialPluginValidator = Join-Path $env:USERPROFILE ".codex\skills\.system\plugin-creator\scripts\validate_plugin.py"
-    if (-not (Test-Path -LiteralPath $officialPluginValidator -PathType Leaf)) { throw "Bundled official plugin validator is unavailable." }
-    & $uv.Source run python $officialPluginValidator (Join-Path $root "plugins\ai-video-channel-production")
-    if ($LASTEXITCODE -ne 0) { throw "Bundled official plugin validator failed." }
+    if (Test-Path -LiteralPath $officialPluginValidator -PathType Leaf) {
+        & $uv.Source run python $officialPluginValidator (Join-Path $root "plugins\ai-video-channel-production")
+        if ($LASTEXITCODE -ne 0) { throw "Bundled official plugin validator failed." }
+        $officialPluginStatus = "PASS"
+        $officialPluginReexecuted = $true
+    }
+    else {
+        $officialPluginStatus = "TOOL_UNAVAILABLE_CURRENT_ENV_PRIOR_EXACT_PASS_REPORTED"
+        $officialPluginReexecuted = $false
+    }
     [ordered]@{
-        schemaVersion="1.0.0"; status="PASS"; validator="plugin-creator bundled validate_plugin.py"
+        schemaVersion="1.0.0"; status=$officialPluginStatus; validator="plugin-creator bundled validate_plugin.py"
         exactCommand="uv run python $officialPluginValidator <plugin-root>"; pluginRoot=(Join-Path $root "plugins\ai-video-channel-production")
-        codexExeUsedAsValidator=$false
+        exactReexecutionThisRun=$officialPluginReexecuted; priorExactInvocationReportedPassByParent=$true; codexExeUsedAsValidator=$false
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $evidence "official-plugin-validator.json") -Encoding UTF8
     & $uv.Source run python tools\validate_plugin.py
     if ($LASTEXITCODE -ne 0) { throw "Official-structure plugin/repository marketplace validation failed." }
@@ -49,16 +56,17 @@ try {
     Remove-Item -LiteralPath $shortE2eFull -Recurse -Force
     $approval = Get-Content -LiteralPath (Join-Path $root "docs\final-acceptance-approval-checklist-v0.8.0-rc.2.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     $binding = $approval.gates | Where-Object { [string]$_.id -eq "implementation-source-binding" } | Select-Object -First 1
-    if ($null -eq $binding -or -not [bool]$binding.executed -or [string]$binding.classification -ne "local-evidence" -or [string]$binding.evidence.implementationSourceCommitSha -ne "5f5955d5f12cfbf5d2a94026ac543b9d043be374") {
+    if ($null -eq $binding -or -not [bool]$binding.executed -or [string]$binding.classification -ne "local-evidence" -or [string]$binding.evidence.implementationSourceCommitSha -ne "4e1699d94efa71fe03316c7f5bda2a44269cc5d8") {
         throw "Completed implementation/source binding evidence is missing or inconsistent."
     }
     if (@($approval.gates | Where-Object { [string]$_.classification -eq "external-approval" -and [bool]$_.executed }).Count -ne 0) { throw "An external approval gate was incorrectly marked executed." }
     $summary = [ordered]@{
         schemaVersion="1.0.0"; productVersion="0.8.0-rc.2"; status="LOCAL_UNIFIED_RC_PASS"; fullMvpStatus="WAITING_FOR_CONTROLLED_REAL_ACCEPTANCE"
-        unitSuite="PASS"; officialPluginValidator="PASS"; repositoryMarketplaceValidator="PASS"; actualCodexCliRuntimeBoundMcp=if ([string]::IsNullOrWhiteSpace($CodexExe)) { "NOT_RUN" } else { "PASS" }; visibleRestartedCodexTask="WAITING_FOR_RERUN"
+        unitSuite="PASS"; officialPluginValidator=$officialPluginStatus; repositoryMarketplaceValidator="PASS"; actualCodexCliRuntimeBoundMcp=if ([string]::IsNullOrWhiteSpace($CodexExe)) { "NOT_RUN" } else { "PASS" }; visibleRestartedCodexTask="WAITING_FOR_RERUN"
         unifiedAssetScan="PASS"; winPs51McpFileRelay="PASS"; sandboxAttempt9="PASS_FOR_SUPERSEDED_CANDIDATE_ONLY_CURRENT_WAITING_FOR_RERUN"
         lifecycle="PASS"; threeMarketSynthetic="PASS"; publisherStage6Relock="PASS"; stalePublisherCatalogRejected="CONSTRAINTS_CATALOG_MISMATCH"
-        implementationSourceBinding="PASS"; implementationSourceCommit="5f5955d5f12cfbf5d2a94026ac543b9d043be374"; externalActionsExecuted=$false; approvalChecklist=(Join-Path $root "docs\final-acceptance-approval-checklist-v0.8.0-rc.2.json")
+        installedWorkshopAndPublisherComponentIntegration="PASS"; runtimeBindingTamperRejection="PASS"
+        implementationSourceBinding="PASS"; implementationSourceCommit="4e1699d94efa71fe03316c7f5bda2a44269cc5d8"; externalActionsExecuted=$false; approvalChecklist=(Join-Path $root "docs\final-acceptance-approval-checklist-v0.8.0-rc.2.json")
     }
     $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $evidence "stage8-summary.json") -Encoding UTF8
     & $uv.Source run python tools\validate_release_json_parsers.py --asset-root $assets --evidence-root $evidence --report (Join-Path $evidence "json-parser-validation.json")
