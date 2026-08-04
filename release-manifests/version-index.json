@@ -10,7 +10,7 @@
       "status": "local-unified-release-candidate",
       "manifest": "unified-release-v0.9.0-rc.1.json",
       "remotePublished": false,
-      "manifestFileSha256": "TO_BE_RECORDED_AFTER_FINAL_BUILD"
+      "manifestFileSha256": "1e3e4a9059a9678c292d4380194a4465126eaecea724b9d2792c765aff2a6a1c"
     },
     {
       "version": "0.8.0-rc.2",
