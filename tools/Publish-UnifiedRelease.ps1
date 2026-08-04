@@ -39,7 +39,7 @@ $gh = Get-Command gh -ErrorAction Stop
 if ($LASTEXITCODE -ne 0) { throw "The approved tag does not exist locally; this script will not create or push tags." }
 $releaseFiles = New-Object System.Collections.Generic.List[string]
 foreach ($asset in @($manifest.assets)) { $releaseFiles.Add((Join-Path $assetFull ([string]$asset.fileName))) }
-foreach ($metadataName in @("unified-release-v0.8.0-rc.2.json", "SHA256SUMS.txt", "unified-release-build-report.json", "unified-validation-report-v0.8.0-rc.2.json")) {
+foreach ($metadataName in @("unified-release-v0.8.0-rc.2.json", "SHA256SUMS.txt")) {
     $metadataPath = Join-Path $assetFull $metadataName
     if (Test-Path -LiteralPath $metadataPath -PathType Leaf) { $releaseFiles.Add($metadataPath) }
 }
