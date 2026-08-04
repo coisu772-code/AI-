@@ -11,7 +11,7 @@
       "owner": "stage8c",
       "executed": true,
       "evidence": {
-        "implementationSourceCommitSha": "7a6bfa9f438a72e1f613f5b32b5f8d551be563e5",
+        "implementationSourceCommitSha": "53f9d2cc70f58408d013ee18e5d190a04562d2ab",
         "boundAssetIds": ["unified-installer", "core"],
         "manifestPlaceholdersRemaining": false,
         "verification": "Two deterministic builds plus manifest validation and release dry-run."
