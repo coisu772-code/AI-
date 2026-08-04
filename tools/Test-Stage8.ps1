@@ -61,8 +61,18 @@ try {
     }
     if ([string]$approval.overallStatus -ne "CONTROLLED_REAL_ACCEPTANCE_PASS") { throw "Controlled real acceptance status is missing." }
     $githubGate = $approval.gates | Where-Object { [string]$_.id -eq "github-release-publication" } | Select-Object -First 1
-    if ($null -eq $githubGate -or [bool]$githubGate.executed -or [string]$githubGate.evidence.status -ne "APPROVED_PENDING_EXECUTION") {
-        throw "GitHub prerelease gate must remain approved but unexecuted during local validation."
+    if ($null -eq $githubGate) { throw "GitHub prerelease gate is missing." }
+    $githubPending = (-not [bool]$githubGate.executed -and [string]$githubGate.evidence.status -eq "APPROVED_PENDING_EXECUTION")
+    $githubPublished = (
+        [bool]$githubGate.executed -and
+        [string]$githubGate.evidence.status -eq "PASS" -and
+        [string]$githubGate.evidence.releaseType -eq "prerelease" -and
+        [bool]$githubGate.evidence.draft -eq $false -and
+        [string]$githubGate.evidence.tagResolvedCommitSha -eq "b08bb215a6fd9fb22704d67a2332adbfeb5afd22" -and
+        [string]$githubGate.evidence.remoteDownloadHashVerification -eq "PASS"
+    )
+    if (-not $githubPending -and -not $githubPublished) {
+        throw "GitHub prerelease gate is neither safely pending nor published with exact remote verification."
     }
     $summary = [ordered]@{
         schemaVersion="1.0.0"; productVersion="0.8.0-rc.2"; status="LOCAL_UNIFIED_RC_PASS"; fullMvpStatus="CONTROLLED_REAL_ACCEPTANCE_PASS"

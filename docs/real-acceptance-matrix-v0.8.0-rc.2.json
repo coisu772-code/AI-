@@ -18,7 +18,7 @@
     {"capability": "long-term-learning-boundary", "status": "PASS_ISOLATED_ONLY", "evidence": "one synthetic rule in one isolated profile; no production-channel learning write"},
     {"capability": "release-license-owner-approval", "status": "APPROVED", "evidence": "combined controlled-acceptance approval; technical inventories complete"},
     {"capability": "code-signing", "status": "APPROVED_UNSIGNED_PRERELEASE", "evidence": "no certificate present; prerelease restriction retained"},
-    {"capability": "github-prerelease", "status": "APPROVED_PENDING_EXECUTION", "evidence": "must publish only the final re-locked deterministic asset set"}
+    {"capability": "github-prerelease", "status": "PASS", "evidence": "published as v0.8.0-rc.2; annotated tag resolves to the frozen implementation commit; all five packages were downloaded from GitHub and rehashed against the locked manifest"}
   ],
   "nonSubstitutionRules": {
     "syntheticUploadCannotSatisfyRealUpload": true,

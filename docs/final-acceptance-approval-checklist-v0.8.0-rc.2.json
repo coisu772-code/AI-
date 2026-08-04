@@ -2,7 +2,7 @@
   "schemaVersion": "1.0.0",
   "productVersion": "0.8.0-rc.2",
   "overallStatus": "CONTROLLED_REAL_ACCEPTANCE_PASS",
-  "releaseReadiness": "APPROVED_FOR_GITHUB_PRERELEASE",
+  "releaseReadiness": "GITHUB_PRERELEASE_PUBLISHED_AND_VERIFIED",
   "implementationSourceCommitSha": "b08bb215a6fd9fb22704d67a2332adbfeb5afd22",
   "metadataCommitSha": "b5ec60563d9388a4b9bf077ff5b03cda4f56d4c5",
   "unifiedManifestSha256": "fbdbb150a24b33fa788f1df31e83cdec9764899eb66560e74bd0309b5646f8d8",
@@ -30,7 +30,7 @@
     {"id": "formal-data-center-registration", "classification": "controlled-real-evidence", "executed": true, "evidence": {"namespace": "formal", "canonicalUpstreamContracts": 5, "normalizedPublicationReceipt": true, "scheduledCheckpoints": ["T+24H", "T+7D", "T+28D"]}},
     {"id": "youtube-owner-analytics", "classification": "time-and-authorization-gated", "executed": false, "evidence": {"status": "AUTH_REQUIRED_NOT_DUE", "firstDueAt": "2026-08-05T12:34:13Z", "fabricatedZeroValues": false, "reportGenerated": false}},
     {"id": "long-term-learning-write", "classification": "controlled-isolated-evidence", "executed": true, "evidence": {"scope": "one synthetic rule in one isolated test channel profile", "productionChannelWrite": false}},
-    {"id": "github-release-publication", "classification": "external-approval", "executed": false, "evidence": {"status": "APPROVED_PENDING_EXECUTION", "releaseType": "prerelease", "tagMustResolveTo": "b08bb215a6fd9fb22704d67a2332adbfeb5afd22"}}
+    {"id": "github-release-publication", "classification": "controlled-external-publication", "executed": true, "evidence": {"status": "PASS", "releaseType": "prerelease", "draft": false, "releaseUrl": "https://github.com/coisu772-code/AI-/releases/tag/v0.8.0-rc.2", "remoteMainCommitSha": "d369fc7fc3f200d0d8d1c33c2f73373b840d0d26", "annotatedTagObjectSha": "ab1cbc1d0256d7a68fa384edf36f1af9808bbdec", "tagResolvedCommitSha": "b08bb215a6fd9fb22704d67a2332adbfeb5afd22", "uploadedAssetCount": 7, "packageAssetCount": 5, "remoteDownloadHashVerification": "PASS"}}
   ],
   "restrictions": {
     "releaseType": "prerelease",

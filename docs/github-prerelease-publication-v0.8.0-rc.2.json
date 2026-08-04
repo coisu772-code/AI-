@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "1.0.0",
+  "productVersion": "0.8.0-rc.2",
+  "status": "PASS",
+  "publishedAt": "2026-08-04T13:29:10Z",
+  "release": {
+    "url": "https://github.com/coisu772-code/AI-/releases/tag/v0.8.0-rc.2",
+    "tag": "v0.8.0-rc.2",
+    "draft": false,
+    "prerelease": true,
+    "latest": false,
+    "remoteMainCommitShaAtPublication": "d369fc7fc3f200d0d8d1c33c2f73373b840d0d26",
+    "annotatedTagObjectSha": "ab1cbc1d0256d7a68fa384edf36f1af9808bbdec",
+    "tagResolvedCommitSha": "b08bb215a6fd9fb22704d67a2332adbfeb5afd22"
+  },
+  "assets": {
+    "total": 7,
+    "packages": 5,
+    "metadata": 2,
+    "manifestSha256": "fbdbb150a24b33fa788f1df31e83cdec9764899eb66560e74bd0309b5646f8d8",
+    "remoteDownloadedAndRehashed": true,
+    "allManifestSizesMatched": true,
+    "allManifestHashesMatched": true
+  },
+  "packageSha256": {
+    "AI-Video-Channel-Production-Unified-Installer-v0.8.0-rc.2.zip": "5ec2495d10b616108055142fbd9a162aa2a3e87c3ae97cde661e0a5492883cb0",
+    "ai-video-channel-production-core-v0.8.0-rc.2-windows.zip": "d8ece6e895f0266a70073020929b81579610d699a4c7e967cbe1e9f93a39db80",
+    "aivcp-python-runtime-3.12.13-windows-x64.zip": "4f47a2f3fc01a8b12fc6489582231704b48cc74c8ced6eb58ea3b75dcaa48c43",
+    "Z-Manga-Workshop-2.1.0-stage5-for-AIVCP-0.8.0-rc.1-windows-x64-portable.zip": "7a9cb4562e3c82606436ad76d1620a1fa1d59a652deb9f46be01cccad5085167",
+    "youtube-publisher-center-v0.8.0-rc.2-windows-amd64.zip": "8d2644c11310fd5ee31f6e39250f75a000ccf038cd8c35a9eed8f0f23388c48d"
+  },
+  "privacy": {
+    "youtubeChannelIdIncluded": false,
+    "youtubeVideoIdIncluded": false,
+    "channelNameIncluded": false,
+    "oauthTokenIncluded": false,
+    "credentialIncluded": false
+  },
+  "conclusion": "The approved GitHub prerelease was published from the frozen annotated tag, and every downloadable package was independently downloaded and rehashed against the locked manifest."
+}
