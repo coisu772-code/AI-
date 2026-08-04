@@ -15,11 +15,15 @@ try {
     $env:PYTHONUTF8 = "1"; $env:PYTHONDONTWRITEBYTECODE = "1"
     & $uv.Source sync --locked
     if ($LASTEXITCODE -ne 0) { throw "Locked dependency synchronization failed." }
+    $officialPluginValidator = Join-Path $env:USERPROFILE ".codex\skills\.system\plugin-creator\scripts\validate_plugin.py"
+    if (-not (Test-Path -LiteralPath $officialPluginValidator -PathType Leaf)) { throw "Bundled official plugin validator is unavailable." }
+    & $uv.Source run python $officialPluginValidator (Join-Path $root "plugins\ai-video-channel-production")
+    if ($LASTEXITCODE -ne 0) { throw "Bundled official plugin validator failed." }
     & $uv.Source run python tools\validate_plugin.py
     if ($LASTEXITCODE -ne 0) { throw "Official-structure plugin/repository marketplace validation failed." }
     & $uv.Source run python tools\validate_release_manifest.py
     if ($LASTEXITCODE -ne 0) { throw "Committed unified manifest validation failed." }
-    & $uv.Source run python -m unittest discover -s tests -p "test_*.py" -q
+    & $uv.Source run python tools\run_unittest_suite.py --output (Join-Path $evidence "unit-test-summary.json")
     if ($LASTEXITCODE -ne 0) { throw "Full unit test suite failed." }
     & $uv.Source run python tools\validate_unified_release.py --manifest (Join-Path $assets "unified-release-v0.8.0-rc.2.json") --asset-root $assets --report (Join-Path $evidence "unified-release-scan.json")
     if ($LASTEXITCODE -ne 0) { throw "Unified asset security validation failed." }
@@ -28,6 +32,8 @@ try {
     $shortE2eRoot = "C:\AIVCP-S8-E2E-" + [guid]::NewGuid().ToString("N").Substring(0, 8)
     & $uv.Source run python (Join-Path $root "tools\generate_stage8_fixture_outputs.py") --output $shortE2eRoot
     if ($LASTEXITCODE -ne 0) { throw "Three-market synthetic workflow validation failed." }
+    & $uv.Source run python (Join-Path $root "tools\validate_publisher_relock.py") --publisher-zip (Join-Path $assets "youtube-publisher-center-v0.8.0-rc.2-windows-amd64.zip") --stage8-output $shortE2eRoot --report (Join-Path $evidence "publisher-relock-validation.json")
+    if ($LASTEXITCODE -ne 0) { throw "Final publisher Stage6 catalog re-lock validation failed." }
     Copy-Item -LiteralPath (Join-Path $shortE2eRoot "summary.json") -Destination (Join-Path $evidence "three-market-summary.json")
     $shortE2eFull = [System.IO.Path]::GetFullPath($shortE2eRoot)
     if (-not $shortE2eFull.StartsWith("C:\AIVCP-S8-E2E-", [System.StringComparison]::OrdinalIgnoreCase)) { throw "Unexpected synthetic evidence cleanup root." }
@@ -40,10 +46,13 @@ try {
     if (@($approval.gates | Where-Object { [string]$_.classification -eq "external-approval" -and [bool]$_.executed }).Count -ne 0) { throw "An external approval gate was incorrectly marked executed." }
     $summary = [ordered]@{
         schemaVersion="1.0.0"; productVersion="0.8.0-rc.2"; status="LOCAL_UNIFIED_RC_PASS"; fullMvpStatus="WAITING_FOR_CONTROLLED_REAL_ACCEPTANCE"
-        unitSuite="PASS"; pluginValidation="PASS"; unifiedAssetScan="PASS"; lifecycle="PASS"; threeMarketSynthetic="PASS"
+        unitSuite="PASS"; officialPluginValidator="PASS"; repositoryMarketplaceValidator="PASS"; codexCliSmoke="NOT_RUN_REQUIRES_EXECUTABLE_CLI_OR_APP_RESTART"
+        unifiedAssetScan="PASS"; lifecycle="PASS"; threeMarketSynthetic="PASS"; publisherStage6Relock="PASS"; stalePublisherCatalogRejected="CONSTRAINTS_CATALOG_MISMATCH"
         implementationSourceBinding="PASS"; implementationSourceCommit="7a6bfa9f438a72e1f613f5b32b5f8d551be563e5"; externalActionsExecuted=$false; approvalChecklist=(Join-Path $root "docs\final-acceptance-approval-checklist-v0.8.0-rc.2.json")
     }
     $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $evidence "stage8-summary.json") -Encoding UTF8
+    & $uv.Source run python tools\validate_release_json_parsers.py --asset-root $assets --evidence-root $evidence --report (Join-Path $evidence "json-parser-validation.json")
+    if ($LASTEXITCODE -ne 0) { throw "PowerShell/Python/Node JSON parser validation failed." }
 }
 finally {
     Remove-Item Env:PYTHONUTF8 -ErrorAction SilentlyContinue

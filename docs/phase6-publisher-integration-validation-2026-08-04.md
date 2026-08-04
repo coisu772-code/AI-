@@ -86,7 +86,7 @@
 
 `summary.json` SHA-256：`c0acda4ebd6badae4e88058146d72f348eab631fb5c3cf4f268a52dc67fd549b`
 
-YouTube constraints catalog：版本 `2026.08.04.1`，SHA-256 `28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a`。
+YouTube constraints catalog：版本 `2026.08.04.1`，按最终 Windows 发布中心嵌入的 CRLF 精确字节重新锁定，SHA-256 `a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13`。旧 LF 字节 SHA-256 `28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a` 仅用于负向夹具，发布中心必须以 `CONSTRAINTS_CATALOG_MISMATCH` 拒绝。
 
 | 市场 | publish_intent_id | 策略 | 状态/阻断 | Package content hash | Manifest SHA-256 |
 | --- | --- | --- | --- | --- | --- |

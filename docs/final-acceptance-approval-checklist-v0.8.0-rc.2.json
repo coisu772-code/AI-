@@ -17,7 +17,8 @@
         "verification": "Two deterministic builds plus manifest validation and release dry-run."
       }
     },
-    { "id": "publisher-third-party-notices", "classification": "external-approval", "owner": "legal-release-owner", "executed": false, "evidenceRequired": "Review dependencies and provide required notices; current ZIP has no standalone notice file." },
+    { "id": "technical-license-inventories", "classification": "local-evidence", "owner": "stage8c", "executed": true, "evidence": { "status": "TECHNICALLY_VALIDATED", "report": "release-security-license-evidence-v0.8.0-rc.2.json", "publisherReviewRequired": 0, "pythonPackageCount": 12, "pythonLicenseEntryCount": 58, "legalAdviceOrSignoff": false } },
+    { "id": "release-license-owner-approval", "classification": "external-approval", "owner": "legal-release-owner", "executed": false, "evidenceRequired": "Release owner/legal reviewer must approve the technically complete publisher, Python runtime and workshop inventories; technical validation is not legal advice or signoff." },
     { "id": "clean-windows-install", "classification": "external-approval", "owner": "release-owner", "executed": false, "evidenceRequired": "Fresh Windows 10/11 x64 machine with no Python or uv." },
     { "id": "code-signing-publisher-identity", "classification": "external-approval", "owner": "release-owner", "executed": false, "evidenceRequired": "Approved signing and Windows reputation evidence." },
     { "id": "github-release-publication", "classification": "external-approval", "owner": "main-thread", "executed": false, "evidenceRequired": "Explicit authorization for the pre-existing tag and GitHub Release; verify that the tag resolves to the bound implementation/source history." },

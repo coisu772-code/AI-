@@ -18,6 +18,8 @@ PYTHON_VERSION = "3.12.13"
 PYTHON_BUILD = "20260610"
 FIXED_TIME = (2026, 8, 4, 0, 0, 0)
 TEXT_SUFFIXES = {".cmd", ".json", ".md", ".ps1", ".py", ".txt", ".yaml", ".yml"}
+EXACT_BYTE_TEXT_PATHS = {"contracts/youtube-constraints/catalog-2026.08.04.1.json"}
+RUNTIME_LICENSE_NAME_MARKERS = ("license", "copying", "notice", "copyright", "patent", "authors")
 CORE_ITEMS = (".agents", "plugins", "contracts", "installer", "release-manifests", "docs", "README.md", "CHANGELOG.md", "LICENSE.md")
 BOOTSTRAP_FILES = (
     "installer/Common.ps1",
@@ -30,9 +32,13 @@ WORKSHOP_SHA = "7a9cb4562e3c82606436ad76d1620a1fa1d59a652deb9f46be01cccad5085167
 WORKSHOP_SIZE = 82990897
 WORKSHOP_ROOT = "Z-Manga-Workshop-2.1.0-stage5-for-AIVCP-0.8.0-rc.1-windows-x64-portable"
 PUBLISHER_NAME = "youtube-publisher-center-v0.8.0-rc.2-windows-amd64.zip"
-PUBLISHER_SHA = "4f51f1a4ba4808261f24599da86f710330c76132a64793c70f111278440239d3"
-PUBLISHER_SIZE = 32435182
+PUBLISHER_SHA = "8d2644c11310fd5ee31f6e39250f75a000ccf038cd8c35a9eed8f0f23388c48d"
+PUBLISHER_SIZE = 32585503
 PUBLISHER_ROOT = "youtube-publisher-center-v0.8.0-rc.2-windows-amd64"
+PUBLISHER_SOURCE_COMMIT = "e6350fd290e2e75782334d712ba01ad0411a1efd"
+PUBLISHER_COMPONENT_MANIFEST_NAME = "publisher-component-manifest-v0.8.0-rc.2.json"
+PUBLISHER_COMPONENT_MANIFEST_SHA = "ead48c9c0c234512ab16ef978d35e2f1dc15c6332b298d0513b2d784548514b8"
+PUBLISHER_CONSTRAINTS_SHA = "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13"
 
 
 def sha256(path: Path) -> str:
@@ -45,7 +51,8 @@ def sha256(path: Path) -> str:
 
 def normalized(path: Path) -> bytes:
     data = path.read_bytes()
-    if path.suffix.lower() in TEXT_SUFFIXES:
+    relative = path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else ""
+    if path.suffix.lower() in TEXT_SUFFIXES and relative not in EXACT_BYTE_TEXT_PATHS:
         data = data.decode("utf-8-sig").replace("\r\n", "\n").replace("\r", "\n").encode("utf-8")
     return data
 
@@ -116,7 +123,7 @@ def build_bootstrap(output: Path) -> dict[str, object]:
     return result | {"path": str(target), "fileCount": len(files)}
 
 
-def prepare_runtime(runtime_source: Path, uv: Path, working: Path) -> tuple[Path, list[dict[str, object]]]:
+def prepare_runtime(runtime_source: Path, uv: Path, working: Path) -> tuple[Path, list[dict[str, object]], dict[str, object]]:
     runtime = working / f"aivcp-python-runtime-{PYTHON_VERSION}"
     shutil.copytree(runtime_source, runtime)
     for pycache in list(runtime.rglob("__pycache__")):
@@ -141,12 +148,31 @@ def prepare_runtime(runtime_source: Path, uv: Path, working: Path) -> tuple[Path
     inventory_script = (
         "import importlib.metadata as m,json;"
         "print(json.dumps([{'name':d.metadata['Name'],'version':d.version,'licenseExpression':d.metadata.get('License-Expression'),"
-        "'license':d.metadata.get('License'),'homePage':d.metadata.get('Home-page')} for d in m.distributions()],sort_keys=True))"
+        "'license':d.metadata.get('License'),'licenseFiles':d.metadata.get_all('License-File') or [],"
+        "'homePage':d.metadata.get('Home-page')} for d in m.distributions()],sort_keys=True))"
     )
     inventory = sorted(
         json.loads(subprocess.check_output([str(runtime / "python.exe"), "-c", inventory_script], text=True, encoding="utf-8")),
         key=lambda item: (str(item.get("name", "")).lower(), str(item.get("version", ""))),
     )
+    license_entries = sorted(
+        path.relative_to(runtime).as_posix()
+        for path in runtime.rglob("*")
+        if path.is_file() and any(marker in path.name.lower() for marker in RUNTIME_LICENSE_NAME_MARKERS)
+    )
+    missing_declared_license = [item["name"] for item in inventory if not (item.get("licenseExpression") or item.get("license"))]
+    missing_license_file = [item["name"] for item in inventory if not item.get("licenseFiles")]
+    technical_license_inventory = {
+        "status": "TECHNICALLY_VALIDATED_LEGAL_APPROVAL_REQUIRED",
+        "packageCount": len(inventory),
+        "licenseEntryCount": len(license_entries),
+        "missingDeclaredLicense": missing_declared_license,
+        "missingLicenseFile": missing_license_file,
+        "reviewRequired": len(missing_declared_license) + len(missing_license_file),
+        "legalAdviceOrSignoff": False,
+    }
+    if len(inventory) != 12 or len(license_entries) != 58 or technical_license_inventory["reviewRequired"] != 0:
+        raise RuntimeError(f"Python runtime technical license inventory mismatch: {technical_license_inventory}")
     runtime_manifest = {
         "schemaVersion": "1.0.0",
         "componentId": "python-runtime",
@@ -155,26 +181,56 @@ def prepare_runtime(runtime_source: Path, uv: Path, working: Path) -> tuple[Path
         "distribution": "python-build-standalone via uv managed runtime",
         "source": "https://github.com/astral-sh/python-build-standalone",
         "licenseFile": "LICENSE.txt",
+        "technicalLicenseInventory": technical_license_inventory,
         "packages": inventory,
     }
     (runtime / "RUNTIME-MANIFEST.json").write_text(json.dumps(runtime_manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
-    return runtime, inventory
+    return runtime, inventory, technical_license_inventory
 
 
 def build_runtime(output: Path, runtime_source: Path, uv: Path, working: Path) -> dict[str, object]:
-    runtime, inventory = prepare_runtime(runtime_source, uv, working)
+    runtime, inventory, technical_license_inventory = prepare_runtime(runtime_source, uv, working)
     files = []
     for path in runtime.rglob("*"):
         if path.is_file() and "__pycache__" not in path.parts and path.suffix.lower() != ".pyc":
             files.append((path.relative_to(runtime).as_posix(), normalized(path)))
     target = output / f"aivcp-python-runtime-{PYTHON_VERSION}-windows-x64.zip"
     result = deterministic_zip(target, runtime.name, files)
-    return result | {"path": str(target), "fileCount": len(files), "packageInventory": inventory}
+    return result | {"path": str(target), "fileCount": len(files), "packageInventory": inventory, "technicalLicenseInventory": technical_license_inventory}
 
 
 def assert_frozen(path: Path, expected_size: int, expected_sha: str) -> None:
     if not path.is_file() or path.stat().st_size != expected_size or sha256(path) != expected_sha:
         raise RuntimeError(f"frozen upstream asset mismatch: {path.name}")
+
+
+def publisher_machine_manifest(path: Path) -> dict[str, object]:
+    if not path.is_file() or sha256(path) != PUBLISHER_COMPONENT_MANIFEST_SHA:
+        raise RuntimeError(f"publisher component manifest mismatch: {path.name}")
+    document = json.loads(path.read_text(encoding="utf-8"))
+    expected = {
+        "sourceCommit": document.get("source", {}).get("commit"),
+        "assetName": document.get("release_asset", {}).get("name"),
+        "assetSize": document.get("release_asset", {}).get("size_bytes"),
+        "assetSha256": document.get("release_asset", {}).get("sha256"),
+        "fileEntries": document.get("release_asset", {}).get("file_entries"),
+        "reviewRequired": document.get("legal_inventory", {}).get("review_required"),
+        "licenseTextFiles": document.get("legal_inventory", {}).get("license_text_files"),
+        "constraintsSha256": document.get("external_integration_gate", {}).get("publisher_constraints_sha256"),
+    }
+    required = {
+        "sourceCommit": PUBLISHER_SOURCE_COMMIT,
+        "assetName": PUBLISHER_NAME,
+        "assetSize": PUBLISHER_SIZE,
+        "assetSha256": PUBLISHER_SHA,
+        "fileEntries": 112,
+        "reviewRequired": 0,
+        "licenseTextFiles": 101,
+        "constraintsSha256": PUBLISHER_CONSTRAINTS_SHA,
+    }
+    if expected != required:
+        raise RuntimeError(f"publisher component manifest fields mismatch: {expected}")
+    return document
 
 
 def asset_record(asset_id: str, build: dict[str, object], **extra: object) -> dict[str, object]:
@@ -185,8 +241,10 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
     output.mkdir(parents=True, exist_ok=True)
     workshop_source = workshop_dir / WORKSHOP_NAME
     publisher_source = publisher_dir / PUBLISHER_NAME
+    publisher_manifest_path = publisher_dir / PUBLISHER_COMPONENT_MANIFEST_NAME
     assert_frozen(workshop_source, WORKSHOP_SIZE, WORKSHOP_SHA)
     assert_frozen(publisher_source, PUBLISHER_SIZE, PUBLISHER_SHA)
+    publisher_manifest = publisher_machine_manifest(publisher_manifest_path)
     with tempfile.TemporaryDirectory(prefix="aivcp-runtime-build-") as temp:
         working = Path(temp)
         core = build_core(output)
@@ -199,9 +257,9 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
     assets = [
         asset_record("unified-installer", bootstrap, version=VERSION, compatibleProductVersions=[VERSION], install=False, archiveRoot=f"AI-Video-Channel-Production-Unified-Installer-v{VERSION}", installSubpath="", license={"expression":"LicenseRef-AI-Video-Channel-Production-1.0","source":"LICENSE.md","reviewStatus":"product-license-applies"}, source={"repository":"https://github.com/coisu772-code/AI-/","commit":"LOCAL_COMMIT_TO_BE_RECORDED"}),
         asset_record("core", core, version=VERSION, compatibleProductVersions=[VERSION], install=True, archiveRoot="ai-video-channel-production-core", installSubpath="", license={"expression":"LicenseRef-AI-Video-Channel-Production-1.0","source":"LICENSE.md","reviewStatus":"product-license-applies"}, source={"repository":"https://github.com/coisu772-code/AI-/","commit":"LOCAL_COMMIT_TO_BE_RECORDED"}),
-        asset_record("python-runtime", runtime, version=PYTHON_VERSION, compatibleProductVersions=[VERSION], install=True, archiveRoot=f"aivcp-python-runtime-{PYTHON_VERSION}", installSubpath="runtime/python", license={"expression":"PSF-2.0 AND bundled-third-party-licenses","source":"LICENSE.txt and package dist-info license files","reviewStatus":"inventory-generated-review-required"}, source={"url":"https://github.com/astral-sh/python-build-standalone","build":PYTHON_BUILD}),
-        {"assetId":"workshop","fileName":WORKSHOP_NAME,"sizeBytes":WORKSHOP_SIZE,"sha256":WORKSHOP_SHA,"version":"2.1.0-stage5","compatibleProductVersions":["0.8.0-rc.1",VERSION],"install":True,"archiveRoot":WORKSHOP_ROOT,"installSubpath":"apps/workshop","license":{"expression":"LicenseRef-AIVCP-Workshop AND GPL-3.0-only","source":"licenses/ application license, FFmpeg GPL text and Gyan README inside archive","reviewStatus":"upstream-machine-validated"},"source":{"commit":"224e11ecdaec2eae2833ac9f63893f9d72ac5c84","upstreamReport":"validation-summary-v2.1.0-stage5.json"}},
-        {"assetId":"publisher-center","fileName":PUBLISHER_NAME,"sizeBytes":PUBLISHER_SIZE,"sha256":PUBLISHER_SHA,"version":VERSION,"compatibleProductVersions":[VERSION],"install":True,"archiveRoot":PUBLISHER_ROOT,"installSubpath":"apps/publisher","license":{"expression":"LicenseRef-AI-Video-Channel-Production-1.0","source":"product LICENSE.md (archive has no standalone LICENSE or THIRD-PARTY-NOTICES)","reviewStatus":"manual-third-party-notice-review-required"},"source":{"commit":"62453a0c06cf7a678beff22f650c8277e87e3613","acceptanceStatus":"CANDIDATE_READY_FOR_CONTROLLED_REAL_ACCEPTANCE"}},
+        asset_record("python-runtime", runtime, version=PYTHON_VERSION, compatibleProductVersions=[VERSION], install=True, archiveRoot=f"aivcp-python-runtime-{PYTHON_VERSION}", installSubpath="runtime/python", license={"expression":"PSF-2.0 AND bundled-third-party-licenses","source":"LICENSE.txt plus 58 license entries covering all 12 packages","reviewStatus":"technical-inventory-validated-release-owner-approval-required"}, source={"url":"https://github.com/astral-sh/python-build-standalone","build":PYTHON_BUILD,"technicalLicenseInventory":runtime["technicalLicenseInventory"]}),
+        {"assetId":"workshop","fileName":WORKSHOP_NAME,"sizeBytes":WORKSHOP_SIZE,"sha256":WORKSHOP_SHA,"version":"2.1.0-stage5","compatibleProductVersions":["0.8.0-rc.1",VERSION],"install":True,"archiveRoot":WORKSHOP_ROOT,"installSubpath":"apps/workshop","license":{"expression":"LicenseRef-AIVCP-Workshop AND GPL-3.0-only","source":"licenses/ application license, FFmpeg GPL text and Gyan README inside archive","reviewStatus":"technical-inventory-validated-release-owner-approval-required"},"source":{"commit":"224e11ecdaec2eae2833ac9f63893f9d72ac5c84","upstreamReport":"validation-summary-v2.1.0-stage5.json"}},
+        {"assetId":"publisher-center","fileName":PUBLISHER_NAME,"sizeBytes":PUBLISHER_SIZE,"sha256":PUBLISHER_SHA,"version":VERSION,"compatibleProductVersions":[VERSION],"install":True,"archiveRoot":PUBLISHER_ROOT,"installSubpath":"apps/publisher","license":{"expression":"LicenseRef-AI-Video-Channel-Production-1.0 AND bundled-third-party-licenses","source":"LICENSE.md, THIRD-PARTY-NOTICES.json/.md and 101 third-party license texts inside archive","reviewStatus":"technical-inventory-validated-release-owner-approval-required"},"source":{"commit":PUBLISHER_SOURCE_COMMIT,"acceptanceStatus":"CANDIDATE_READY_FOR_CONTROLLED_REAL_ACCEPTANCE","componentManifest":{"fileName":PUBLISHER_COMPONENT_MANIFEST_NAME,"sha256":PUBLISHER_COMPONENT_MANIFEST_SHA},"constraintsCatalog":{"version":"2026.08.04.1","sha256":PUBLISHER_CONSTRAINTS_SHA},"fileEntries":publisher_manifest["release_asset"]["file_entries"],"licenseReviewRequired":publisher_manifest["legal_inventory"]["review_required"]}},
     ]
     manifest = {
         "schemaVersion":"2.0.0","productId":"ai-video-channel-production","productName":"AI 视频频道生产系统","productVersion":VERSION,
@@ -213,7 +271,7 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
             {"relativeInstallPath":"apps/workshop/tools/ffmpeg/bin/ffprobe.exe","sizeBytes":101692928,"sha256":"b49ccc7c6547b141ad5a2f6ec69cc04323d7133d7704d70b331b904c63eecb07"}
         ]}],
         "safetyBoundaries":{"credentialsIncluded":False,"userDataIncluded":False,"oauthExecuted":False,"realUploadExecuted":False,"longTermLearningWriteExecuted":False},
-        "publicationGates":["replace-local-commit-placeholders","publisher-third-party-notice-review","clean-windows-acceptance","github-release-approval","google-oauth-approval","private-upload-approval","studio-data-approval","long-term-learning-write-approval"]
+        "publicationGates":["replace-local-commit-placeholders","release-license-owner-approval","clean-windows-acceptance","github-release-approval","google-oauth-approval","private-upload-approval","studio-data-approval","long-term-learning-write-approval"]
     }
     manifest_path = output / f"unified-release-v{VERSION}.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
@@ -222,9 +280,11 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
     checksums.write_text("".join(f"{sha256(path)}  {path.name}\n" for path in sorted(checksum_paths, key=lambda item: item.name)), encoding="ascii", newline="\n")
     report = {
         "schemaVersion":"1.0.0","status":"BUILD_PASS","productVersion":VERSION,"assets":assets,
-        "manifest":{"path":str(manifest_path),"sizeBytes":manifest_path.stat().st_size,"sha256":sha256(manifest_path)},
-        "checksums":{"path":str(checksums),"sizeBytes":checksums.stat().st_size,"sha256":sha256(checksums)},
-        "runtimePackageCount":len(runtime["packageInventory"]),"upstreamInputsUnmodified":True,"externalActionsExecuted":False,
+        "manifest":{"fileName":manifest_path.name,"sizeBytes":manifest_path.stat().st_size,"sha256":sha256(manifest_path)},
+        "checksums":{"fileName":checksums.name,"sizeBytes":checksums.stat().st_size,"sha256":sha256(checksums)},
+        "runtimePackageCount":len(runtime["packageInventory"]),"runtimeTechnicalLicenseInventory":runtime["technicalLicenseInventory"],
+        "publisherMachineManifest":{"fileName":publisher_manifest_path.name,"sha256":sha256(publisher_manifest_path),"sourceCommit":publisher_manifest["source"]["commit"]},
+        "upstreamInputsUnmodified":True,"externalActionsExecuted":False,
     }
     report_path = output / "unified-release-build-report.json"
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")

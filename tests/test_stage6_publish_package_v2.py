@@ -29,6 +29,8 @@ from stage5_support import build_stage5_context, mutation_arguments  # noqa: E40
 
 
 CATALOG = ROOT / "contracts" / "youtube-constraints" / "catalog-2026.08.04.1.json"
+CATALOG_SHA256 = "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13"
+STALE_CATALOG_SHA256 = "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a"
 THUMBNAIL = ROOT / "contracts" / "examples" / "valid" / "fixtures" / "confirmed-thumbnail-1600x900.png"
 CREATED_AT = "2026-08-04T04:00:00Z"
 
@@ -196,6 +198,17 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
         )
         self.assertTrue(duplicate["duplicate"])
         self.assertEqual(first["publish_intent_id"], duplicate["publish_intent_id"])
+
+    def test_exact_publisher_catalog_is_locked_and_stale_catalog_fails(self) -> None:
+        self.assertEqual(CATALOG_SHA256, _sha(CATALOG))
+        exact = self._assemble(name="exact-catalog")
+        stale_catalog = self.root / "stale-catalog.json"
+        stale_catalog.write_bytes(CATALOG.read_bytes().replace(b"\r\n", b"\n"))
+        self.assertEqual(STALE_CATALOG_SHA256, _sha(stale_catalog))
+        self.assert_publish_error(
+            "PUBLISH_CONSTRAINTS_MISMATCH",
+            lambda: validate_publish_package_v2(Path(exact["package_path"]), constraints_catalog_path=stale_catalog),
+        )
 
     def test_service_exposes_five_offline_stage6_tools(self) -> None:
         definitions = {item["name"]: item for item in tool_definitions()}

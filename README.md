@@ -8,6 +8,8 @@
 
 完全离线安装需另外把 `unified-release-v0.8.0-rc.2.json`、核心包、Python 运行时、工坊包和发布中心包放在 `install.cmd` 同目录。每个组件都会先核对大小和 SHA-256，任何不一致都会终止并自动保留原版本。
 
+当前总清单锁定的新发布中心 SHA-256 为 `8d2644c11310fd5ee31f6e39250f75a000ccf038cd8c35a9eed8f0f23388c48d`；旧 publisher 包不能与本候选混用。发布中心、Python 运行时和工坊的技术许可证库存均已核对，但正式 Release 仍需发布负责人/法律审核者独立批准；技术核对不构成法律意见或签署。
+
 先决条件：Windows 10/11 x64、PowerShell 5.1 或更高版本、约 1 GB 可用空间，以及 Codex 桌面版或支持 `plugin` 命令的 Codex CLI。无需预装 Python、uv 或 FFmpeg。
 
 安装完成后，如窗口提示需要手动注册，请按 `CODEX-PLUGIN-SETUP.txt` 执行两条命令。然后重启 Codex，并新建任务；已有任务不会重新载入插件变化。

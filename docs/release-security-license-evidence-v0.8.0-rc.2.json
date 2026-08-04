@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "1.0.0",
+  "productVersion": "0.8.0-rc.2",
+  "status": "TECHNICAL_INVENTORIES_VALIDATED_LEGAL_APPROVAL_PENDING",
+  "technicalValidationIsLegalAdviceOrSignoff": false,
+  "components": {
+    "publisherCenter": {
+      "status": "TECHNICALLY_VALIDATED",
+      "sourceCommit": "e6350fd290e2e75782334d712ba01ad0411a1efd",
+      "assetSha256": "8d2644c11310fd5ee31f6e39250f75a000ccf038cd8c35a9eed8f0f23388c48d",
+      "componentManifestSha256": "ead48c9c0c234512ab16ef978d35e2f1dc15c6332b298d0513b2d784548514b8",
+      "fileEntries": 112,
+      "productLicensePresent": true,
+      "noticesJsonPresent": true,
+      "noticesMarkdownPresent": true,
+      "thirdPartyLicenseTexts": 101,
+      "reviewRequired": 0,
+      "npmAuditFindings": 0,
+      "forbiddenArtifactFindings": 0
+    },
+    "pythonRuntime": {
+      "status": "TECHNICALLY_VALIDATED",
+      "pythonVersion": "3.12.13",
+      "pythonBuild": "20260610",
+      "packageCount": 12,
+      "licenseEntryCount": 58,
+      "packagesMissingDeclaredLicense": 0,
+      "packagesMissingLicenseFile": 0,
+      "reviewRequired": 0
+    },
+    "workshop": {
+      "status": "TECHNICALLY_VALIDATED",
+      "sourceCommit": "224e11ecdaec2eae2833ac9f63893f9d72ac5c84",
+      "assetSha256": "7a9cb4562e3c82606436ad76d1620a1fa1d59a652deb9f46be01cccad5085167",
+      "applicationLicensePresent": true,
+      "ffmpegGplTextPresent": true,
+      "ffmpegBuildNoticePresent": true
+    }
+  },
+  "securityBoundaries": {
+    "credentialsIncluded": false,
+    "userOrChannelDataIncluded": false,
+    "developmentAbsolutePathsIncluded": false,
+    "oauthExecuted": false,
+    "youtubeApiCalled": false,
+    "realUploadExecuted": false,
+    "longTermLearningWriteExecuted": false
+  },
+  "remainingExternalGate": {
+    "id": "release-license-owner-approval",
+    "executed": false,
+    "reason": "A release owner/legal reviewer must make the distribution decision; this report supplies technical evidence only."
+  }
+}

@@ -15,8 +15,11 @@ import sys
 sys.path.insert(0, str(TOOLS))
 from build_unified_release import (  # noqa: E402
     PUBLISHER_NAME,
+    PUBLISHER_COMPONENT_MANIFEST_SHA,
+    PUBLISHER_CONSTRAINTS_SHA,
     PUBLISHER_SHA,
     PUBLISHER_SIZE,
+    PUBLISHER_SOURCE_COMMIT,
     VERSION,
     WORKSHOP_NAME,
     WORKSHOP_SHA,
@@ -50,14 +53,25 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
             self.assertTrue(asset["license"]["source"])
         self.assertTrue(assets["workshop"]["install"])
         self.assertTrue(assets["publisher-center"]["install"])
-        self.assertEqual("manual-third-party-notice-review-required", assets["publisher-center"]["license"]["reviewStatus"])
-        self.assertIn("publisher-third-party-notice-review", manifest["publicationGates"])
+        expected_license_status = "technical-inventory-validated-release-owner-approval-required"
+        self.assertEqual(expected_license_status, assets["publisher-center"]["license"]["reviewStatus"])
+        self.assertEqual(expected_license_status, assets["python-runtime"]["license"]["reviewStatus"])
+        self.assertEqual(expected_license_status, assets["workshop"]["license"]["reviewStatus"])
+        self.assertIn("release-license-owner-approval", manifest["publicationGates"])
 
     def test_frozen_upstream_records_are_exact(self) -> None:
         assets = {asset["assetId"]: asset for asset in self.manifest()["assets"]}
         self.assertEqual((WORKSHOP_NAME, WORKSHOP_SIZE, WORKSHOP_SHA), (assets["workshop"]["fileName"], assets["workshop"]["sizeBytes"], assets["workshop"]["sha256"]))
         self.assertEqual((PUBLISHER_NAME, PUBLISHER_SIZE, PUBLISHER_SHA), (assets["publisher-center"]["fileName"], assets["publisher-center"]["sizeBytes"], assets["publisher-center"]["sha256"]))
         self.assertEqual("CANDIDATE_READY_FOR_CONTROLLED_REAL_ACCEPTANCE", assets["publisher-center"]["source"]["acceptanceStatus"])
+        self.assertEqual(PUBLISHER_SOURCE_COMMIT, assets["publisher-center"]["source"]["commit"])
+        self.assertEqual(PUBLISHER_COMPONENT_MANIFEST_SHA, assets["publisher-center"]["source"]["componentManifest"]["sha256"])
+        self.assertEqual(PUBLISHER_CONSTRAINTS_SHA, assets["publisher-center"]["source"]["constraintsCatalog"]["sha256"])
+
+    def test_stage6_catalog_bytes_match_the_final_publisher(self) -> None:
+        catalog = ROOT / "contracts/youtube-constraints/catalog-2026.08.04.1.json"
+        self.assertEqual(PUBLISHER_CONSTRAINTS_SHA, hashlib.sha256(catalog.read_bytes()).hexdigest())
+        self.assertIn(b"\r\n", catalog.read_bytes())
 
     def test_runtime_is_standalone_and_ffmpeg_is_explicit(self) -> None:
         manifest = self.manifest()

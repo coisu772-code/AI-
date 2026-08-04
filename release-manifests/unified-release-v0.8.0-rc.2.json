@@ -33,10 +33,10 @@
       "fileName": "aivcp-python-runtime-3.12.13-windows-x64.zip",
       "install": true,
       "installSubpath": "runtime/python",
-      "license": { "expression": "PSF-2.0 AND bundled-third-party-licenses", "reviewStatus": "inventory-generated-review-required", "source": "LICENSE.txt and package dist-info license files" },
+      "license": { "expression": "PSF-2.0 AND bundled-third-party-licenses", "reviewStatus": "technical-inventory-validated-release-owner-approval-required", "source": "LICENSE.txt plus 58 license entries covering all 12 packages" },
       "sha256": "5659cf5796ad5c344b777cb3b27fd024cfa2c9a2aad828256e67e4dd08f4212b",
       "sizeBytes": 24823779,
-      "source": { "build": "20260610", "url": "https://github.com/astral-sh/python-build-standalone" },
+      "source": { "build": "20260610", "technicalLicenseInventory": { "legalAdviceOrSignoff": false, "licenseEntryCount": 58, "missingDeclaredLicense": [], "missingLicenseFile": [], "packageCount": 12, "reviewRequired": 0, "status": "TECHNICALLY_VALIDATED_LEGAL_APPROVAL_REQUIRED" }, "url": "https://github.com/astral-sh/python-build-standalone" },
       "version": "3.12.13"
     },
     {
@@ -46,7 +46,7 @@
       "fileName": "Z-Manga-Workshop-2.1.0-stage5-for-AIVCP-0.8.0-rc.1-windows-x64-portable.zip",
       "install": true,
       "installSubpath": "apps/workshop",
-      "license": { "expression": "LicenseRef-AIVCP-Workshop AND GPL-3.0-only", "reviewStatus": "upstream-machine-validated", "source": "licenses/ application license, FFmpeg GPL text and Gyan README inside archive" },
+      "license": { "expression": "LicenseRef-AIVCP-Workshop AND GPL-3.0-only", "reviewStatus": "technical-inventory-validated-release-owner-approval-required", "source": "licenses/ application license, FFmpeg GPL text and Gyan README inside archive" },
       "sha256": "7a9cb4562e3c82606436ad76d1620a1fa1d59a652deb9f46be01cccad5085167",
       "sizeBytes": 82990897,
       "source": { "commit": "224e11ecdaec2eae2833ac9f63893f9d72ac5c84", "upstreamReport": "validation-summary-v2.1.0-stage5.json" },
@@ -59,10 +59,10 @@
       "fileName": "youtube-publisher-center-v0.8.0-rc.2-windows-amd64.zip",
       "install": true,
       "installSubpath": "apps/publisher",
-      "license": { "expression": "LicenseRef-AI-Video-Channel-Production-1.0", "reviewStatus": "manual-third-party-notice-review-required", "source": "product LICENSE.md (archive has no standalone LICENSE or THIRD-PARTY-NOTICES)" },
-      "sha256": "4f51f1a4ba4808261f24599da86f710330c76132a64793c70f111278440239d3",
-      "sizeBytes": 32435182,
-      "source": { "acceptanceStatus": "CANDIDATE_READY_FOR_CONTROLLED_REAL_ACCEPTANCE", "commit": "62453a0c06cf7a678beff22f650c8277e87e3613" },
+      "license": { "expression": "LicenseRef-AI-Video-Channel-Production-1.0 AND bundled-third-party-licenses", "reviewStatus": "technical-inventory-validated-release-owner-approval-required", "source": "LICENSE.md, THIRD-PARTY-NOTICES.json/.md and 101 third-party license texts inside archive" },
+      "sha256": "8d2644c11310fd5ee31f6e39250f75a000ccf038cd8c35a9eed8f0f23388c48d",
+      "sizeBytes": 32585503,
+      "source": { "acceptanceStatus": "CANDIDATE_READY_FOR_CONTROLLED_REAL_ACCEPTANCE", "commit": "e6350fd290e2e75782334d712ba01ad0411a1efd", "componentManifest": { "fileName": "publisher-component-manifest-v0.8.0-rc.2.json", "sha256": "ead48c9c0c234512ab16ef978d35e2f1dc15c6332b298d0513b2d784548514b8" }, "constraintsCatalog": { "sha256": "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13", "version": "2026.08.04.1" }, "fileEntries": 112, "licenseReviewRequired": 0 },
       "version": "0.8.0-rc.2"
     }
   ],
@@ -87,7 +87,7 @@
   "productVersion": "0.8.0-rc.2",
   "publicationGates": [
     "tag-to-source-commit-verification",
-    "publisher-third-party-notice-review",
+    "release-license-owner-approval",
     "clean-windows-acceptance",
     "github-release-approval",
     "google-oauth-approval",

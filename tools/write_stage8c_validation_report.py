@@ -41,6 +41,11 @@ def main() -> int:
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
     status = subprocess.check_output(["git", "status", "--porcelain"], cwd=root, text=True, encoding="utf-8").splitlines()
     checklist = json.loads((root / "docs/final-acceptance-approval-checklist-v0.8.0-rc.2.json").read_text(encoding="utf-8"))
+    unit_summary = json.loads((evidence / "unit-test-summary.json").read_text(encoding="utf-8"))
+    publisher_relock = json.loads((evidence / "publisher-relock-validation.json").read_text(encoding="utf-8"))
+    json_parsers = json.loads((evidence / "json-parser-validation.json").read_text(encoding="utf-8"))
+    if unit_summary.get("status") != "PASS" or publisher_relock.get("status") != "PASS" or json_parsers.get("status") != "PASS":
+        raise SystemExit("test evidence is not complete")
     binding = next(gate for gate in checklist["gates"] if gate["id"] == "implementation-source-binding")
     bound_sources = {
         asset["assetId"]: asset.get("source", {}).get("commit")
@@ -65,16 +70,16 @@ def main() -> int:
             "manifestSha256":sha256(manifest_path),
             "reportSelfBinding":False
         },
-        "tests":{"unit":{"total":141,"passed":139,"failed":0,"skipped":2},"pluginAndMarketplace":"PASS","contractExamples":10,"repositorySafetyFiles":306,"unifiedAssetScan":"PASS","isolatedLifecycle":"PASS","threeMarketRecordedSynthetic":"PASS","releaseDryRun":"PASS"},
+        "tests":{"unit":unit_summary,"officialPluginValidator":"PASS","repositoryMarketplaceValidator":"PASS","codexCliSmoke":"NOT_RUN_REQUIRES_EXECUTABLE_CLI_OR_APP_RESTART","contractExamples":10,"repositorySafety":"PASS","unifiedAssetScan":"PASS","isolatedLifecycle":"PASS","threeMarketRecordedSynthetic":"PASS","publisherStage6Relock":"PASS","stalePublisherCatalogRejected":"CONSTRAINTS_CATALOG_MISMATCH","jsonParsers":json_parsers,"releaseDryRun":"PASS"},
         "reproducibility":{"status":"PASS" if all(item["identical"] for item in reproducible) else "FAIL","files":reproducible},
         "releaseFiles":release_files,
-        "evidence":{"directory":str(evidence),"stage8Summary":str(evidence / "stage8-summary.json"),"lifecycleSummary":str(evidence / "installation-lifecycle/lifecycle-summary.json"),"assetScan":str(evidence / "unified-release-scan.json"),"threeMarketSummary":str(evidence / "three-market-summary.json")},
+        "evidence":{"directory":str(evidence),"stage8Summary":str(evidence / "stage8-summary.json"),"unitTestSummary":str(evidence / "unit-test-summary.json"),"lifecycleSummary":str(evidence / "installation-lifecycle/lifecycle-summary.json"),"assetScan":str(evidence / "unified-release-scan.json"),"threeMarketSummary":str(evidence / "three-market-summary.json"),"publisherRelock":str(evidence / "publisher-relock-validation.json"),"jsonParserValidation":str(evidence / "json-parser-validation.json")},
         "upstreamProtection":{
             "workshop":{"sourceCommit":"224e11ecdaec2eae2833ac9f63893f9d72ac5c84","zipSha256":"7a9cb4562e3c82606436ad76d1620a1fa1d59a652deb9f46be01cccad5085167","inputRecomputedAfterValidation":True},
-            "publisher":{"sourceCommit":"62453a0c06cf7a678beff22f650c8277e87e3613","zipSha256":"4f51f1a4ba4808261f24599da86f710330c76132a64793c70f111278440239d3","inputRecomputedAfterValidation":True,"networkAcceptance":"CANDIDATE_READY_FOR_CONTROLLED_REAL_ACCEPTANCE"},
+            "publisher":{"sourceCommit":"e6350fd290e2e75782334d712ba01ad0411a1efd","zipSha256":"8d2644c11310fd5ee31f6e39250f75a000ccf038cd8c35a9eed8f0f23388c48d","componentManifestSha256":"ead48c9c0c234512ab16ef978d35e2f1dc15c6332b298d0513b2d784548514b8","inputRecomputedAfterValidation":True,"distributionRelock":publisher_relock,"networkAcceptance":"CANDIDATE_READY_FOR_CONTROLLED_REAL_ACCEPTANCE"},
             "formalExecutableOverwriteExecuted":False,"upstreamRepositoryWriteExecuted":False,"inputAssetsCopiedReadOnly":True
         },
-        "licenseGates":{"publisherThirdPartyNotices":"MANUAL_REVIEW_REQUIRED","pythonRuntimeInventory":"GENERATED_REVIEW_REQUIRED","workshopFfmpeg":"GPL-3.0-only-notices-present"},
+        "licenseEvidence":{"technicalInventoryStatus":"PASS","publisherReviewRequired":0,"pythonPackages":12,"pythonLicenseEntries":58,"workshopInventory":"PASS","legalAdviceOrSignoff":False,"externalReleaseOwnerApproval":"REQUIRED"},
         "prohibitedActions":{"push":False,"tag":False,"githubRelease":False,"oauth":False,"realUpload":False,"formalProgramOverwrite":False,"userDataMigrationOrDeletion":False,"longTermLearningWrite":False},
         "completedLocalEvidence":[gate for gate in checklist["gates"] if gate.get("classification") == "local-evidence" and gate["executed"]],
         "remainingApprovalGates":[gate for gate in checklist["gates"] if gate.get("classification") == "external-approval" and not gate["executed"]],

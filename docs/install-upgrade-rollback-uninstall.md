@@ -4,7 +4,7 @@
 
 统一 Release 使用一个锁定总清单管理五个 ZIP：明显的安装入口、无大型 EXE 的核心插件、本地 Python 3.12.13 运行时、新漫剧工坊、YouTube 发布中心。FFmpeg 8.1.2 与 ffprobe 是工坊包内的显式受管组件，清单记录两者的逐文件哈希、GPL-3.0 许可证来源和 `-version` 健康检查。
 
-发布中心应用代码沿用产品 `LICENSE.md`。其冻结 ZIP 没有单独的 `LICENSE` 或 `THIRD-PARTY-NOTICES` 文件，因此第三方告知审查是正式 Release 前的人工阻断门；本候选不得表述为已完成合规审查。
+发布中心冻结 ZIP 包含产品 `LICENSE.md`、`THIRD-PARTY-NOTICES.json`、`THIRD-PARTY-NOTICES.md` 和 101 份第三方许可证文本，机器清单的 `REVIEW_REQUIRED=0`。Python 运行时的 12 个包共有 58 个许可证条目，均有声明和许可证文件；工坊应用与 FFmpeg 告知也已技术核对。上述结果只证明技术库存完整，正式 Release 仍保留发布负责人/法律审核者批准门，不构成法律意见或签署。
 
 ## 安装
 

@@ -89,9 +89,55 @@ def validate(manifest_path: Path, asset_root: Path) -> dict[str, object]:
         zip_errors, zip_records = safe_zip_entries(path, asset["archiveRoot"], asset["assetId"] == "core")
         errors.extend(zip_errors)
         records_by_id[asset["assetId"]] = zip_records
-    publisher = next((asset for asset in manifest.get("assets", []) if asset.get("assetId") == "publisher-center"), {})
-    if publisher.get("license", {}).get("reviewStatus") != "manual-third-party-notice-review-required":
-        errors.append("publisher third-party notice review must remain an explicit gate")
+    assets_by_id = {asset.get("assetId"): asset for asset in manifest.get("assets", [])}
+    publisher = assets_by_id.get("publisher-center", {})
+    runtime_asset = assets_by_id.get("python-runtime", {})
+    if publisher.get("license", {}).get("reviewStatus") != "technical-inventory-validated-release-owner-approval-required":
+        errors.append("publisher technical inventory status or external release-owner gate is missing")
+    if runtime_asset.get("license", {}).get("reviewStatus") != "technical-inventory-validated-release-owner-approval-required":
+        errors.append("Python runtime technical inventory status or external release-owner gate is missing")
+    if "release-license-owner-approval" not in manifest.get("publicationGates", []):
+        errors.append("release-owner license approval gate is missing")
+    publisher_source = publisher.get("source", {})
+    expected_publisher_source = {
+        "commit": "e6350fd290e2e75782334d712ba01ad0411a1efd",
+        "componentManifestSha256": "ead48c9c0c234512ab16ef978d35e2f1dc15c6332b298d0513b2d784548514b8",
+        "constraintsSha256": "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13",
+    }
+    if publisher_source.get("commit") != expected_publisher_source["commit"]:
+        errors.append("publisher source commit mismatch")
+    if publisher_source.get("componentManifest", {}).get("sha256") != expected_publisher_source["componentManifestSha256"]:
+        errors.append("publisher component manifest mismatch")
+    if publisher_source.get("constraintsCatalog", {}).get("sha256") != expected_publisher_source["constraintsSha256"]:
+        errors.append("publisher constraints catalog mismatch")
+    publisher_path = asset_root / publisher.get("fileName", "")
+    if publisher_path.is_file():
+        with zipfile.ZipFile(publisher_path) as archive:
+            root = publisher.get("archiveRoot", "") + "/"
+            file_names = [info.filename for info in archive.infolist() if not info.is_dir()]
+            if len(file_names) != 112:
+                errors.append(f"publisher file entry count mismatch: {len(file_names)}")
+            for required in ("LICENSE.md", "THIRD-PARTY-NOTICES.json", "THIRD-PARTY-NOTICES.md"):
+                if root + required not in file_names:
+                    errors.append(f"publisher license evidence missing: {required}")
+            license_texts = [name for name in file_names if name.startswith(root + "third-party-licenses/")]
+            if len(license_texts) != 101:
+                errors.append(f"publisher third-party license count mismatch: {len(license_texts)}")
+            notices_name = root + "THIRD-PARTY-NOTICES.json"
+            if notices_name in file_names:
+                notices = json.loads(archive.read(notices_name))
+                if notices.get("reviewRequired") != []:
+                    errors.append("publisher technical license inventory still has review-required entries")
+    runtime_path = asset_root / runtime_asset.get("fileName", "")
+    if runtime_path.is_file():
+        with zipfile.ZipFile(runtime_path) as archive:
+            runtime_manifest_name = runtime_asset.get("archiveRoot", "") + "/RUNTIME-MANIFEST.json"
+            runtime_manifest = json.loads(archive.read(runtime_manifest_name))
+            inventory = runtime_manifest.get("technicalLicenseInventory", {})
+            if inventory.get("packageCount") != 12 or inventory.get("licenseEntryCount") != 58 or inventory.get("reviewRequired") != 0:
+                errors.append(f"Python runtime technical license inventory mismatch: {inventory}")
+            if inventory.get("legalAdviceOrSignoff") is not False:
+                errors.append("Python runtime inventory must not claim legal advice or signoff")
     if manifest.get("runtime", {}).get("requiresPreinstalledPython") or manifest.get("runtime", {}).get("requiresPreinstalledUv"):
         errors.append("clean installation must not require preinstalled Python or uv")
     workshop_records = records_by_id.get("workshop", {})

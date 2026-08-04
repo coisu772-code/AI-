@@ -5,6 +5,8 @@
   "rows": [
     { "capability": "locked-assets-and-offline-install", "localStatus": "PROVABLE", "realStatus": "NOT_REQUIRED", "syntheticMaySatisfy": true },
     { "capability": "fake-online-release-source", "localStatus": "PROVABLE", "realStatus": "NOT_REQUIRED", "syntheticMaySatisfy": true },
+    { "capability": "publisher-stage6-exact-catalog-relock", "localStatus": "PROVABLE_WITH_FINAL_PUBLISHER_BINARY", "realStatus": "NOT_REQUIRED", "syntheticMaySatisfy": true },
+    { "capability": "technical-license-inventories", "localStatus": "TECHNICALLY_VALIDATED", "realStatus": "RELEASE_OWNER_LEGAL_APPROVAL_REQUIRED", "syntheticMaySatisfy": false },
     { "capability": "transaction-upgrade-repair-rollback-uninstall", "localStatus": "PROVABLE", "realStatus": "CLEAN_MACHINE_RECHECK_REQUIRED", "syntheticMaySatisfy": false },
     { "capability": "no-python-no-uv-unicode-spaces", "localStatus": "PROVABLE_BY_PATH_SIMULATION", "realStatus": "ANOTHER_CLEAN_WINDOWS_REQUIRED", "syntheticMaySatisfy": false },
     { "capability": "codex-plugin-load", "localStatus": "STRUCTURE_PROVABLE", "realStatus": "RESTART_AND_NEW_TASK_REQUIRED", "syntheticMaySatisfy": false },

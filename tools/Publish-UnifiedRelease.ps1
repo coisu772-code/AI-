@@ -18,7 +18,7 @@ foreach ($asset in @($manifest.assets)) {
     if ((Get-Item -LiteralPath $path).Length -ne [int64]$asset.sizeBytes) { throw "Size mismatch: $($asset.fileName)" }
     if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne [string]$asset.sha256) { throw "Hash mismatch: $($asset.fileName)" }
 }
-if (@($manifest.publicationGates | Where-Object { $_ -eq "publisher-third-party-notice-review" }).Count -ne 1) { throw "Publisher legal notice gate is missing." }
+if (@($manifest.publicationGates | Where-Object { $_ -eq "release-license-owner-approval" }).Count -ne 1) { throw "External release-owner license approval gate is missing." }
 if (-not $Execute) {
     Write-Output "DRY_RUN_PASS: all locked assets are present and verified. No tag, push, or GitHub Release action was executed."
     exit 0

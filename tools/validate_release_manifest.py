@@ -42,8 +42,17 @@ def validate_release_manifest(manifest_path: Path | None = None) -> list[str]:
         if any(asset.get("assetId") in {"workshop", "publisher-center"} and not asset.get("install") for asset in manifest.get("assets", [])):
             errors.append("workshop and publisher center must be installed release assets")
         publisher = next((asset for asset in manifest.get("assets", []) if asset.get("assetId") == "publisher-center"), {})
-        if publisher.get("license", {}).get("reviewStatus") != "manual-third-party-notice-review-required":
-            errors.append("publisher third-party notice review gate must remain explicit")
+        if publisher.get("license", {}).get("reviewStatus") != "technical-inventory-validated-release-owner-approval-required":
+            errors.append("publisher technical inventory status or external release-owner gate is missing")
+        source = publisher.get("source", {})
+        if source.get("commit") != "e6350fd290e2e75782334d712ba01ad0411a1efd":
+            errors.append("publisher source commit is not locked to the final candidate")
+        if source.get("componentManifest", {}).get("sha256") != "ead48c9c0c234512ab16ef978d35e2f1dc15c6332b298d0513b2d784548514b8":
+            errors.append("publisher component manifest is not locked")
+        if source.get("constraintsCatalog", {}).get("sha256") != "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13":
+            errors.append("publisher constraints catalog is not locked")
+        if "release-license-owner-approval" not in manifest.get("publicationGates", []):
+            errors.append("technical license validation must retain external release-owner approval")
         return errors
     selected_path = manifest_path or current_manifest_path()
     manifest = load_json(selected_path)
