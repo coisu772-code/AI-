@@ -10,7 +10,7 @@
       "license": { "expression": "LicenseRef-AI-Video-Channel-Production-1.0", "reviewStatus": "product-license-applies", "source": "LICENSE.md" },
       "sha256": "878864ce62da65f438f20580806e0aabdf2947657cc1365a2e5e7f9e9dbdfc78",
       "sizeBytes": 9198,
-      "source": { "commit": "7a6bfa9f438a72e1f613f5b32b5f8d551be563e5", "repository": "https://github.com/coisu772-code/AI-/" },
+      "source": { "commit": "53f9d2cc70f58408d013ee18e5d190a04562d2ab", "repository": "https://github.com/coisu772-code/AI-/" },
       "version": "0.8.0-rc.2"
     },
     {
@@ -21,9 +21,9 @@
       "install": true,
       "installSubpath": "",
       "license": { "expression": "LicenseRef-AI-Video-Channel-Production-1.0", "reviewStatus": "product-license-applies", "source": "LICENSE.md" },
-      "sha256": "65e08beeae85042a2c0fa87fde7f98a77deaf628fc284f161bd5fe691acdaefe",
-      "sizeBytes": 359923,
-      "source": { "commit": "7a6bfa9f438a72e1f613f5b32b5f8d551be563e5", "metadataCommit": "acb18134010f86f53fe482f258183126cdd26efa", "repository": "https://github.com/coisu772-code/AI-/" },
+      "sha256": "b09e9f20e24689c4799be03fc7b10837693829741fbdad9588d522e87710ff4e",
+      "sizeBytes": 361763,
+      "source": { "commit": "53f9d2cc70f58408d013ee18e5d190a04562d2ab", "metadataCommit": "0af4e35ff721add2717252c09b891383cc32f59d", "repository": "https://github.com/coisu772-code/AI-/" },
       "version": "0.8.0-rc.2"
     },
     {
@@ -34,8 +34,8 @@
       "install": true,
       "installSubpath": "runtime/python",
       "license": { "expression": "PSF-2.0 AND bundled-third-party-licenses", "reviewStatus": "technical-inventory-validated-release-owner-approval-required", "source": "LICENSE.txt plus 58 license entries covering all 12 packages" },
-      "sha256": "5659cf5796ad5c344b777cb3b27fd024cfa2c9a2aad828256e67e4dd08f4212b",
-      "sizeBytes": 24823779,
+      "sha256": "4f47a2f3fc01a8b12fc6489582231704b48cc74c8ced6eb58ea3b75dcaa48c43",
+      "sizeBytes": 24824171,
       "source": { "build": "20260610", "technicalLicenseInventory": { "legalAdviceOrSignoff": false, "licenseEntryCount": 58, "missingDeclaredLicense": [], "missingLicenseFile": [], "packageCount": 12, "reviewRequired": 0, "status": "TECHNICALLY_VALIDATED_LEGAL_APPROVAL_REQUIRED" }, "url": "https://github.com/astral-sh/python-build-standalone" },
       "version": "3.12.13"
     },
