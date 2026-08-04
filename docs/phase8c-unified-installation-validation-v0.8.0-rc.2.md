@@ -25,3 +25,5 @@
 ## 尚需外部批准/环境
 
 发布负责人/法律审核者许可批准、另一台干净 Windows 安装、代码签名与发布者身份、预先存在的发布 tag 到已绑定源码历史的核对、GitHub Release、Google/YouTube OAuth、受控 private 上传与真实回执、Studio 私有数据、正式工坊真实服务烟测和长期学习写回，均不能由本地合成结果代替。机器批准清单和真实验收矩阵分别见 `final-acceptance-approval-checklist-v0.8.0-rc.2.json` 与 `real-acceptance-matrix-v0.8.0-rc.2.json`。
+
+Windows Sandbox attempt 5（Windows 11 Enterprise 22621、WinPS 5.1、无 Python/py/uv、网络禁用）在安装健康检查中真实失败：默认 stdin `StreamWriter` 产生的字节被严格 MCP UTF-8/JSON 解析拒绝为 `-32700 Parse error`。修复在可用运行时显式设置无 BOM `StandardInputEncoding`，并对所有运行时直接向基础流写入无 BOM UTF-8 字节；服务端解析规则未放宽。本地 WinPS 5.1 源码与最终包回归必须通过，但 Sandbox 状态仍为 `FAIL_FIX_REQUIRES_CONTROLLED_RERUN`，主线程重跑前不得标为 PASS。旧 `fe4490a...` / installer `878864...` / manifest `158203...` 候选已作废。

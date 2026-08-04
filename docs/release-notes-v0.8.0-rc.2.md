@@ -6,5 +6,6 @@
 - 支持同目录离线资产或受锁定清单控制的在线缺失下载，并覆盖校验、事务安装、自动回滚、幂等重装、升级、修复、回滚及卸载保留数据。
 - Codex CLI 不可用时降级为明确的手动注册说明，不回滚健康程序。
 - CI 改为只读预检；正式 tag/Release 必须使用本地完整资产并获得单独批准。
+- 修复 Windows Sandbox/Windows PowerShell 5.1 中 MCP JSON-RPC stdin 的 BOM/编码缺陷：支持时显式设置 `StandardInputEncoding`，并始终直接写入无 BOM UTF-8 字节；MCP 严格 UTF-8/JSON 解析规则没有放宽。
 
-限制：发布中心仍是 `CANDIDATE_READY_FOR_CONTROLLED_REAL_ACCEPTANCE`。未执行 OAuth、真实上传、真实 Studio 数据读取或长期学习写回。发布中心 ZIP 已包含产品许可证、JSON/Markdown 告知和 101 份第三方许可证文本，Python 运行时 12 个包的 58 个许可证条目也已技术核对；这些证据不构成法律意见，正式 Release 仍需发布负责人/法律审核者批准。
+限制：Windows Sandbox attempt 5 是原始 `FAIL`，重建候选必须再次受控运行，不能由本地回归测试标为 PASS。旧 implementation `fe4490a...`、installer `878864...`、manifest `158203...` 已作废。发布中心仍是 `CANDIDATE_READY_FOR_CONTROLLED_REAL_ACCEPTANCE`；未执行 OAuth、真实上传、真实 Studio 数据读取或长期学习写回。发布中心 ZIP 已包含产品许可证、JSON/Markdown 告知和 101 份第三方许可证文本，Python 运行时 12 个包的 58 个许可证条目也已技术核对；这些证据不构成法律意见，正式 Release 仍需发布负责人/法律审核者批准。

@@ -173,13 +173,20 @@ if (-not $SkipServiceCheck) {
         $info.RedirectStandardInput = $true
         $info.RedirectStandardOutput = $true
         $info.RedirectStandardError = $true
-        $info.StandardOutputEncoding = [System.Text.UTF8Encoding]::new($false)
-        $info.StandardErrorEncoding = [System.Text.UTF8Encoding]::new($false)
+        $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+        if ($null -ne $info.PSObject.Properties["StandardInputEncoding"]) {
+            $info.StandardInputEncoding = $utf8NoBom
+        }
+        $info.StandardOutputEncoding = $utf8NoBom
+        $info.StandardErrorEncoding = $utf8NoBom
         $process = New-Object System.Diagnostics.Process
         $process.StartInfo = $info
         if (-not $process.Start()) { throw "Installation health check failed: local tool service process did not start." }
-        $process.StandardInput.WriteLine($RequestText)
-        $process.StandardInput.Close()
+        $inputBytes = $utf8NoBom.GetBytes($RequestText + "`n")
+        $inputStream = $process.StandardInput.BaseStream
+        $inputStream.Write($inputBytes, 0, $inputBytes.Length)
+        $inputStream.Flush()
+        $inputStream.Close()
         $stdout = $process.StandardOutput.ReadToEnd()
         $stderr = $process.StandardError.ReadToEnd()
         $process.WaitForExit()

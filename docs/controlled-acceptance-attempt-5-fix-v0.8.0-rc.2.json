@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0.0",
+  "productVersion": "0.8.0-rc.2",
+  "status": "FIX_IMPLEMENTED_LOCAL_VALIDATION_PENDING_CONTROLLED_SANDBOX_RERUN",
+  "sandboxAttempt": {
+    "id": "windows-sandbox-attempt-5",
+    "status": "FAIL",
+    "environment": "Windows 11 Enterprise 22621; Windows PowerShell 5.1; no Python/py/uv; network disabled",
+    "evidenceFile": "clean-windows-sandbox-result.json",
+    "evidenceSizeBytes": 6514,
+    "evidenceSha256": "a2a7cdbde94f9f67d3837fea3661f5055fa18a137b0df2d1970d936c73f10ec2",
+    "failure": "MCP tools/list returned JSON-RPC -32700 Parse error and installation rolled back.",
+    "rootCause": "Windows PowerShell 5.1 Process.StandardInput StreamWriter did not guarantee no-BOM UTF-8 bytes. The MCP server correctly retained strict raw_line.decode('utf-8') and json.loads parsing."
+  },
+  "fix": {
+    "processStartInfo": "Set StandardInputEncoding to UTF8Encoding(false) when the runtime exposes that property.",
+    "allRuntimes": "Encode the complete JSON-RPC line with UTF8Encoding(false) and write bytes directly to StandardInput.BaseStream.",
+    "parserRelaxed": false
+  },
+  "localRegression": {
+    "staticEncodingGate": "PASS",
+    "windowsPowerShell51RealMcpSubprocess": "PASS",
+    "requiredCalls": ["tools/list", "content_capabilities", "production_capabilities", "data_center_capabilities"],
+    "packagedRuntimeEvidence": "mcp-utf8-stdin-validation.json"
+  },
+  "invalidatedCandidate": {
+    "implementationSourceCommit": "fe4490a5b653f61f67a92584b72ddc788abe1695",
+    "installerSha256": "878864ce62da65f438f20580806e0aabdf2947657cc1365a2e5e7f9e9dbdfc78",
+    "manifestSha256": "158203f7c9407515686ab932ea19a9053277612d753bb62c36e89359d3efaed9",
+    "status": "INVALID_DO_NOT_RELEASE"
+  },
+  "controlledSandboxRerun": {
+    "executed": false,
+    "required": true,
+    "mayBeMarkedPassByLocalSimulation": false
+  }
+}

@@ -122,6 +122,19 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
         self.assertIn("manual step", installer)
         self.assertIn("preserve user data", uninstall.lower())
 
+    def test_health_script_writes_strict_no_bom_utf8_mcp_stdin(self) -> None:
+        health = (ROOT / "installer/Test-AIVideoChannelProductionHealth.ps1").read_text(encoding="utf-8")
+        server = (ROOT / "plugins/ai-video-channel-production/mcp/server.py").read_text(encoding="utf-8")
+        self.assertIn('$info.PSObject.Properties["StandardInputEncoding"]', health)
+        self.assertIn("$info.StandardInputEncoding = $utf8NoBom", health)
+        self.assertIn("$process.StandardInput.BaseStream", health)
+        self.assertIn("$utf8NoBom.GetBytes", health)
+        self.assertNotIn("$process.StandardInput.WriteLine", health)
+        self.assertIn('raw_line.decode("utf-8")', server)
+        self.assertIn("json.loads", server)
+        self.assertIn("UnicodeDecodeError", server)
+        self.assertIn("json.JSONDecodeError", server)
+
     def test_release_sources_do_not_embed_credentials_or_development_root(self) -> None:
         checked = [ROOT / "installer", ROOT / "tools", ROOT / "release-manifests"]
         combined = "\n".join(path.read_text(encoding="utf-8", errors="ignore") for directory in checked for path in directory.rglob("*") if path.is_file() and path.suffix.lower() in {".ps1", ".py", ".json", ".md", ".txt"})

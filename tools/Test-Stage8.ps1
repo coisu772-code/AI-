@@ -27,6 +27,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Full unit test suite failed." }
     & $uv.Source run python tools\validate_unified_release.py --manifest (Join-Path $assets "unified-release-v0.8.0-rc.2.json") --asset-root $assets --report (Join-Path $evidence "unified-release-scan.json")
     if ($LASTEXITCODE -ne 0) { throw "Unified asset security validation failed." }
+    & $uv.Source run python tools\validate_mcp_utf8_stdin_package.py --manifest (Join-Path $assets "unified-release-v0.8.0-rc.2.json") --asset-root $assets --report (Join-Path $evidence "mcp-utf8-stdin-validation.json")
+    if ($LASTEXITCODE -ne 0) { throw "Packaged Windows PowerShell MCP no-BOM UTF-8 stdin validation failed." }
     & (Join-Path $root "tools\Invoke-Stage8Lifecycle.ps1") -AssetRoot $assets -EvidenceRoot (Join-Path $evidence "installation-lifecycle")
     if (-not $?) { throw "Isolated installation lifecycle failed." }
     $shortE2eRoot = "C:\AIVCP-S8-E2E-" + [guid]::NewGuid().ToString("N").Substring(0, 8)
@@ -47,7 +49,8 @@ try {
     $summary = [ordered]@{
         schemaVersion="1.0.0"; productVersion="0.8.0-rc.2"; status="LOCAL_UNIFIED_RC_PASS"; fullMvpStatus="WAITING_FOR_CONTROLLED_REAL_ACCEPTANCE"
         unitSuite="PASS"; officialPluginValidator="PASS"; repositoryMarketplaceValidator="PASS"; codexCliSmoke="NOT_RUN_REQUIRES_EXECUTABLE_CLI_OR_APP_RESTART"
-        unifiedAssetScan="PASS"; lifecycle="PASS"; threeMarketSynthetic="PASS"; publisherStage6Relock="PASS"; stalePublisherCatalogRejected="CONSTRAINTS_CATALOG_MISMATCH"
+        unifiedAssetScan="PASS"; winPs51McpUtf8Stdin="PASS"; sandboxAttempt5="FAIL_FIX_REQUIRES_CONTROLLED_RERUN"
+        lifecycle="PASS"; threeMarketSynthetic="PASS"; publisherStage6Relock="PASS"; stalePublisherCatalogRejected="CONSTRAINTS_CATALOG_MISMATCH"
         implementationSourceBinding="PASS"; implementationSourceCommit="fe4490a5b653f61f67a92584b72ddc788abe1695"; externalActionsExecuted=$false; approvalChecklist=(Join-Path $root "docs\final-acceptance-approval-checklist-v0.8.0-rc.2.json")
     }
     $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $evidence "stage8-summary.json") -Encoding UTF8

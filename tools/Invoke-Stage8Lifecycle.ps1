@@ -83,8 +83,22 @@ try {
     if (-not $?) { throw "Fake online unified installation failed." }
     $server.Kill(); $server.WaitForExit(); $server = $null
 
-    & (Join-Path $offlineInstall "current\installer\Test-AIVideoChannelProductionHealth.ps1") -InstallRoot $offlineInstall -DataRoot $offlineData -AsJson | Set-Content -LiteralPath (Join-Path $evidence "offline-health.json") -Encoding UTF8
-    & (Join-Path $onlineInstall "current\installer\Test-AIVideoChannelProductionHealth.ps1") -InstallRoot $onlineInstall -DataRoot $onlineData -AsJson | Set-Content -LiteralPath (Join-Path $evidence "online-health.json") -Encoding UTF8
+    $offlineHealthPath = Join-Path $evidence "offline-health.json"
+    $onlineHealthPath = Join-Path $evidence "online-health.json"
+    & (Join-Path $offlineInstall "current\installer\Test-AIVideoChannelProductionHealth.ps1") -InstallRoot $offlineInstall -DataRoot $offlineData -AsJson | Set-Content -LiteralPath $offlineHealthPath -Encoding UTF8
+    & (Join-Path $onlineInstall "current\installer\Test-AIVideoChannelProductionHealth.ps1") -InstallRoot $onlineInstall -DataRoot $onlineData -AsJson | Set-Content -LiteralPath $onlineHealthPath -Encoding UTF8
+    foreach ($healthPath in @($offlineHealthPath, $onlineHealthPath)) {
+        $health = Get-Content -LiteralPath $healthPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (
+            [string]$health.status -ne "PASS" -or
+            -not [bool]$health.serviceChecked -or
+            -not [bool]$health.contentCapabilitiesChecked -or
+            -not [bool]$health.productionCapabilitiesChecked -or
+            -not [bool]$health.dataCenterCapabilitiesChecked
+        ) {
+            throw "Installed MCP health did not pass tools/list plus all capability checks: $healthPath"
+        }
+    }
     Copy-Item -LiteralPath (Join-Path $offlineInstall "current\install-state.json") -Destination (Join-Path $evidence "offline-install-state.json")
     Copy-Item -LiteralPath (Join-Path $onlineInstall "current\install-state.json") -Destination (Join-Path $evidence "online-install-state.json")
     Copy-Item -LiteralPath (Join-Path $offlineInstall "current\CODEX-PLUGIN-SETUP.txt") -Destination (Join-Path $evidence "missing-codex-guide.txt")
@@ -95,7 +109,8 @@ try {
     $summary = [ordered]@{
         schemaVersion="1.0.0"; status="PASS"; offlineInstall=$true; fakeOnlineInstall=$true; singleFileOnlineEntry=$true; versionLockedManifestDownload=$true; noPreinstalledPython=$true; noPreinstalledUv=$true
         unicodeAndSpacesPath=$true; idempotentInstall=$true; tamperRejected=$true; injectedFailureRollback=$true; upgradeEntry=$true; explicitRollback=$true; repair=$true
-        missingCodexGuidance=$true; uninstallPreservedData=$true; externalActionsExecuted=$false; formalProgramTouched=$false; userDataSentinel=$sentinel
+        missingCodexGuidance=$true; windowsPowerShellMcpNoBomUtf8Health=$true; sandboxAttempt5RerunRequired=$true
+        uninstallPreservedData=$true; externalActionsExecuted=$false; formalProgramTouched=$false; userDataSentinel=$sentinel
     }
     $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $evidence "lifecycle-summary.json") -Encoding UTF8
 }
