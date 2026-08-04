@@ -7,4 +7,4 @@
 - Codex CLI 不可用时降级为明确的手动注册说明，不回滚健康程序。
 - CI 改为只读预检；正式 tag/Release 必须使用本地完整资产并获得单独批准。
 
-限制：发布中心仍是 `CANDIDATE_READY_FOR_CONTROLLED_REAL_ACCEPTANCE`。未执行 OAuth、真实上传、真实 Studio 数据读取或长期学习写回。发布中心 ZIP 未单列第三方告知文件，正式 Release 前必须人工审查。
+限制：发布中心仍是 `CANDIDATE_READY_FOR_CONTROLLED_REAL_ACCEPTANCE`。未执行 OAuth、真实上传、真实 Studio 数据读取或长期学习写回。发布中心 ZIP 已包含产品许可证、JSON/Markdown 告知和 101 份第三方许可证文本，Python 运行时 12 个包的 58 个许可证条目也已技术核对；这些证据不构成法律意见，正式 Release 仍需发布负责人/法律审核者批准。

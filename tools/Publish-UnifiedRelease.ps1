@@ -12,6 +12,14 @@ $assetFull = [System.IO.Path]::GetFullPath($AssetRoot)
 $manifestPath = Join-Path $assetFull "unified-release-v0.8.0-rc.2.json"
 $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
 if ((Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8).Contains("LOCAL_COMMIT_TO_BE_RECORDED")) { throw "Release manifest still contains an unbound source commit placeholder." }
+$boundSourceCommits = @(
+    $manifest.assets |
+        Where-Object { [string]$_.assetId -in @("unified-installer", "core") } |
+        ForEach-Object { [string]$_.source.commit } |
+        Sort-Object -Unique
+)
+if ($boundSourceCommits.Count -ne 1 -or $boundSourceCommits[0] -notmatch '^[0-9a-f]{40}$') { throw "Installer and core are not bound to one exact implementation/source commit." }
+$boundSourceCommit = $boundSourceCommits[0]
 foreach ($asset in @($manifest.assets)) {
     $path = Join-Path $assetFull ([string]$asset.fileName)
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing release asset: $($asset.fileName)" }
@@ -28,16 +36,17 @@ $approval = Get-Content -LiteralPath $ApprovalFile -Raw -Encoding UTF8 | Convert
 if (
     [string]$approval.tag -ne $Tag -or
     [bool]$approval.githubReleaseApproved -ne $true -or
-    [bool]$approval.publisherThirdPartyNoticesApproved -ne $true -or
+    [bool]$approval.releaseLicenseOwnerApproved -ne $true -or
     [bool]$approval.cleanWindowsApproved -ne $true -or
     [bool]$approval.codeSigningApproved -ne $true -or
+    [string]$approval.implementationSourceCommitSha -ne $boundSourceCommit -or
     [string]$approval.manifestSha256 -ne (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
 ) {
     throw "Approval file does not authorize this exact tag and manifest."
 }
 $gh = Get-Command gh -ErrorAction Stop
-& git -C $repositoryRoot rev-parse --verify "refs/tags/$Tag" | Out-Null
-if ($LASTEXITCODE -ne 0) { throw "The approved tag does not exist locally; this script will not create or push tags." }
+$tagCommit = (& git -C $repositoryRoot rev-list -n 1 $Tag).Trim()
+if ($LASTEXITCODE -ne 0 -or $tagCommit -ne $boundSourceCommit) { throw "The approved tag does not resolve to the bound implementation/source commit; this script will not create or push tags." }
 $releaseFiles = New-Object System.Collections.Generic.List[string]
 foreach ($asset in @($manifest.assets)) { $releaseFiles.Add((Join-Path $assetFull ([string]$asset.fileName))) }
 foreach ($metadataName in @("unified-release-v0.8.0-rc.2.json", "SHA256SUMS.txt")) {

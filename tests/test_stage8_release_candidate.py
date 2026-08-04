@@ -73,6 +73,14 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
         self.assertEqual(PUBLISHER_CONSTRAINTS_SHA, hashlib.sha256(catalog.read_bytes()).hexdigest())
         self.assertIn(b"\r\n", catalog.read_bytes())
 
+    def test_publish_execution_requires_current_approval_and_exact_tag_binding(self) -> None:
+        script = (TOOLS / "Publish-UnifiedRelease.ps1").read_text(encoding="utf-8")
+        self.assertIn("releaseLicenseOwnerApproved", script)
+        self.assertNotIn("publisherThirdPartyNoticesApproved", script)
+        self.assertIn("implementationSourceCommitSha", script)
+        self.assertIn("rev-list -n 1 $Tag", script)
+        self.assertIn("$tagCommit -ne $boundSourceCommit", script)
+
     def test_runtime_is_standalone_and_ffmpeg_is_explicit(self) -> None:
         manifest = self.manifest()
         self.assertFalse(manifest["runtime"]["requiresPreinstalledPython"])
