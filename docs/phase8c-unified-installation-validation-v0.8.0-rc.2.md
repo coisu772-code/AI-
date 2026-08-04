@@ -14,7 +14,7 @@
 - 隔离生命周期实际覆盖：单文件伪在线清单下载、完全离线、无 Python/uv、中文/空格路径、重复安装、篡改拒绝、升级、故障回滚、显式回滚、修复、Codex CLI 缺失说明、卸载保留数据。
 - 日/中/英三市场 recorded-synthetic 链通过；网络执行、OAuth、真实上传、真实回执、Studio 私有数据与长期学习写回均为 false。
 - 本地发布脚本 dry-run 通过；CI 只有只读源码预检，不能自动发布缺少桌面资产的 Release。
-- 统一入口和核心资产已绑定 implementation/source commit `85beca6244406b291f117e3f6e9a1fb530dff051`；后续仅含绑定与发行哈希的 metadata commit 不会冒充资产源码绑定。总清单不存在 commit 占位，发布预检会拒绝占位清单。此项是已完成的本地证据，不是外部批准门。
+- 统一入口和核心资产已绑定 implementation/source commit `511954e008e097bccb679ba53b3455aed35554cf`；后续仅含绑定与发行哈希的 metadata commit 不会冒充资产源码绑定。总清单不存在 commit 占位，发布预检会拒绝占位清单。此项是已完成的本地证据，不是外部批准门。
 
 后续提交只更新绑定工具、报告或验收元数据，属于 metadata commits；机器报告记录当前 metadata HEAD，但不把报告文件哈希或当前 HEAD 反写进自身，因此没有自绑定循环。
 
