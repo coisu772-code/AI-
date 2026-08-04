@@ -1,21 +1,10 @@
 {
   "schemaVersion": "1.0.0",
   "productVersion": "0.8.0-rc.2",
-  "status": "LOCAL_FIX_VALIDATED_FINAL_RELOCK_REQUIRED",
-  "authoritativeFinding": {
-    "installedRoot": "<controlled-acceptance-install-root>",
-    "mcpLoaded": true,
-    "blockingResult": "production_capabilities.workshopBridgeConfigured=false",
-    "cause": "The runtime-bound MCP descriptor omitted installed workshop, FFmpeg, ffprobe and publisher CLI paths."
-  },
-  "invalidatedCandidate": {
-    "implementationSourceCommit": "5f5955d5f12cfbf5d2a94026ac543b9d043be374",
-    "metadataCommit": "cb7d1600958d1363d408cfe4a4d9b84b1816aecc",
-    "assetRecordCommit": "52b67a859ce1f460f2f840a8384632c6cb5a5e33",
-    "manifestSha256": "ff30bc2cb55295269fcbb2977ba253f9fecfda888fbf62da6e8162fe77759712",
-    "status": "INVALID_DO_NOT_RELEASE_AS_A_SET"
-  },
-  "localFix": {
+  "status": "CONTROLLED_ACCEPTANCE_PASS",
+  "implementationSourceCommit": "b08bb215a6fd9fb22704d67a2332adbfeb5afd22",
+  "runtimeBinding": {
+    "status": "PASS",
     "descriptorComponentBindings": [
       "AIVCP_WORKSHOP_EXECUTABLE",
       "AIVCP_WORKSHOP_ISOLATION_ROOT",
@@ -24,12 +13,33 @@
       "AIVCP_PUBLISHER_CHANNEL_LIST_EXE",
       "AIVCP_PUBLISHER_V2_CLI"
     ],
-    "networkExecution": false,
     "workshopCommands": ["health-check", "get-production-capabilities --no-probe"],
+    "productionPackageVersion": "2.1",
     "externalServiceProbeExecuted": false,
-    "oauthExecuted": false,
-    "uploadExecuted": false,
-    "tamperCasesRequired": 7
+    "tamperCasesRejectedBeforeService": 7
   },
-  "controlledAcceptance": "WAITING_FOR_RERUN"
+  "installedProductFixes": {
+    "publisherReceiptNormalization": "Publisher API readback receipt v1 is integrity-checked, asset-bound to the five canonical upstream contracts, and normalized to canonical Publication Receipt v1 before formal registration.",
+    "metricCatalogResolution": "Installed cached plugins resolve Metric Catalog v1 from AIVCP_INSTALL_ROOT/current/contracts while repository and bundled-asset fallbacks remain supported.",
+    "unitTests": 17,
+    "unitTestFailures": 0
+  },
+  "controlledAcceptance": {
+    "windowsSandbox": "PASS_ATTEMPT_11",
+    "freshCodexVisibleTask": "PASS_12_OF_12",
+    "workshopConfiguredServiceProbe": "PASS_WITH_OPTIONAL_PROVIDER_AVAILABILITY_REPORTED",
+    "publisherChannelReadback": "PASS_CHANNEL_SERIAL_01",
+    "realPrivateUpload": "PASS_ONE_ATTEMPT",
+    "formalDataCenterRegistration": "PASS",
+    "ownerAnalytics": "AUTH_REQUIRED_NOT_FABRICATED",
+    "longTermLearning": "ONE_ISOLATED_SYNTHETIC_RULE_PASS"
+  },
+  "safety": {
+    "publicUpload": false,
+    "remoteDeletion": false,
+    "userDataMigration": false,
+    "userDataOverwrite": false,
+    "credentialExport": false,
+    "secondUpload": false
+  }
 }

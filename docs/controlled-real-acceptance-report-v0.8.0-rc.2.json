@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "1.0.0",
+  "productVersion": "0.8.0-rc.2",
+  "status": "PASS",
+  "implementationSourceCommit": "b08bb215a6fd9fb22704d67a2332adbfeb5afd22",
+  "approval": {
+    "gateId": "final-mvp-live-acceptance-v1",
+    "releaseType": "prerelease",
+    "channelSerial": "01",
+    "maximumRealUploads": 1,
+    "privacy": "private"
+  },
+  "results": {
+    "windowsSandbox": {"status": "PASS", "attempt": 11, "checksPassed": 11, "checksFailed": 0},
+    "freshCodexTask": {"status": "PASS", "checksPassed": 12, "checksFailed": 0, "actualPluginToolsUsed": true},
+    "workshop": {"status": "PASS", "readOnlyHealth": true, "productionPackageVersion": "2.1", "externalServiceProbeExecuted": true, "productionOutputCreated": false},
+    "publisher": {"status": "PASS", "channelSerial": "01", "realPrivateUpload": true, "uploadAttempts": 1, "processing": "SUCCEEDED", "thumbnail": "COMPLETED", "caption": "COMPLETED", "receiptEvidenceMode": "publisher-api-readback"},
+    "dataCenter": {"status": "PASS", "namespace": "formal", "upstreamContractCount": 5, "upstreamSchemaValidation": "PASS", "publicationReceiptNormalization": "PASS", "checkpointCount": 3, "ownerAnalytics": "AUTH_REQUIRED", "report": "NOT_DUE"},
+    "learning": {"status": "PASS_ISOLATED", "productionChannelWrite": false},
+    "userDataProtection": {"status": "PASS", "userSystemDatabaseUnchanged": true, "migration": false, "overwrite": false, "deletion": false}
+  },
+  "redaction": {
+    "youtubeChannelIdIncluded": false,
+    "youtubeVideoIdIncluded": false,
+    "channelNameIncluded": false,
+    "oauthTokenIncluded": false,
+    "credentialIncluded": false
+  },
+  "scheduledFollowUp": {
+    "T+24H": "2026-08-05T12:34:13Z",
+    "T+7D": "2026-08-11T12:34:13Z",
+    "T+28D": "2026-09-01T12:34:13Z",
+    "policy": "Collect only when due; generate a report only after a real snapshot exists."
+  },
+  "conclusion": "Stage 8 controlled real acceptance passed. Time-gated owner Analytics remains AUTH_REQUIRED/NOT_DUE and was not fabricated; it is an operational follow-up, not a substitute for the completed private-upload and formal-registration proof."
+}

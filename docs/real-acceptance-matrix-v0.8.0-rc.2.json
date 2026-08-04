@@ -1,24 +1,29 @@
 {
   "schemaVersion": "1.0.0",
   "productVersion": "0.8.0-rc.2",
-  "localEvidenceIsNotLiveEvidence": true,
-  "currentCandidateStatus": "WAITING_FOR_RERUN",
+  "currentCandidateStatus": "CONTROLLED_REAL_ACCEPTANCE_PASS",
+  "implementationSourceCommit": "b08bb215a6fd9fb22704d67a2332adbfeb5afd22",
   "rows": [
-    { "capability": "locked-assets-offline-and-fake-online-install", "localStatus": "PROVABLE", "realStatus": "NOT_REQUIRED", "syntheticMaySatisfy": true },
-    { "capability": "default-localappdata-short-root-full-lifecycle", "localStatus": "PROVABLE_WITH_REAL_FROZEN_ASSETS", "realStatus": "CLEAN_WINDOWS_RERUN_REQUIRED", "syntheticMaySatisfy": false },
-    { "capability": "path-budget-preflight-and-archive-root-stripping", "localStatus": "PROVABLE", "realStatus": "CLEAN_WINDOWS_DEFAULT_PROFILE_RECHECK_REQUIRED", "syntheticMaySatisfy": false },
-    { "capability": "custom-install-runtime-bound-cached-plugin", "localStatus": "ACTUAL_CODEX_CLI_AND_FRESH_PROCESS_PASS", "realStatus": "VISIBLE_RESTARTED_CODEX_TASK_REQUIRED", "syntheticMaySatisfy": false },
-    { "capability": "old-cache-version-and-stale-locator-rejection", "localStatus": "PROVABLE", "realStatus": "RESTARTED_CODEX_RECHECK_REQUIRED", "syntheticMaySatisfy": false },
-    { "capability": "install-rollback-uninstall-locator-transaction", "localStatus": "PROVABLE_WITH_FAILURE_INJECTION", "realStatus": "CLEAN_MACHINE_RECHECK_REQUIRED", "syntheticMaySatisfy": false },
-    { "capability": "concurrent-mutator-lock", "localStatus": "PROVABLE_WITH_REAL_PROCESS_CONTENTION", "realStatus": "NOT_REQUIRED", "syntheticMaySatisfy": true },
-    { "capability": "uninstall-and-restore-whatif-zero-mutation", "localStatus": "PROVABLE", "realStatus": "NOT_REQUIRED", "syntheticMaySatisfy": true },
-    { "capability": "publisher-stage6-exact-catalog-relock", "localStatus": "PROVABLE_WITH_FINAL_PUBLISHER_BINARY", "realStatus": "NOT_REQUIRED", "syntheticMaySatisfy": true },
-    { "capability": "technical-license-inventories", "localStatus": "TECHNICALLY_VALIDATED", "realStatus": "RELEASE_OWNER_LEGAL_APPROVAL_REQUIRED", "syntheticMaySatisfy": false },
-    { "capability": "windows-sandbox-winps51-mcp-jsonl-file-relay", "localStatus": "FILE_RELAY_LOCAL_WINPS51_INTEGRATION_PASS", "realStatus": "ATTEMPT_9_HISTORICAL_PASS_SUPERSEDED_CURRENT_CANDIDATE_WAITING_FOR_RERUN", "syntheticMaySatisfy": false },
-    { "capability": "workshop-real-production", "localStatus": "UPSTREAM_FROZEN_REPORT_ONLY", "realStatus": "APPROVED_REAL_SERVICE_SMOKE_REQUIRED", "syntheticMaySatisfy": false },
-    { "capability": "youtube-oauth", "localStatus": "NOT_EXECUTED", "realStatus": "EXPLICIT_APPROVAL_REQUIRED", "syntheticMaySatisfy": false },
-    { "capability": "real-private-upload-and-receipt", "localStatus": "NOT_EXECUTED", "realStatus": "EXPLICIT_APPROVAL_REQUIRED", "syntheticMaySatisfy": false },
-    { "capability": "studio-private-data", "localStatus": "NOT_EXECUTED", "realStatus": "EXPLICIT_APPROVAL_REQUIRED", "syntheticMaySatisfy": false },
-    { "capability": "long-term-learning-write", "localStatus": "NOT_EXECUTED", "realStatus": "SEPARATE_APPROVAL_REQUIRED", "syntheticMaySatisfy": false }
-  ]
+    {"capability": "locked-assets-offline-and-fake-online-install", "status": "PASS", "evidence": "deterministic unified assets and lifecycle suite"},
+    {"capability": "clean-windows-install", "status": "PASS", "evidence": "Windows Sandbox attempt 11; 11/11"},
+    {"capability": "path-budget-archive-root-and-winps51-jsonl", "status": "PASS", "evidence": "short default root, archive-root stripping and BOM-safe file relay"},
+    {"capability": "custom-install-runtime-bound-cached-plugin", "status": "PASS", "evidence": "fresh visible Codex task; 12/12 component checks"},
+    {"capability": "install-upgrade-repair-rollback-uninstall", "status": "PASS", "evidence": "transaction, contention and failure-injection suite"},
+    {"capability": "workshop-configured-service-probe", "status": "PASS", "evidence": "configured provider availability reported without secrets or production output"},
+    {"capability": "publisher-channel-readback", "status": "PASS", "evidence": "one enabled ACTIVE channel matched serial 01; private/AUTO policy"},
+    {"capability": "real-private-upload-and-receipt", "status": "PASS", "evidence": "one upload attempt; private; processing, thumbnail and caption complete; real immutable receipt"},
+    {"capability": "publisher-receipt-to-canonical-data-contract", "status": "PASS", "evidence": "five schema-valid canonical upstream contracts and normalized Publication Receipt v1"},
+    {"capability": "formal-data-center-registration", "status": "PASS", "evidence": "formal namespace and T+24H/T+7D/T+28D schedules created"},
+    {"capability": "owner-analytics-and-studio-report", "status": "NOT_DUE_AUTH_REQUIRED", "evidence": "no checkpoint snapshot exists; missing values remain UNKNOWN and no OAuth was started"},
+    {"capability": "long-term-learning-boundary", "status": "PASS_ISOLATED_ONLY", "evidence": "one synthetic rule in one isolated profile; no production-channel learning write"},
+    {"capability": "release-license-owner-approval", "status": "APPROVED", "evidence": "combined controlled-acceptance approval; technical inventories complete"},
+    {"capability": "code-signing", "status": "APPROVED_UNSIGNED_PRERELEASE", "evidence": "no certificate present; prerelease restriction retained"},
+    {"capability": "github-prerelease", "status": "APPROVED_PENDING_EXECUTION", "evidence": "must publish only the final re-locked deterministic asset set"}
+  ],
+  "nonSubstitutionRules": {
+    "syntheticUploadCannotSatisfyRealUpload": true,
+    "publicCountsCannotSatisfyOwnerAnalytics": true,
+    "notDueMetricsRemainUnknown": true,
+    "isolatedLearningCannotModifyProductionChannelRules": true
+  }
 }
