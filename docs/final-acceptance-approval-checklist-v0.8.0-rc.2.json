@@ -11,7 +11,7 @@
       "owner": "stage8c",
       "executed": true,
       "evidence": {
-        "implementationSourceCommitSha": "421a935030ca5fa63a87c214c95ba7db7291248e",
+        "implementationSourceCommitSha": "5f5955d5f12cfbf5d2a94026ac543b9d043be374",
         "boundAssetIds": ["unified-installer", "core"],
         "manifestPlaceholdersRemaining": false,
         "verification": "Two deterministic builds plus manifest validation and release dry-run."
@@ -19,8 +19,10 @@
     },
     { "id": "technical-license-inventories", "classification": "local-evidence", "owner": "stage8c", "executed": true, "evidence": { "status": "TECHNICALLY_VALIDATED", "report": "release-security-license-evidence-v0.8.0-rc.2.json", "publisherReviewRequired": 0, "pythonPackageCount": 12, "pythonLicenseEntryCount": 58, "legalAdviceOrSignoff": false } },
     { "id": "winps51-mcp-no-bom-jsonl-file-relay", "classification": "local-evidence", "owner": "stage8c", "executed": true, "evidence": { "status": "LOCAL_FIX_VALIDATED_SANDBOX_RERUN_REQUIRED", "report": "controlled-acceptance-attempt-7-fix-v0.8.0-rc.2.json", "rawStdinProbeHex": "efbbbf580a", "fileRelayExitCode": 0, "powershellInputRedirectionOrAccess": false, "parserRelaxed": false } },
+    { "id": "runtime-bound-cached-plugin-actual-codex-cli", "classification": "local-evidence", "owner": "stage8c", "executed": true, "evidence": { "status": "PASS", "mode": "ACTUAL_CODEX_CLI_RUNTIME_BOUND_MCP", "toolsListObservedByCodex": true, "capabilities": ["content_capabilities", "production_capabilities", "data_center_capabilities"], "timeoutSeconds": 90, "shellWebOrFileChangeEvents": 0, "oauth": false, "upload": false, "longTermLearningWrite": false } },
     { "id": "release-license-owner-approval", "classification": "external-approval", "owner": "legal-release-owner", "executed": false, "evidenceRequired": "Release owner/legal reviewer must approve the technically complete publisher, Python runtime and workshop inventories; technical validation is not legal advice or signoff." },
-    { "id": "clean-windows-install", "classification": "external-approval", "owner": "release-owner", "executed": false, "evidenceRequired": "Attempt 7 failed on Windows Sandbox because WinPS 5.1 inserted a BOM when the redirected input object was materialized. Rerun the rebuilt file-relay candidate on fresh Windows 10/11 x64 with no Python or uv; local regression evidence cannot mark this gate PASS." },
+    { "id": "clean-windows-install", "classification": "external-approval", "owner": "release-owner", "executed": false, "evidenceRequired": "Sandbox attempt 9 passed only for the superseded file-relay set. Rerun the newly bound candidate on fresh Windows 10/11 x64 with no Python/py/uv, using the default short program root and preserving any retired-path data; local lifecycle evidence cannot mark this gate PASS." },
+    { "id": "visible-restarted-codex-task", "classification": "external-approval", "owner": "release-owner", "executed": false, "evidenceRequired": "After installing the final re-locked assets, install/enable the repository plugin in Codex, restart Codex, create a new visible task, and verify tools/list plus content/production/data capabilities from the cached plugin. The actual temporary CLI PASS does not replace this visible product-flow gate." },
     { "id": "code-signing-publisher-identity", "classification": "external-approval", "owner": "release-owner", "executed": false, "evidenceRequired": "Approved signing and Windows reputation evidence." },
     { "id": "github-release-publication", "classification": "external-approval", "owner": "main-thread", "executed": false, "evidenceRequired": "Explicit authorization for the pre-existing tag and GitHub Release; verify that the tag resolves to the bound implementation/source history." },
     { "id": "google-youtube-oauth", "classification": "external-approval", "owner": "channel-owner", "executed": false, "evidenceRequired": "Least-privilege OAuth approval on a controlled account." },
