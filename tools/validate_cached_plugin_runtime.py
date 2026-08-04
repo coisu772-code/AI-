@@ -10,6 +10,7 @@ from pathlib import Path
 
 PRODUCT_ID = "ai-video-channel-production"
 REQUIRED_TOOLS = (
+    "system_capabilities",
     "content_capabilities",
     "production_capabilities",
     "data_center_capabilities",
@@ -86,15 +87,25 @@ def main() -> int:
     command = Path(str(server.get("command", "")))
     arguments = [str(item) for item in server.get("args", [])]
     descriptor_environment = server.get("env", {})
+    data_root = Path(str(locator.get("userDataRoot", ""))).resolve()
+    active_root = expected_install / "current"
     expected_environment = {
-        "AIVCP_DATA_ROOT": str(Path(str(locator.get("userDataRoot", ""))).resolve()),
+        "AIVCP_DATA_ROOT": str(data_root),
         "AIVCP_CONFIG_ROOT": str((local_app_data / "AIVCP-Config").resolve()),
         "AIVCP_INSTALL_ROOT": str(expected_install),
         "AIVCP_EXPECTED_PRODUCT_VERSION": str(locator.get("productVersion", "")),
         "AIVCP_EXPECTED_RELEASE_MANIFEST_SHA256": str(
             json.loads((expected_install / "current" / "install-state.json").read_text(encoding="utf-8-sig")).get("releaseManifestSha256", "")
         ),
+        "AIVCP_WORKSHOP_EXECUTABLE": str((active_root / "apps/workshop/Z 漫剧工坊.exe").resolve()),
+        "AIVCP_WORKSHOP_ISOLATION_ROOT": str((data_root / "workshop-isolation").resolve()),
+        "AIVCP_FFMPEG_PATH": str((active_root / "apps/workshop/tools/ffmpeg/bin/ffmpeg.exe").resolve()),
+        "AIVCP_FFPROBE_PATH": str((active_root / "apps/workshop/tools/ffmpeg/bin/ffprobe.exe").resolve()),
+        "AIVCP_PUBLISHER_CHANNEL_LIST_EXE": str((active_root / "apps/publisher/channel-list.exe").resolve()),
+        "AIVCP_PUBLISHER_V2_CLI": str((active_root / "apps/publisher/publish-package-v2.exe").resolve()),
+        "AIVCP_PUBLISHER_TIMEOUT_SECONDS": "8",
         "AIVCP_NETWORK_EXECUTION": "false",
+        "AIVCP_PUBLISHER_NETWORK_EXECUTION": "false",
         "PYTHONUTF8": "1",
         "PYTHONDONTWRITEBYTECODE": "1",
     }
@@ -120,7 +131,7 @@ def main() -> int:
     environment["LOCALAPPDATA"] = str(local_app_data)
     environment["PATH"] = target_path
     environment["AIVCP_NETWORK_EXECUTION"] = "false"
-    for name in ("AIVCP_PYTHON", "AIVCP_DATA_ROOT", "AIVCP_CONFIG_ROOT", "AIVCP_INSTALL_ROOT", "AIVCP_EXPECTED_PRODUCT_VERSION", "AIVCP_EXPECTED_RELEASE_MANIFEST_SHA256", "AIVCP_RUNTIME_LOCATOR", "UV", "PYTHONHOME"):
+    for name in ("AIVCP_PYTHON", "AIVCP_DATA_ROOT", "AIVCP_CONFIG_ROOT", "AIVCP_INSTALL_ROOT", "AIVCP_EXPECTED_PRODUCT_VERSION", "AIVCP_EXPECTED_RELEASE_MANIFEST_SHA256", "AIVCP_WORKSHOP_EXECUTABLE", "AIVCP_WORKSHOP_ISOLATION_ROOT", "AIVCP_FFMPEG_PATH", "AIVCP_FFPROBE_PATH", "AIVCP_PUBLISHER_CHANNEL_LIST_EXE", "AIVCP_PUBLISHER_V2_CLI", "AIVCP_RUNTIME_LOCATOR", "UV", "PYTHONHOME"):
         environment.pop(name, None)
     environment.update(expected_environment)
     python_visible = shutil.which("python", path=target_path)
@@ -143,6 +154,7 @@ def main() -> int:
         raise SystemExit(f"Cached plugin MCP tools/list is missing: {sorted(missing)}")
 
     capability_status: dict[str, str] = {}
+    component_integration: dict[str, object] = {}
     for request_id, tool_name in enumerate(REQUIRED_TOOLS, start=2):
         response = invoke_cached_plugin(
             command,
@@ -160,6 +172,40 @@ def main() -> int:
         structured = response.get("result", {}).get("structuredContent", {})
         if structured.get("ok") is not True or structured.get("result") is None:
             raise SystemExit(f"Cached plugin capability call failed: {tool_name}")
+        result = structured["result"]
+        if tool_name == "system_capabilities":
+            if (
+                result.get("publisherInterface", {}).get("available") is not True
+                or result.get("capabilities", {}).get("publisherReadOnlyInterfaceConfigured") is not True
+                or result.get("capabilities", {}).get("publisherV2BridgeConfigured") is not True
+                or result.get("publisherV2Bridge", {}).get("configured") is not True
+                or result.get("publisherV2Bridge", {}).get("networkExecution") is not False
+            ):
+                raise SystemExit("Cached plugin did not expose the installed publisher read-only and offline v2 bridges.")
+            component_integration["publisherReadOnlyConfigured"] = True
+            component_integration["publisherV2Configured"] = True
+            component_integration["publisherNetworkExecution"] = False
+        if tool_name == "production_capabilities":
+            workshop_health = result.get("workshopHealth", {})
+            workshop_capabilities = result.get("workshopCapabilities", {})
+            if (
+                result.get("workshopBridgeConfigured") is not True
+                or result.get("ffmpegAvailable") is not True
+                or result.get("ffprobeAvailable") is not True
+                or workshop_health.get("success") is not True
+                or workshop_health.get("ffmpegAvailable") is not True
+                or workshop_health.get("ffmpegPathSet") is not True
+                or workshop_health.get("ffprobePathSet") is not True
+                or "2.1" not in workshop_capabilities.get("supportedPackageVersions", [])
+                or workshop_capabilities.get("externalServiceProbeExecuted") is not False
+            ):
+                raise SystemExit("Cached plugin did not execute the installed workshop read-only health/capabilities bridge successfully.")
+            component_integration["workshopHealthCheckExecuted"] = True
+            component_integration["workshopCapabilitiesNoProbeExecuted"] = True
+            component_integration["productionPackage21"] = True
+            component_integration["ffmpegAvailable"] = True
+            component_integration["ffprobeAvailable"] = True
+            component_integration["externalServiceProbeExecuted"] = False
         capability_status[tool_name] = "PASS"
 
     report = {
@@ -182,6 +228,7 @@ def main() -> int:
         },
         "toolsList": {"status": "PASS", "required": list(REQUIRED_TOOLS), "count": len(tool_names)},
         "capabilities": capability_status,
+        "componentIntegration": component_integration,
         "processesStarted": len(responses),
         "boundaries": {
             "networkExecution": False,

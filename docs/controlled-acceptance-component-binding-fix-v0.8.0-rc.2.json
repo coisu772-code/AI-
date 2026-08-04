@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "1.0.0",
+  "productVersion": "0.8.0-rc.2",
+  "status": "LOCAL_FIX_VALIDATED_FINAL_RELOCK_REQUIRED",
+  "authoritativeFinding": {
+    "installedRoot": "<controlled-acceptance-install-root>",
+    "mcpLoaded": true,
+    "blockingResult": "production_capabilities.workshopBridgeConfigured=false",
+    "cause": "The runtime-bound MCP descriptor omitted installed workshop, FFmpeg, ffprobe and publisher CLI paths."
+  },
+  "invalidatedCandidate": {
+    "implementationSourceCommit": "5f5955d5f12cfbf5d2a94026ac543b9d043be374",
+    "metadataCommit": "cb7d1600958d1363d408cfe4a4d9b84b1816aecc",
+    "assetRecordCommit": "52b67a859ce1f460f2f840a8384632c6cb5a5e33",
+    "manifestSha256": "ff30bc2cb55295269fcbb2977ba253f9fecfda888fbf62da6e8162fe77759712",
+    "status": "INVALID_DO_NOT_RELEASE_AS_A_SET"
+  },
+  "localFix": {
+    "descriptorComponentBindings": [
+      "AIVCP_WORKSHOP_EXECUTABLE",
+      "AIVCP_WORKSHOP_ISOLATION_ROOT",
+      "AIVCP_FFMPEG_PATH",
+      "AIVCP_FFPROBE_PATH",
+      "AIVCP_PUBLISHER_CHANNEL_LIST_EXE",
+      "AIVCP_PUBLISHER_V2_CLI"
+    ],
+    "networkExecution": false,
+    "workshopCommands": ["health-check", "get-production-capabilities --no-probe"],
+    "externalServiceProbeExecuted": false,
+    "oauthExecuted": false,
+    "uploadExecuted": false,
+    "tamperCasesRequired": 7
+  },
+  "controlledAcceptance": "WAITING_FOR_RERUN"
+}

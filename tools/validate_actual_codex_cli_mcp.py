@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 REQUIRED_TOOLS = (
+    "system_capabilities",
     "content_capabilities",
     "production_capabilities",
     "data_center_capabilities",
@@ -73,12 +74,26 @@ def main() -> int:
         raise SystemExit("Runtime-bound descriptor configuration root is not locked to the isolated test root.")
     if environment.get("AIVCP_NETWORK_EXECUTION") != "false":
         raise SystemExit("Runtime-bound descriptor is not offline by default.")
+    required_component_bindings = (
+        "AIVCP_WORKSHOP_EXECUTABLE",
+        "AIVCP_WORKSHOP_ISOLATION_ROOT",
+        "AIVCP_FFMPEG_PATH",
+        "AIVCP_FFPROBE_PATH",
+        "AIVCP_PUBLISHER_CHANNEL_LIST_EXE",
+        "AIVCP_PUBLISHER_V2_CLI",
+    )
+    if any(not environment.get(name) for name in required_component_bindings):
+        raise SystemExit("Runtime-bound descriptor is missing installed component paths.")
 
     prompt = (
-        "Use only the MCP server aivcpfresh. Call content_capabilities, production_capabilities, "
-        "and data_center_capabilities exactly once each. Do not call shell or any other tool. "
+        "Use only the MCP server aivcpfresh. Call system_capabilities, content_capabilities, "
+        "production_capabilities, and data_center_capabilities exactly once each. Confirm from the "
+        "results that the workshop bridge, FFmpeg, ffprobe, Production Package 2.1, publisher read-only "
+        "interface and publisher v2 bridge are configured, externalServiceProbeExecuted is false, and "
+        "publisherV2Bridge.networkExecution is false. Do not call shell or any other tool. "
         "Do not perform network operations, OAuth, uploads, or writes. Return only one compact "
-        "JSON object with keys toolsLoaded, content, production, data, all true only if those MCP calls succeeded."
+        "JSON object with keys toolsLoaded, system, content, production, data, workshop, ffmpeg, ffprobe, "
+        "package21, publisherReadOnly, publisherV2, externalProbeFalse, networkFalse, all true only if verified."
     )
     env_toml = "{" + ",".join(f"{key}={toml_literal(str(value))}" for key, value in environment.items()) + "}"
     command = [
@@ -160,7 +175,11 @@ def main() -> int:
         final_value = json.loads(last_message)
     except json.JSONDecodeError:
         final_value = {}
-    final_pass = all(final_value.get(key) is True for key in ("toolsLoaded", "content", "production", "data"))
+    final_keys = (
+        "toolsLoaded", "system", "content", "production", "data", "workshop", "ffmpeg", "ffprobe",
+        "package21", "publisherReadOnly", "publisherV2", "externalProbeFalse", "networkFalse",
+    )
+    final_pass = all(final_value.get(key) is True for key in final_keys)
     success = (
         not timed_out
         and process.returncode == 0
@@ -186,6 +205,16 @@ def main() -> int:
         "capabilityCalls": calls,
         "forbiddenEvents": forbidden_events,
         "lastMessage": final_value,
+        "componentIntegrationObserved": {
+            "workshopReadOnlyHealthAndCapabilities": final_value.get("workshop") is True,
+            "ffmpeg": final_value.get("ffmpeg") is True,
+            "ffprobe": final_value.get("ffprobe") is True,
+            "productionPackage21": final_value.get("package21") is True,
+            "publisherReadOnly": final_value.get("publisherReadOnly") is True,
+            "publisherV2": final_value.get("publisherV2") is True,
+            "externalServiceProbeExecuted": False if final_value.get("externalProbeFalse") is True else None,
+            "networkExecution": False if final_value.get("networkFalse") is True else None,
+        },
         "stderrTail": stderr.splitlines()[-20:],
         "boundaries": {
             "pluginRegistrationChanged": False,

@@ -116,6 +116,24 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Fresh cached-plugin MCP runtime locator validation failed." }
     $cachedRuntime = Get-Content -LiteralPath $cachedRuntimeReport -Raw -Encoding UTF8 | ConvertFrom-Json
     if ([string]$cachedRuntime.status -ne "PASS" -or [string]$cachedRuntime.mode -ne "RUNTIME_BOUND_DESCRIPTOR_FRESH_PROCESS" -or -not [bool]$cachedRuntime.descriptorCommandDirectToPython -or [bool]$cachedRuntime.powershellOrCmdProxy) { throw "Cached-plugin runtime evidence is invalid." }
+    if (
+        -not [bool]$cachedRuntime.componentIntegration.workshopHealthCheckExecuted -or
+        -not [bool]$cachedRuntime.componentIntegration.workshopCapabilitiesNoProbeExecuted -or
+        -not [bool]$cachedRuntime.componentIntegration.productionPackage21 -or
+        -not [bool]$cachedRuntime.componentIntegration.ffmpegAvailable -or
+        -not [bool]$cachedRuntime.componentIntegration.ffprobeAvailable -or
+        [bool]$cachedRuntime.componentIntegration.externalServiceProbeExecuted -or
+        -not [bool]$cachedRuntime.componentIntegration.publisherReadOnlyConfigured -or
+        -not [bool]$cachedRuntime.componentIntegration.publisherV2Configured -or
+        [bool]$cachedRuntime.componentIntegration.publisherNetworkExecution
+    ) { throw "Cached-plugin installed component integration evidence is invalid." }
+    $bindingTamperReport = Join-Path $evidence "runtime-binding-component-tamper-rejection.json"
+    & $runtimePython (Join-Path $root "tools\validate_runtime_binding_tamper.py") --cached-plugin-root $cachedPluginRoot --report $bindingTamperReport
+    if ($LASTEXITCODE -ne 0) { throw "Runtime-bound component path/version tamper rejection failed." }
+    $bindingTamper = Get-Content -LiteralPath $bindingTamperReport -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ([string]$bindingTamper.status -ne "PASS" -or -not [bool]$bindingTamper.allRejectedBeforeService -or @($bindingTamper.cases.PSObject.Properties).Count -ne 7) {
+        throw "Runtime-bound component tamper evidence is invalid."
+    }
     $staleCachedPluginRoot = Join-Path $base "Stale Codex Cache\ai-video-channel-production"
     New-Item -ItemType Directory -Path (Split-Path -Parent $staleCachedPluginRoot) -Force | Out-Null
     Copy-Item -LiteralPath $cachedPluginRoot -Destination $staleCachedPluginRoot -Recurse
@@ -161,6 +179,9 @@ try {
         $actualCodexCliMcp = $true
     }
 
+    $offlineHealthPath = Join-Path $evidence "offline-health.json"
+    & (Join-Path $offlineInstall "current\installer\Test-AIVideoChannelProductionHealth.ps1") -InstallRoot $offlineInstall -DataRoot $offlineData -AsJson | Set-Content -LiteralPath $offlineHealthPath -Encoding UTF8
+
     $port = Get-Random -Minimum 52000 -Maximum 59000
     $server = Start-Process -FilePath $runtimePython -ArgumentList @("-m", "http.server", "$port", "--bind", "127.0.0.1", "--directory", $assets) -PassThru -WindowStyle Hidden
     $baseUrl = "http://127.0.0.1:$port"
@@ -176,15 +197,14 @@ try {
     if (-not $?) { throw "Fake online unified installation failed." }
     $server.Kill(); $server.WaitForExit(); $server = $null
 
-    $offlineHealthPath = Join-Path $evidence "offline-health.json"
     $onlineHealthPath = Join-Path $evidence "online-health.json"
-    & (Join-Path $offlineInstall "current\installer\Test-AIVideoChannelProductionHealth.ps1") -InstallRoot $offlineInstall -DataRoot $offlineData -AsJson | Set-Content -LiteralPath $offlineHealthPath -Encoding UTF8
     & (Join-Path $onlineInstall "current\installer\Test-AIVideoChannelProductionHealth.ps1") -InstallRoot $onlineInstall -DataRoot $onlineData -AsJson | Set-Content -LiteralPath $onlineHealthPath -Encoding UTF8
     foreach ($healthPath in @($offlineHealthPath, $onlineHealthPath)) {
         $health = Get-Content -LiteralPath $healthPath -Raw -Encoding UTF8 | ConvertFrom-Json
         if (
             [string]$health.status -ne "PASS" -or
             -not [bool]$health.serviceChecked -or
+            -not [bool]$health.systemCapabilitiesChecked -or
             -not [bool]$health.contentCapabilitiesChecked -or
             -not [bool]$health.productionCapabilitiesChecked -or
             -not [bool]$health.dataCenterCapabilitiesChecked
@@ -210,6 +230,7 @@ try {
         defaultShortInstallRoot=$defaultInstall; defaultPathFullLifecycle=$true; defaultPathMaxPathRegressionFileLength=$longRuntimeFile.Length; retiredDefaultPathDataPreserved=$true
         unicodeAndSpacesPath=$true; idempotentInstall=$true; tamperRejected=$true; injectedFailureRollback=$true; upgradeEntry=$true; explicitRollback=$true; repair=$true
         missingCodexGuidance=$true; windowsPowerShellMcpNoBomJsonlFileRelayHealth=$true; freshCachedPluginRuntimeBoundDescriptor=$true; cachedPluginReport=$cachedRuntimeReport
+        installedWorkshopReadOnlyHealthAndCapabilities=$true; installedFfmpegAndFfprobe=$true; installedPublisherReadOnlyAndV2Bridges=$true; runtimeBindingTamperRejected=$true; runtimeBindingTamperReport=$bindingTamperReport
         staleCachedPluginVersionRejectedBeforeService=$true; actualCodexCliMcp=$actualCodexCliMcp; actualCodexCliReport=$actualCodexCliReport; actualCodexCliTimeoutSeconds=$CodexSmokeTimeoutSeconds; sandboxRerunRequired=$true
         uninstallPreservedData=$true; locatorOwnershipPreservedAcrossOtherInstallUninstall=$true; externalActionsExecuted=$false; formalProgramTouched=$false; userDataSentinel=$sentinel
     }

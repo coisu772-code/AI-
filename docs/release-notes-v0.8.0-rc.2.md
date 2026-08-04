@@ -1,13 +1,39 @@
 # v0.8.0-rc.2（本地候选）
 
-- 提供单文件 Windows 统一安装入口、锁定总清单和离线同目录安装。
-- 工坊 2.1.0-stage5、发布中心 0.8.0-rc.2、Python 3.12.13 runtime 及 FFmpeg/ffprobe 成为受管 Release 资产；无需预装 Python 或 uv。
-- 默认程序根缩短为 `%LOCALAPPDATA%\AIVCP`，数据保留在独立目录；旧长路径下的既有 data 不迁移、不删除、不覆盖。
-- 解压剥离上游 archive root，使用短 staging/extract 目录，并在解压前对全部 entry 执行 248 字符路径预算门。
-- 新增同一用户全局安装互斥锁；Install 和 Rollback 对 current、marker、locator 做事务恢复；Uninstall 的 `-WhatIf`、程序删除失败和非 owner 卸载不会破坏 locator 或 Codex 注册。
-- 新增事务式 runtime-bound MCP 描述符：在 Codex 缓存前把插件直接绑定到任意受支持 InstallRoot 下的 bundled Python、缓存相对 server.py 和独立数据根，不经过 PowerShell/CMD 代理；locator 继续承担所有权、修复和严格 fallback 校验。
-- Health 在当前安装 Python 可用时不解析无关全局 locator；Restore `-WhatIf` 零临时目录、零解压并返回正确的未变更状态。
-- 保留 Windows PowerShell 5.1 无 BOM JSONL 文件 relay：健康脚本不使用 PowerShell StandardInput、BaseStream 或 StreamWriter，严格 MCP UTF-8/JSON 解析规则未放宽。
-- CI 只做只读预检；正式 tag/Release、许可批准、代码签名、OAuth、真实上传、Studio 私有数据和长期学习写回仍需外部批准。
+## 单一安装入口
 
-作废链：implementation `511954e...` 对应的 `69099e/c00c49/cd6fdd/99a9a4` 集合，以及 implementation `421a935...` 对应的 installer `cf5cb7...`、core `440570...`、manifest `dffd391a...` 集合，均为 `INVALID_DO_NOT_RELEASE_AS_A_SET`。冻结 Python、工坊和发布中心只有在新总清单中复算一致后才可复用。Sandbox attempt 9 的 file-relay/短路径受控结果保留为历史 PASS，但不能替代本轮默认路径与重启后缓存插件的新候选重跑；当前状态仍是 `WAITING_FOR_RERUN`。
+- 普通 Windows 用户只需下载统一安装器 ZIP，解压后双击 `install.cmd`。
+- 在线模式只从锁定的 `v0.8.0-rc.2` Release URL 获取总清单；离线模式要求总清单和四个组件 ZIP 同目录。
+- 每个资产先做大小与 SHA-256 校验，再事务式安装；无需预装 Python、py 或 uv。
+- 默认程序根为 `%LOCALAPPDATA%\AIVCP`，用户数据位于独立目录。旧长路径数据不迁移、不删除、不覆盖。
+
+## 本轮组件整合修复
+
+- runtime-bound `.mcp.json` 直接绑定当前安装的 bundled Python，以及安装树内的工坊、FFmpeg、ffprobe、发布中心只读 `channel-list.exe` 和离线 `publish-package-v2.exe`。
+- 工坊隔离根固定为 `<DataRoot>\workshop-isolation`；发布中心和 MCP 默认保持 `networkExecution=false`。
+- `server.py` 在启动服务前核对缓存插件版本、解释器、安装 marker、install-state、runtime locator、统一 manifest 及其 SHA-256，并要求全部组件处于当前 InstallRoot/DataRoot 的精确受管位置且真实存在。
+- 安装、幂等重装、升级、修复和回滚都会在 Codex 注册前重新生成描述符；失败继续恢复 current、marker、locator 和描述符事务状态。
+- 安装健康门和 fresh Codex CLI 会实际执行工坊 `health-check` 与 `get-production-capabilities --no-probe`，确认 Production Package 2.1、FFmpeg/ffprobe、发布中心只读接口和 v2 离线桥；不探测收费外部服务，不进行 OAuth 或上传。
+- 任一组件路径被改到安装树/数据根外，或缓存/绑定版本过旧，均以 `RUNTIME_BINDING_MISMATCH` 在服务启动前拒绝。
+
+## 既有安全修复
+
+- ZIP 解压剥离上游 archive root，使用短 staging/extract 目录，并在解压前执行 248 字符路径预算。
+- Install/Upgrade/Repair/Rollback/Uninstall 使用同一用户全局互斥锁；locator 接管显式可追踪。
+- Uninstall 的 `-WhatIf`、程序删除失败和非 owner 卸载不会破坏 locator 或 Codex 注册。
+- WinPS 5.1 健康请求继续使用无 BOM JSONL 文件和 ASCII relay，不使用 PowerShell StandardInput、BaseStream 或 StreamWriter；MCP 严格 UTF-8/JSON 规则未放宽。
+- Restore `-WhatIf` 零临时目录、零解压并返回 `WHATIF_NO_CHANGE`。
+
+## 作废候选
+
+以下集合全部为 `INVALID_DO_NOT_RELEASE_AS_A_SET`：
+
+- implementation `511954e...`，manifest `cd6fdd...`；
+- implementation `421a935...`，manifest `dffd391a...`；
+- implementation `5f5955d5f12cfbf5d2a94026ac543b9d043be374`，metadata `cb7d1600958d1363d408cfe4a4d9b84b1816aecc`，manifest SHA-256 `ff30bc2cb55295269fcbb2977ba253f9fecfda888fbf62da6e8162fe77759712`。
+
+冻结 Python、工坊和发布中心只有在新总清单中重新计算一致后才可复用。Sandbox attempt 9 仍只是已作废候选的历史证据；新候选状态保持 `WAITING_FOR_RERUN`。
+
+## 仍需外部批准
+
+GitHub push/tag/Release、代码签名、许可负责人/法律审批、最终干净 Windows/Sandbox、可见 Codex 重启新任务、Google/YouTube OAuth、真实 private 上传、Studio 私有数据和长期学习写回均未执行，不能由本地合成或只读结果替代。

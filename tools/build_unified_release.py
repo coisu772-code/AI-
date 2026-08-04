@@ -80,6 +80,7 @@ def excluded(path: Path, relative: str) -> bool:
         or path.suffix.lower() == ".pyc"
         or relative.startswith("docs/phase") and "validation" in path.name.lower()
         or relative == "docs/baseline-inventory-2026-08-03.md"
+        or relative == "docs/final-acceptance-approval-checklist-v0.8.0-rc.2.json"
         or relative == "release-manifests/unified-release-v0.8.0-rc.2.json"
     )
 

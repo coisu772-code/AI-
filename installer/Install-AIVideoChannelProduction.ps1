@@ -70,6 +70,7 @@ foreach ($id in $requiredIds) {
 
 New-Item -ItemType Directory -Path $installFull -Force | Out-Null
 New-Item -ItemType Directory -Path $dataFull -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $dataFull "workshop-isolation") -Force | Out-Null
 $cacheRoot = Join-Path $installFull ("downloads\" + $manifestHash)
 $verified = @{}
 foreach ($asset in $assets) {
@@ -158,7 +159,7 @@ try {
     $pluginRoot = Join-Path $stagingPath "plugins\$($script:AivcpProductId)"
     $pluginManifest = Get-Content -LiteralPath (Join-Path $pluginRoot ".codex-plugin\plugin.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     if ([string]$pluginManifest.version -ne [string]$manifest.productVersion) { throw "Core plugin and unified release versions differ." }
-    $null = Write-AivcpRuntimeBoundMcpDescriptor -PluginRoot $pluginRoot -InstallRoot $installFull -DataRoot $dataFull -ProductVersion ([string]$manifest.productVersion) -ReleaseManifestSha256 $manifestHash
+    $null = Write-AivcpRuntimeBoundMcpDescriptor -PluginRoot $pluginRoot -InstallRoot $installFull -DataRoot $dataFull -ProductVersion ([string]$manifest.productVersion) -ReleaseManifestSha256 $manifestHash -ComponentVerificationRoot $stagingPath
     if ($FailureInjectionPoint -eq "AfterMcpDescriptorBinding") { throw "TEST_FAILURE_INJECTION:AfterMcpDescriptorBinding" }
     $state = [ordered]@{
         schemaVersion = "2.0.0"; productId = $script:AivcpProductId; productVersion = [string]$manifest.productVersion
@@ -181,9 +182,9 @@ try {
     $activated = $true
     Write-AivcpJsonFile -Value ([ordered]@{ schemaVersion = "2.0.0"; productId = $script:AivcpProductId; activeVersion = [string]$manifest.productVersion; activeRoot = "current"; userDataRoot = $dataFull; releaseManifestSha256 = $manifestHash }) -PathValue $markerPath
     if ($FailureInjectionPoint -eq "AfterSwitch") { throw "TEST_FAILURE_INJECTION:AfterSwitch" }
-    & (Join-Path $currentPath "installer\Test-AIVideoChannelProductionHealth.ps1") -InstallRoot $installFull -DataRoot $dataFull | Out-Null
     $null = Write-AivcpRuntimeLocator -InstallRoot $installFull -DataRoot $dataFull -ProductVersion ([string]$manifest.productVersion) -Operation $LocatorOperation -AllowTakeover
     if ($FailureInjectionPoint -eq "AfterLocatorWrite") { throw "TEST_FAILURE_INJECTION:AfterLocatorWrite" }
+    & (Join-Path $currentPath "installer\Test-AIVideoChannelProductionHealth.ps1") -InstallRoot $installFull -DataRoot $dataFull | Out-Null
 
     $registrationReason = if ($SkipCodexRegistration) { "Automatic Codex registration was skipped by request." } else { "No compatible Codex CLI was found." }
     $guide = Write-AivcpCodexSetupGuide -CurrentRoot $currentPath -Reason $registrationReason

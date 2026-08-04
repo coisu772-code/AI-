@@ -247,7 +247,8 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
         [Parameter(Mandatory = $true)][string]$InstallRoot,
         [Parameter(Mandatory = $true)][string]$DataRoot,
         [Parameter(Mandatory = $true)][string]$ProductVersion,
-        [Parameter(Mandatory = $true)][string]$ReleaseManifestSha256
+        [Parameter(Mandatory = $true)][string]$ReleaseManifestSha256,
+        [string]$ComponentVerificationRoot
     )
     $pluginFull = Test-AivcpSafeRoot $PluginRoot "MCP PluginRoot"
     $installFull = Test-AivcpSafeRoot $InstallRoot "MCP InstallRoot"
@@ -259,7 +260,43 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
     if ([string]$pluginManifest.name -ne $script:AivcpProductId -or [string]$pluginManifest.version -ne $ProductVersion) {
         throw "Cannot bind MCP runtime because the plugin identity or version differs from the installation."
     }
-    $pythonPath = Resolve-AivcpFullPath (Join-Path $installFull "current\runtime\python\python.exe")
+    $activeRoot = Resolve-AivcpFullPath (Join-Path $installFull "current")
+    $verificationRoot = if ([string]::IsNullOrWhiteSpace($ComponentVerificationRoot)) {
+        $activeRoot
+    }
+    else {
+        Test-AivcpSafeRoot $ComponentVerificationRoot "MCP ComponentVerificationRoot"
+    }
+    $workshopVerificationRoot = Join-Path $verificationRoot "apps\workshop"
+    $workshopExecutables = @(Get-ChildItem -LiteralPath $workshopVerificationRoot -Filter "*.exe" -File -ErrorAction Stop)
+    if ($workshopExecutables.Count -ne 1) {
+        throw "Cannot bind MCP runtime because the managed workshop root must contain exactly one top-level executable."
+    }
+    $workshopRelativePath = Join-Path "apps\workshop" ([string]$workshopExecutables[0].Name)
+    $managedFiles = [ordered]@{
+        python = "runtime\python\python.exe"
+        workshop = $workshopRelativePath
+        ffmpeg = "apps\workshop\tools\ffmpeg\bin\ffmpeg.exe"
+        ffprobe = "apps\workshop\tools\ffmpeg\bin\ffprobe.exe"
+        publisherChannelList = "apps\publisher\channel-list.exe"
+        publisherV2 = "apps\publisher\publish-package-v2.exe"
+    }
+    foreach ($managed in $managedFiles.GetEnumerator()) {
+        $verificationPath = Join-Path $verificationRoot ([string]$managed.Value)
+        if (-not (Test-Path -LiteralPath $verificationPath -PathType Leaf)) {
+            throw "Cannot bind MCP runtime because the managed $($managed.Key) component is missing: $verificationPath"
+        }
+    }
+    $pythonPath = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.python)
+    $workshopPath = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.workshop)
+    $ffmpegPath = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.ffmpeg)
+    $ffprobePath = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.ffprobe)
+    $publisherChannelListPath = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.publisherChannelList)
+    $publisherV2Path = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.publisherV2)
+    $workshopIsolationRoot = Resolve-AivcpFullPath (Join-Path $dataFull "workshop-isolation")
+    if (-not (Test-Path -LiteralPath $workshopIsolationRoot -PathType Container)) {
+        throw "Cannot bind MCP runtime because the managed workshop isolation root is missing: $workshopIsolationRoot"
+    }
     $configRoot = Split-Path -Parent (Get-AivcpRuntimeLocatorPath)
     $descriptorPath = Join-Path $pluginFull ".mcp.json"
     $temporaryPath = Join-Path $pluginFull (".mcp-bound-" + [guid]::NewGuid().ToString("N") + ".json")
@@ -277,7 +314,15 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
                         AIVCP_INSTALL_ROOT = $installFull
                         AIVCP_EXPECTED_PRODUCT_VERSION = $ProductVersion
                         AIVCP_EXPECTED_RELEASE_MANIFEST_SHA256 = $ReleaseManifestSha256.ToLowerInvariant()
+                        AIVCP_WORKSHOP_EXECUTABLE = $workshopPath
+                        AIVCP_WORKSHOP_ISOLATION_ROOT = $workshopIsolationRoot
+                        AIVCP_FFMPEG_PATH = $ffmpegPath
+                        AIVCP_FFPROBE_PATH = $ffprobePath
+                        AIVCP_PUBLISHER_CHANNEL_LIST_EXE = $publisherChannelListPath
+                        AIVCP_PUBLISHER_V2_CLI = $publisherV2Path
+                        AIVCP_PUBLISHER_TIMEOUT_SECONDS = "8"
                         AIVCP_NETWORK_EXECUTION = "false"
+                        AIVCP_PUBLISHER_NETWORK_EXECUTION = "false"
                         PYTHONUTF8 = "1"
                         PYTHONDONTWRITEBYTECODE = "1"
                     }
@@ -304,7 +349,15 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
         [string]$server.env.AIVCP_INSTALL_ROOT -ne $installFull -or
         [string]$server.env.AIVCP_EXPECTED_PRODUCT_VERSION -ne $ProductVersion -or
         [string]$server.env.AIVCP_EXPECTED_RELEASE_MANIFEST_SHA256 -ne $ReleaseManifestSha256.ToLowerInvariant() -or
-        [string]$server.env.AIVCP_NETWORK_EXECUTION -ne "false"
+        [string]$server.env.AIVCP_WORKSHOP_EXECUTABLE -ne $workshopPath -or
+        [string]$server.env.AIVCP_WORKSHOP_ISOLATION_ROOT -ne $workshopIsolationRoot -or
+        [string]$server.env.AIVCP_FFMPEG_PATH -ne $ffmpegPath -or
+        [string]$server.env.AIVCP_FFPROBE_PATH -ne $ffprobePath -or
+        [string]$server.env.AIVCP_PUBLISHER_CHANNEL_LIST_EXE -ne $publisherChannelListPath -or
+        [string]$server.env.AIVCP_PUBLISHER_V2_CLI -ne $publisherV2Path -or
+        [string]$server.env.AIVCP_PUBLISHER_TIMEOUT_SECONDS -ne "8" -or
+        [string]$server.env.AIVCP_NETWORK_EXECUTION -ne "false" -or
+        [string]$server.env.AIVCP_PUBLISHER_NETWORK_EXECUTION -ne "false"
     ) {
         throw "Runtime-bound MCP descriptor verification failed."
     }

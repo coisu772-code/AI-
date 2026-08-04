@@ -101,11 +101,23 @@ class LocalToolService:
         self.data_center = DataCenter(config.data_root, plugin_root=config.plugin_root)
 
     def capabilities(self) -> dict[str, Any]:
+        publisher_v2_value = os.environ.get("AIVCP_PUBLISHER_V2_CLI", "").strip()
+        publisher_v2_path = Path(publisher_v2_value).resolve() if publisher_v2_value else None
+        publisher_v2_configured = bool(
+            publisher_v2_path
+            and publisher_v2_path.is_file()
+            and publisher_v2_path.name.lower() == "publish-package-v2.exe"
+        )
+        publisher_capabilities = self.publisher.capabilities()
         return {
             "service": "ai-video-channel-local-tools",
             "serviceVersion": SERVICE_VERSION,
             "protocolVersion": LOCAL_TOOL_PROTOCOL_VERSION,
-            "publisherInterface": self.publisher.capabilities(),
+            "publisherInterface": publisher_capabilities,
+            "publisherV2Bridge": {
+                "configured": publisher_v2_configured,
+                "networkExecution": False,
+            },
             "voiceCatalog": self.voices.capabilities(),
             "schemas": {
                 "systemDatabase": SYSTEM_SCHEMA_VERSION,
@@ -131,7 +143,9 @@ class LocalToolService:
                 "recommendationCard": "1.0.0",
             },
             "capabilities": {
-                "publisherChannelList": self.publisher.capabilities().get("available", False),
+                "publisherChannelList": publisher_capabilities.get("available", False),
+                "publisherReadOnlyInterfaceConfigured": publisher_capabilities.get("available", False),
+                "publisherV2BridgeConfigured": publisher_v2_configured,
                 "preScannedVoiceCatalog": self.voices.capabilities().get("available", False),
                 "channelOnboarding": True,
                 "taskBinding": True,

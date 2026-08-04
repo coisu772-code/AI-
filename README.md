@@ -12,7 +12,7 @@ Release 获批后，普通联网用户只需下载这一个 ZIP，解压并双�
 
 默认程序目录是 `%LOCALAPPDATA%\AIVCP`，默认数据目录是 `%LOCALAPPDATA%\AI Video Channel Production Data`。旧的 `%LOCALAPPDATA%\AI Video Channel Production\data` 不会被迁移、删除或覆盖。自定义安装目录过长时，安装器会在解压前给出明确错误并要求选择更短路径。
 
-安装完成后，如提示需要手动注册，请按安装目录中的 `CODEX-PLUGIN-SETUP.txt` 操作：先注册随产品提供的 repository marketplace，再在 Codex 的 Plugins 页面安装或启用插件。然后重启 Codex 并新建任务；已有任务不会重新加载插件。安装器会在被缓存前把插件的 MCP 描述符直接绑定到该安装拥有的 bundled Python 和独立数据目录，不依赖系统 Python、uv 或 PowerShell stdin 代理。
+安装完成后，如提示需要手动注册，请按安装目录中的 `CODEX-PLUGIN-SETUP.txt` 操作：先注册随产品提供的 repository marketplace，再在 Codex 的 Plugins 页面安装或启用插件。然后重启 Codex 并新建任务；已有任务不会重新加载插件。安装器会在被缓存前把插件的 MCP 描述符直接绑定到该安装拥有的 bundled Python、独立数据目录、工坊、FFmpeg/ffprobe 和发布中心只读/离线 CLI，不依赖系统 Python、uv 或 PowerShell stdin 代理。启动时会拒绝指向安装树外的组件路径和过期缓存版本。
 
 完全离线安装、升级、修复、回滚、卸载和备份恢复说明见 [安装与生命周期说明](docs/install-upgrade-rollback-uninstall.md)。历史阶段记录见 [实现历史](docs/implementation-history.md)。
 

@@ -122,18 +122,40 @@ foreach ($toolName in $requiredContentTools) {
 }
 
 $serviceChecked = $false
+$systemCapabilitiesChecked = $false
 $contentCapabilitiesChecked = $false
 $productionCapabilitiesChecked = $false
 $dataCenterCapabilitiesChecked = $false
 if (-not $SkipServiceCheck) {
-    $healthDataRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("aivcp-rc-health-" + [guid]::NewGuid().ToString("N"))
-    $hadDataRoot = Test-Path Env:AIVCP_DATA_ROOT
-    $previousDataRoot = $env:AIVCP_DATA_ROOT
-    $hadNetworkExecution = Test-Path Env:AIVCP_NETWORK_EXECUTION
-    $previousNetworkExecution = $env:AIVCP_NETWORK_EXECUTION
-    New-Item -ItemType Directory -Path $healthDataRoot -Force | Out-Null
-    $env:AIVCP_DATA_ROOT = $healthDataRoot
-    $env:AIVCP_NETWORK_EXECUTION = "false"
+    $healthDataRoot = $null
+    $healthEnvironment = [ordered]@{}
+    if ($null -ne $installState) {
+        $descriptorPath = Join-Path $pluginFull ".mcp.json"
+        if (-not (Test-Path -LiteralPath $descriptorPath -PathType Leaf)) {
+            throw "Installation health check failed: runtime-bound MCP descriptor is missing."
+        }
+        $descriptor = Get-Content -LiteralPath $descriptorPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $descriptorServer = $descriptor.mcpServers."ai-video-channel-tools"
+        if ($null -eq $descriptorServer -or $null -eq $descriptorServer.env) {
+            throw "Installation health check failed: runtime-bound MCP descriptor environment is missing."
+        }
+        foreach ($property in $descriptorServer.env.PSObject.Properties) {
+            $healthEnvironment[[string]$property.Name] = [string]$property.Value
+        }
+    }
+    else {
+        $healthDataRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("aivcp-rc-health-" + [guid]::NewGuid().ToString("N"))
+        New-Item -ItemType Directory -Path $healthDataRoot -Force | Out-Null
+        $healthEnvironment["AIVCP_DATA_ROOT"] = $healthDataRoot
+        $healthEnvironment["AIVCP_NETWORK_EXECUTION"] = "false"
+        $healthEnvironment["AIVCP_PUBLISHER_NETWORK_EXECUTION"] = "false"
+    }
+    $environmentSnapshots = @{}
+    foreach ($entry in $healthEnvironment.GetEnumerator()) {
+        $previousValue = [Environment]::GetEnvironmentVariable([string]$entry.Key, "Process")
+        $environmentSnapshots[[string]$entry.Key] = [ordered]@{ existed = $null -ne $previousValue; value = $previousValue }
+        [Environment]::SetEnvironmentVariable([string]$entry.Key, [string]$entry.Value, "Process")
+    }
     try {
     $startScript = Join-Path $pluginFull "mcp\start.ps1"
     if (-not (Test-Path -LiteralPath $startScript -PathType Leaf)) {
@@ -247,8 +269,40 @@ raise SystemExit(completed.returncode)
     if ($null -eq $productionPayload -or -not [bool]$productionPayload.ok -or [string]$productionPayload.result.contracts.productionPackage -ne "2.1") {
         throw "Installation health check failed: Production Package v2.1 is not healthy."
     }
+    if ($null -ne $installState) {
+        if (
+            -not [bool]$productionPayload.result.workshopBridgeConfigured -or
+            -not [bool]$productionPayload.result.ffmpegAvailable -or
+            -not [bool]$productionPayload.result.ffprobeAvailable -or
+            -not [bool]$productionPayload.result.workshopHealth.success -or
+            -not [bool]$productionPayload.result.workshopHealth.ffmpegAvailable -or
+            -not [bool]$productionPayload.result.workshopHealth.ffmpegPathSet -or
+            -not [bool]$productionPayload.result.workshopHealth.ffprobePathSet -or
+            @($productionPayload.result.workshopCapabilities.supportedPackageVersions) -notcontains "2.1" -or
+            [bool]$productionPayload.result.workshopCapabilities.externalServiceProbeExecuted
+        ) {
+            throw "Installation health check failed: installed workshop, FFmpeg, ffprobe, or Production Package 2.1 bridge is not healthy."
+        }
+    }
     $productionCapabilitiesChecked = $true
-    $dataRequest = '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"data_center_capabilities","arguments":{}}}'
+    $systemRequest = '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"system_capabilities","arguments":{}}}'
+    $systemResponseText = Invoke-AivcpHealthRequest $systemRequest
+    $systemResponse = $systemResponseText | ConvertFrom-Json
+    $systemPayload = $systemResponse.result.structuredContent
+    if ($null -eq $systemPayload -or -not [bool]$systemPayload.ok -or $null -eq $systemPayload.result) {
+        throw "Installation health check failed: system capabilities are not healthy."
+    }
+    if ($null -ne $installState -and (
+        -not [bool]$systemPayload.result.publisherInterface.available -or
+        -not [bool]$systemPayload.result.capabilities.publisherReadOnlyInterfaceConfigured -or
+        -not [bool]$systemPayload.result.capabilities.publisherV2BridgeConfigured -or
+        -not [bool]$systemPayload.result.publisherV2Bridge.configured -or
+        [bool]$systemPayload.result.publisherV2Bridge.networkExecution
+    )) {
+        throw "Installation health check failed: installed publisher read-only or publish-package-v2 offline bridge is not configured."
+    }
+    $systemCapabilitiesChecked = $true
+    $dataRequest = '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"data_center_capabilities","arguments":{}}}'
     $dataResponseText = Invoke-AivcpHealthRequest $dataRequest
     $dataResponse = $dataResponseText | ConvertFrom-Json
     $dataCapabilityPayload = $dataResponse.result.structuredContent
@@ -271,9 +325,16 @@ raise SystemExit(completed.returncode)
     $serviceChecked = $true
     }
     finally {
-        if ($hadDataRoot) { $env:AIVCP_DATA_ROOT = $previousDataRoot } else { Remove-Item Env:AIVCP_DATA_ROOT -ErrorAction SilentlyContinue }
-        if ($hadNetworkExecution) { $env:AIVCP_NETWORK_EXECUTION = $previousNetworkExecution } else { Remove-Item Env:AIVCP_NETWORK_EXECUTION -ErrorAction SilentlyContinue }
-        if (Test-Path -LiteralPath $healthDataRoot) {
+        foreach ($entry in $environmentSnapshots.GetEnumerator()) {
+            $snapshot = $entry.Value
+            if ([bool]$snapshot.existed) {
+                [Environment]::SetEnvironmentVariable([string]$entry.Key, [string]$snapshot.value, "Process")
+            }
+            else {
+                [Environment]::SetEnvironmentVariable([string]$entry.Key, $null, "Process")
+            }
+        }
+        if ($null -ne $healthDataRoot -and (Test-Path -LiteralPath $healthDataRoot)) {
             Remove-Item -LiteralPath $healthDataRoot -Recurse -Force
         }
     }
@@ -287,6 +348,7 @@ $result = [ordered]@{
     skillCount = $requiredSkills.Count
     contentToolCount = $requiredContentTools.Count
     serviceChecked = $serviceChecked
+    systemCapabilitiesChecked = $systemCapabilitiesChecked
     contentCapabilitiesChecked = $contentCapabilitiesChecked
     productionCapabilitiesChecked = $productionCapabilitiesChecked
     dataCenterCapabilitiesChecked = $dataCenterCapabilitiesChecked
@@ -296,7 +358,7 @@ $result = [ordered]@{
         -not (Resolve-AivcpFullPath $DataRoot).StartsWith(($activeProgram.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar), [System.StringComparison]::OrdinalIgnoreCase)
     }
     boundaries = [ordered]@{
-        workshop = "not_called"
+        workshop = if ($null -ne $installState) { "read_only_health_and_capabilities" } else { "not_called" }
         oauth = "not_called"
         upload = "not_called"
         analyticsAuthorization = "AUTH_REQUIRED"

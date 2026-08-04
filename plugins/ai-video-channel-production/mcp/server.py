@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -30,6 +31,12 @@ def _validate_runtime_binding() -> None:
         "AIVCP_INSTALL_ROOT",
         "AIVCP_EXPECTED_PRODUCT_VERSION",
         "AIVCP_EXPECTED_RELEASE_MANIFEST_SHA256",
+        "AIVCP_WORKSHOP_EXECUTABLE",
+        "AIVCP_WORKSHOP_ISOLATION_ROOT",
+        "AIVCP_FFMPEG_PATH",
+        "AIVCP_FFPROBE_PATH",
+        "AIVCP_PUBLISHER_CHANNEL_LIST_EXE",
+        "AIVCP_PUBLISHER_V2_CLI",
     )
     values = {name: os.environ.get(name, "").strip() for name in binding_names}
     if not any(values.values()):
@@ -53,6 +60,7 @@ def _validate_runtime_binding() -> None:
         "plugin": PLUGIN_ROOT / ".codex-plugin" / "plugin.json",
         "marker": install_root / "installation.json",
         "state": install_root / "current" / "install-state.json",
+        "manifest": install_root / "current" / "unified-release-manifest.json",
         "locator": config_root / "runtime-locator.json",
     }
     if any(not path.is_file() for path in paths.values()):
@@ -61,6 +69,8 @@ def _validate_runtime_binding() -> None:
         plugin = json.loads(paths["plugin"].read_text(encoding="utf-8-sig"))
         marker = json.loads(paths["marker"].read_text(encoding="utf-8-sig"))
         state = json.loads(paths["state"].read_text(encoding="utf-8-sig"))
+        manifest_bytes = paths["manifest"].read_bytes()
+        manifest = json.loads(manifest_bytes.decode("utf-8-sig"))
         locator = json.loads(paths["locator"].read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise _runtime_binding_error("The installed MCP binding records are unreadable. Run installer repair.") from exc
@@ -72,6 +82,25 @@ def _validate_runtime_binding() -> None:
     except (KeyError, TypeError, ValueError) as exc:
         raise _runtime_binding_error("The installed MCP binding records are incomplete. Run installer repair.") from exc
     runtime = state.get("runtime", {})
+    installed_assets = {
+        item.get("assetId"): item
+        for item in state.get("installedAssets", [])
+        if isinstance(item, dict) and isinstance(item.get("assetId"), str)
+    }
+    manifest_assets = {
+        item.get("assetId"): item
+        for item in manifest.get("assets", [])
+        if isinstance(item, dict) and isinstance(item.get("assetId"), str) and item.get("install") is True
+    }
+    required_assets = {"core", "python-runtime", "workshop", "publisher-center"}
+    asset_bindings_match = set(installed_assets) == required_assets and set(manifest_assets) == required_assets
+    if asset_bindings_match:
+        for asset_id in required_assets:
+            installed = installed_assets[asset_id]
+            declared = manifest_assets[asset_id]
+            if any(installed.get(field) != declared.get(field) for field in ("fileName", "sha256", "sizeBytes")):
+                asset_bindings_match = False
+                break
     identity_matches = (
         plugin.get("name") == "ai-video-channel-production"
         and plugin.get("version") == expected_version
@@ -86,6 +115,12 @@ def _validate_runtime_binding() -> None:
         and str(state.get("releaseManifestSha256", "")).lower() == expected_release
         and runtime.get("bundled") is True
         and runtime.get("python") == "runtime/python/python.exe"
+        and manifest.get("schemaVersion") == "2.0.0"
+        and manifest.get("productId") == "ai-video-channel-production"
+        and manifest.get("productVersion") == expected_version
+        and manifest.get("releaseStatus") == "candidate"
+        and hashlib.sha256(manifest_bytes).hexdigest() == expected_release
+        and asset_bindings_match
         and locator.get("schemaVersion") == "1.0.0"
         and locator.get("productId") == "ai-video-channel-production"
         and locator.get("productVersion") == expected_version
@@ -93,6 +128,21 @@ def _validate_runtime_binding() -> None:
         and locator.get("pythonRelativePath") == "runtime/python/python.exe"
     )
     expected_python = install_root / "current" / "runtime" / "python" / "python.exe"
+    managed_paths = {
+        "AIVCP_WORKSHOP_EXECUTABLE": install_root / "current" / "apps" / "workshop" / "Z 漫剧工坊.exe",
+        "AIVCP_FFMPEG_PATH": install_root / "current" / "apps" / "workshop" / "tools" / "ffmpeg" / "bin" / "ffmpeg.exe",
+        "AIVCP_FFPROBE_PATH": install_root / "current" / "apps" / "workshop" / "tools" / "ffmpeg" / "bin" / "ffprobe.exe",
+        "AIVCP_PUBLISHER_CHANNEL_LIST_EXE": install_root / "current" / "apps" / "publisher" / "channel-list.exe",
+        "AIVCP_PUBLISHER_V2_CLI": install_root / "current" / "apps" / "publisher" / "publish-package-v2.exe",
+    }
+    expected_isolation = data_root / "workshop-isolation"
+    component_paths_match = all(
+        Path(values[name]).is_absolute()
+        and _same_path(Path(values[name]), expected_path)
+        and expected_path.is_file()
+        and not expected_path.is_symlink()
+        for name, expected_path in managed_paths.items()
+    )
     if (
         not identity_matches
         or not _same_path(locator_install, install_root)
@@ -100,6 +150,11 @@ def _validate_runtime_binding() -> None:
         or not _same_path(state_data, data_root)
         or not _same_path(locator_data, data_root)
         or not _same_path(Path(sys.executable), expected_python)
+        or not component_paths_match
+        or not _same_path(Path(values["AIVCP_WORKSHOP_ISOLATION_ROOT"]), expected_isolation)
+        or not expected_isolation.is_dir()
+        or os.environ.get("AIVCP_NETWORK_EXECUTION") != "false"
+        or os.environ.get("AIVCP_PUBLISHER_NETWORK_EXECUTION") != "false"
     ):
         raise _runtime_binding_error("The cached plugin, active runtime, locator, state, or data root no longer match. Reinstall or repair the plugin and restart Codex.")
 
