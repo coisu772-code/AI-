@@ -1,0 +1,7 @@
+interface:
+  display_name: "AI 视频频道生产系统更新"
+  short_description: "安全检查 Release，并在确认后调用统一安装器更新系统"
+  default_prompt: "使用 $update-ai-video-system 检查 AI 视频频道生产系统是否有可用更新。"
+
+policy:
+  allow_implicit_invocation: true

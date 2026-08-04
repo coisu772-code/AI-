@@ -21,6 +21,7 @@ $requiredSkills = @(
     "production-handoff"
     "publish-video"
     "data-center"
+    "update-ai-video-system"
 )
 $requiredContentTools = @(
     "content_capabilities",

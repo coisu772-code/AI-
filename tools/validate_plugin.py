@@ -26,6 +26,7 @@ EXPECTED_SKILLS = {
     "production-handoff",
     "publish-video",
     "data-center",
+    "update-ai-video-system",
 }
 EXPECTED_CONTENT_TOOLS = {
     "content_capabilities",
@@ -176,9 +177,19 @@ def validate_plugin() -> list[str]:
         errors.append("publish-video must allow natural-language Stage6 invocation")
     if policies.get("data-center") is not True:
         errors.append("data-center must allow natural-language Stage7 invocation")
-    for skill_name in EXPECTED_SKILLS - {"channel-production", "publish-video", "data-center"}:
+    if policies.get("update-ai-video-system") is not True:
+        errors.append("update-ai-video-system must allow natural-language update invocation")
+    for skill_name in EXPECTED_SKILLS - {"channel-production", "publish-video", "data-center", "update-ai-video-system"}:
         if policies.get(skill_name) is not False:
             errors.append(f"{skill_name} must remain explicit/orchestrated")
+
+    update_text = skill_texts.get("update-ai-video-system", "")
+    update_root = PLUGIN_ROOT / "skills" / "update-ai-video-system"
+    if not (update_root / "scripts" / "Update-AIVideoSystem.ps1").is_file():
+        errors.append("update-ai-video-system is missing its deterministic PowerShell script")
+    for marker in ("检查更新", "更新到最新版", "更新AI视频频道生产系统", "-ConfirmUpdate", "GitHub Release"):
+        if marker not in update_text:
+            errors.append(f"update-ai-video-system is missing required marker: {marker}")
 
     router_text = skill_texts.get("channel-production", "")
     missing_router_tools = sorted(tool for tool in EXPECTED_CONTENT_TOOLS if tool not in router_text)
