@@ -142,8 +142,8 @@ if (-not $SkipServiceCheck) {
     $serverScript = Join-Path $pluginFull "mcp\server.py"
     function Invoke-AivcpHealthRequest([string]$RequestText) {
         $configuredPython = [Environment]::GetEnvironmentVariable("AIVCP_PYTHON", "Process")
-        $installedPython = [System.IO.Path]::GetFullPath((Join-Path $pluginFull "..\..\runtime\python\Scripts\python.exe"))
-        $legacyPython = Join-Path $env:LOCALAPPDATA "AI Video Channel Production\runtime\python\python.exe"
+        $installedPython = [System.IO.Path]::GetFullPath((Join-Path $pluginFull "..\..\runtime\python\python.exe"))
+        $legacyPython = Join-Path $env:LOCALAPPDATA "AI Video Channel Production\current\runtime\python\python.exe"
         $fileName = $null
         $argumentText = $null
         if (-not [string]::IsNullOrWhiteSpace($configuredPython) -and (Test-Path -LiteralPath $configuredPython -PathType Leaf)) {

@@ -1,4 +1,7 @@
 function Get-CompatibleCodexPluginCli {
+    if ([Environment]::GetEnvironmentVariable("AIVCP_DISABLE_CODEX_AUTO_REGISTRATION", "Process") -eq "1") {
+        return $null
+    }
     $candidates = New-Object System.Collections.Generic.List[string]
     foreach ($name in @("codex.exe", "codex")) {
         $command = Get-Command $name -ErrorAction SilentlyContinue

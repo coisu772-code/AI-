@@ -22,12 +22,14 @@ else {
 if (-not $SkipCodexRemoval) {
     $codex = Get-CompatibleCodexPluginCli
     if ($null -eq $codex) {
-        throw "A compatible Codex CLI was not found. Re-run with -SkipCodexRemoval to remove program files only."
+        Write-Warning "No compatible Codex CLI was found. Program removal will continue; remove the plugin through Codex later if it remains listed."
     }
-    & $codex plugin remove "ai-video-channel-production" --marketplace "novel-manga-production" | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Codex plugin removal failed." }
-    & $codex plugin marketplace remove "novel-manga-production" | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Codex marketplace removal failed." }
+    else {
+        & $codex plugin remove "ai-video-channel-production" --marketplace "novel-manga-production" --json | Out-Null
+        if ($LASTEXITCODE -ne 0) { Write-Warning "Codex plugin removal did not complete; program removal will continue." }
+        & $codex plugin marketplace remove "novel-manga-production" --json | Out-Null
+        if ($LASTEXITCODE -ne 0) { Write-Warning "Codex marketplace removal did not complete; program removal will continue." }
+    }
 }
 
 if ($PSCmdlet.ShouldProcess($installFull, "Remove program files and preserve user data")) {

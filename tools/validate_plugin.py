@@ -14,7 +14,7 @@ PLUGIN_NAME = "ai-video-channel-production"
 MARKETPLACE_NAME = "novel-manga-production"
 PLUGIN_ROOT = ROOT / "plugins" / PLUGIN_NAME
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-CURRENT_PRODUCT_VERSION = "0.8.0-rc.1"
+CURRENT_PRODUCT_VERSION = "0.8.0-rc.2"
 
 EXPECTED_SKILLS = {
     "channel-production",
@@ -101,6 +101,14 @@ def validate_plugin() -> list[str]:
         source = entry.get("source", {})
         if source != {"source": "local", "path": f"./plugins/{PLUGIN_NAME}"}:
             errors.append("marketplace local source path mismatch")
+        if not str(source.get("path", "")).startswith("./"):
+            errors.append("repository marketplace source must be relative to the marketplace root")
+
+    plugin_manifest_dir = PLUGIN_ROOT / ".codex-plugin"
+    if {path.name for path in plugin_manifest_dir.iterdir()} != {"plugin.json"}:
+        errors.append(".codex-plugin must contain only plugin.json")
+    if (ROOT / ".codex" / "plugins" / "marketplace.json").exists():
+        errors.append("repository must not ship a user-personal marketplace")
 
     if plugin.get("name") != PLUGIN_NAME or not NAME_PATTERN.fullmatch(plugin.get("name", "")):
         errors.append("plugin name is invalid")

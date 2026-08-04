@@ -1,15 +1,17 @@
 [CmdletBinding()]
 param(
-    [string]$SourceRoot,
+    [string]$ManifestPath,
+    [string]$ManifestUrl = "https://github.com/coisu772-code/AI-/releases/download/v0.8.0-rc.2/unified-release-v0.8.0-rc.2.json",
+    [string]$AssetRoot = $PSScriptRoot,
+    [string]$DownloadBaseUrl,
+    [ValidateSet("Auto", "Offline", "Online")]
+    [string]$InstallMode = "Auto",
     [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "AI Video Channel Production"),
     [string]$DataRoot,
-    [ValidateSet("Existing", "Online", "Offline")]
-    [string]$RuntimeMode = "Existing",
-    [string]$PythonExecutable,
-    [string]$OfflineWheelhouseRoot,
+    [switch]$AllowInsecureTestTransport,
     [switch]$SkipCodexRegistration,
     [switch]$Force,
-    [ValidateSet("None", "AfterStagingHealth", "AfterSwitch", "AfterCodexRegistration")]
+    [ValidateSet("None", "AfterAssetVerification", "AfterStagingHealth", "AfterSwitch")]
     [string]$FailureInjectionPoint = "None"
 )
 
@@ -18,222 +20,170 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "Common.ps1")
 . (Join-Path $PSScriptRoot "CodexCli.ps1")
 
-if ([string]::IsNullOrWhiteSpace($SourceRoot)) {
-    $SourceRoot = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
-}
-
-function Invoke-AivcpRuntimeProvisioning {
-    param(
-        [Parameter(Mandatory = $true)][string]$StagingRoot,
-        [Parameter(Mandatory = $true)][string]$Mode,
-        [string]$RequestedPython,
-        [string]$WheelhouseRoot
-    )
-    if ($Mode -eq "Existing") {
-        return [ordered]@{ mode = "existing"; bundled = $false }
-    }
-    $uv = Get-Command uv -ErrorAction SilentlyContinue
-    if ($null -eq $uv) {
-        throw "Runtime provisioning needs uv. Install uv, or use RuntimeMode=Existing with AIVCP_PYTHON configured."
-    }
-    $requirements = Join-Path $StagingRoot "installer\runtime-requirements.txt"
-    if (-not (Test-Path -LiteralPath $requirements -PathType Leaf)) {
-        throw "Runtime requirements are missing from the installation payload."
-    }
-    $runtimeRoot = Join-Path $StagingRoot "runtime\python"
-    $venvArguments = @("venv", $runtimeRoot)
-    if (-not [string]::IsNullOrWhiteSpace($RequestedPython)) {
-        $pythonFull = Resolve-AivcpFullPath $RequestedPython
-        if (-not (Test-Path -LiteralPath $pythonFull -PathType Leaf)) {
-            throw "Requested Python executable was not found: $pythonFull"
-        }
-        $venvArguments += @("--python", $pythonFull)
-    }
-    & $uv.Source @venvArguments | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Failed to create the isolated Python runtime." }
-    $runtimePython = Join-Path $runtimeRoot "Scripts\python.exe"
-    if (-not (Test-Path -LiteralPath $runtimePython -PathType Leaf)) {
-        throw "The isolated Python runtime was not created correctly."
-    }
-    $installArguments = @("pip", "install", "--python", $runtimePython, "--requirement", $requirements)
-    if ($Mode -eq "Offline") {
-        if ([string]::IsNullOrWhiteSpace($WheelhouseRoot)) {
-            throw "Offline runtime installation requires -OfflineWheelhouseRoot."
-        }
-        $wheelhouseFull = Resolve-AivcpFullPath $WheelhouseRoot
-        if (-not (Test-Path -LiteralPath $wheelhouseFull -PathType Container)) {
-            throw "Offline wheelhouse was not found: $wheelhouseFull"
-        }
-        $installArguments += @("--offline", "--find-links", $wheelhouseFull)
-    }
-    & $uv.Source @installArguments | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Failed to install the isolated Python runtime dependencies." }
-    & $runtimePython -c "import docx,jsonschema,pypdf,yaml; print('runtime-ok')" | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "The isolated Python runtime dependency check failed." }
-    return [ordered]@{ mode = $Mode.ToLowerInvariant(); bundled = $true; python = "runtime/python/Scripts/python.exe" }
-}
-
-$sourceFull = Resolve-AivcpFullPath $SourceRoot
+$assetFull = Resolve-AivcpFullPath $AssetRoot
 $installFull = Test-AivcpSafeRoot $InstallRoot "InstallRoot"
 $dataFull = Resolve-AivcpDataRoot -InstallRoot $installFull -RequestedDataRoot $DataRoot
-$productId = $script:AivcpProductId
-$marketplaceName = $script:AivcpMarketplaceName
-$pluginManifestPath = Join-Path $sourceFull "plugins\$productId\.codex-plugin\plugin.json"
-$marketplacePath = Join-Path $sourceFull ".agents\plugins\marketplace.json"
-
-if (-not (Test-Path -LiteralPath $pluginManifestPath -PathType Leaf)) { throw "Plugin manifest not found: $pluginManifestPath" }
-if (-not (Test-Path -LiteralPath $marketplacePath -PathType Leaf)) { throw "Marketplace manifest not found: $marketplacePath" }
-$pluginManifest = Get-Content -LiteralPath $pluginManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
-$releaseManifestPath = Join-Path $sourceFull "release-manifests\release-v$($pluginManifest.version).json"
-if (-not (Test-Path -LiteralPath $releaseManifestPath -PathType Leaf)) { throw "Release manifest not found: $releaseManifestPath" }
-$marketplace = Get-Content -LiteralPath $marketplacePath -Raw -Encoding UTF8 | ConvertFrom-Json
-$releaseManifest = Get-Content -LiteralPath $releaseManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
-if ([string]$pluginManifest.name -ne $productId) { throw "Unexpected plugin name: $($pluginManifest.name)" }
-if ([string]$marketplace.name -ne $marketplaceName) { throw "Unexpected marketplace name: $($marketplace.name)" }
-if ([string]$releaseManifest.productVersion -ne [string]$pluginManifest.version) { throw "Release manifest and plugin versions do not match." }
-
-$payloadItems = @(".agents", "plugins", "contracts", "installer", "release-manifests", "docs", "README.md", "CHANGELOG.md", "LICENSE.md")
-foreach ($item in $payloadItems) {
-    if (-not (Test-Path -LiteralPath (Join-Path $sourceFull $item))) { throw "Installation payload is incomplete: $item" }
-}
-
-$requiredComponentIds = @("codex-plugin", "windows-installer", "cross-center-contracts")
-$localToolComponent = $releaseManifest.components | Where-Object { $_.componentId -eq "local-tool-service" } | Select-Object -First 1
-if ($null -ne $localToolComponent -and [bool]$localToolComponent.includedInRelease) { $requiredComponentIds += "local-tool-service" }
-foreach ($componentId in $requiredComponentIds) {
-    $component = $releaseManifest.components | Where-Object { $_.componentId -eq $componentId } | Select-Object -First 1
-    if ($null -eq $component -or -not [bool]$component.includedInRelease -or $component.artifacts.Count -ne 1) {
-        throw "Release manifest is missing one required artifact: $componentId"
+if ([string]::IsNullOrWhiteSpace($ManifestPath)) {
+    $localManifest = Join-Path $assetFull "unified-release-v0.8.0-rc.2.json"
+    if (Test-Path -LiteralPath $localManifest -PathType Leaf) {
+        $ManifestPath = $localManifest
     }
-    $artifact = $component.artifacts[0]
-    if ([string]$artifact.kind -ne "directory-tree") { throw "Unsupported release artifact kind for $componentId" }
-    $artifactPath = Resolve-AivcpFullPath (Join-Path $sourceFull ([string]$artifact.relativePath))
-    $sourcePrefix = $sourceFull.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
-    if (-not $artifactPath.StartsWith($sourcePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "Release artifact escapes SourceRoot: $componentId"
-    }
-    $actualArtifactHash = Get-AivcpTreeHash $artifactPath
-    if ($actualArtifactHash -ne [string]$artifact.sha256) {
-        throw "Release artifact fingerprint mismatch: $componentId (expected $($artifact.sha256), got $actualArtifactHash)"
-    }
-}
-
-$sourceFingerprint = Get-AivcpTreeHash (Join-Path $sourceFull "plugins\$productId")
-$currentPath = Join-Path $installFull "current"
-$backupRoot = Join-Path $installFull "backups"
-$markerPath = Join-Path $installFull "installation.json"
-$existingStatePath = Join-Path $currentPath "install-state.json"
-if (-not $Force -and (Test-Path -LiteralPath $existingStatePath -PathType Leaf)) {
-    $existingState = Get-Content -LiteralPath $existingStatePath -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ([string]$existingState.productVersion -eq [string]$pluginManifest.version -and [string]$existingState.pluginTreeSha256 -eq $sourceFingerprint) {
-        if (-not $SkipCodexRegistration) {
-            $codex = Get-CompatibleCodexPluginCli
-            if ($null -eq $codex) { throw "Files are installed, but a compatible Codex CLI was not found for registration." }
-            & $codex plugin marketplace add $currentPath | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "Codex marketplace registration failed." }
-            & $codex plugin add "$productId@$marketplaceName" | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "Codex plugin installation failed." }
+    else {
+        if ($InstallMode -eq "Offline") { throw "Offline installation requires unified-release-v0.8.0-rc.2.json beside install.cmd." }
+        $manifestUri = [System.Uri]::new($ManifestUrl)
+        if ($manifestUri.Scheme -ne "https" -and -not ($AllowInsecureTestTransport -and $manifestUri.IsLoopback)) {
+            throw "Manifest download must use HTTPS. Only an explicit loopback test transport may use HTTP."
         }
-        Write-Output "Already installed: $productId $($pluginManifest.version)"
-        exit 0
+        $manifestCache = Join-Path $installFull "downloads\manifest-cache"
+        New-Item -ItemType Directory -Path $manifestCache -Force | Out-Null
+        $ManifestPath = Join-Path $manifestCache "unified-release-v0.8.0-rc.2.json"
+        Invoke-WebRequest -Uri $manifestUri.AbsoluteUri -OutFile $ManifestPath -UseBasicParsing
     }
+}
+$manifestFull = Resolve-AivcpFullPath $ManifestPath
+if (-not (Test-Path -LiteralPath $manifestFull -PathType Leaf)) { throw "Locked release manifest is missing: $manifestFull" }
+$manifest = Get-Content -LiteralPath $manifestFull -Raw -Encoding UTF8 | ConvertFrom-Json
+if ([string]$manifest.schemaVersion -ne "2.0.0" -or [string]$manifest.productId -ne $script:AivcpProductId) {
+    throw "Unsupported or incorrect unified release manifest."
+}
+if ([string]$manifest.productVersion -ne "0.8.0-rc.2" -or @($manifest.assets).Count -ne 5 -or $null -eq $manifest.runtime -or $null -eq $manifest.safetyBoundaries) {
+    throw "The downloaded manifest does not match the locked v0.8.0-rc.2 schema and product version."
+}
+if ([string]$manifest.releaseStatus -ne "candidate") { throw "Only a candidate locked manifest can be installed by this RC entry point." }
+if ([string]$manifest.hashAlgorithm -ne "SHA-256") { throw "Unsupported release hash algorithm." }
+if ([string]::IsNullOrWhiteSpace($DownloadBaseUrl)) { $DownloadBaseUrl = [string]$manifest.downloadBaseUrl }
+$manifestHash = Get-AivcpManifestHash $manifestFull
+$assets = @($manifest.assets | Where-Object { [bool]$_.install })
+$requiredIds = @("core", "python-runtime", "workshop", "publisher-center")
+foreach ($id in $requiredIds) {
+    if (@($assets | Where-Object { [string]$_.assetId -eq $id }).Count -ne 1) { throw "Locked manifest requires exactly one install asset: $id" }
 }
 
 New-Item -ItemType Directory -Path $installFull -Force | Out-Null
 New-Item -ItemType Directory -Path $dataFull -Force | Out-Null
-$stagingPath = Join-Path $installFull (".i-" + [guid]::NewGuid().ToString("N").Substring(0, 8))
+$cacheRoot = Join-Path $installFull ("downloads\" + $manifestHash)
+$verified = @{}
+foreach ($asset in $assets) {
+    $verified[[string]$asset.assetId] = Get-AivcpVerifiedAsset -Asset $asset -AssetRoot $assetFull -CacheRoot $cacheRoot -InstallMode $InstallMode -DownloadBaseUrl $DownloadBaseUrl
+}
+if ($FailureInjectionPoint -eq "AfterAssetVerification") { throw "TEST_FAILURE_INJECTION:AfterAssetVerification" }
+
+$currentPath = Join-Path $installFull "current"
+$markerPath = Join-Path $installFull "installation.json"
+$existingStatePath = Join-Path $currentPath "install-state.json"
+if (-not $Force -and (Test-Path -LiteralPath $existingStatePath -PathType Leaf)) {
+    $existing = Get-Content -LiteralPath $existingStatePath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ([string]$existing.releaseManifestSha256 -eq $manifestHash) {
+        $guide = Write-AivcpCodexSetupGuide -CurrentRoot $currentPath -Reason "Registration was not requested during this idempotent verification."
+        if (-not $SkipCodexRegistration) {
+            $codex = Get-CompatibleCodexPluginCli
+            if ($null -ne $codex) {
+                try {
+                    & $codex plugin marketplace add $currentPath --json | Out-Null
+                    if ($LASTEXITCODE -ne 0) { throw "marketplace add returned $LASTEXITCODE" }
+                    & $codex plugin add "$($script:AivcpProductId)@$($script:AivcpMarketplaceName)" --json | Out-Null
+                    if ($LASTEXITCODE -ne 0) { throw "plugin add returned $LASTEXITCODE" }
+                    Remove-Item -LiteralPath $guide -Force -ErrorAction SilentlyContinue
+                }
+                catch { $guide = Write-AivcpCodexSetupGuide -CurrentRoot $currentPath -Reason $_.Exception.Message }
+            }
+            else { $guide = Write-AivcpCodexSetupGuide -CurrentRoot $currentPath -Reason "No compatible Codex CLI was found." }
+        }
+        Write-Output "Already installed and verified: $($manifest.productVersion)"
+        if (Test-Path -LiteralPath $guide) { Write-Warning "Codex registration needs a manual step. See $guide" }
+        exit 0
+    }
+}
+
+$stagingPath = Join-Path $installFull (".installing-" + [guid]::NewGuid().ToString("N").Substring(0, 10))
+$extractRoot = Join-Path $stagingPath ".extract"
+$backupRoot = Join-Path $installFull "backups"
 $createdBackupPath = $null
-$activatedNewCurrent = $false
-$previousMarkerBytes = if (Test-Path -LiteralPath $markerPath -PathType Leaf) { [System.IO.File]::ReadAllBytes($markerPath) } else { $null }
+$activated = $false
+$previousMarker = if (Test-Path -LiteralPath $markerPath -PathType Leaf) { [System.IO.File]::ReadAllBytes($markerPath) } else { $null }
 New-Item -ItemType Directory -Path $stagingPath -Force | Out-Null
 
 try {
-    foreach ($item in $payloadItems) {
-        Copy-Item -LiteralPath (Join-Path $sourceFull $item) -Destination $stagingPath -Recurse -Force
+    foreach ($asset in $assets) {
+        $assetId = [string]$asset.assetId
+        $destination = if ([string]::IsNullOrWhiteSpace([string]$asset.installSubpath)) { $stagingPath } else { Join-Path $stagingPath ([string]$asset.installSubpath) }
+        $expanded = Expand-AivcpVerifiedZip -ArchivePath $verified[$assetId] -DestinationPath (Join-Path $extractRoot $assetId) -ExpectedRoot ([string]$asset.archiveRoot)
+        Copy-AivcpDirectoryContents -SourcePath $expanded -DestinationPath $destination
     }
-    $installedFingerprint = Get-AivcpTreeHash (Join-Path $stagingPath "plugins\$productId")
-    if ($sourceFingerprint -ne $installedFingerprint) { throw "Installed plugin fingerprint does not match the source payload." }
-    $runtimeState = Invoke-AivcpRuntimeProvisioning -StagingRoot $stagingPath -Mode $RuntimeMode -RequestedPython $PythonExecutable -WheelhouseRoot $OfflineWheelhouseRoot
+    Remove-Item -LiteralPath $extractRoot -Recurse -Force
+    Copy-Item -LiteralPath $manifestFull -Destination (Join-Path $stagingPath "unified-release-manifest.json") -Force
+    $runtimePython = Join-Path $stagingPath "runtime\python\python.exe"
+    if (-not (Test-Path -LiteralPath $runtimePython -PathType Leaf)) { throw "Bundled standalone Python runtime is missing python.exe." }
+    & $runtimePython -c "import docx,jsonschema,lxml,pypdf,yaml; print('runtime-ok')" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Bundled standalone Python runtime health check failed." }
+    $workshopExe = Get-ChildItem -LiteralPath (Join-Path $stagingPath "apps\workshop") -Filter "*.exe" -File | Sort-Object Length -Descending | Select-Object -First 1
+    $publisherExe = Join-Path $stagingPath "apps\publisher\youtube-publisher-center.exe"
+    if ($null -eq $workshopExe) { throw "Workshop component executable is missing." }
+    if (-not (Test-Path -LiteralPath $publisherExe -PathType Leaf)) { throw "Publisher component executable is missing: $publisherExe" }
+    foreach ($logical in @($manifest.logicalComponents)) {
+        foreach ($file in @($logical.files)) {
+            $logicalPath = Join-Path $stagingPath ([string]$file.relativeInstallPath)
+            if (-not (Test-Path -LiteralPath $logicalPath -PathType Leaf)) { throw "Logical component file is missing: $($file.relativeInstallPath)" }
+            if ((Get-AivcpFileSha256 $logicalPath) -ne [string]$file.sha256) { throw "Logical component hash mismatch: $($file.relativeInstallPath)" }
+        }
+    }
+    $pluginRoot = Join-Path $stagingPath "plugins\$($script:AivcpProductId)"
+    $pluginManifest = Get-Content -LiteralPath (Join-Path $pluginRoot ".codex-plugin\plugin.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ([string]$pluginManifest.version -ne [string]$manifest.productVersion) { throw "Core plugin and unified release versions differ." }
     $state = [ordered]@{
-        schemaVersion = "1.1.0"
-        productId = $productId
-        productVersion = [string]$pluginManifest.version
-        marketplaceName = $marketplaceName
-        releaseManifestContentHash = [string]$releaseManifest.contentHash
-        pluginTreeSha256 = $installedFingerprint
-        userDataRoot = $dataFull
-        legacyDataLocation = $dataFull.StartsWith(($installFull.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar), [System.StringComparison]::OrdinalIgnoreCase)
-        runtime = $runtimeState
+        schemaVersion = "2.0.0"; productId = $script:AivcpProductId; productVersion = [string]$manifest.productVersion
+        marketplaceName = $script:AivcpMarketplaceName; releaseManifestSha256 = $manifestHash; userDataRoot = $dataFull
+        installedAssets = @($assets | ForEach-Object { [ordered]@{ assetId = $_.assetId; fileName = $_.fileName; sha256 = $_.sha256; sizeBytes = $_.sizeBytes } })
+        runtime = [ordered]@{ bundled = $true; python = "runtime/python/python.exe"; version = [string]$manifest.runtime.pythonVersion }
         installedAt = (Get-Date).ToUniversalTime().ToString("o")
     }
-    $state | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $stagingPath "install-state.json") -Encoding UTF8
-    $stagingHealthCheck = Join-Path $stagingPath "installer\Test-AIVideoChannelProductionHealth.ps1"
-    & $stagingHealthCheck -PluginRoot (Join-Path $stagingPath "plugins\$productId") -SkipServiceCheck
-    if (-not $?) { throw "Staging files failed the static installation health check." }
+    Write-AivcpJsonFile -Value $state -PathValue (Join-Path $stagingPath "install-state.json")
+    & (Join-Path $stagingPath "installer\Test-AIVideoChannelProductionHealth.ps1") -PluginRoot $pluginRoot -SkipServiceCheck | Out-Null
     if ($FailureInjectionPoint -eq "AfterStagingHealth") { throw "TEST_FAILURE_INJECTION:AfterStagingHealth" }
 
     if (Test-Path -LiteralPath $currentPath) {
-        $existingVersion = "unknown"
-        if (Test-Path -LiteralPath $existingStatePath -PathType Leaf) {
-            $existingState = Get-Content -LiteralPath $existingStatePath -Raw -Encoding UTF8 | ConvertFrom-Json
-            $existingVersion = [string]$existingState.productVersion
-        }
         New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
-        $backupName = "v$existingVersion-" + (Get-Date -Format "yyyyMMdd-HHmmssfff")
-        $createdBackupPath = Join-Path $backupRoot $backupName
+        $oldVersion = if (Test-Path -LiteralPath $existingStatePath) { [string](Get-Content -LiteralPath $existingStatePath -Raw -Encoding UTF8 | ConvertFrom-Json).productVersion } else { "unknown" }
+        $createdBackupPath = Join-Path $backupRoot ("v$oldVersion-" + (Get-Date -Format "yyyyMMdd-HHmmssfff"))
         Move-Item -LiteralPath $currentPath -Destination $createdBackupPath
     }
     Move-Item -LiteralPath $stagingPath -Destination $currentPath
-    $activatedNewCurrent = $true
-    [ordered]@{
-        schemaVersion = "1.1.0"
-        productId = $productId
-        activeVersion = [string]$pluginManifest.version
-        activeRoot = "current"
-        userDataRoot = $dataFull
-        releaseManifestContentHash = [string]$releaseManifest.contentHash
-    } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $markerPath -Encoding UTF8
+    $activated = $true
+    Write-AivcpJsonFile -Value ([ordered]@{ schemaVersion = "2.0.0"; productId = $script:AivcpProductId; activeVersion = [string]$manifest.productVersion; activeRoot = "current"; userDataRoot = $dataFull; releaseManifestSha256 = $manifestHash }) -PathValue $markerPath
     if ($FailureInjectionPoint -eq "AfterSwitch") { throw "TEST_FAILURE_INJECTION:AfterSwitch" }
+    & (Join-Path $currentPath "installer\Test-AIVideoChannelProductionHealth.ps1") -InstallRoot $installFull -DataRoot $dataFull | Out-Null
 
-    $postHealth = Join-Path $currentPath "installer\Test-AIVideoChannelProductionHealth.ps1"
-    if ($RuntimeMode -eq "Existing") {
-        & $postHealth -InstallRoot $installFull -DataRoot $dataFull -SkipServiceCheck
-    }
-    else {
-        & $postHealth -InstallRoot $installFull -DataRoot $dataFull
-    }
-    if (-not $?) { throw "Activated version failed its installation health check." }
-
+    $registrationReason = if ($SkipCodexRegistration) { "Automatic Codex registration was skipped by request." } else { "No compatible Codex CLI was found." }
+    $guide = Write-AivcpCodexSetupGuide -CurrentRoot $currentPath -Reason $registrationReason
     if (-not $SkipCodexRegistration) {
         $codex = Get-CompatibleCodexPluginCli
-        if ($null -eq $codex) { throw "A compatible Codex CLI was not found; automatic rollback will restore the previous version." }
-        & $codex plugin marketplace add $currentPath | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "Codex marketplace registration failed." }
-        & $codex plugin add "$productId@$marketplaceName" | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "Codex plugin installation failed." }
+        if ($null -ne $codex) {
+            try {
+                & $codex plugin marketplace add $currentPath --json | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw "marketplace add returned $LASTEXITCODE" }
+                & $codex plugin add "$($script:AivcpProductId)@$($script:AivcpMarketplaceName)" --json | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw "plugin add returned $LASTEXITCODE" }
+                Remove-Item -LiteralPath $guide -Force
+                $guide = $null
+            }
+            catch { $guide = Write-AivcpCodexSetupGuide -CurrentRoot $currentPath -Reason $_.Exception.Message }
+        }
     }
-    if ($FailureInjectionPoint -eq "AfterCodexRegistration") { throw "TEST_FAILURE_INJECTION:AfterCodexRegistration" }
 }
 catch {
     $failure = $_
     if (Test-Path -LiteralPath $stagingPath) { Remove-Item -LiteralPath $stagingPath -Recurse -Force -ErrorAction SilentlyContinue }
-    if ($activatedNewCurrent -and (Test-Path -LiteralPath $currentPath)) {
+    if ($activated -and (Test-Path -LiteralPath $currentPath)) {
         $failedRoot = Join-Path $installFull "failed-installs"
         New-Item -ItemType Directory -Path $failedRoot -Force | Out-Null
-        Move-Item -LiteralPath $currentPath -Destination (Join-Path $failedRoot ("f-" + (Get-Date -Format "yyyyMMdd-HHmmssfff")))
+        Move-Item -LiteralPath $currentPath -Destination (Join-Path $failedRoot ("failed-" + (Get-Date -Format "yyyyMMdd-HHmmssfff")))
     }
-    if ($null -ne $createdBackupPath -and (Test-Path -LiteralPath $createdBackupPath) -and -not (Test-Path -LiteralPath $currentPath)) {
-        Move-Item -LiteralPath $createdBackupPath -Destination $currentPath
-    }
-    if ($null -ne $previousMarkerBytes) {
-        [System.IO.File]::WriteAllBytes($markerPath, $previousMarkerBytes)
-    }
-    elseif (Test-Path -LiteralPath $markerPath) {
-        Remove-Item -LiteralPath $markerPath -Force
-    }
+    if ($null -ne $createdBackupPath -and (Test-Path -LiteralPath $createdBackupPath) -and -not (Test-Path -LiteralPath $currentPath)) { Move-Item -LiteralPath $createdBackupPath -Destination $currentPath }
+    if ($null -ne $previousMarker) { [System.IO.File]::WriteAllBytes($markerPath, $previousMarker) } elseif (Test-Path -LiteralPath $markerPath) { Remove-Item -LiteralPath $markerPath -Force }
     throw "Installation failed and the previous program version was restored automatically. $($failure.Exception.Message)"
 }
 
-Write-Output "Installed $productId $($pluginManifest.version) to $currentPath"
-Write-Output "User data root: $dataFull"
-Write-Output "Restart Codex and open a new task to load the plugin."
+Write-Output "Installed $($manifest.productVersion) to $currentPath"
+Write-Output "User data is preserved separately at $dataFull"
+if ($null -ne $guide) { Write-Warning "Codex registration needs a manual step. See $guide" }
+Write-Output "Restart Codex and create a new task after registration."

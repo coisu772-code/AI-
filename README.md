@@ -1,186 +1,19 @@
-# AI 视频频道生产系统
+# AI 视频频道生产系统 RC
 
-这是面向普通用户安装的 GitHub 分发仓库。产品通过 Codex 插件组织工作流，通过本地工具和独立桌面程序执行确定性动作。
+当前候选版：`v0.8.0-rc.2`。这是本地候选，不代表已经发布到 GitHub，也不代表 YouTube 真实上传已经验收。
 
-## 本地 Release Candidate
+## Windows 统一安装
 
-当前工作树为 `0.8.0-rc.1` 本地发布候选，已经把阶段2–7的频道、资料、内容、制作、本地发布和数据闭环封装为可安装产品，并增加：
+从获批的 GitHub Release 只下载一个明显入口：`AI-Video-Channel-Production-Unified-Installer-v0.8.0-rc.2.zip`。解压后双击 `install.cmd`；入口只从固定的 `v0.8.0-rc.2` Release URL 获取总清单，不使用 `latest`，随后只下载缺少的锁定组件。
 
-- 联网一键安装与断网 wheelhouse 安装；
-- 从已发布 `0.1.0-beta.2` 升级、幂等重装、自动失败回滚、修复和手动回滚；
-- 程序与用户数据分离、卸载保留数据、校验式备份／恢复；
-- 日文、中文、英文三市场 recorded synthetic 端到端验收；
-- 可复现 RC ZIP、文件级清单、SHA-256、安全扫描和机器可读审批门。
+完全离线安装需另外把 `unified-release-v0.8.0-rc.2.json`、核心包、Python 运行时、工坊包和发布中心包放在 `install.cmd` 同目录。每个组件都会先核对大小和 SHA-256，任何不一致都会终止并自动保留原版本。
 
-本地 RC 是 **GO**；完整 MVP 仍是 **WAITING / AUTH_REQUIRED**。本轮没有 GitHub push/tag/Release，没有覆盖正式工坊或发布中心，没有 OAuth、真实上传、真实 Publication Receipt／Studio 数据、用户数据迁移或长期频道学习写回。远端公开版本仍为 `v0.1.0-beta.2`。
+先决条件：Windows 10/11 x64、PowerShell 5.1 或更高版本、约 1 GB 可用空间，以及 Codex 桌面版或支持 `plugin` 命令的 Codex CLI。无需预装 Python、uv 或 FFmpeg。
 
-安装与验收入口：
+安装完成后，如窗口提示需要手动注册，请按 `CODEX-PLUGIN-SETUP.txt` 执行两条命令。然后重启 Codex，并新建任务；已有任务不会重新载入插件变化。
 
-- 普通安装：解压 RC 后双击 `installer\install.cmd`。
-- 完整生命周期说明：`docs/install-upgrade-rollback-uninstall.md`。
-- 最终真实验收审批表：`docs/final-acceptance-approval-checklist-v0.8.0-rc.1.json`。
-- 本地阶段8验收：`tools/Test-Stage8.ps1`（源码仓库使用，不随普通安装包分发）。
+## 安全边界
 
-## 已发布 Beta 历史
+候选包不含 Token、API Key、OAuth 凭据、用户项目或频道数据。默认不发起 Google/YouTube OAuth，不执行真实上传，不读取真实 Studio 私有数据，也不写回长期学习。升级、修复、回滚与卸载会把用户数据保留在独立目录。
 
-当前 GitHub 已发布版本为阶段 1 Beta `0.1.0-beta.2`，只交付：
-
-- Codex 插件与 marketplace 骨架。
-- 总入口和频道建库入口 Skills。
-- 六大中心的版本化跨中心契约、示例和校验工具。
-- Windows 本地安装、升级、卸载与回滚骨架。
-- 组件兼容清单和阶段 1 验证报告。
-
-当前版本不会创建真实频道资料库、下载资料、生成内容、调用工坊、上传视频或读取 Analytics。
-
-## 阶段2未发布工作树
-
-本地开发工作树已增加频道资料库与 stdio MCP 本地工具服务，支持发布中心正式只读 CLI、双阶段建库、任务单频道绑定、生产预设、本次覆盖、备份、恢复和 `.avchannel` 迁移。该能力尚未形成新的 GitHub Release；已发布的 `v0.1.0-beta.2` 标签仍保持阶段1内容。
-
-阶段2隔离验证：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage2.ps1 -PublisherCliPath <youtube-publisher-channel-list.exe>
-```
-
-正式建库还需要安装器配置发布中心只读程序和不含密钥的预扫描真实音色目录。没有这些依赖时，系统返回明确缺口，不制造频道或音色。
-
-## 仓库结构
-
-- `.agents/plugins/marketplace.json`：Codex marketplace 入口。
-- `plugins/ai-video-channel-production/`：产品插件、总入口与频道建库入口。
-- `contracts/`：10 类跨中心契约、Schema、目录和有效示例链。
-- `release-manifests/`：产品、组件、协议、Schema 与工件哈希的统一发布事实源。
-- `installer/`：Windows 安装、升级、回滚和卸载脚本。
-- `tools/` 与 `tests/`：结构、引用、哈希、安全和本地生命周期验证。
-
-## 本地验证入口
-
-在仓库根目录运行：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\installer\Install-AIVideoChannelProduction.ps1 -InstallRoot .\.stage1-smoke -DataRoot .\.stage1-smoke-data -SkipCodexRegistration
-```
-
-完整验收会在隔离目录中执行插件发现、安装、升级、回滚、卸载与 Codex 加载，不修改真实 Codex 用户配置：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\Test-Stage1.ps1
-```
-
-## 安装 Beta
-
-使用 Codex CLI 从 GitHub marketplace 安装固定版本：
-
-```powershell
-codex plugin marketplace add coisu772-code/AI- --ref v0.1.0-beta.2
-codex plugin add ai-video-channel-production@novel-manga-production
-```
-
-也可以从 GitHub Release 下载 `ai-video-channel-production-v0.1.0-beta.2.zip`，核对 `SHA256SUMS.txt` 后解压并运行 `installer\install.cmd`。安装完成后重启 Codex 并新建任务。
-
-文档入口：
-
-- `docs/baseline-inventory-2026-08-03.md`
-- `docs/contract-ownership-and-flow.md`
-- `docs/compatibility-matrix.md`
-- `docs/install-upgrade-rollback-uninstall.md`
-- `docs/release-process.md`
-- `docs/phase1-validation-report-2026-08-03.md`
-- `docs/local-tool-service-protocol-v1.md`
-- `docs/phase2-channel-library-validation-2026-08-04.md`
-- `docs/phase3-source-library-validation-2026-08-04.md`
-- `docs/phase4-content-loop-validation-2026-08-04.md`
-- `docs/phase5-production-handoff-validation-2026-08-04.md`
-- `docs/phase6-publisher-integration-validation-2026-08-04.md`
-- `docs/phase7-data-center-validation-2026-08-04.md`
-
-`0.1.0-beta.2` 是阶段 1 骨架预发布，不包含频道建库、资料采集、内容生成、视频生产、真实上传或 Analytics。
-
-## 阶段3未发布资料闭环
-
-本地 `0.3.0-dev.1` 候选在阶段2频道库之上增加统一 Source Library，支持：
-
-- 资料添加确认卡、进度、取消、恢复、完成卡、检索和增量更新；
-- YouTube 频道轻量清单，以及单视频公开元数据、封面和字幕优先采集；
-- TXT、MD、EPUB、PDF、DOCX 用户文件标准化；
-- 日文、中文、英文共九个小说网站的版本化能力清单；
-- 平台 ID、规范 URL 和 SHA-256 去重，以及重启后的持久检索；
-- Source Package v1 清单、来源边界、版本化资产和采集报告。
-
-该候选仍是未发布工作树，不改变已发布 `v0.1.0-beta.2`。它不会执行拆视频、拆书、仿写、选题、文案生成、工坊生产、OAuth、上传或 Analytics。无足够字幕或正文时只返回失败原因和用户补充路径，不根据标题、封面或页面元数据编造内容。
-
-阶段3隔离验收入口：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage3.ps1
-```
-
-完整证据见 `docs/phase3-source-library-validation-2026-08-04.md`。
-
-## 阶段4未发布内容最小闭环
-
-本地 `0.4.0-dev.1` 候选在阶段2频道上下文和阶段3 Source Package v1 之上，增加可由新 Codex 对话使用的内容生产闭环：
-
-- Source Library → Topic Package v1 → Manuscript Package v1 → Publishing Asset Package v1；
-- 原创、频道画像锚定和用户大纲直通三种当前可用选题路线；
-- 频道路线逐候选检查点与严格 10 候选门，普通原创 3～6 候选，大纲直通唯一方案；
-- 目标语言原生母稿、非中文逐行中文回译、合并质量门和选择性失效；
-- 唯一标题、目标语言简介、8～12 个 Hashtags、5 个封面候选、唯一封面和 CTR 联评；
-- G3／G4／G5 状态机、版本、SHA-256、上游引用和移交前联合确认。
-
-趋势研究、单作品、多作品、拆书与仿写保留稳定扩展接口；当前未安装对应能力时返回 `CONTENT_EXTENSION_UNAVAILABLE`，不会伪造分析。阶段4只判断生产包是否具备移交资格，不调用工坊、发布中心、OAuth、上传、Analytics，也不写入长期频道学习。
-
-阶段4完整验收入口：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage4.ps1
-```
-
-三组日／中／英短小合成包位于 `tests/fixtures/stage4/packages/`。它们使用同一 Schema、状态机、质量门、文件与哈希校验，仅用于离线验收，不是线上数据或用户内容。完整证据见 `docs/phase4-content-loop-validation-2026-08-04.md`。
-
-## 阶段5未发布制作移交闭环
-
-本地 `0.5.0-dev.1` 候选把已确认的 Manuscript Package v1 与 Publishing Asset Package v1 组装为 `schemaVersion=2.1` 的标准 Production Package v2，并提供：
-
-- 只含目标语言母稿、锁定角色／音色、唯一标题、真实封面和上游 source lock 的九文件生产包；
-- 权威 Production Task v1，P0–P11 依赖、单通道、只读进度、暂停／恢复、失败资产重试和选择性失效；
-- 自动成片与自包含 Jianying Draft Package v1 两条路径；
-- FFmpeg／ffprobe 实测的视频音频流、16:9、时长、字幕映射与结果包技术门；
-- `VIDEO_READY` Production Result Package v1，明确不创建 `.ready`、不调用发布中心、不执行 OAuth 或上传。
-
-离线验收 runner 使用清楚标记的 deterministic synthetic 媒体，经同一任务、资产登记和技术质量门运行，不代表真实图片、视频或 TTS 模型调用。非合成任务没有实际工坊 2.1 适配桥时会在创建活动任务前失败。
-
-阶段5完整隔离验收入口：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage5.ps1
-```
-
-当前最新工坊源码的 2.1 导入已在隔离构建中验证；正式已安装工坊程序未被覆盖，因此正式部署仍须单独审核升级。
-
-## 阶段6未发布本地发布安全门
-
-本地 `0.6.0-dev.1` 候选从 `VIDEO_READY` Production Result Package v1 与已冻结 Publishing Asset Package v1 幂等组装发布包 v2。包先写入 `<publish_intent_id>.creating`，全部 Schema、路径、哈希、FFprobe、封面、字幕、元数据、频道、计划与额度检查成功后才原子形成 `.ready`。
-
-阶段6提供 `$publish-video` 和五个本地工具，支持三种策略：`DO_NOT_UPLOAD` 只保存包，`REQUIRE_REVIEW` 停在人工确认，`AUTO` 必须通过工作区／频道／当前意图三重授权版本与时间门。即使资格齐全也只到 `READY_TO_UPLOAD` 并返回 `EXTERNAL_APPROVAL_REQUIRED`。本阶段所有工具强制 `networkExecution=false`，不会发起 OAuth、YouTube API、真实上传、远端修改或删除；没有真实 YouTube video ID 时不会生成 Publication Receipt。
-
-阶段6完整隔离验收入口：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage6.ps1
-```
-
-## 阶段7未发布数据中心闭环
-
-本地 `0.7.0-dev.1` 候选新增 `$data-center`、Metric Catalog v1 和七个本地数据工具。正式视频注册只接受哈希有效的 Publication Receipt v1、真实 YouTube video ID，以及 Topic／Manuscript／Publishing／Production／Publish Intent 的版本和 SHA-256 绑定。阶段6当前只有本地发布包，因此正式注册会正确停在 `WAITING_FOR_PUBLICATION_RECEIPT`。
-
-数据中心按频道隔离保存 raw／normalized／Analytics Snapshot v1／基线／timeline map／视频与频道报告／Recommendation Card。公开导入只产生 `PUBLIC_API_FACT`；没有独立 owner Analytics 授权时 CTR、留存、流量、设备、人口和订阅等保持 `UNKNOWN`。授权默认 `AUTH_REQUIRED`、`available=false`，收入 scope 关闭，工具不会发起 OAuth 或接收 Token。
-
-三市场验收全部使用明确的 recorded synthetic fixtures，并只写入 `data/synthetic-fixtures/` 隔离命名空间。任何长期 `channel_default`／`must_avoid` 学习请求返回 `LONG_TERM_LEARNING_APPROVAL_REQUIRED`；自动模式也不能绕过。
-
-阶段7完整隔离验收入口：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Stage7.ps1
-```
+完整安装/升级说明见 [docs/install-upgrade-rollback-uninstall.md](docs/install-upgrade-rollback-uninstall.md)，历史阶段记录见 [docs/implementation-history.md](docs/implementation-history.md)。

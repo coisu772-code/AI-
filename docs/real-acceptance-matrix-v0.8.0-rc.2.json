@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0.0",
+  "productVersion": "0.8.0-rc.2",
+  "localEvidenceIsNotLiveEvidence": true,
+  "rows": [
+    { "capability": "locked-assets-and-offline-install", "localStatus": "PROVABLE", "realStatus": "NOT_REQUIRED", "syntheticMaySatisfy": true },
+    { "capability": "fake-online-release-source", "localStatus": "PROVABLE", "realStatus": "NOT_REQUIRED", "syntheticMaySatisfy": true },
+    { "capability": "transaction-upgrade-repair-rollback-uninstall", "localStatus": "PROVABLE", "realStatus": "CLEAN_MACHINE_RECHECK_REQUIRED", "syntheticMaySatisfy": false },
+    { "capability": "no-python-no-uv-unicode-spaces", "localStatus": "PROVABLE_BY_PATH_SIMULATION", "realStatus": "ANOTHER_CLEAN_WINDOWS_REQUIRED", "syntheticMaySatisfy": false },
+    { "capability": "codex-plugin-load", "localStatus": "STRUCTURE_PROVABLE", "realStatus": "RESTART_AND_NEW_TASK_REQUIRED", "syntheticMaySatisfy": false },
+    { "capability": "workshop-real-production", "localStatus": "UPSTREAM_FROZEN_REPORT_ONLY", "realStatus": "APPROVED_REAL_SERVICE_SMOKE_REQUIRED", "syntheticMaySatisfy": false },
+    { "capability": "youtube-oauth", "localStatus": "NOT_EXECUTED", "realStatus": "EXPLICIT_APPROVAL_REQUIRED", "syntheticMaySatisfy": false },
+    { "capability": "real-private-upload-and-receipt", "localStatus": "NOT_EXECUTED", "realStatus": "EXPLICIT_APPROVAL_REQUIRED", "syntheticMaySatisfy": false },
+    { "capability": "studio-private-data", "localStatus": "NOT_EXECUTED", "realStatus": "EXPLICIT_APPROVAL_REQUIRED", "syntheticMaySatisfy": false },
+    { "capability": "long-term-learning-write", "localStatus": "NOT_EXECUTED", "realStatus": "SEPARATE_APPROVAL_REQUIRED", "syntheticMaySatisfy": false }
+  ]
+}

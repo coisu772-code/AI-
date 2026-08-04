@@ -1,40 +1,29 @@
-name: beta-release
+name: unified-release-preflight
 
 on:
-  push:
-    tags:
-      - "v0.8.0-rc.1"
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  validate-and-release:
+  source-preflight-only:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-      - name: Validate tagged source and RC safety
+      - name: Validate source and plugin marketplace
         shell: pwsh
         run: |
-          if ("v$((Get-Content .\plugins\ai-video-channel-production\.codex-plugin\plugin.json -Raw | ConvertFrom-Json).version)" -ne "${{ github.ref_name }}") { throw "Tag and plugin version differ." }
-          .\tools\Test-Stage1.ps1 -SkipCodexLoadSmoke
-          uv run python -m unittest -q tests.test_stage8_release_candidate
-      - name: Build release assets
+          uv sync --locked
+          uv run python tools/validate_plugin.py
+          uv run python -m unittest discover -s tests -p "test_*.py" -q
+      - name: Explain local desktop asset gate
         shell: pwsh
-        run: .\tools\Build-ReleaseCandidate.ps1
-      - name: Publish GitHub prerelease
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" `
-            .\dist\v0.8.0-rc.1\ai-video-channel-production-v0.8.0-rc.1-windows.zip `
-            .\dist\v0.8.0-rc.1\SHA256SUMS.txt `
-            --verify-tag `
-            --prerelease `
-            --latest=false `
-            --title "AI 视频频道生产系统 ${{ github.ref_name }}" `
-            --notes-file .\docs\release-notes-v0.8.0-rc.1.md
+          Write-Output "PASS: source preflight only."
+          Write-Output "The workshop, publisher center, and standalone runtime are frozen local desktop assets."
+          Write-Output "CI must not create a tag or Release when those exact hash-locked assets are absent."
+          Write-Output "After explicit approval, use tools/Publish-UnifiedRelease.ps1 against the locally validated asset directory."

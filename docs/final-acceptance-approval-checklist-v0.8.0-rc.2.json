@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0.0",
+  "productVersion": "0.8.0-rc.2",
+  "overallStatus": "WAITING_FOR_CONTROLLED_REAL_ACCEPTANCE",
+  "operationsExecutedByStage8C": false,
+  "gates": [
+    { "id": "final-local-commit-binding", "owner": "main-thread", "executed": false, "evidenceRequired": "Replace manifest commit placeholders and rebuild twice." },
+    { "id": "publisher-third-party-notices", "owner": "legal-release-owner", "executed": false, "evidenceRequired": "Review dependencies and provide required notices; current ZIP has no standalone notice file." },
+    { "id": "clean-windows-install", "owner": "release-owner", "executed": false, "evidenceRequired": "Fresh Windows 10/11 x64 machine with no Python or uv." },
+    { "id": "code-signing-publisher-identity", "owner": "release-owner", "executed": false, "evidenceRequired": "Approved signing and Windows reputation evidence." },
+    { "id": "github-release-publication", "owner": "main-thread", "executed": false, "evidenceRequired": "Explicit authorization for tag/push/Release and exact manifest hash." },
+    { "id": "google-youtube-oauth", "owner": "channel-owner", "executed": false, "evidenceRequired": "Least-privilege OAuth approval on a controlled account." },
+    { "id": "real-private-youtube-upload", "owner": "channel-owner", "executed": false, "evidenceRequired": "Controlled private upload, real video ID and publication receipt." },
+    { "id": "youtube-studio-private-data", "owner": "channel-owner", "executed": false, "evidenceRequired": "Approved Studio/Analytics data collection and redacted report." },
+    { "id": "long-term-learning-write", "owner": "channel-owner", "executed": false, "evidenceRequired": "Separate decision record and bounded write-back audit." }
+  ]
+}

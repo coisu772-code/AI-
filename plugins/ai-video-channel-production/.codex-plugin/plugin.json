@@ -1,6 +1,6 @@
 {
   "name": "ai-video-channel-production",
-  "version": "0.8.0-rc.1",
+  "version": "0.8.0-rc.2",
   "description": "AI 视频频道生产系统的可安装 RC：频道建库、资料、内容、制作、本地发布准备、数据复盘与安全生命周期。",
   "author": {
     "name": "coisu772-code",

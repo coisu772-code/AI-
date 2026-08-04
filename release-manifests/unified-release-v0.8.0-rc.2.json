@@ -1,0 +1,102 @@
+{
+  "assets": [
+    {
+      "archiveRoot": "AI-Video-Channel-Production-Unified-Installer-v0.8.0-rc.2",
+      "assetId": "unified-installer",
+      "compatibleProductVersions": ["0.8.0-rc.2"],
+      "fileName": "AI-Video-Channel-Production-Unified-Installer-v0.8.0-rc.2.zip",
+      "install": false,
+      "installSubpath": "",
+      "license": { "expression": "LicenseRef-AI-Video-Channel-Production-1.0", "reviewStatus": "product-license-applies", "source": "LICENSE.md" },
+      "sha256": "878864ce62da65f438f20580806e0aabdf2947657cc1365a2e5e7f9e9dbdfc78",
+      "sizeBytes": 9198,
+      "source": { "commit": "LOCAL_COMMIT_TO_BE_RECORDED", "repository": "https://github.com/coisu772-code/AI-/" },
+      "version": "0.8.0-rc.2"
+    },
+    {
+      "archiveRoot": "ai-video-channel-production-core",
+      "assetId": "core",
+      "compatibleProductVersions": ["0.8.0-rc.2"],
+      "fileName": "ai-video-channel-production-core-v0.8.0-rc.2-windows.zip",
+      "install": true,
+      "installSubpath": "",
+      "license": { "expression": "LicenseRef-AI-Video-Channel-Production-1.0", "reviewStatus": "product-license-applies", "source": "LICENSE.md" },
+      "sha256": "359bd9821d9fe39e61863fe340707ffd12afb9c59265a7b2ef6116d1e9b584c4",
+      "sizeBytes": 359696,
+      "source": { "commit": "LOCAL_COMMIT_TO_BE_RECORDED", "repository": "https://github.com/coisu772-code/AI-/" },
+      "version": "0.8.0-rc.2"
+    },
+    {
+      "archiveRoot": "aivcp-python-runtime-3.12.13",
+      "assetId": "python-runtime",
+      "compatibleProductVersions": ["0.8.0-rc.2"],
+      "fileName": "aivcp-python-runtime-3.12.13-windows-x64.zip",
+      "install": true,
+      "installSubpath": "runtime/python",
+      "license": { "expression": "PSF-2.0 AND bundled-third-party-licenses", "reviewStatus": "inventory-generated-review-required", "source": "LICENSE.txt and package dist-info license files" },
+      "sha256": "5659cf5796ad5c344b777cb3b27fd024cfa2c9a2aad828256e67e4dd08f4212b",
+      "sizeBytes": 24823779,
+      "source": { "build": "20260610", "url": "https://github.com/astral-sh/python-build-standalone" },
+      "version": "3.12.13"
+    },
+    {
+      "archiveRoot": "Z-Manga-Workshop-2.1.0-stage5-for-AIVCP-0.8.0-rc.1-windows-x64-portable",
+      "assetId": "workshop",
+      "compatibleProductVersions": ["0.8.0-rc.1", "0.8.0-rc.2"],
+      "fileName": "Z-Manga-Workshop-2.1.0-stage5-for-AIVCP-0.8.0-rc.1-windows-x64-portable.zip",
+      "install": true,
+      "installSubpath": "apps/workshop",
+      "license": { "expression": "LicenseRef-AIVCP-Workshop AND GPL-3.0-only", "reviewStatus": "upstream-machine-validated", "source": "licenses/ application license, FFmpeg GPL text and Gyan README inside archive" },
+      "sha256": "7a9cb4562e3c82606436ad76d1620a1fa1d59a652deb9f46be01cccad5085167",
+      "sizeBytes": 82990897,
+      "source": { "commit": "224e11ecdaec2eae2833ac9f63893f9d72ac5c84", "upstreamReport": "validation-summary-v2.1.0-stage5.json" },
+      "version": "2.1.0-stage5"
+    },
+    {
+      "archiveRoot": "youtube-publisher-center-v0.8.0-rc.2-windows-amd64",
+      "assetId": "publisher-center",
+      "compatibleProductVersions": ["0.8.0-rc.2"],
+      "fileName": "youtube-publisher-center-v0.8.0-rc.2-windows-amd64.zip",
+      "install": true,
+      "installSubpath": "apps/publisher",
+      "license": { "expression": "LicenseRef-AI-Video-Channel-Production-1.0", "reviewStatus": "manual-third-party-notice-review-required", "source": "product LICENSE.md (archive has no standalone LICENSE or THIRD-PARTY-NOTICES)" },
+      "sha256": "4f51f1a4ba4808261f24599da86f710330c76132a64793c70f111278440239d3",
+      "sizeBytes": 32435182,
+      "source": { "acceptanceStatus": "CANDIDATE_READY_FOR_CONTROLLED_REAL_ACCEPTANCE", "commit": "62453a0c06cf7a678beff22f650c8277e87e3613" },
+      "version": "0.8.0-rc.2"
+    }
+  ],
+  "downloadBaseUrl": "https://github.com/coisu772-code/AI-/releases/download/v0.8.0-rc.2",
+  "generatedAt": "2026-08-04T00:00:00Z",
+  "hashAlgorithm": "SHA-256",
+  "logicalComponents": [
+    {
+      "componentId": "ffmpeg-runtime",
+      "files": [
+        { "relativeInstallPath": "apps/workshop/tools/ffmpeg/bin/ffmpeg.exe", "sha256": "1326dde4c84ff1f96fe6b8916c5bed29e163e9b5dccf995f6f3db069d143ec5e", "sizeBytes": 101897728 },
+        { "relativeInstallPath": "apps/workshop/tools/ffmpeg/bin/ffprobe.exe", "sha256": "b49ccc7c6547b141ad5a2f6ec69cc04323d7133d7704d70b331b904c63eecb07", "sizeBytes": 101692928 }
+      ],
+      "healthCheck": { "command": "apps/workshop/tools/ffmpeg/bin/ffmpeg.exe -version", "expected": "ffmpeg version 8.1.2" },
+      "license": { "expression": "GPL-3.0-only", "source": "apps/workshop/licenses/ffmpeg/COPYING.GPLv3 and GYAN-BUILD-README.txt" },
+      "providedByAsset": "workshop",
+      "version": "8.1.2"
+    }
+  ],
+  "productId": "ai-video-channel-production",
+  "productName": "AI 视频频道生产系统",
+  "productVersion": "0.8.0-rc.2",
+  "publicationGates": [
+    "replace-local-commit-placeholders",
+    "publisher-third-party-notice-review",
+    "clean-windows-acceptance",
+    "github-release-approval",
+    "google-oauth-approval",
+    "private-upload-approval",
+    "studio-data-approval",
+    "long-term-learning-write-approval"
+  ],
+  "releaseStatus": "candidate",
+  "runtime": { "pythonBuild": "20260610", "pythonVersion": "3.12.13", "requiresPreinstalledPython": false, "requiresPreinstalledUv": false },
+  "safetyBoundaries": { "credentialsIncluded": false, "longTermLearningWriteExecuted": false, "oauthExecuted": false, "realUploadExecuted": false, "userDataIncluded": false },
+  "schemaVersion": "2.0.0"
+}

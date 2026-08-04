@@ -1,71 +1,49 @@
 [CmdletBinding()]
 param(
-    [string]$EvidenceRoot
+    [Parameter(Mandatory = $true)][string]$AssetRoot,
+    [Parameter(Mandatory = $true)][string]$EvidenceRoot
 )
-
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $root = [System.IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
-$workspaceRoot = Split-Path -Parent (Split-Path -Parent $root)
-if ([string]::IsNullOrWhiteSpace($EvidenceRoot)) { $EvidenceRoot = Join-Path $workspaceRoot "runtime\s8\rc1" }
+$assets = [System.IO.Path]::GetFullPath($AssetRoot)
 $evidence = [System.IO.Path]::GetFullPath($EvidenceRoot)
-$uv = Get-Command uv -ErrorAction SilentlyContinue
-if ($null -eq $uv) { throw "uv is required for Stage8 validation." }
+$uv = Get-Command uv -ErrorAction Stop
 New-Item -ItemType Directory -Path $evidence -Force | Out-Null
-
 Push-Location $root
 try {
-    $env:PYTHONUTF8 = "1"
-    $env:PYTHONDONTWRITEBYTECODE = "1"
+    $env:PYTHONUTF8 = "1"; $env:PYTHONDONTWRITEBYTECODE = "1"
     & $uv.Source sync --locked
-    if ($LASTEXITCODE -ne 0) { throw "Stage8 dependency synchronization failed." }
-    & $uv.Source run python -m unittest -q tests.test_stage8_release_candidate
-    if ($LASTEXITCODE -ne 0) { throw "Stage8 unit tests failed." }
-
-    $lifecycleRoot = Join-Path $evidence "installation-lifecycle"
-    & (Join-Path $root "tools\Invoke-Stage8Lifecycle.ps1") -EvidenceRoot $lifecycleRoot | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Stage8 installation lifecycle failed." }
-
-    $e2eRoot = Join-Path $evidence "three-market-e2e"
-    if (Test-Path -LiteralPath $e2eRoot) { Remove-Item -LiteralPath $e2eRoot -Recurse -Force }
-    & $uv.Source run python (Join-Path $root "tools\generate_stage8_fixture_outputs.py") --output $e2eRoot | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Stage8 three-market end-to-end fixture validation failed." }
-
-    $buildA = Join-Path $evidence "rc-build-a"
-    $buildB = Join-Path $evidence "rc-build-b"
-    foreach ($build in @($buildA, $buildB)) {
-        if (Test-Path -LiteralPath $build) { Remove-Item -LiteralPath $build -Recurse -Force }
-        & $uv.Source run python (Join-Path $root "tools\build_release_candidate.py") --output $build | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "Stage8 deterministic RC build failed." }
-    }
-    $zipName = "ai-video-channel-production-v0.8.0-rc.1-windows.zip"
-    $zipA = Join-Path $buildA $zipName
-    $zipB = Join-Path $buildB $zipName
-    $hashA = (Get-FileHash -LiteralPath $zipA -Algorithm SHA256).Hash.ToLowerInvariant()
-    $hashB = (Get-FileHash -LiteralPath $zipB -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($hashA -ne $hashB) { throw "Release candidate ZIP is not reproducible." }
-    & $uv.Source run python (Join-Path $root "tools\scan_release_candidate.py") --archive $zipA | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Stage8 RC safety scan failed." }
-
-    $approval = Get-Content -LiteralPath (Join-Path $root "docs\final-acceptance-approval-checklist-v0.8.0-rc.1.json") -Raw -Encoding UTF8 | ConvertFrom-Json
-    if (@($approval.gates | Where-Object { $_.executed -ne $false }).Count -ne 0) { throw "An external approval gate was incorrectly marked executed." }
+    if ($LASTEXITCODE -ne 0) { throw "Locked dependency synchronization failed." }
+    & $uv.Source run python tools\validate_plugin.py
+    if ($LASTEXITCODE -ne 0) { throw "Official-structure plugin/repository marketplace validation failed." }
+    & $uv.Source run python tools\validate_release_manifest.py
+    if ($LASTEXITCODE -ne 0) { throw "Committed unified manifest validation failed." }
+    & $uv.Source run python -m unittest discover -s tests -p "test_*.py" -q
+    if ($LASTEXITCODE -ne 0) { throw "Full unit test suite failed." }
+    & $uv.Source run python tools\validate_unified_release.py --manifest (Join-Path $assets "unified-release-v0.8.0-rc.2.json") --asset-root $assets --report (Join-Path $evidence "unified-release-scan.json")
+    if ($LASTEXITCODE -ne 0) { throw "Unified asset security validation failed." }
+    & (Join-Path $root "tools\Invoke-Stage8Lifecycle.ps1") -AssetRoot $assets -EvidenceRoot (Join-Path $evidence "installation-lifecycle")
+    if (-not $?) { throw "Isolated installation lifecycle failed." }
+    $shortE2eRoot = "C:\AIVCP-S8-E2E-" + [guid]::NewGuid().ToString("N").Substring(0, 8)
+    & $uv.Source run python (Join-Path $root "tools\generate_stage8_fixture_outputs.py") --output $shortE2eRoot
+    if ($LASTEXITCODE -ne 0) { throw "Three-market synthetic workflow validation failed." }
+    Copy-Item -LiteralPath (Join-Path $shortE2eRoot "summary.json") -Destination (Join-Path $evidence "three-market-summary.json")
+    $shortE2eFull = [System.IO.Path]::GetFullPath($shortE2eRoot)
+    if (-not $shortE2eFull.StartsWith("C:\AIVCP-S8-E2E-", [System.StringComparison]::OrdinalIgnoreCase)) { throw "Unexpected synthetic evidence cleanup root." }
+    Remove-Item -LiteralPath $shortE2eFull -Recurse -Force
+    $approval = Get-Content -LiteralPath (Join-Path $root "docs\final-acceptance-approval-checklist-v0.8.0-rc.2.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (@($approval.gates | Where-Object { [bool]$_.executed }).Count -ne 0) { throw "An external approval gate was incorrectly marked executed." }
     $summary = [ordered]@{
-        schemaVersion = "1.0.0"
-        productVersion = "0.8.0-rc.1"
-        status = "LOCAL_RELEASE_CANDIDATE_GO"
-        fullMvpStatus = "WAITING_FOR_AUTHORIZED_LIVE_ACCEPTANCE"
-        lifecycleSummary = (Join-Path $lifecycleRoot "lifecycle-summary.json")
-        threeMarketSummary = (Join-Path $e2eRoot "summary.json")
-        releaseCandidate = [ordered]@{ path = $zipA; sha256 = $hashA; reproducible = $true; secondBuildPath = $zipB }
-        approvalChecklist = (Join-Path $root "docs\final-acceptance-approval-checklist-v0.8.0-rc.1.json")
-        externalActionsExecuted = $false
+        schemaVersion="1.0.0"; productVersion="0.8.0-rc.2"; status="LOCAL_UNIFIED_RC_PASS"; fullMvpStatus="WAITING_FOR_CONTROLLED_REAL_ACCEPTANCE"
+        unitSuite="PASS"; pluginValidation="PASS"; unifiedAssetScan="PASS"; lifecycle="PASS"; threeMarketSynthetic="PASS"
+        externalActionsExecuted=$false; approvalChecklist=(Join-Path $root "docs\final-acceptance-approval-checklist-v0.8.0-rc.2.json")
     }
-    $summaryPath = Join-Path $evidence "stage8-summary.json"
-    $summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPath -Encoding UTF8
+    $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $evidence "stage8-summary.json") -Encoding UTF8
 }
 finally {
     Remove-Item Env:PYTHONUTF8 -ErrorAction SilentlyContinue
     Remove-Item Env:PYTHONDONTWRITEBYTECODE -ErrorAction SilentlyContinue
     Pop-Location
 }
-Write-Output "Stage8 local RC lifecycle, three-market E2E, reproducible ZIP, and approval gates passed."
+Write-Output "Stage8C local unified RC validation PASS: $evidence"

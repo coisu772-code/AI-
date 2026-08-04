@@ -11,13 +11,13 @@ if (-not [string]::IsNullOrWhiteSpace($configuredPython) -and (Test-Path -Litera
     exit $LASTEXITCODE
 }
 
-$installedRuntime = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..\runtime\python\Scripts\python.exe"))
+$installedRuntime = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..\runtime\python\python.exe"))
 if (Test-Path -LiteralPath $installedRuntime -PathType Leaf) {
     & $installedRuntime $server mcp
     exit $LASTEXITCODE
 }
 
-$bundledPython = Join-Path $env:LOCALAPPDATA "AI Video Channel Production\runtime\python\python.exe"
+$bundledPython = Join-Path $env:LOCALAPPDATA "AI Video Channel Production\current\runtime\python\python.exe"
 if (Test-Path -LiteralPath $bundledPython -PathType Leaf) {
     & $bundledPython $server mcp
     exit $LASTEXITCODE

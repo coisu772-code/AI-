@@ -75,11 +75,16 @@ if ($PSCmdlet.ShouldProcess($currentPath, "Rollback to $($candidate.Name)")) {
     if (-not $SkipCodexRegistration) {
         $codex = Get-CompatibleCodexPluginCli
         if ($null -eq $codex) {
-            throw "Rollback completed, but a Codex CLI with plugin install support was not found for plugin refresh."
+            $guide = Write-AivcpCodexSetupGuide -CurrentRoot $currentPath -Reason "Rollback completed, but no compatible Codex CLI was found."
+            Write-Warning "Rollback completed. Manual Codex refresh instructions: $guide"
         }
-        & $codex plugin add "ai-video-channel-production@novel-manga-production"
-        if ($LASTEXITCODE -ne 0) {
-            throw "Rollback completed, but Codex plugin refresh failed."
+        else {
+            & $codex plugin marketplace add $currentPath --json | Out-Null
+            & $codex plugin add "ai-video-channel-production@novel-manga-production" --json | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                $guide = Write-AivcpCodexSetupGuide -CurrentRoot $currentPath -Reason "Rollback completed, but Codex plugin refresh failed."
+                Write-Warning "Manual Codex refresh instructions: $guide"
+            }
         }
     }
     Write-Output "Rollback completed. Restart Codex and open a new task."

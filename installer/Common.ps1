@@ -147,3 +147,128 @@ function Test-AivcpNoReparsePoints {
         throw "Reparse points are not allowed in this operation: $($reparse.FullName)"
     }
 }
+
+function Write-AivcpJsonFile {
+    param(
+        [Parameter(Mandatory = $true)]$Value,
+        [Parameter(Mandatory = $true)][string]$PathValue,
+        [int]$Depth = 12
+    )
+    $json = $Value | ConvertTo-Json -Depth $Depth
+    [System.IO.File]::WriteAllText($PathValue, $json + "`n", [System.Text.UTF8Encoding]::new($false))
+}
+
+function Get-AivcpManifestHash {
+    param([Parameter(Mandatory = $true)][string]$ManifestPath)
+    return Get-AivcpFileSha256 (Resolve-AivcpFullPath $ManifestPath)
+}
+
+function Test-AivcpRelativeArchivePath {
+    param([Parameter(Mandatory = $true)][string]$EntryName)
+    $normalized = $EntryName.Replace("\", "/")
+    if ([string]::IsNullOrWhiteSpace($normalized) -or $normalized.StartsWith("/") -or $normalized -match "^[A-Za-z]:") {
+        throw "Unsafe ZIP entry path: $EntryName"
+    }
+    foreach ($part in $normalized.Split('/')) {
+        if ($part -eq "..") { throw "Unsafe ZIP entry path: $EntryName" }
+    }
+    return $normalized
+}
+
+function Expand-AivcpVerifiedZip {
+    param(
+        [Parameter(Mandatory = $true)][string]$ArchivePath,
+        [Parameter(Mandatory = $true)][string]$DestinationPath,
+        [Parameter(Mandatory = $true)][string]$ExpectedRoot
+    )
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $destinationFull = Resolve-AivcpFullPath $DestinationPath
+    New-Item -ItemType Directory -Path $destinationFull -Force | Out-Null
+    $prefix = $destinationFull.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-AivcpFullPath $ArchivePath))
+    try {
+        foreach ($entry in $archive.Entries) {
+            $normalized = Test-AivcpRelativeArchivePath $entry.FullName
+            if (-not $seen.Add($normalized)) { throw "Duplicate ZIP entry: $normalized" }
+            $parts = $normalized.Split('/')
+            if ($parts[0] -ne $ExpectedRoot) { throw "ZIP root mismatch: expected $ExpectedRoot, found $($parts[0])" }
+            $unixMode = ($entry.ExternalAttributes -shr 16) -band 0xF000
+            if ($unixMode -eq 0xA000) { throw "ZIP symbolic links are not allowed: $normalized" }
+            $target = Resolve-AivcpFullPath (Join-Path $destinationFull $normalized)
+            if (-not $target.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "ZIP entry escapes extraction root: $normalized"
+            }
+        }
+    }
+    finally {
+        $archive.Dispose()
+    }
+    [System.IO.Compression.ZipFile]::ExtractToDirectory((Resolve-AivcpFullPath $ArchivePath), $destinationFull)
+    Test-AivcpNoReparsePoints $destinationFull
+    return Join-Path $destinationFull $ExpectedRoot
+}
+
+function Copy-AivcpDirectoryContents {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourcePath,
+        [Parameter(Mandatory = $true)][string]$DestinationPath
+    )
+    New-Item -ItemType Directory -Path $DestinationPath -Force | Out-Null
+    Get-ChildItem -LiteralPath $SourcePath -Force | ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination $DestinationPath -Recurse -Force
+    }
+}
+
+function Get-AivcpVerifiedAsset {
+    param(
+        [Parameter(Mandatory = $true)]$Asset,
+        [Parameter(Mandatory = $true)][string]$AssetRoot,
+        [Parameter(Mandatory = $true)][string]$CacheRoot,
+        [Parameter(Mandatory = $true)][ValidateSet("Auto", "Offline", "Online")][string]$InstallMode,
+        [string]$DownloadBaseUrl
+    )
+    $fileName = [string]$Asset.fileName
+    if ([System.IO.Path]::GetFileName($fileName) -ne $fileName) { throw "Asset filename is unsafe: $fileName" }
+    $local = Join-Path $AssetRoot $fileName
+    $candidate = $local
+    if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+        if ($InstallMode -eq "Offline") { throw "Offline asset is missing: $fileName" }
+        if ([string]::IsNullOrWhiteSpace($DownloadBaseUrl)) { throw "Asset is missing and no download URL is configured: $fileName" }
+        New-Item -ItemType Directory -Path $CacheRoot -Force | Out-Null
+        $candidate = Join-Path $CacheRoot $fileName
+        $uri = $DownloadBaseUrl.TrimEnd('/') + '/' + [System.Uri]::EscapeDataString($fileName)
+        Invoke-WebRequest -Uri $uri -OutFile $candidate -UseBasicParsing
+    }
+    $item = Get-Item -LiteralPath $candidate
+    if ([int64]$item.Length -ne [int64]$Asset.sizeBytes) {
+        throw "Asset size mismatch: $fileName (expected $($Asset.sizeBytes), got $($item.Length))"
+    }
+    $actual = Get-AivcpFileSha256 $candidate
+    if ($actual -ne [string]$Asset.sha256) {
+        throw "Asset SHA-256 mismatch: $fileName (expected $($Asset.sha256), got $actual)"
+    }
+    return $candidate
+}
+
+function Write-AivcpCodexSetupGuide {
+    param(
+        [Parameter(Mandatory = $true)][string]$CurrentRoot,
+        [Parameter(Mandatory = $true)][string]$Reason
+    )
+    $guidePath = Join-Path $CurrentRoot "CODEX-PLUGIN-SETUP.txt"
+    $lines = @(
+        "AI Video Channel Production files are installed and healthy.",
+        "Codex plugin registration status: MANUAL_ACTION_REQUIRED",
+        "Reason: $Reason",
+        "",
+        "When a Codex CLI with plugin commands is available, run:",
+        "  codex plugin marketplace add `"$CurrentRoot`" --json",
+        "  codex plugin add ai-video-channel-production@novel-manga-production --json",
+        "",
+        "This uses the repository marketplace shipped with the product; it does not create or edit a personal marketplace file directly.",
+        "Then restart Codex and create a new task. Existing tasks do not reload plugin changes."
+    )
+    [System.IO.File]::WriteAllLines($guidePath, $lines, [System.Text.UTF8Encoding]::new($false))
+    return $guidePath
+}

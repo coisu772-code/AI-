@@ -25,6 +25,26 @@ def current_manifest_path() -> Path:
 
 
 def validate_release_manifest(manifest_path: Path | None = None) -> list[str]:
+    plugin = load_json(ROOT / "plugins" / "ai-video-channel-production" / ".codex-plugin" / "plugin.json")
+    if plugin.get("version") == "0.8.0-rc.2" and manifest_path is None:
+        selected = ROOT / "release-manifests" / "unified-release-v0.8.0-rc.2.json"
+        if not selected.is_file():
+            return ["unified-release-v0.8.0-rc.2.json is missing"]
+        manifest = load_json(selected)
+        schema = load_json(ROOT / "release-manifests" / "unified-release-manifest.schema.json")
+        errors = []
+        for error in Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(manifest):
+            location = "/".join(str(part) for part in error.absolute_path) or "<root>"
+            errors.append(f"{selected.name}:{location}: {error.message}")
+        ids = [asset.get("assetId") for asset in manifest.get("assets", [])]
+        if set(ids) != {"unified-installer", "core", "python-runtime", "workshop", "publisher-center"} or len(ids) != len(set(ids)):
+            errors.append("unified release must contain exactly the five locked asset IDs")
+        if any(asset.get("assetId") in {"workshop", "publisher-center"} and not asset.get("install") for asset in manifest.get("assets", [])):
+            errors.append("workshop and publisher center must be installed release assets")
+        publisher = next((asset for asset in manifest.get("assets", []) if asset.get("assetId") == "publisher-center"), {})
+        if publisher.get("license", {}).get("reviewStatus") != "manual-third-party-notice-review-required":
+            errors.append("publisher third-party notice review gate must remain explicit")
+        return errors
     selected_path = manifest_path or current_manifest_path()
     manifest = load_json(selected_path)
     manifest_name = selected_path.name

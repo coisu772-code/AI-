@@ -10,7 +10,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $root = [System.IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
-$checklistPath = Join-Path $root "docs\final-acceptance-approval-checklist-v0.8.0-rc.1.json"
+$checklistPath = Join-Path $root "docs\final-acceptance-approval-checklist-v0.8.0-rc.2.json"
 $checklist = Get-Content -LiteralPath $checklistPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $expectedWorkshop = "2c168cf5e1a886427fc564fc0d381d7a0915786a6d6ad10dec04131bb9d786a4"
 $expectedPublisher = "a81ce665c4d7c7bb97e46760cdde5606e90982a692a901d552165125f3af86f9"
@@ -67,7 +67,7 @@ $gates = @($checklist.gates | ForEach-Object {
 $artifactsReady = [bool]$workshop.unchanged -and [bool]$publisher.unchanged -and [bool]$publisherCli.unchanged
 $result = [ordered]@{
     schemaVersion = "1.0.0"
-    productVersion = "0.8.0-rc.1"
+    productVersion = "0.8.0-rc.2"
     status = if ($artifactsReady -and [bool]$rcCheck.exists) { "READY_FOR_USER_AUTHORIZATION" } else { "WAITING_FOR_PREREQUISITES" }
     readOnlyPreflight = $true
     externalActionExecuted = $false

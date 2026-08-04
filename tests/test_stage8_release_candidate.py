@@ -2,89 +2,109 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MCP_ROOT = ROOT / "plugins" / "ai-video-channel-production" / "mcp"
-TOOLS_ROOT = ROOT / "tools"
-sys.path.insert(0, str(MCP_ROOT))
-sys.path.insert(0, str(TOOLS_ROOT))
+TOOLS = ROOT / "tools"
+import sys
 
-from aivcp_tools.service import default_data_root  # noqa: E402
-from build_release_candidate import build  # noqa: E402
-from scan_release_candidate import scan  # noqa: E402
+sys.path.insert(0, str(TOOLS))
+from build_unified_release import (  # noqa: E402
+    PUBLISHER_NAME,
+    PUBLISHER_SHA,
+    PUBLISHER_SIZE,
+    VERSION,
+    WORKSHOP_NAME,
+    WORKSHOP_SHA,
+    WORKSHOP_SIZE,
+    build_bootstrap,
+    build_core,
+)
+from validate_unified_release import safe_zip_entries  # noqa: E402
 
 
-class Stage8ReleaseCandidateTests(unittest.TestCase):
-    def test_version_identity_and_machine_readable_approval_gates(self) -> None:
+class Stage8UnifiedReleaseTests(unittest.TestCase):
+    def manifest(self) -> dict[str, object]:
+        return json.loads((ROOT / "release-manifests/unified-release-v0.8.0-rc.2.json").read_text(encoding="utf-8"))
+
+    def test_rc2_identity_and_repository_marketplace(self) -> None:
         plugin = json.loads((ROOT / "plugins/ai-video-channel-production/.codex-plugin/plugin.json").read_text(encoding="utf-8"))
-        release = json.loads((ROOT / "release-manifests/release-v0.8.0-rc.1.json").read_text(encoding="utf-8"))
-        index = json.loads((ROOT / "release-manifests/version-index.json").read_text(encoding="utf-8"))
-        approvals = json.loads((ROOT / "docs/final-acceptance-approval-checklist-v0.8.0-rc.1.json").read_text(encoding="utf-8"))
-        self.assertEqual("0.8.0-rc.1", plugin["version"])
-        self.assertEqual(plugin["version"], release["productVersion"])
-        self.assertEqual("AI 视频频道生产系统", release["productName"])
-        self.assertEqual("draft", release["releaseStatus"])
-        self.assertIsNone(release["gitCommit"])
-        self.assertEqual("0.8.0-rc.1", index["currentReleaseCandidate"])
-        self.assertFalse(next(item for item in index["versions"] if item["version"] == "0.8.0-rc.1")["remotePublished"])
-        self.assertEqual("AUTH_REQUIRED", approvals["overallStatus"])
-        self.assertFalse(approvals["operationsExecutedByStage8"])
-        self.assertEqual(6, len(approvals["gates"]))
-        self.assertTrue(all(gate["executed"] is False for gate in approvals["gates"]))
-        self.assertIn("real-youtube-upload", {gate["id"] for gate in approvals["gates"]})
+        marketplace = json.loads((ROOT / ".agents/plugins/marketplace.json").read_text(encoding="utf-8"))
+        self.assertEqual(VERSION, plugin["version"])
+        self.assertEqual("novel-manga-production", marketplace["name"])
+        self.assertEqual("./plugins/ai-video-channel-production", marketplace["plugins"][0]["source"]["path"])
+        self.assertFalse((ROOT / ".codex/plugins/marketplace.json").exists())
 
-    def test_installed_state_routes_user_data_outside_active_program(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="aivcp-stage8-data-root-") as temporary:
+    def test_total_manifest_has_all_components_hashes_licenses_and_gates(self) -> None:
+        manifest = self.manifest()
+        assets = {asset["assetId"]: asset for asset in manifest["assets"]}
+        self.assertEqual({"unified-installer", "core", "python-runtime", "workshop", "publisher-center"}, set(assets))
+        for asset in assets.values():
+            self.assertRegex(asset["sha256"], r"^[0-9a-f]{64}$")
+            self.assertGreater(asset["sizeBytes"], 0)
+            self.assertTrue(asset["compatibleProductVersions"])
+            self.assertTrue(asset["license"]["source"])
+        self.assertTrue(assets["workshop"]["install"])
+        self.assertTrue(assets["publisher-center"]["install"])
+        self.assertEqual("manual-third-party-notice-review-required", assets["publisher-center"]["license"]["reviewStatus"])
+        self.assertIn("publisher-third-party-notice-review", manifest["publicationGates"])
+
+    def test_frozen_upstream_records_are_exact(self) -> None:
+        assets = {asset["assetId"]: asset for asset in self.manifest()["assets"]}
+        self.assertEqual((WORKSHOP_NAME, WORKSHOP_SIZE, WORKSHOP_SHA), (assets["workshop"]["fileName"], assets["workshop"]["sizeBytes"], assets["workshop"]["sha256"]))
+        self.assertEqual((PUBLISHER_NAME, PUBLISHER_SIZE, PUBLISHER_SHA), (assets["publisher-center"]["fileName"], assets["publisher-center"]["sizeBytes"], assets["publisher-center"]["sha256"]))
+        self.assertEqual("CANDIDATE_READY_FOR_CONTROLLED_REAL_ACCEPTANCE", assets["publisher-center"]["source"]["acceptanceStatus"])
+
+    def test_runtime_is_standalone_and_ffmpeg_is_explicit(self) -> None:
+        manifest = self.manifest()
+        self.assertFalse(manifest["runtime"]["requiresPreinstalledPython"])
+        self.assertFalse(manifest["runtime"]["requiresPreinstalledUv"])
+        ffmpeg = manifest["logicalComponents"][0]
+        self.assertEqual("ffmpeg-runtime", ffmpeg["componentId"])
+        self.assertEqual("GPL-3.0-only", ffmpeg["license"]["expression"])
+        self.assertEqual(2, len(ffmpeg["files"]))
+
+    def test_core_and_bootstrap_are_deterministic_and_core_has_no_exe(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="aivcp-core-build-") as temporary:
             base = Path(temporary)
-            current = base / "program" / "current"
-            plugin_root = current / "plugins" / "ai-video-channel-production"
-            plugin_root.mkdir(parents=True)
-            expected = base / "用户 数据 with spaces"
-            (current / "install-state.json").write_text(
-                json.dumps({"schemaVersion": "1.1.0", "productId": "ai-video-channel-production", "userDataRoot": str(expected)}),
-                encoding="utf-8",
-            )
-            self.assertEqual(expected.resolve(), default_data_root(plugin_root))
-            self.assertNotIn(current.resolve(), expected.resolve().parents)
+            first_core, second_core = build_core(base / "a"), build_core(base / "b")
+            first_entry, second_entry = build_bootstrap(base / "a"), build_bootstrap(base / "b")
+            self.assertEqual(first_core["sha256"], second_core["sha256"])
+            self.assertEqual(first_entry["sha256"], second_entry["sha256"])
+            errors, _ = safe_zip_entries(Path(first_core["path"]), "ai-video-channel-production-core", True)
+            self.assertEqual([], errors)
 
-    def test_lifecycle_entries_and_offline_online_runtime_strategy_are_shipped(self) -> None:
-        required = {
-            "Install-AIVideoChannelProduction.ps1",
-            "Upgrade-AIVideoChannelProduction.ps1",
-            "Repair-AIVideoChannelProduction.ps1",
-            "Rollback-AIVideoChannelProduction.ps1",
-            "Uninstall-AIVideoChannelProduction.ps1",
-            "Backup-AIVideoChannelProductionData.ps1",
-            "Restore-AIVideoChannelProductionData.ps1",
-            "Test-AIVideoChannelProductionHealth.ps1",
-            "Build-OfflineWheelhouse.ps1",
-            "runtime-requirements.txt",
-        }
-        self.assertTrue(required.issubset({path.name for path in (ROOT / "installer").iterdir()}))
-        install_text = (ROOT / "installer/Install-AIVideoChannelProduction.ps1").read_text(encoding="utf-8")
-        self.assertIn('ValidateSet("Existing", "Online", "Offline")', install_text)
-        self.assertIn("TEST_FAILURE_INJECTION:AfterSwitch", install_text)
-        uninstall_text = (ROOT / "installer/Uninstall-AIVideoChannelProduction.ps1").read_text(encoding="utf-8")
-        self.assertIn("PROGRAM_UNINSTALLED_USER_DATA_PRESERVED", uninstall_text)
+    def test_zip_traversal_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="aivcp-evil-zip-") as temporary:
+            archive = Path(temporary) / "evil.zip"
+            with zipfile.ZipFile(archive, "w") as handle:
+                handle.writestr("root/../escape.txt", "bad")
+            errors, _ = safe_zip_entries(archive, "root", False)
+            self.assertTrue(any("unsafe ZIP entry" in error for error in errors))
 
-    def test_release_candidate_zip_is_reproducible_and_safe(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="aivcp-stage8-build-") as temporary:
-            base = Path(temporary)
-            first = build(base / "first")
-            second = build(base / "second")
-            self.assertEqual(first["archiveSha256"], second["archiveSha256"])
-            archive = Path(first["archivePath"])
-            self.assertEqual(first["archiveSha256"], hashlib.sha256(archive.read_bytes()).hexdigest())
-            result = scan(archive)
-            self.assertEqual("PASS", result["status"], result["errors"])
-            self.assertFalse(result["boundaries"]["credentialsPresent"])
-            self.assertFalse(result["boundaries"]["userDataPresent"])
-            self.assertFalse(result["boundaries"]["executablesPresent"])
+    def test_installer_contains_transactional_and_no_cli_degradation_paths(self) -> None:
+        installer = (ROOT / "installer/Install-AIVideoChannelProduction.ps1").read_text(encoding="utf-8")
+        common = (ROOT / "installer/Common.ps1").read_text(encoding="utf-8")
+        uninstall = (ROOT / "installer/Uninstall-AIVideoChannelProduction.ps1").read_text(encoding="utf-8")
+        for marker in ("AfterAssetVerification", "AfterStagingHealth", "AfterSwitch", "restored automatically", "releaseManifestSha256"):
+            self.assertIn(marker, installer)
+        self.assertIn("Invoke-WebRequest", common)
+        self.assertIn("Asset SHA-256 mismatch", common)
+        self.assertIn("releases/download/v0.8.0-rc.2/unified-release-v0.8.0-rc.2.json", installer)
+        self.assertNotIn("/latest/", installer)
+        self.assertIn("AllowInsecureTestTransport", installer)
+        self.assertIn("manual step", installer)
+        self.assertIn("preserve user data", uninstall.lower())
+
+    def test_release_sources_do_not_embed_credentials_or_development_root(self) -> None:
+        checked = [ROOT / "installer", ROOT / "tools", ROOT / "release-manifests"]
+        combined = "\n".join(path.read_text(encoding="utf-8", errors="ignore") for directory in checked for path in directory.rglob("*") if path.is_file() and path.suffix.lower() in {".ps1", ".py", ".json", ".md", ".txt"})
+        self.assertNotIn("E:\\小说漫全自动化生产", combined)
+        self.assertNotRegex(combined, r"(?i)(?:access|refresh)[_-]?token\s*[:=]\s*['\"][A-Za-z0-9_-]{20,}")
 
 
 if __name__ == "__main__":

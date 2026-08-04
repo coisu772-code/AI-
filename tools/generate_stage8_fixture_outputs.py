@@ -242,7 +242,7 @@ def generate(output_root: Path) -> dict[str, Any]:
     profile_ids = {record["channelProfileId"] for record in markets.values()}
     summary = {
         "schemaVersion": "1.0.0",
-        "productVersion": "0.8.0-rc.1",
+        "productVersion": "0.8.0-rc.2",
         "fixtureType": "recorded-synthetic-stage8-e2e",
         "syntheticFixture": True,
         "markets": markets,
