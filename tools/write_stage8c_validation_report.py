@@ -65,7 +65,7 @@ def main() -> int:
             "manifestSha256":sha256(manifest_path),
             "reportSelfBinding":False
         },
-        "tests":{"unit":{"passed":141,"failed":0,"skipped":2},"pluginAndMarketplace":"PASS","contractExamples":10,"repositorySafetyFiles":306,"unifiedAssetScan":"PASS","isolatedLifecycle":"PASS","threeMarketRecordedSynthetic":"PASS","releaseDryRun":"PASS"},
+        "tests":{"unit":{"total":141,"passed":139,"failed":0,"skipped":2},"pluginAndMarketplace":"PASS","contractExamples":10,"repositorySafetyFiles":306,"unifiedAssetScan":"PASS","isolatedLifecycle":"PASS","threeMarketRecordedSynthetic":"PASS","releaseDryRun":"PASS"},
         "reproducibility":{"status":"PASS" if all(item["identical"] for item in reproducible) else "FAIL","files":reproducible},
         "releaseFiles":release_files,
         "evidence":{"directory":str(evidence),"stage8Summary":str(evidence / "stage8-summary.json"),"lifecycleSummary":str(evidence / "installation-lifecycle/lifecycle-summary.json"),"assetScan":str(evidence / "unified-release-scan.json"),"threeMarketSummary":str(evidence / "three-market-summary.json")},
