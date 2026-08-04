@@ -24,7 +24,7 @@ youtube-publisher-channel-list.exe --api-version v1
 
 1. `AIVCP_PUBLISHER_CHANNEL_LIST_COMMAND_JSON`：包含程序和可选固定参数的 JSON 字符串数组。
 2. `AIVCP_PUBLISHER_CHANNEL_LIST_EXE`：只包含程序绝对路径。
-3. `%LOCALAPPDATA%\AI Video Channel Production\config\publisher-interface.json`：安装器写入的非敏感发现文件。
+3. `%LOCALAPPDATA%\AIVCP-Config\publisher-interface.json`：安装器拥有的非敏感发现文件；自定义程序根不改变此稳定发现位置。
 4. 阶段1保留的 `AIVCP_PUBLISHER_COMMAND_JSON` 扩展提供方，仅供向后兼容，不是阶段2正式路径。
 
 发现文件格式：
@@ -175,7 +175,7 @@ MCP 使用逐行 JSON-RPC 2.0，支持 `initialize`、`ping`、`tools/list` 和 
 
 ## 5. 数据与安全
 
-- 默认数据根目录为 `%LOCALAPPDATA%\AI Video Channel Production\data`，隔离测试使用 `AIVCP_DATA_ROOT` 覆盖。
+- 默认数据根目录为 `%LOCALAPPDATA%\AI Video Channel Production Data`，程序根为 `%LOCALAPPDATA%\AIVCP`；隔离测试使用 `AIVCP_DATA_ROOT` 覆盖。旧长路径下的既有 data 不自动迁移、删除或覆盖。
 - 每个写入调用同时校验 `taskId`、`channelProfileId` 和任务绑定校验值。
 - 一个 `taskId` 只能绑定一个频道；同一真实 YouTube 频道 ID 在系统注册库中唯一。
 - 新建和迁移导入都重新比对当前发布中心正式 v1 身份映射。

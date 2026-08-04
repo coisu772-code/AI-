@@ -1,29 +1,26 @@
 # 阶段 8C 统一安装验收（v0.8.0-rc.2）
 
-## 结论
+## 当前结论
 
-本地统一 RC 状态为 `LOCAL_UNIFIED_RC_PASS`，完整 MVP 状态仍为 `WAITING_FOR_CONTROLLED_REAL_ACCEPTANCE`。五个发布资产、单文件联网入口、完全离线入口、独立 Python 运行时、工坊、发布中心和显式 FFmpeg 组件已经整合。未执行 GitHub push/tag/Release、Google/YouTube OAuth、真实上传、正式程序覆盖、用户数据迁移/删除或长期学习写回。
+新候选的目标状态是 `LOCAL_UNIFIED_RC_PASS`，完整 MVP 仍为 `WAITING_FOR_CONTROLLED_REAL_ACCEPTANCE`。本轮只在分发仓库修改、构建和测试，不执行 GitHub push/tag/Release、Google/YouTube OAuth、真实上传、正式程序覆盖、用户数据迁移/删除或长期学习写回。
 
-## 本地已证明
+Sandbox attempt 9 对上一套 file-relay 候选是历史 PASS，但该集合后来暴露默认长路径 MAX_PATH 和 Codex 缓存插件无法定位自定义 InstallRoot runtime 两个阻断，因此不批准当前候选。旧 implementation `421a935...` 与 manifest `dffd391a...` 整套为 `INVALID_DO_NOT_RELEASE_AS_A_SET`；更早的 `511954e...` 集合同样保持作废。冻结 Python、工坊和发布中心只在新总清单复算一致后复用。
 
-- 插件 manifest 与仓库 marketplace 结构通过校验；未写个人 marketplace。
-- 144 项单元测试通过，2 项需要正式发布中心 CLI 的旧环境用例按条件跳过；仓库安全检查覆盖 317 个文件。
-- 五资产安全扫描通过：核心 ZIP 无大型 EXE，包内无凭据、用户数据和开发机绝对路径。
-- Stage6 约束目录已按发布中心嵌入的 CRLF 精确字节重新锁定为 `a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13`；三个市场包由发布中心 CLI 独立验证通过，旧 `28788480...` 目录仍以 `CONSTRAINTS_CATALOG_MISMATCH` 拒绝。
-- 两次空目录构建的入口、核心、Python 运行时、工坊、发布中心、总清单和校验和哈希完全一致。
-- 隔离生命周期实际覆盖：单文件伪在线清单下载、完全离线、无 Python/uv、中文/空格路径、重复安装、篡改拒绝、升级、故障回滚、显式回滚、修复、Codex CLI 缺失说明、卸载保留数据。
-- 日/中/英三市场 recorded-synthetic 链通过；网络执行、OAuth、真实上传、真实回执、Studio 私有数据与长期学习写回均为 false。
-- 本地发布脚本 dry-run 通过；CI 只有只读源码预检，不能自动发布缺少桌面资产的 Release。
-- 统一入口和核心资产已绑定 implementation/source commit `421a935030ca5fa63a87c214c95ba7db7291248e`；后续仅含绑定与发行哈希的 metadata commit 不会冒充资产源码绑定。总清单不存在 commit 占位，发布预检会拒绝占位清单。此项是已完成的本地证据，不是外部批准门。
+## 本轮本地硬门
 
-后续提交只更新绑定工具、报告或验收元数据，属于 metadata commits；机器报告记录当前 metadata HEAD，但不把报告文件哈希或当前 HEAD 反写进自身，因此没有自绑定循环。
+- 默认程序根改为 `%LOCALAPPDATA%\AIVCP`，数据独立；旧长路径下的既有 data 使用 sentinel 证明不迁移、不删除、不覆盖。
+- ZIP 解压剥离上游 archive root，短 staging/extract 层为 `.s-xxxxxxxx\x\N`；安装前逐 entry 检查 extraction、staging 和 active 三种路径，248 字符预算超限即在解压前拒绝。
+- Install/Upgrade/Repair/Rollback/Uninstall 使用同一用户全局互斥锁。Install 和 Rollback 保存并恢复运行时绑定描述符、marker/locator 精确字节；Rollback 在描述符或 locator 写后故障注入仍恢复旧 current 与 backup candidate。
+- locator 接管是显式且可追踪的；幂等重装不会从别的安装静默抢占。Uninstall 在程序删除成功后才实时重查 owner，再决定 locator 与 Codex 注册；`-WhatIf` 和程序删除失败均保持 locator 不变。
+- 安装事务在注册前把活动插件 `.mcp.json` 直接绑定到该安装的 `current\runtime\python\python.exe`，参数只引用缓存内 `./mcp/server.py mcp`，环境显式绑定数据/配置根和离线默认；Codex 到 Python 不经过 PowerShell/CMD 代理。真实 Codex CLI 的临时 fresh 会话已经通过 `tools/list` 与 content/production/data 三项调用；Sandbox/可见新任务仍需用最终重锁资产重跑。generic source launcher 仍严格校验自身 manifest、locator、marker、state、activeRoot、bundled Python 和数据根，且 `AIVCP_PYTHON` 不再绕过绑定。
+- 已安装/已配置 Python 可用时，Health 不解析损坏或陈旧的其他安装 locator。WinPS 5.1 健康请求继续使用无 BOM JSONL 文件和固定 ASCII relay，不访问 PowerShell StandardInput/BaseStream。
+- Restore `-WhatIf` 不创建临时目录、不解压，输出 `WHATIF_NO_CHANGE`；实际恢复才可能输出 `RESTORE_COMPLETE`。
+- 完整本地门还包括官方 plugin-creator validator、仓库 marketplace validator、全单元测试、五资产扫描、包内 WinPS relay、默认/自定义/在线/离线生命周期、三市场 publisher 正负夹具、三种 JSON 解析器、发布前置预检和 publish dry-run。
 
-## 许可证边界
+## 绑定模型
 
-工坊包含应用许可证、FFmpeg GPLv3 文本及 Gyan build README。Python 运行时含 Python `LICENSE.txt`，12 个包的 58 个许可证条目均有声明和许可证文件。发布中心包含产品 `LICENSE.md`、JSON/Markdown 第三方告知及 101 份第三方许可证文本，机器清单 `REVIEW_REQUIRED=0`。三套技术库存均已验证，但正式 Release 仍需发布负责人/法律审核者批准；本地技术验证不构成法律意见或签署。
+统一 installer/core 只绑定实现源码提交；随后审批清单和构建元数据提交单独记录，最终报告不把自身 HEAD 或报告哈希反写进自身，避免循环绑定。具体 implementation/source SHA、metadata SHA、最终 HEAD 和七个资产哈希由最终机器报告及审批清单给出。
 
-## 尚需外部批准/环境
+## 仍需外部批准或真实环境
 
-发布负责人/法律审核者许可批准、另一台干净 Windows 安装、代码签名与发布者身份、预先存在的发布 tag 到已绑定源码历史的核对、GitHub Release、Google/YouTube OAuth、受控 private 上传与真实回执、Studio 私有数据、正式工坊真实服务烟测和长期学习写回，均不能由本地合成结果代替。机器批准清单和真实验收矩阵分别见 `final-acceptance-approval-checklist-v0.8.0-rc.2.json` 与 `real-acceptance-matrix-v0.8.0-rc.2.json`。
-
-Windows Sandbox attempt 7（Windows 11 Enterprise 22621、WinPS 5.1、无 Python/py/uv、网络禁用）否决了上一套候选：仅访问 PowerShell 的重定向输入对象，就把预期 `58 0a` 的探针变成 `ef bb bf 58 0a`，严格 MCP UTF-8/JSON 解析因此返回 `-32700 Parse error`；同一包内 Python 与 `server.py` 通过无 BOM JSONL 请求文件和 Python relay 立即成功，`fileRelay.exitCode=0`。新修复彻底不创建、不访问 PowerShell 输入重定向对象；每次请求使用唯一临时目录、无 BOM UTF-8 JSONL、固定 ASCII relay，并在 `finally` 清理。服务端解析规则未放宽。本地 WinPS 5.1 源码与最终包回归必须通过，但 Sandbox 状态仍为 `WAITING_FOR_RERUN`，主线程第三轮重跑前不得标为 PASS。旧 implementation `511954e...` / installer `69099e...` / core `c00c49...` / manifest `cd6fdd...` / SHA256SUMS `99a9a4...` 整套已标为 `INVALID_DO_NOT_RELEASE_AS_A_SET`；冻结 Python、工坊和发布中心仅在复算一致后复用。
+当前候选仍需主线程在另一轮干净 Windows 上验证默认路径、无 Python/py/uv、离线首次与幂等安装，并在 Codex 重启和新建任务后验证缓存插件 `tools/list` 与 content/production/data capabilities。发布负责人/法律审核者许可批准、代码签名/发布者身份、GitHub Release、Google/YouTube OAuth、受控 private 上传与真实回执、Studio 私有数据、正式工坊真实服务烟测及长期学习写回均不能由本地合成结果替代。

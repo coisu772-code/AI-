@@ -282,6 +282,9 @@ def provider_from_environment(data_root: Path | None = None) -> PublisherChannel
     if not cli_json and not cli_exe:
         configured_path = os.environ.get("AIVCP_PUBLISHER_INTERFACE_CONFIG")
         config_path = Path(configured_path).resolve() if configured_path else None
+        configured_root = os.environ.get("AIVCP_CONFIG_ROOT")
+        if config_path is None and configured_root:
+            config_path = Path(configured_root).resolve() / "publisher-interface.json"
         if config_path is None and data_root is not None:
             config_path = data_root.resolve().parent / "config" / "publisher-interface.json"
         if config_path and config_path.is_file():

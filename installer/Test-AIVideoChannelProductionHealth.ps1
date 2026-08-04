@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "AI Video Channel Production"),
+    [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "AIVCP"),
     [string]$DataRoot,
     [string]$PluginRoot,
     [switch]$SkipServiceCheck,
@@ -143,7 +143,6 @@ if (-not $SkipServiceCheck) {
     function Invoke-AivcpHealthRequest([string]$RequestText) {
         $configuredPython = [Environment]::GetEnvironmentVariable("AIVCP_PYTHON", "Process")
         $installedPython = [System.IO.Path]::GetFullPath((Join-Path $pluginFull "..\..\runtime\python\python.exe"))
-        $legacyPython = Join-Path $env:LOCALAPPDATA "AI Video Channel Production\current\runtime\python\python.exe"
         $fileName = $null
         $useUv = $false
         if (-not [string]::IsNullOrWhiteSpace($configuredPython) -and (Test-Path -LiteralPath $configuredPython -PathType Leaf)) {
@@ -152,14 +151,17 @@ if (-not $SkipServiceCheck) {
         elseif (Test-Path -LiteralPath $installedPython -PathType Leaf) {
             $fileName = $installedPython
         }
-        elseif (Test-Path -LiteralPath $legacyPython -PathType Leaf) {
-            $fileName = $legacyPython
-        }
         else {
-            $uv = Get-Command uv -ErrorAction SilentlyContinue
-            if ($null -eq $uv) { throw "Installation health check failed: no compatible Python runtime or uv was found." }
-            $fileName = $uv.Source
-            $useUv = $true
+            $locatorRecord = Get-AivcpRuntimeLocatorRecord
+            if ($null -ne $locatorRecord) {
+                $fileName = [string]$locatorRecord.pythonPath
+            }
+            else {
+                $uv = Get-Command uv -ErrorAction SilentlyContinue
+                if ($null -eq $uv) { throw "Installation health check failed: no compatible Python runtime or uv was found." }
+                $fileName = $uv.Source
+                $useUv = $true
+            }
         }
 
         $utf8NoBom = [System.Text.UTF8Encoding]::new($false)

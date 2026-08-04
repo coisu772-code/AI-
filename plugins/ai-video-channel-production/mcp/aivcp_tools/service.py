@@ -46,7 +46,7 @@ def default_data_root(plugin_root: Path | None = None) -> Path:
             return current.parent / "data"
     local = os.environ.get("LOCALAPPDATA")
     if local:
-        return Path(local) / "AI Video Channel Production" / "data"
+        return Path(local) / "AI Video Channel Production Data"
     return Path.home() / ".ai-video-channel-production" / "data"
 
 

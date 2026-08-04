@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "1.0.0",
+  "productVersion": "0.8.0-rc.2",
+  "status": "HISTORICAL_PASS_AND_NEW_BLOCKERS_FIXED_LOCALLY_WAITING_FOR_RERUN",
+  "historicalControlledEvidence": {
+    "windowsSandboxAttempt9": {
+      "status": "PASS_FOR_SUPERSEDED_CANDIDATE_ONLY",
+      "environment": "Windows 11 Enterprise 22621; Windows PowerShell 5.1; no Python, py or uv; network disabled",
+      "manifestSha256": "dffd391a266230a6af21aa7ccd22c90e443c3a0e756b9dfdea926112111f3eb7",
+      "evidenceFile": "runtime/stage8-controlled-acceptance/sandbox-evidence/attempt-9-pass/clean-windows-sandbox-result.json",
+      "evidenceSizeBytes": 10459,
+      "evidenceSha256": "602a76bfbbf9f6e167ea1e071742a5cdeafcecd3d209c938f0a3add0692d728c",
+      "covered": [
+        "offline first install without Python/py/uv",
+        "idempotent reinstall",
+        "no-BOM MCP file relay",
+        "workshop and publisher process launch probes"
+      ],
+      "doesNotApproveCurrentCandidate": true
+    }
+  },
+  "releaseBlockersFoundAfterAttempt9": [
+    {
+      "id": "DEFAULT_INSTALL_MAX_PATH",
+      "statusBeforeFix": "FAIL",
+      "evidence": "The standard long LOCALAPPDATA program root failed while WinPS 5.1/.NET ZipFile extracted the lxml iso_schematron_skeleton_for_xslt1.xsl path.",
+      "fix": "Use %LOCALAPPDATA%/AIVCP, strip archive roots, shorten staging/extraction layers, and preflight every extraction/staging/active entry against a 248-character budget before extraction.",
+      "oldUserDataPolicy": "Existing data under the retired long path is not migrated, deleted or overwritten.",
+      "localRegression": "PASS",
+      "controlledRerun": "REQUIRED"
+    },
+    {
+      "id": "CODEX_CACHED_PLUGIN_CUSTOM_INSTALL_RUNTIME",
+      "statusBeforeFix": "FAIL_PLUGIN_NOT_LOADED",
+      "visibleTaskId": "019fcc0e-2943-79e1-9e78-885186ea38e1",
+      "evidenceFile": "runtime/stage8-controlled-acceptance/plugin-load/fresh-cli-final.txt",
+      "evidenceSizeBytes": 243,
+      "evidenceSha256": "5698e4ac01a8d623658559ccea069c55450597311b0c8e9b93a582e4d8cda629",
+      "fix": "Install, repair, upgrade, rollback and idempotent reinstall rewrite the active plugin MCP descriptor before registration. The cached descriptor runs the installation-owned Python directly with cache-relative server.py arguments and explicit data/config/offline environment; no PowerShell or CMD proxy is used. The locator remains an ownership and strict fallback record.",
+      "localEquivalentFreshProcessRegression": "PASS",
+      "actualCodexCliTemporarySessionRegression": "PASS",
+      "realCodexRestartAndNewTaskRerun": "REQUIRED"
+    }
+  ],
+  "additionalTransactionHardening": {
+    "globalUserOperationMutex": true,
+    "installRestoresPreviousLocatorBytes": true,
+    "rollbackRestoresCurrentMarkerAndLocator": true,
+    "uninstallWhatIfNoLocatorOrCodexMutation": true,
+    "uninstallDeleteFailurePreservesLocator": true,
+    "restoreWhatIfCreatesNoTemporaryDirectory": true,
+    "staleUnrelatedLocatorDoesNotBlockInstalledHealth": true,
+    "oldCachedPluginVersionRejected": true
+  },
+  "currentCandidateControlledStatus": "WAITING_FOR_RERUN",
+  "externalActionsExecuted": false,
+  "sandboxResultFabricatedOrUpgraded": false
+}

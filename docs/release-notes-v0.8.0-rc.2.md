@@ -1,11 +1,13 @@
 # v0.8.0-rc.2（本地候选）
 
-- 新增面向普通 Windows 用户的统一安装入口和锁定总清单。
-- 工坊 2.1.0-stage5、发布中心 0.8.0-rc.2、Python 3.12.13 运行时成为 Release 受管资产，不再标为 external baseline。
-- 安装无需预装 Python 或 uv；FFmpeg/ffprobe 的哈希、许可证和健康检查显式记录。
-- 支持同目录离线资产或受锁定清单控制的在线缺失下载，并覆盖校验、事务安装、自动回滚、幂等重装、升级、修复、回滚及卸载保留数据。
-- Codex CLI 不可用时降级为明确的手动注册说明，不回滚健康程序。
-- CI 改为只读预检；正式 tag/Release 必须使用本地完整资产并获得单独批准。
-- 修复 Windows Sandbox/Windows PowerShell 5.1 中 MCP JSON-RPC 传输缺陷：健康检查不再创建或访问 PowerShell 输入重定向对象，而是写入无 BOM UTF-8 JSONL 请求文件，并由固定 ASCII Python relay 把原始字节交给严格 MCP 服务；服务端 UTF-8/JSON 解析规则没有放宽。
+- 提供单文件 Windows 统一安装入口、锁定总清单和离线同目录安装。
+- 工坊 2.1.0-stage5、发布中心 0.8.0-rc.2、Python 3.12.13 runtime 及 FFmpeg/ffprobe 成为受管 Release 资产；无需预装 Python 或 uv。
+- 默认程序根缩短为 `%LOCALAPPDATA%\AIVCP`，数据保留在独立目录；旧长路径下的既有 data 不迁移、不删除、不覆盖。
+- 解压剥离上游 archive root，使用短 staging/extract 目录，并在解压前对全部 entry 执行 248 字符路径预算门。
+- 新增同一用户全局安装互斥锁；Install 和 Rollback 对 current、marker、locator 做事务恢复；Uninstall 的 `-WhatIf`、程序删除失败和非 owner 卸载不会破坏 locator 或 Codex 注册。
+- 新增事务式 runtime-bound MCP 描述符：在 Codex 缓存前把插件直接绑定到任意受支持 InstallRoot 下的 bundled Python、缓存相对 server.py 和独立数据根，不经过 PowerShell/CMD 代理；locator 继续承担所有权、修复和严格 fallback 校验。
+- Health 在当前安装 Python 可用时不解析无关全局 locator；Restore `-WhatIf` 零临时目录、零解压并返回正确的未变更状态。
+- 保留 Windows PowerShell 5.1 无 BOM JSONL 文件 relay：健康脚本不使用 PowerShell StandardInput、BaseStream 或 StreamWriter，严格 MCP UTF-8/JSON 解析规则未放宽。
+- CI 只做只读预检；正式 tag/Release、许可批准、代码签名、OAuth、真实上传、Studio 私有数据和长期学习写回仍需外部批准。
 
-限制：Windows Sandbox attempt 7 是原始 `FAIL`；原始探针记录 `rawStdinProbeHex=efbbbf580a`，文件 relay 对照为 `exitCode=0`。新候选必须再次受控运行，不能由本地回归测试标为 PASS。旧 implementation `511954e...`、installer `69099e...`、core `c00c49...`、manifest `cd6fdd...`、SHA256SUMS `99a9a4...` 整套已标为 `INVALID_DO_NOT_RELEASE_AS_A_SET`；冻结 Python、工坊和发布中心经复算后可复用。发布中心仍是 `CANDIDATE_READY_FOR_CONTROLLED_REAL_ACCEPTANCE`；未执行 OAuth、真实上传、真实 Studio 数据读取或长期学习写回。发布中心 ZIP 已包含产品许可证、JSON/Markdown 告知和 101 份第三方许可证文本，Python 运行时 12 个包的 58 个许可证条目也已技术核对；这些证据不构成法律意见，正式 Release 仍需发布负责人/法律审核者批准。
+作废链：implementation `511954e...` 对应的 `69099e/c00c49/cd6fdd/99a9a4` 集合，以及 implementation `421a935...` 对应的 installer `cf5cb7...`、core `440570...`、manifest `dffd391a...` 集合，均为 `INVALID_DO_NOT_RELEASE_AS_A_SET`。冻结 Python、工坊和发布中心只有在新总清单中复算一致后才可复用。Sandbox attempt 9 的 file-relay/短路径受控结果保留为历史 PASS，但不能替代本轮默认路径与重启后缓存插件的新候选重跑；当前状态仍是 `WAITING_FOR_RERUN`。

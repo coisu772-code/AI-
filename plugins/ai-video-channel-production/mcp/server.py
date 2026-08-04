@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,93 @@ from aivcp_tools.service import LOCAL_TOOL_PROTOCOL_VERSION, SERVICE_VERSION, to
 MCP_PROTOCOL_VERSION = "2025-06-18"
 MAX_MESSAGE_BYTES = 2 * 1024 * 1024
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _same_path(left: Path, right: Path) -> bool:
+    return os.path.normcase(str(left.resolve())) == os.path.normcase(str(right.resolve()))
+
+
+def _runtime_binding_error(message: str) -> ToolError:
+    return ToolError("RUNTIME_BINDING_MISMATCH", message)
+
+
+def _validate_runtime_binding() -> None:
+    binding_names = (
+        "AIVCP_INSTALL_ROOT",
+        "AIVCP_EXPECTED_PRODUCT_VERSION",
+        "AIVCP_EXPECTED_RELEASE_MANIFEST_SHA256",
+    )
+    values = {name: os.environ.get(name, "").strip() for name in binding_names}
+    if not any(values.values()):
+        return
+    if not all(values.values()):
+        raise _runtime_binding_error("The installed MCP runtime binding is incomplete. Run installer repair.")
+    expected_version = values["AIVCP_EXPECTED_PRODUCT_VERSION"]
+    expected_release = values["AIVCP_EXPECTED_RELEASE_MANIFEST_SHA256"].lower()
+    if len(expected_release) != 64 or any(character not in "0123456789abcdef" for character in expected_release):
+        raise _runtime_binding_error("The installed MCP release binding is invalid. Run installer repair.")
+    install_root = Path(values["AIVCP_INSTALL_ROOT"])
+    data_value = os.environ.get("AIVCP_DATA_ROOT", "").strip()
+    config_value = os.environ.get("AIVCP_CONFIG_ROOT", "").strip()
+    if not install_root.is_absolute() or not data_value or not config_value:
+        raise _runtime_binding_error("The installed MCP path binding is incomplete. Run installer repair.")
+    data_root = Path(data_value)
+    config_root = Path(config_value)
+    if not data_root.is_absolute() or not config_root.is_absolute():
+        raise _runtime_binding_error("The installed MCP paths must be absolute. Run installer repair.")
+    paths = {
+        "plugin": PLUGIN_ROOT / ".codex-plugin" / "plugin.json",
+        "marker": install_root / "installation.json",
+        "state": install_root / "current" / "install-state.json",
+        "locator": config_root / "runtime-locator.json",
+    }
+    if any(not path.is_file() for path in paths.values()):
+        raise _runtime_binding_error("The installed MCP binding records are incomplete. Run installer repair.")
+    try:
+        plugin = json.loads(paths["plugin"].read_text(encoding="utf-8-sig"))
+        marker = json.loads(paths["marker"].read_text(encoding="utf-8-sig"))
+        state = json.loads(paths["state"].read_text(encoding="utf-8-sig"))
+        locator = json.loads(paths["locator"].read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise _runtime_binding_error("The installed MCP binding records are unreadable. Run installer repair.") from exc
+    try:
+        marker_data = Path(str(marker["userDataRoot"]))
+        state_data = Path(str(state["userDataRoot"]))
+        locator_data = Path(str(locator["userDataRoot"]))
+        locator_install = Path(str(locator["installRoot"]))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise _runtime_binding_error("The installed MCP binding records are incomplete. Run installer repair.") from exc
+    runtime = state.get("runtime", {})
+    identity_matches = (
+        plugin.get("name") == "ai-video-channel-production"
+        and plugin.get("version") == expected_version
+        and marker.get("schemaVersion") == "2.0.0"
+        and marker.get("productId") == "ai-video-channel-production"
+        and marker.get("activeVersion") == expected_version
+        and marker.get("activeRoot") == "current"
+        and str(marker.get("releaseManifestSha256", "")).lower() == expected_release
+        and state.get("schemaVersion") == "2.0.0"
+        and state.get("productId") == "ai-video-channel-production"
+        and state.get("productVersion") == expected_version
+        and str(state.get("releaseManifestSha256", "")).lower() == expected_release
+        and runtime.get("bundled") is True
+        and runtime.get("python") == "runtime/python/python.exe"
+        and locator.get("schemaVersion") == "1.0.0"
+        and locator.get("productId") == "ai-video-channel-production"
+        and locator.get("productVersion") == expected_version
+        and locator.get("activeRoot") == "current"
+        and locator.get("pythonRelativePath") == "runtime/python/python.exe"
+    )
+    expected_python = install_root / "current" / "runtime" / "python" / "python.exe"
+    if (
+        not identity_matches
+        or not _same_path(locator_install, install_root)
+        or not _same_path(marker_data, data_root)
+        or not _same_path(state_data, data_root)
+        or not _same_path(locator_data, data_root)
+        or not _same_path(Path(sys.executable), expected_python)
+    ):
+        raise _runtime_binding_error("The cached plugin, active runtime, locator, state, or data root no longer match. Reinstall or repair the plugin and restart Codex.")
 
 
 def _tool_result(payload: dict[str, Any], *, is_error: bool = False) -> dict[str, Any]:
@@ -102,6 +190,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
+        _validate_runtime_binding()
         service = LocalToolService(ServiceConfig.from_environment(PLUGIN_ROOT))
         if args.command == "mcp":
             return run_stdio(service)

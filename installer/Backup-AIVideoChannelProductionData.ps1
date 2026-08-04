@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "AI Video Channel Production"),
+    [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "AIVCP"),
     [string]$DataRoot,
     [string]$DestinationRoot = (Join-Path ([Environment]::GetFolderPath("MyDocuments")) "AI Video Channel Production Backups")
 )

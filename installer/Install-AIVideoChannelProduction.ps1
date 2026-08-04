@@ -6,12 +6,14 @@ param(
     [string]$DownloadBaseUrl,
     [ValidateSet("Auto", "Offline", "Online")]
     [string]$InstallMode = "Auto",
-    [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "AI Video Channel Production"),
+    [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "AIVCP"),
     [string]$DataRoot,
     [switch]$AllowInsecureTestTransport,
     [switch]$SkipCodexRegistration,
     [switch]$Force,
-    [ValidateSet("None", "AfterAssetVerification", "AfterStagingHealth", "AfterSwitch")]
+    [ValidateSet("install", "upgrade", "repair")]
+    [string]$LocatorOperation = "install",
+    [ValidateSet("None", "AfterAssetVerification", "AfterMcpDescriptorBinding", "AfterStagingHealth", "AfterSwitch", "AfterLocatorWrite")]
     [string]$FailureInjectionPoint = "None"
 )
 
@@ -20,9 +22,16 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "Common.ps1")
 . (Join-Path $PSScriptRoot "CodexCli.ps1")
 
+$operationLock = Enter-AivcpOperationLock
+$locatorSnapshot = $null
+$descriptorSnapshot = $null
+try {
 $assetFull = Resolve-AivcpFullPath $AssetRoot
 $installFull = Test-AivcpSafeRoot $InstallRoot "InstallRoot"
+$null = Assert-AivcpPathBudget (Join-Path $installFull "current\runtime\python\Lib\site-packages\lxml\isoschematron\resources\xsl\iso-schematron-xslt1\iso_schematron_skeleton_for_xslt1.xsl") "known longest bundled runtime path"
+$null = Assert-AivcpPathBudget (Join-Path $installFull "downloads\manifest-cache\unified-release-v0.8.0-rc.2.json") "locked manifest cache"
 $dataFull = Resolve-AivcpDataRoot -InstallRoot $installFull -RequestedDataRoot $DataRoot
+$locatorSnapshot = Get-AivcpFileSnapshot (Get-AivcpRuntimeLocatorPath)
 if ([string]::IsNullOrWhiteSpace($ManifestPath)) {
     $localManifest = Join-Path $assetFull "unified-release-v0.8.0-rc.2.json"
     if (Test-Path -LiteralPath $localManifest -PathType Leaf) {
@@ -64,6 +73,7 @@ New-Item -ItemType Directory -Path $dataFull -Force | Out-Null
 $cacheRoot = Join-Path $installFull ("downloads\" + $manifestHash)
 $verified = @{}
 foreach ($asset in $assets) {
+    $null = Assert-AivcpPathBudget (Join-Path $cacheRoot ([string]$asset.fileName)) "asset cache $($asset.assetId)"
     $verified[[string]$asset.assetId] = Get-AivcpVerifiedAsset -Asset $asset -AssetRoot $assetFull -CacheRoot $cacheRoot -InstallMode $InstallMode -DownloadBaseUrl $DownloadBaseUrl
 }
 if ($FailureInjectionPoint -eq "AfterAssetVerification") { throw "TEST_FAILURE_INJECTION:AfterAssetVerification" }
@@ -71,9 +81,19 @@ if ($FailureInjectionPoint -eq "AfterAssetVerification") { throw "TEST_FAILURE_I
 $currentPath = Join-Path $installFull "current"
 $markerPath = Join-Path $installFull "installation.json"
 $existingStatePath = Join-Path $currentPath "install-state.json"
+$descriptorSnapshot = Get-AivcpFileSnapshot (Join-Path $currentPath "plugins\ai-video-channel-production\.mcp.json")
 if (-not $Force -and (Test-Path -LiteralPath $existingStatePath -PathType Leaf)) {
     $existing = Get-Content -LiteralPath $existingStatePath -Raw -Encoding UTF8 | ConvertFrom-Json
     if ([string]$existing.releaseManifestSha256 -eq $manifestHash) {
+        $null = Write-AivcpRuntimeBoundMcpDescriptor -PluginRoot (Join-Path $currentPath "plugins\ai-video-channel-production") -InstallRoot $installFull -DataRoot $dataFull -ProductVersion ([string]$existing.productVersion) -ReleaseManifestSha256 ([string]$existing.releaseManifestSha256)
+        if ($FailureInjectionPoint -eq "AfterMcpDescriptorBinding") { throw "TEST_FAILURE_INJECTION:AfterMcpDescriptorBinding" }
+        $locatorPath = Get-AivcpRuntimeLocatorPath
+        if ((Test-Path -LiteralPath $locatorPath -PathType Leaf) -and -not (Test-AivcpRuntimeLocatorOwnedBy -InstallRoot $installFull)) {
+            Write-Warning "This idempotent verification did not take over the runtime locator from another installation. Run Repair explicitly to transfer ownership."
+        }
+        else {
+            $null = Write-AivcpRuntimeLocator -InstallRoot $installFull -DataRoot $dataFull -ProductVersion ([string]$existing.productVersion) -Operation idempotent
+        }
         $guide = Write-AivcpCodexSetupGuide -CurrentRoot $currentPath -Reason "Registration was not requested during this idempotent verification."
         if (-not $SkipCodexRegistration) {
             $codex = Get-CompatibleCodexPluginCli
@@ -91,23 +111,31 @@ if (-not $Force -and (Test-Path -LiteralPath $existingStatePath -PathType Leaf))
         }
         Write-Output "Already installed and verified: $($manifest.productVersion)"
         if (Test-Path -LiteralPath $guide) { Write-Warning "Codex registration needs a manual step. See $guide" }
-        exit 0
+        return
     }
 }
 
-$stagingPath = Join-Path $installFull (".installing-" + [guid]::NewGuid().ToString("N").Substring(0, 10))
-$extractRoot = Join-Path $stagingPath ".extract"
+$stagingPath = Join-Path $installFull (".s-" + [guid]::NewGuid().ToString("N").Substring(0, 8))
+$extractRoot = Join-Path $stagingPath "x"
 $backupRoot = Join-Path $installFull "backups"
 $createdBackupPath = $null
 $activated = $false
 $previousMarker = if (Test-Path -LiteralPath $markerPath -PathType Leaf) { [System.IO.File]::ReadAllBytes($markerPath) } else { $null }
+for ($assetIndex = 0; $assetIndex -lt $assets.Count; $assetIndex++) {
+    $asset = $assets[$assetIndex]
+    $installSubpath = [string]$asset.installSubpath
+    $stagedAssetRoot = if ([string]::IsNullOrWhiteSpace($installSubpath)) { $stagingPath } else { Join-Path $stagingPath $installSubpath }
+    $activeAssetRoot = if ([string]::IsNullOrWhiteSpace($installSubpath)) { $currentPath } else { Join-Path $currentPath $installSubpath }
+    Assert-AivcpArchivePathBudget -ArchivePath $verified[[string]$asset.assetId] -ExpectedRoot ([string]$asset.archiveRoot) -ExtractionRoot (Join-Path $extractRoot ([string]$assetIndex)) -StagedInstallRoot $stagedAssetRoot -ActiveInstallRoot $activeAssetRoot -AssetId ([string]$asset.assetId)
+}
 New-Item -ItemType Directory -Path $stagingPath -Force | Out-Null
 
 try {
-    foreach ($asset in $assets) {
+    for ($assetIndex = 0; $assetIndex -lt $assets.Count; $assetIndex++) {
+        $asset = $assets[$assetIndex]
         $assetId = [string]$asset.assetId
         $destination = if ([string]::IsNullOrWhiteSpace([string]$asset.installSubpath)) { $stagingPath } else { Join-Path $stagingPath ([string]$asset.installSubpath) }
-        $expanded = Expand-AivcpVerifiedZip -ArchivePath $verified[$assetId] -DestinationPath (Join-Path $extractRoot $assetId) -ExpectedRoot ([string]$asset.archiveRoot)
+        $expanded = Expand-AivcpVerifiedZip -ArchivePath $verified[$assetId] -DestinationPath (Join-Path $extractRoot ([string]$assetIndex)) -ExpectedRoot ([string]$asset.archiveRoot)
         Copy-AivcpDirectoryContents -SourcePath $expanded -DestinationPath $destination
     }
     Remove-Item -LiteralPath $extractRoot -Recurse -Force
@@ -130,11 +158,13 @@ try {
     $pluginRoot = Join-Path $stagingPath "plugins\$($script:AivcpProductId)"
     $pluginManifest = Get-Content -LiteralPath (Join-Path $pluginRoot ".codex-plugin\plugin.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     if ([string]$pluginManifest.version -ne [string]$manifest.productVersion) { throw "Core plugin and unified release versions differ." }
+    $null = Write-AivcpRuntimeBoundMcpDescriptor -PluginRoot $pluginRoot -InstallRoot $installFull -DataRoot $dataFull -ProductVersion ([string]$manifest.productVersion) -ReleaseManifestSha256 $manifestHash
+    if ($FailureInjectionPoint -eq "AfterMcpDescriptorBinding") { throw "TEST_FAILURE_INJECTION:AfterMcpDescriptorBinding" }
     $state = [ordered]@{
         schemaVersion = "2.0.0"; productId = $script:AivcpProductId; productVersion = [string]$manifest.productVersion
         marketplaceName = $script:AivcpMarketplaceName; releaseManifestSha256 = $manifestHash; userDataRoot = $dataFull
         installedAssets = @($assets | ForEach-Object { [ordered]@{ assetId = $_.assetId; fileName = $_.fileName; sha256 = $_.sha256; sizeBytes = $_.sizeBytes } })
-        runtime = [ordered]@{ bundled = $true; python = "runtime/python/python.exe"; version = [string]$manifest.runtime.pythonVersion }
+        runtime = [ordered]@{ bundled = $true; python = "runtime/python/python.exe"; locator = "AIVCP-Config/runtime-locator.json"; version = [string]$manifest.runtime.pythonVersion }
         installedAt = (Get-Date).ToUniversalTime().ToString("o")
     }
     Write-AivcpJsonFile -Value $state -PathValue (Join-Path $stagingPath "install-state.json")
@@ -152,6 +182,8 @@ try {
     Write-AivcpJsonFile -Value ([ordered]@{ schemaVersion = "2.0.0"; productId = $script:AivcpProductId; activeVersion = [string]$manifest.productVersion; activeRoot = "current"; userDataRoot = $dataFull; releaseManifestSha256 = $manifestHash }) -PathValue $markerPath
     if ($FailureInjectionPoint -eq "AfterSwitch") { throw "TEST_FAILURE_INJECTION:AfterSwitch" }
     & (Join-Path $currentPath "installer\Test-AIVideoChannelProductionHealth.ps1") -InstallRoot $installFull -DataRoot $dataFull | Out-Null
+    $null = Write-AivcpRuntimeLocator -InstallRoot $installFull -DataRoot $dataFull -ProductVersion ([string]$manifest.productVersion) -Operation $LocatorOperation -AllowTakeover
+    if ($FailureInjectionPoint -eq "AfterLocatorWrite") { throw "TEST_FAILURE_INJECTION:AfterLocatorWrite" }
 
     $registrationReason = if ($SkipCodexRegistration) { "Automatic Codex registration was skipped by request." } else { "No compatible Codex CLI was found." }
     $guide = Write-AivcpCodexSetupGuide -CurrentRoot $currentPath -Reason $registrationReason
@@ -180,6 +212,7 @@ catch {
     }
     if ($null -ne $createdBackupPath -and (Test-Path -LiteralPath $createdBackupPath) -and -not (Test-Path -LiteralPath $currentPath)) { Move-Item -LiteralPath $createdBackupPath -Destination $currentPath }
     if ($null -ne $previousMarker) { [System.IO.File]::WriteAllBytes($markerPath, $previousMarker) } elseif (Test-Path -LiteralPath $markerPath) { Remove-Item -LiteralPath $markerPath -Force }
+    Restore-AivcpFileSnapshot $locatorSnapshot
     throw "Installation failed and the previous program version was restored automatically. $($failure.Exception.Message)"
 }
 
@@ -187,3 +220,12 @@ Write-Output "Installed $($manifest.productVersion) to $currentPath"
 Write-Output "User data is preserved separately at $dataFull"
 if ($null -ne $guide) { Write-Warning "Codex registration needs a manual step. See $guide" }
 Write-Output "Restart Codex and create a new task after registration."
+}
+catch {
+    if ($null -ne $descriptorSnapshot) { Restore-AivcpFileSnapshot $descriptorSnapshot }
+    if ($null -ne $locatorSnapshot) { Restore-AivcpFileSnapshot $locatorSnapshot }
+    throw
+}
+finally {
+    Exit-AivcpOperationLock $operationLock
+}

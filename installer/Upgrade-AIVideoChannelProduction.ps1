@@ -4,7 +4,7 @@ param(
     [string]$AssetRoot,
     [string]$DownloadBaseUrl,
     [ValidateSet("Auto", "Offline", "Online")][string]$InstallMode = "Auto",
-    [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "AI Video Channel Production"),
+    [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "AIVCP"),
     [string]$DataRoot,
     [switch]$SkipCodexRegistration
 )
@@ -12,6 +12,6 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 if ([string]::IsNullOrWhiteSpace($AssetRoot)) { $AssetRoot = Split-Path -Parent ([System.IO.Path]::GetFullPath($ManifestPath)) }
 try {
-    & (Join-Path $PSScriptRoot "Install-AIVideoChannelProduction.ps1") -ManifestPath $ManifestPath -AssetRoot $AssetRoot -DownloadBaseUrl $DownloadBaseUrl -InstallMode $InstallMode -InstallRoot $InstallRoot -DataRoot $DataRoot -SkipCodexRegistration:$SkipCodexRegistration -Force
+    & (Join-Path $PSScriptRoot "Install-AIVideoChannelProduction.ps1") -ManifestPath $ManifestPath -AssetRoot $AssetRoot -DownloadBaseUrl $DownloadBaseUrl -InstallMode $InstallMode -InstallRoot $InstallRoot -DataRoot $DataRoot -SkipCodexRegistration:$SkipCodexRegistration -Force -LocatorOperation upgrade
 }
 catch { throw "Upgrade failed. The previous active version was restored automatically. $($_.Exception.Message)" }

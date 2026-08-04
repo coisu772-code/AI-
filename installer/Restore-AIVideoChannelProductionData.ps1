@@ -1,7 +1,7 @@
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
 param(
     [Parameter(Mandatory = $true)][string]$ArchivePath,
-    [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "AI Video Channel Production"),
+    [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "AIVCP"),
     [string]$DataRoot,
     [switch]$ReplaceExisting
 )
@@ -39,8 +39,20 @@ try {
 }
 finally { $zip.Dispose() }
 
-New-Item -ItemType Directory -Path $staging -Force | Out-Null
+if (-not $PSCmdlet.ShouldProcess($dataFull, "Verify and restore user data backup")) {
+    [ordered]@{
+        status = "WHATIF_NO_CHANGE"
+        dataRoot = $dataFull
+        archivePath = $archiveFull
+        temporaryDirectoryCreated = $false
+        restored = $false
+    } | ConvertTo-Json -Depth 4
+    return
+}
+
+$operationLock = Enter-AivcpOperationLock
 try {
+    New-Item -ItemType Directory -Path $staging -Force | Out-Null
     [System.IO.Compression.ZipFile]::ExtractToDirectory($archiveFull, $staging)
     $manifestPath = Join-Path $staging "backup-manifest.json"
     $payload = Join-Path $staging "payload"
@@ -79,24 +91,23 @@ try {
     $nonEmpty = (Test-Path -LiteralPath $dataFull -PathType Container) -and $null -ne (Get-ChildItem -LiteralPath $dataFull -Force | Select-Object -First 1)
     if ($nonEmpty -and -not $ReplaceExisting) { throw "Target user data root is not empty. Use -ReplaceExisting to preserve it as a pre-restore backup and continue." }
 
-    if ($PSCmdlet.ShouldProcess($dataFull, "Restore verified user data backup")) {
-        if (Test-Path -LiteralPath $dataFull) {
-            $previous = Join-Path $parentFull ((Split-Path -Leaf $dataFull) + ".pre-restore-" + (Get-Date -Format "yyyyMMdd-HHmmssfff"))
-            Move-Item -LiteralPath $dataFull -Destination $previous
+    if (Test-Path -LiteralPath $dataFull) {
+        $previous = Join-Path $parentFull ((Split-Path -Leaf $dataFull) + ".pre-restore-" + (Get-Date -Format "yyyyMMdd-HHmmssfff"))
+        Move-Item -LiteralPath $dataFull -Destination $previous
+    }
+    try {
+        Move-Item -LiteralPath $payload -Destination $dataFull
+    }
+    catch {
+        if (-not (Test-Path -LiteralPath $dataFull) -and $null -ne $previous -and (Test-Path -LiteralPath $previous)) {
+            Move-Item -LiteralPath $previous -Destination $dataFull
         }
-        try {
-            Move-Item -LiteralPath $payload -Destination $dataFull
-        }
-        catch {
-            if (-not (Test-Path -LiteralPath $dataFull) -and $null -ne $previous -and (Test-Path -LiteralPath $previous)) {
-                Move-Item -LiteralPath $previous -Destination $dataFull
-            }
-            throw
-        }
+        throw
     }
 }
 finally {
     if (Test-Path -LiteralPath $staging) { Remove-Item -LiteralPath $staging -Recurse -Force }
+    Exit-AivcpOperationLock $operationLock
 }
 [ordered]@{
     status = "RESTORE_COMPLETE"

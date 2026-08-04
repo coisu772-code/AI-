@@ -4,22 +4,114 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $server = Join-Path $PSScriptRoot "server.py"
+$pluginRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+$pluginManifestPath = Join-Path $pluginRoot ".codex-plugin\plugin.json"
+if (-not (Test-Path -LiteralPath $pluginManifestPath -PathType Leaf)) {
+    throw "The cached plugin manifest is missing. Reinstall the AI Video Channel Production plugin."
+}
+$pluginManifest = Get-Content -LiteralPath $pluginManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+if ([string]$pluginManifest.name -ne "ai-video-channel-production" -or [string]::IsNullOrWhiteSpace([string]$pluginManifest.version)) {
+    throw "The cached plugin identity is invalid. Reinstall the AI Video Channel Production plugin."
+}
+
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = $utf8NoBom
+$OutputEncoding = $utf8NoBom
+
+$boundPython = $null
+$boundDataRoot = $null
+$boundConfigRoot = $null
+$installedStatePath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..\..\install-state.json"))
+$installedRuntime = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..\..\runtime\python\python.exe"))
+if ((Test-Path -LiteralPath $installedStatePath -PathType Leaf) -and (Test-Path -LiteralPath $installedRuntime -PathType Leaf)) {
+    $installedState = Get-Content -LiteralPath $installedStatePath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (
+        [string]$installedState.schemaVersion -ne "2.0.0" -or
+        [string]$installedState.productId -ne "ai-video-channel-production" -or
+        [string]$installedState.productVersion -ne [string]$pluginManifest.version -or
+        -not [bool]$installedState.runtime.bundled -or
+        [string]$installedState.runtime.python -ne "runtime/python/python.exe"
+    ) {
+        throw "The installed plugin, state, and bundled runtime versions do not match. Run installer repair."
+    }
+    $boundPython = $installedRuntime
+    $boundDataRoot = [System.IO.Path]::GetFullPath([string]$installedState.userDataRoot)
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        $boundConfigRoot = [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA "AIVCP-Config"))
+    }
+}
+else {
+    $locatorPath = if (-not [string]::IsNullOrWhiteSpace($env:AIVCP_RUNTIME_LOCATOR)) {
+        [System.IO.Path]::GetFullPath($env:AIVCP_RUNTIME_LOCATOR)
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA "AIVCP-Config\runtime-locator.json"))
+    }
+    else { $null }
+    if ($null -ne $locatorPath -and (Test-Path -LiteralPath $locatorPath -PathType Leaf)) {
+        $locator = Get-Content -LiteralPath $locatorPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (
+            [string]$locator.schemaVersion -ne "1.0.0" -or
+            [string]$locator.productId -ne "ai-video-channel-production" -or
+            [string]$locator.activeRoot -ne "current" -or
+            [string]$locator.pythonRelativePath -ne "runtime/python/python.exe"
+        ) {
+            throw "The AI Video Channel Production runtime locator identity is invalid. Run installer repair."
+        }
+        $installRoot = [System.IO.Path]::GetFullPath([string]$locator.installRoot)
+        if ($installRoot -eq [System.IO.Path]::GetPathRoot($installRoot) -or $installRoot.Length -lt 12) {
+            throw "The AI Video Channel Production runtime locator installation root is unsafe."
+        }
+        $installationPath = Join-Path $installRoot "installation.json"
+        $statePath = Join-Path $installRoot "current\install-state.json"
+        if (-not (Test-Path -LiteralPath $installationPath -PathType Leaf) -or -not (Test-Path -LiteralPath $statePath -PathType Leaf)) {
+            throw "The AI Video Channel Production runtime locator points to an incomplete installation. Run installer repair."
+        }
+        $installation = Get-Content -LiteralPath $installationPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $state = Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $locatorDataRoot = [System.IO.Path]::GetFullPath([string]$locator.userDataRoot)
+        $stateDataRoot = [System.IO.Path]::GetFullPath([string]$state.userDataRoot)
+        $installationDataRoot = [System.IO.Path]::GetFullPath([string]$installation.userDataRoot)
+        if (
+            [string]$installation.schemaVersion -ne "2.0.0" -or
+            [string]$installation.productId -ne "ai-video-channel-production" -or
+            [string]$installation.activeVersion -ne [string]$locator.productVersion -or
+            [string]$installation.activeRoot -ne "current" -or
+            [string]$state.schemaVersion -ne "2.0.0" -or
+            [string]$state.productId -ne "ai-video-channel-production" -or
+            [string]$state.productVersion -ne [string]$locator.productVersion -or
+            [string]$pluginManifest.version -ne [string]$locator.productVersion -or
+            [string]$state.releaseManifestSha256 -ne [string]$installation.releaseManifestSha256 -or
+            -not $locatorDataRoot.Equals($stateDataRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+            -not $installationDataRoot.Equals($stateDataRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+            -not [bool]$state.runtime.bundled -or
+            [string]$state.runtime.python -ne "runtime/python/python.exe"
+        ) {
+            throw "The cached plugin version or runtime locator does not match the active installation. Restart Codex after plugin repair."
+        }
+        $boundPython = Join-Path $installRoot "current\runtime\python\python.exe"
+        if (-not (Test-Path -LiteralPath $boundPython -PathType Leaf)) {
+            throw "The AI Video Channel Production bundled Python runtime is missing. Run installer repair."
+        }
+        $boundDataRoot = $stateDataRoot
+        $boundConfigRoot = Split-Path -Parent $locatorPath
+    }
+}
+
+if (-not [string]::IsNullOrWhiteSpace($boundDataRoot)) {
+    $env:AIVCP_DATA_ROOT = $boundDataRoot
+}
+if (-not [string]::IsNullOrWhiteSpace($boundConfigRoot)) {
+    $env:AIVCP_CONFIG_ROOT = $boundConfigRoot
+}
+if (-not [string]::IsNullOrWhiteSpace($boundPython)) {
+    & $boundPython $server mcp
+    exit $LASTEXITCODE
+}
 
 $configuredPython = [Environment]::GetEnvironmentVariable("AIVCP_PYTHON", "Process")
 if (-not [string]::IsNullOrWhiteSpace($configuredPython) -and (Test-Path -LiteralPath $configuredPython -PathType Leaf)) {
     & $configuredPython $server mcp
-    exit $LASTEXITCODE
-}
-
-$installedRuntime = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..\runtime\python\python.exe"))
-if (Test-Path -LiteralPath $installedRuntime -PathType Leaf) {
-    & $installedRuntime $server mcp
-    exit $LASTEXITCODE
-}
-
-$bundledPython = Join-Path $env:LOCALAPPDATA "AI Video Channel Production\current\runtime\python\python.exe"
-if (Test-Path -LiteralPath $bundledPython -PathType Leaf) {
-    & $bundledPython $server mcp
     exit $LASTEXITCODE
 }
 
@@ -29,4 +121,4 @@ if ($null -ne $uv) {
     exit $LASTEXITCODE
 }
 
-throw "The local tool service needs a compatible Python runtime. Run the installer repair action."
+throw "The local tool service needs a compatible bound Python runtime. Run installer repair."

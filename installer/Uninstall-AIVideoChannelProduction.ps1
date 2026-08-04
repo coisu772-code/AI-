@@ -1,6 +1,6 @@
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
 param(
-    [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "AI Video Channel Production"),
+    [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "AIVCP"),
     [switch]$SkipCodexRemoval
 )
 
@@ -9,6 +9,8 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "Common.ps1")
 . (Join-Path $PSScriptRoot "CodexCli.ps1")
 
+$operationLock = Enter-AivcpOperationLock
+try {
 $installFull = Test-AivcpSafeRoot $InstallRoot "InstallRoot"
 $installation = Get-AivcpInstallation $installFull
 $dataProperty = $installation.PSObject.Properties["userDataRoot"]
@@ -19,20 +21,7 @@ else {
     Get-AivcpDefaultDataRoot $installFull
 }
 
-if (-not $SkipCodexRemoval) {
-    $codex = Get-CompatibleCodexPluginCli
-    if ($null -eq $codex) {
-        Write-Warning "No compatible Codex CLI was found. Program removal will continue; remove the plugin through Codex later if it remains listed."
-    }
-    else {
-        & $codex plugin remove "ai-video-channel-production" --marketplace "novel-manga-production" --json | Out-Null
-        if ($LASTEXITCODE -ne 0) { Write-Warning "Codex plugin removal did not complete; program removal will continue." }
-        & $codex plugin marketplace remove "novel-manga-production" --json | Out-Null
-        if ($LASTEXITCODE -ne 0) { Write-Warning "Codex marketplace removal did not complete; program removal will continue." }
-    }
-}
-
-if ($PSCmdlet.ShouldProcess($installFull, "Remove program files and preserve user data")) {
+if ($PSCmdlet.ShouldProcess($installFull, "Remove program files and registration owned by this installation; preserve user data")) {
     $installPrefix = $installFull.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
     $dataInsideInstall = $dataFull.StartsWith($installPrefix, [System.StringComparison]::OrdinalIgnoreCase)
     if ($dataInsideInstall) {
@@ -56,5 +45,29 @@ if ($PSCmdlet.ShouldProcess($installFull, "Remove program files and preserve use
     if (-not (Test-Path -LiteralPath $dataFull -PathType Container)) {
         throw "Program removal completed, but the configured user data root is unexpectedly missing: $dataFull"
     }
+    $locatorPath = Get-AivcpRuntimeLocatorPath
+    $locatorExistsAtCommit = Test-Path -LiteralPath $locatorPath -PathType Leaf
+    $locatorOwnedAtCommit = Test-AivcpRuntimeLocatorOwnedBy -InstallRoot $installFull
+    $locatorRemoved = if ($locatorOwnedAtCommit) { Remove-AivcpRuntimeLocatorIfOwned -InstallRoot $installFull } else { $false }
+    if (-not $SkipCodexRemoval -and (-not $locatorExistsAtCommit -or $locatorOwnedAtCommit)) {
+        $codex = Get-CompatibleCodexPluginCli
+        if ($null -eq $codex) {
+            Write-Warning "No compatible Codex CLI was found. Program files were removed; remove the plugin through Codex later if it remains listed."
+        }
+        else {
+            & $codex plugin remove "ai-video-channel-production" --marketplace "novel-manga-production" --json | Out-Null
+            if ($LASTEXITCODE -ne 0) { Write-Warning "Codex plugin removal did not complete after program removal." }
+            & $codex plugin marketplace remove "novel-manga-production" --json | Out-Null
+            if ($LASTEXITCODE -ne 0) { Write-Warning "Codex marketplace removal did not complete after program removal." }
+        }
+    }
+    elseif (-not $SkipCodexRemoval -and $locatorExistsAtCommit) {
+        Write-Warning "Codex registration belongs to another AI Video Channel Production installation; it was preserved."
+    }
     Write-Output "Program files removed. User data preserved at $dataFull"
+    if ($locatorRemoved) { Write-Output "The runtime locator owned by this installation was removed." }
+}
+}
+finally {
+    Exit-AivcpOperationLock $operationLock
 }
