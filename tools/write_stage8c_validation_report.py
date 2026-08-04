@@ -47,6 +47,11 @@ def main() -> int:
         for asset in manifest["assets"]
         if asset["assetId"] in {"unified-installer", "core"}
     }
+    bound_metadata = {
+        asset["assetId"]: asset.get("source", {}).get("metadataCommit")
+        for asset in manifest["assets"]
+        if asset.get("source", {}).get("metadataCommit")
+    }
     report = {
         "schemaVersion":"1.0.0","productVersion":"0.8.0-rc.2","status":"LOCAL_UNIFIED_RC_PASS","fullMvpStatus":"WAITING_FOR_CONTROLLED_REAL_ACCEPTANCE",
         "distributionRepository":{"commit":commit,"clean":not status,"status":status},
@@ -54,6 +59,7 @@ def main() -> int:
             "status":"PASS" if binding["executed"] and len(set(bound_sources.values())) == 1 else "FAIL",
             "implementationSourceCommitSha":binding["evidence"]["implementationSourceCommitSha"],
             "assetSourceCommits":bound_sources,
+            "assetMetadataCommits":bound_metadata,
             "metadataHeadCommit":commit,
             "metadataHeadIsNotAssetSourceBinding":True,
             "manifestSha256":sha256(manifest_path),
