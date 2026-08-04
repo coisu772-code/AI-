@@ -38,7 +38,15 @@
             "production-result-package",
             "publish-intent",
             "publication-receipt",
-            "analytics-snapshot"
+            "analytics-snapshot",
+            "analysis-package-v1",
+            "reference-channel-profile-v1",
+            "channel-runtime-profile-v1",
+            "account-decomposition-requirements-v1",
+            "account-imitation-requirements-v1",
+            "account-runtime-validation-v1",
+            "video-deconstruction-analysis-v1",
+            "writing-style-contract-v1"
           ]
         },
         "targetId": {
@@ -323,7 +331,8 @@
             "multi-work-analysis",
             "video-analysis",
             "book-analysis",
-            "style-imitation"
+            "style-imitation",
+            "channel-distillation"
           ]
         },
         "status": {
@@ -355,7 +364,8 @@
           "type": "string",
           "enum": [
             "analysis-package-v1",
-            "writing-style-contract-v1"
+            "writing-style-contract-v1",
+            "reference-channel-profile-v1"
           ]
         },
         "skillId": {

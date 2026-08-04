@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/video-deconstruction-analysis-v1.schema.json",
+  "title": "Video Deconstruction Analysis v1",
+  "allOf": [
+    { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/envelope" }
+  ],
+  "type": "object",
+  "unevaluatedProperties": false,
+  "required": [
+    "deconstructionId", "targetChannelProfileId", "sourcePackageId", "sourcePackageHash",
+    "role", "checkpointInputHash", "status"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "contractType": { "const": "video-deconstruction-analysis-v1" },
+    "deconstructionId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "targetChannelProfileId": { "type": "string", "minLength": 3, "maxLength": 160 },
+    "sourcePackageId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "sourcePackageHash": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256" },
+    "role": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "checkpointInputHash": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256" },
+    "analysisBuckets": { "$ref": "#/$defs/buckets" },
+    "dimensions": { "type": "object", "minProperties": 17 },
+    "sectionMap": { "type": "array", "minItems": 1, "items": { "type": "object" } },
+    "requirementCoverage": { "type": "array", "items": { "type": "object" } },
+    "qualityGate": { "type": "object" },
+    "failure": { "type": "object" },
+    "status": { "enum": ["FROZEN", "FAILED", "SKIPPED"] }
+  },
+  "$defs": {
+    "buckets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["originalFacts", "analysisConclusions", "transferableMethods", "prohibitedCopy", "unknowns"],
+      "properties": {
+        "originalFacts": { "type": "array", "minItems": 1, "items": { "type": "object" } },
+        "analysisConclusions": { "type": "array", "minItems": 1, "items": { "type": "object" } },
+        "transferableMethods": { "type": "array", "minItems": 1, "items": { "type": "object" } },
+        "prohibitedCopy": { "type": "array", "minItems": 1, "items": { "type": "object" } },
+        "unknowns": { "type": "array", "minItems": 1, "items": { "type": "object" } }
+      }
+    }
+  },
+  "if": {
+    "properties": { "status": { "const": "FROZEN" } },
+    "required": ["status"]
+  },
+  "then": {
+    "required": ["analysisBuckets", "dimensions", "sectionMap", "requirementCoverage", "qualityGate"]
+  },
+  "else": {
+    "required": ["failure"]
+  }
+}

@@ -20,6 +20,9 @@ EXPECTED_SKILLS = {
     "channel-production",
     "channel-onboarding",
     "source-library",
+    "channel-distillation",
+    "video-copy-deconstruction",
+    "original-imitation-writing",
     "topic-selection",
     "manuscript-production",
     "publishing-assets",
@@ -38,6 +41,26 @@ EXPECTED_CONTENT_TOOLS = {
     "content_project_get",
     "content_integrity_check",
     "content_handoff_check",
+}
+EXPECTED_VIDEO_ANALYSIS_TOOLS = {
+    "video_deconstruction_capabilities",
+    "video_deconstruction_prepare",
+    "video_deconstruction_read_source",
+    "video_deconstruction_checkpoint",
+    "video_deconstruction_finalize",
+    "video_deconstruction_get",
+    "video_deconstruction_integrity_check",
+}
+EXPECTED_ORIGINAL_IMITATION_TOOLS = {
+    "original_imitation_capabilities",
+    "original_imitation_prepare",
+    "original_imitation_read_source",
+    "original_imitation_source_checkpoint",
+    "original_imitation_direction_checkpoint",
+    "original_imitation_directions_finalize",
+    "original_imitation_confirm",
+    "original_imitation_get",
+    "original_imitation_integrity_check",
 }
 EXPECTED_PRODUCTION_TOOLS = {
     "production_capabilities",
@@ -173,6 +196,10 @@ def validate_plugin() -> list[str]:
         errors.append("channel-onboarding must remain explicit/orchestrated")
     if policies.get("source-library") is not False:
         errors.append("source-library must remain explicit/orchestrated")
+    if policies.get("channel-distillation") is not False:
+        errors.append("channel-distillation must remain explicit/orchestrated")
+    if policies.get("original-imitation-writing") is not False:
+        errors.append("original-imitation-writing must remain explicit/orchestrated")
     if policies.get("publish-video") is not True:
         errors.append("publish-video must allow natural-language Stage6 invocation")
     if policies.get("data-center") is not True:
@@ -219,6 +246,70 @@ def validate_plugin() -> list[str]:
     ):
         if marker not in topic_text:
             errors.append(f"topic-selection is missing required marker: {marker}")
+
+    distillation_text = skill_texts.get("channel-distillation", "")
+    for marker in (
+        "channel_distillation_capabilities",
+        "channel_distillation_prepare",
+        "channel_distillation_checkpoint",
+        "channel_distillation_finalize",
+        "channel_distillation_get",
+        "channel_distillation_integrity_check",
+        "analysis-package-v1.json",
+        "content.txt",
+        "timing-map.json",
+        "7/7 succeeded",
+        "originalFacts",
+        "analysisConclusions",
+        "transferableMethods",
+        "prohibitedCopy",
+        "unknowns",
+    ):
+        if marker not in distillation_text:
+            errors.append(f"channel-distillation is missing required marker: {marker}")
+
+    deconstruction_text = skill_texts.get("video-copy-deconstruction", "")
+    for marker in (
+        *sorted(EXPECTED_VIDEO_ANALYSIS_TOOLS),
+        "content.txt",
+        "timing-map.json",
+        "originalFacts",
+        "analysisConclusions",
+        "transferableMethods",
+        "prohibitedCopy",
+        "unknowns",
+        "topic-center",
+        "manuscript-center",
+        "averagingUsed=false",
+        "segmentSplicingUsed=false",
+    ):
+        if marker not in deconstruction_text:
+            errors.append(f"video-copy-deconstruction is missing required marker: {marker}")
+
+    imitation_text = skill_texts.get("original-imitation-writing", "")
+    for marker in (
+        *sorted(EXPECTED_ORIGINAL_IMITATION_TOOLS),
+        "writing-style-contract-v1",
+        "originalFacts",
+        "analysisConclusions",
+        "transferableMethods",
+        "prohibitedCopy",
+        "unknowns",
+        "8 个",
+        "TOP3",
+        "q1",
+        "q10",
+        "originalSentencesCopied=false",
+        "properNamesCopied=false",
+        "completeEventOrderCopied=false",
+        "singleWorkMainlineCopied=false",
+        "segmentSplicingUsed=false",
+        "oneCausalEngineRebuilt=true",
+        "topic-center",
+        "manuscript-center",
+    ):
+        if marker not in imitation_text:
+            errors.append(f"original-imitation-writing is missing required marker: {marker}")
 
     manuscript_text = skill_texts.get("manuscript-production", "")
     for marker in (
@@ -295,7 +386,7 @@ def validate_plugin() -> list[str]:
     service_text = (PLUGIN_ROOT / "mcp" / "aivcp_tools" / "service.py").read_text(encoding="utf-8")
     missing_tools = sorted(
         tool
-        for tool in EXPECTED_PRODUCTION_TOOLS | EXPECTED_PUBLISH_TOOLS | EXPECTED_DATA_TOOLS
+        for tool in EXPECTED_VIDEO_ANALYSIS_TOOLS | EXPECTED_ORIGINAL_IMITATION_TOOLS | EXPECTED_PRODUCTION_TOOLS | EXPECTED_PUBLISH_TOOLS | EXPECTED_DATA_TOOLS
         if tool not in service_text
     )
     if missing_tools:

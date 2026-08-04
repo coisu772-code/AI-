@@ -184,6 +184,7 @@ class SourceLibrary:
             "sourcePackageSchemaVersion": SOURCE_PACKAGE_SCHEMA_VERSION,
             "sourceTypes": sorted(SOURCE_DIRECTORY),
             "localFileTypes": [".txt", ".md", ".epub", ".pdf", ".docx"],
+            "youtubeSupplementFileTypes": [".srt", ".vtt", ".json3", ".txt", ".md"],
             "deduplication": ["platform-id", "canonical-url", "sha256"],
             "supports": {
                 "confirmationCard": True,
@@ -193,6 +194,17 @@ class SourceLibrary:
                 "persistentSearch": True,
                 "contentAnalysis": False,
                 "contentGeneration": False,
+                "canonicalTextOnlyForAnalysis": True,
+                "temporarySubtitleCleanup": True,
+                "officialPublicNovelDownload": True,
+                "commercialNovelUserAuthorizedImport": True,
+            },
+            "canonicalContent": {
+                "textFile": "content.txt",
+                "youtubeTimingFile": "timing-map.json",
+                "documentStructureFile": "chapters.json",
+                "analysisReadsOnly": "content.txt",
+                "rawSubtitlePersisted": False,
             },
         }
 
@@ -241,7 +253,13 @@ class SourceLibrary:
                 details={"filename": Path(locator).name},
             )
         extension = path.suffix.lower()
-        if extension not in {".txt", ".md", ".epub", ".pdf", ".docx", ".srt", ".vtt", ".mp3", ".wav", ".mp4"}:
+        if extension in {".srt", ".vtt", ".json3", ".mp3", ".wav", ".mp4"}:
+            raise ToolError(
+                "SOURCE_SUPPLEMENT_CONTEXT_REQUIRED",
+                "字幕、音频或视频必须作为对应 YouTube 任务的补充资料，不能单独建立第二份正文。",
+                details={"extension": extension},
+            )
+        if extension not in {".txt", ".md", ".epub", ".pdf", ".docx"}:
             raise ToolError("SOURCE_FILE_TYPE_UNSUPPORTED", "本地资料文件类型暂不支持。", details={"extension": extension})
         item["locator"] = str(path)
         item["canonicalLocator"] = str(path).casefold()
@@ -431,12 +449,15 @@ class SourceLibrary:
                 raise ToolError("SOURCE_ADAPTER_UNAVAILABLE", "YouTube 资料适配器尚未安装。") from exc
             adapter = YouTubeAdapter.from_environment() if hasattr(YouTubeAdapter, "from_environment") else YouTubeAdapter()
             if kind == "youtube-video":
-                return adapter.collect_video(
+                result = adapter.collect_video(
                     item["locator"],
                     requested_language=item.get("language"),
                     allow_transcription=bool(item.get("allowTranscription", False)),
                     work_dir=work_dir,
                 )
+                if isinstance(item.get("text"), str) or item.get("suppliedFile"):
+                    return self._apply_youtube_text_supplement(result, item, adapter)
+                return result
             return adapter.collect_channel(item["locator"], work_dir=work_dir, previous_snapshot=item.get("previousSnapshot"))
         if kind == "local-file":
             try:
@@ -459,6 +480,124 @@ class SourceLibrary:
                 supplied_file=item.get("suppliedFile"),
             )
         raise ToolError("SOURCE_TYPE_UNSUPPORTED", "当前资料类型尚不支持。", details={"kind": kind})
+
+    def _apply_youtube_text_supplement(
+        self,
+        result: dict[str, Any],
+        item: dict[str, Any],
+        adapter: Any,
+    ) -> dict[str, Any]:
+        from .source_youtube import _normalize_caption
+
+        supplied_file = item.get("suppliedFile")
+        language = item.get("language") or result.get("language")
+        if isinstance(item.get("text"), str):
+            raw = item["text"]
+            extension = "txt"
+            method = "user-supplied-text"
+        elif isinstance(supplied_file, str) and supplied_file:
+            path = Path(supplied_file).expanduser().resolve()
+            if not path.is_file():
+                raise ToolError("SOURCE_FILE_NOT_FOUND", "补充的字幕或文字稿文件不存在。")
+            extension = path.suffix.lower().removeprefix(".")
+            if extension not in {"srt", "vtt", "txt", "md", "json3", "json"}:
+                raise ToolError(
+                    "SOURCE_SUPPLEMENT_TYPE_UNSUPPORTED",
+                    "YouTube 文字补充只接受 SRT、VTT、JSON3、TXT 或 MD。",
+                    details={"extension": path.suffix.lower()},
+                )
+            payload = path.read_bytes()
+            raw = ""
+            for encoding in ("utf-8-sig", "utf-16", "gb18030", "cp932", "windows-1252"):
+                try:
+                    raw = payload.decode(encoding)
+                    break
+                except (LookupError, UnicodeDecodeError):
+                    continue
+            if not raw:
+                raise ToolError("SOURCE_SUPPLEMENT_ENCODING_UNSUPPORTED", "补充文字文件编码无法安全识别。")
+            method = "user-supplied-subtitle" if extension in {"srt", "vtt", "json3", "json"} else "user-supplied-text"
+            if extension == "md":
+                extension = "txt"
+        else:
+            raise ToolError("SOURCE_SUPPLEMENT_INVALID", "YouTube 补充资料缺少文字或文件。")
+        duration = result.get("metadata", {}).get("durationSeconds")
+        normalized, coverage, timing_entries = _normalize_caption(raw, extension, duration)
+        minimum = int(getattr(adapter, "minimum_text_characters", 80))
+        if len(re.sub(r"\s+", "", normalized)) < minimum:
+            raise ToolError(
+                "SOURCE_CONTENT_INCOMPLETE",
+                "补充文字已经读取，但不足以确认是完整可分析正文。",
+                details={"minimumCharacters": minimum},
+            )
+        timing_map = json.dumps(
+            {
+                "schemaVersion": "1.0.0",
+                "format": "canonical-text-timing-map",
+                "videoId": result.get("platformId"),
+                "language": language,
+                "sourceMethod": method,
+                "durationSeconds": duration,
+                "paragraphCount": len(timing_entries),
+                "entries": timing_entries,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        retained_assets = [
+            asset
+            for asset in result.get("assets", [])
+            if isinstance(asset, dict) and asset.get("role") == "assets"
+        ]
+        retained_assets.extend(
+            [
+                {
+                    "role": "normalized",
+                    "mediaType": "text/plain; charset=utf-8",
+                    "filename": "content.txt",
+                    "data": normalized,
+                },
+                {
+                    "role": "normalized",
+                    "mediaType": "application/json",
+                    "filename": "timing-map.json",
+                    "data": timing_map,
+                },
+            ]
+        )
+        report = dict(result.get("report") or {})
+        report.update(
+            {
+                "complete": item.get("complete", True) is not False,
+                "rawCaptionStored": False,
+                "temporaryCaptionRetained": False,
+                "bodyGeneratedFromMetadata": False,
+            }
+        )
+        report["textAcquisition"] = {
+            "method": method,
+            "language": language,
+            "completeness": "complete" if item.get("complete", True) is not False else "incomplete",
+            "coverageRatio": coverage,
+            "textCharacters": len(normalized),
+            "minimumCharacters": minimum,
+            "textSufficient": True,
+            "canonicalTextFile": "content.txt",
+            "timingMapFile": "timing-map.json",
+        }
+        return {
+            **result,
+            "status": "CONTENT_READY" if item.get("complete", True) is not False else "PARTIAL",
+            "language": language,
+            "assets": retained_assets,
+            "contentSha256": _sha256_bytes(normalized.encode("utf-8")),
+            "report": report,
+            "rightsBoundary": {
+                "accessLevel": "user-authorized",
+                "basis": "User supplied the transcript/subtitle for local processing; the subtitle file itself was not retained.",
+                "confirmedByUser": True,
+            },
+        }
 
     def resume_job(
         self,
@@ -585,7 +724,7 @@ class SourceLibrary:
                 if row is None:
                     raise ToolError("SOURCE_SUPPLEMENT_INVALID", "补充资料指向不存在的任务项。")
                 item = json.loads(row["input_json"])
-                for key in ("suppliedFile", "text", "language", "authorized", "allowTranscription"):
+                for key in ("suppliedFile", "text", "language", "authorized", "allowTranscription", "complete"):
                     if key in value:
                         item[key] = value[key]
                 connection.execute(
@@ -719,6 +858,33 @@ class SourceLibrary:
             raise ToolError("SOURCE_ADAPTER_RESULT_INVALID", "资料内容哈希无效。")
 
         assets_input = list(result.get("assets") or [])
+        if source_type == "youtube-video":
+            discarded = [
+                asset
+                for asset in assets_input
+                if isinstance(asset, dict)
+                and (
+                    str(asset.get("role", "")).lower() in {"raw", "subtitle-original", "transcript-raw"}
+                    or Path(str(asset.get("filename", ""))).suffix.lower()
+                    in {".srt", ".vtt", ".json3", ".ttml", ".srv1", ".srv2", ".srv3"}
+                )
+            ]
+            assets_input = [asset for asset in assets_input if asset not in discarded]
+            canonical_texts = [
+                asset
+                for asset in assets_input
+                if isinstance(asset, dict) and str(asset.get("filename", "")).lower() == "content.txt"
+            ]
+            if status == "CONTENT_READY" and len(canonical_texts) != 1:
+                raise ToolError(
+                    "YOUTUBE_CANONICAL_TEXT_INVALID",
+                    "CONTENT_READY 的 YouTube 资料必须且只能保存一份 content.txt。",
+                )
+            if discarded:
+                report = dict(result.get("report") or {})
+                report["discardedTemporaryAssets"] = len(discarded)
+                report["rawCaptionStored"] = False
+                result["report"] = report
         metadata = dict(result.get("metadata") or {})
         metadata.setdefault("sourceBoundary", result.get("report", {}).get("sourceBoundary", "unknown"))
         metadata.setdefault("completeness", result.get("report", {}).get("completeness", result.get("report", {}).get("complete")))

@@ -144,16 +144,20 @@ def _extension_capabilities() -> list[dict[str, Any]]:
     items = []
     for capability in EXTENSION_CAPABILITY_NAMES:
         style = capability == "style-imitation"
-        items.append(
-            {
-                "capability": capability,
-                "status": "unavailable",
-                "interfaceVersion": "1.0.0",
-                "inputContractTypes": ["source-package"],
-                "outputContractType": "writing-style-contract-v1" if style else "analysis-package-v1",
-                "reason": "对应的可插拔 Skill 尚未安装；不会伪造输出。",
-            }
-        )
+        item = {
+            "capability": capability,
+            "status": "available" if capability in {"video-analysis", "style-imitation"} else "unavailable",
+            "interfaceVersion": "1.0.0",
+            "inputContractTypes": ["source-package"],
+            "outputContractType": "writing-style-contract-v1" if style else "analysis-package-v1",
+        }
+        if capability == "video-analysis":
+            item.update({"skillId": "video-copy-deconstruction", "skillVersion": "1.0.0"})
+        elif capability == "style-imitation":
+            item.update({"skillId": "original-imitation-writing", "skillVersion": "1.0.0"})
+        else:
+            item["reason"] = "对应的可插拔 Skill 尚未安装；不会伪造输出。"
+        items.append(item)
     return items
 
 
@@ -185,10 +189,22 @@ def _png_dimensions(path: Path) -> tuple[int, int]:
 class ContentLoop:
     """Freeze AI-authored content into deterministic, traceable stage-4 packages."""
 
-    def __init__(self, store: Any, sources: Any, *, plugin_root: Path | None = None) -> None:
+    def __init__(
+        self,
+        store: Any,
+        sources: Any,
+        *,
+        plugin_root: Path | None = None,
+        analyses: Any = None,
+        video_analyses: Any = None,
+        style_provider: Any = None,
+    ) -> None:
         self.store = store
         self.sources = sources
         self.plugin_root = plugin_root
+        self.analyses = analyses
+        self.video_analyses = video_analyses
+        self.style_provider = style_provider
 
     def _validate_contract_schema(self, contract: dict[str, Any], schema_name: str) -> None:
         if not self.plugin_root:
@@ -230,15 +246,21 @@ class ContentLoop:
                 "channel-library": {"available": True, "label": "频道画像锚定"},
                 "provided-outline": {"available": True, "label": "用户大纲直通"},
                 "trend": {"available": False, "reason": "trend-analysis-skill-unavailable"},
-                "single-reference": {"available": False, "reason": "deconstruction-skill-unavailable"},
-                "multi-reference": {"available": False, "reason": "deconstruction-skill-unavailable"},
+                "single-reference": {"available": True, "requires": "video-copy-deconstruction Analysis Package v1"},
+                "multi-reference": {"available": True, "requires": "video-copy-deconstruction Analysis Package v1"},
+                "imitation": {"available": True, "requires": "original-imitation-writing Writing Style Contract v1"},
             },
             "extensionInterfaces": {
                 "analysis-package-v1": {
-                    "status": "unavailable",
-                    "consumers": ["single-reference", "multi-reference", "book-deconstruction"],
+                    "status": "available",
+                    "providers": ["channel-distillation", "video-copy-deconstruction"],
+                    "consumers": ["channel-library", "single-reference", "multi-reference", "topic-center", "manuscript-center"],
                 },
-                "writing-style-contract-v1": {"status": "unavailable", "consumers": ["imitation"]},
+                "writing-style-contract-v1": {
+                    "status": "available",
+                    "provider": "original-imitation-writing",
+                    "consumers": ["imitation", "topic-center", "manuscript-center"],
+                },
                 "image-provider-v1": {"status": "available", "modes": ["real", "prompt_only"]},
             },
             "sourceGate": {
@@ -285,6 +307,8 @@ class ContentLoop:
         project_id: Any,
         source_mode: Any,
         source_packages: Any = None,
+        analysis_packages: Any = None,
+        writing_style_contracts: Any = None,
         provided_outline: Any = None,
         learning_snapshot: Any = None,
         one_time_modifications: Any = None,
@@ -296,7 +320,9 @@ class ContentLoop:
         project_id = _safe_identifier(project_id, "projectId")
         if source_mode not in SOURCE_MODES:
             raise ToolError("CONTENT_ROUTE_INVALID", "不支持该选题路线。")
-        if source_mode in EXTENSION_MODES:
+        enabled_analysis_route = source_mode in {"single-reference", "multi-reference"} and bool(analysis_packages)
+        enabled_style_route = source_mode == "imitation" and bool(writing_style_contracts)
+        if source_mode in EXTENSION_MODES and not (enabled_analysis_route or enabled_style_route):
             interface = "writing-style-contract-v1" if source_mode == "imitation" else "analysis-package-v1"
             raise ToolError(
                 "CONTENT_EXTENSION_UNAVAILABLE",
@@ -376,8 +402,95 @@ class ContentLoop:
                     "rightsBoundary": manifest["rightsBoundary"],
                 }
             )
-        if source_mode == "channel-library" and not locks:
-            raise ToolError("CHANNEL_SOURCE_REQUIRED", "频道画像锚定路线至少需要一份合格的频道资料。")
+        style_locks: list[dict[str, Any]] = []
+        for requested in writing_style_contracts or []:
+            if not isinstance(requested, dict) or not isinstance(requested.get("imitationId"), str):
+                raise ToolError("WRITING_STYLE_REFERENCE_INVALID", "仿写契约引用必须包含 imitationId。")
+            if self.style_provider is None:
+                raise ToolError("WRITING_STYLE_PROVIDER_UNAVAILABLE", "原创仿写契约提供器尚未接入内容中心。")
+            imitation_id = requested["imitationId"]
+            contract = self.style_provider.writing_contract(
+                channel_profile_id=channel_profile_id,
+                imitation_id=imitation_id,
+            )
+            if contract.get("targetChannelProfileId") != channel_profile_id:
+                raise ToolError("WRITING_STYLE_CHANNEL_MISMATCH", "仿写契约不属于当前目标频道。")
+            for frozen in contract.get("sourceLocks", []):
+                detail = self.sources.get_source(
+                    channel_profile_id=channel_profile_id,
+                    source_package_id=frozen["sourcePackageId"],
+                )
+                manifest = detail["manifest"]
+                if canonical_hash(manifest) != manifest.get("contentHash") or manifest.get("contentHash") != frozen.get("contentHash"):
+                    raise ToolError("WRITING_STYLE_SOURCE_VERSION_CHANGED", "仿写契约绑定的 Source Package 已变化。")
+                existing = next((item for item in locks if item["sourcePackageId"] == manifest["sourcePackageId"]), None)
+                if existing is not None:
+                    if existing["contentHash"] != manifest["contentHash"]:
+                        raise ToolError("SOURCE_LOCK_CONFLICT", "内容项目对同一资料绑定了不同版本。")
+                    continue
+                locks.append(json.loads(json.dumps(frozen, ensure_ascii=False)))
+            style_locks.append(
+                {
+                    "imitationId": imitation_id,
+                    "writingStyleContract": _contract_ref(contract),
+                    "selectedDirectionId": contract["selectedDirection"]["directionId"],
+                    "consumers": ["topic-center", "manuscript-center"],
+                }
+            )
+        if source_mode == "imitation":
+            if len(style_locks) != 1:
+                raise ToolError("WRITING_STYLE_CONTRACT_REQUIRED", "原创仿写路线必须且只能绑定一份已由用户确认的 Writing Style Contract。")
+            if analysis_packages:
+                raise ToolError("IMITATION_ROUTE_INPUT_CONFLICT", "原创仿写路线由 Writing Style Contract 统一封装来源，不能再并列传入分析包。")
+        elif style_locks:
+            raise ToolError("WRITING_STYLE_ROUTE_MISMATCH", "Writing Style Contract 只能用于 imitation 路线。")
+        analysis_locks: list[dict[str, Any]] = []
+        for requested in analysis_packages or []:
+            if not isinstance(requested, dict):
+                raise ToolError("ANALYSIS_REFERENCE_INVALID", "分析引用必须是对象。")
+            if isinstance(requested.get("distillationId"), str):
+                if self.analyses is None:
+                    raise ToolError("ANALYSIS_PROVIDER_UNAVAILABLE", "频道蒸馏提供器尚未接入内容中心。")
+                identifier_key = "distillationId"
+                identifier = requested[identifier_key]
+                contract = self.analyses.analysis_package(
+                    channel_profile_id=channel_profile_id,
+                    distillation_id=identifier,
+                )
+            elif isinstance(requested.get("deconstructionId"), str):
+                if self.video_analyses is None:
+                    raise ToolError("ANALYSIS_PROVIDER_UNAVAILABLE", "视频文案拆解提供器尚未接入内容中心。")
+                identifier_key = "deconstructionId"
+                identifier = requested[identifier_key]
+                contract = self.video_analyses.analysis_package(
+                    channel_profile_id=channel_profile_id,
+                    deconstruction_id=identifier,
+                )
+            else:
+                raise ToolError("ANALYSIS_REFERENCE_INVALID", "分析引用必须包含 distillationId 或 deconstructionId。")
+            if contract.get("targetChannelProfileId") != channel_profile_id:
+                raise ToolError("ANALYSIS_CHANNEL_MISMATCH", "分析包不属于当前目标频道。")
+            analysis_locks.append(
+                {
+                    identifier_key: identifier,
+                    "analysisPackage": _contract_ref(contract),
+                    "analysisKind": contract["analysisKind"],
+                    "mode": contract.get("mode"),
+                    "consumers": ["topic-center", "manuscript-center"],
+                }
+            )
+        if source_mode == "channel-library" and not locks and not analysis_locks:
+            raise ToolError("CHANNEL_SOURCE_REQUIRED", "频道画像锚定路线至少需要一份合格的频道资料或冻结分析包。")
+        if source_mode == "channel-library" and any(
+            item["analysisKind"] != "channel-distillation" for item in analysis_locks
+        ):
+            raise ToolError("ANALYSIS_ROUTE_MISMATCH", "频道画像锚定路线只能消费频道蒸馏分析包。")
+        if source_mode in {"single-reference", "multi-reference"}:
+            if len(analysis_locks) != 1 or analysis_locks[0]["analysisKind"] != "video-copy-deconstruction":
+                raise ToolError("VIDEO_ANALYSIS_PACKAGE_REQUIRED", "单／多视频参考路线必须且只能绑定一份视频文案拆解 Analysis Package。")
+            expected_modes = {"single"} if source_mode == "single-reference" else {"parallel", "compare"}
+            if analysis_locks[0].get("mode") not in expected_modes:
+                raise ToolError("VIDEO_ANALYSIS_MODE_MISMATCH", "视频拆解模式与单／多视频参考路线不一致。")
 
         brief = {
             "schemaVersion": CONTENT_LOOP_VERSION,
@@ -392,6 +505,8 @@ class ContentLoop:
                 "productionDefaults": production["defaults"],
             },
             "sourceLocks": locks,
+            "analysisLocks": analysis_locks,
+            "styleLocks": style_locks,
             "providedOutlineHash": outline_hash,
             "learningSnapshot": learning_snapshot,
             "oneTimeModifications": one_time_modifications,
@@ -424,6 +539,8 @@ class ContentLoop:
             "requestHash": request_hash,
             "briefPath": "content-brief-v001.json",
             "sourceLocks": locks,
+            "analysisLocks": analysis_locks,
+            "styleLocks": style_locks,
             "topicCheckpoint": {"version": "1.0.0", "completedUnits": 0, "candidateIds": [], "items": []},
             "activePackages": {"topic": None, "manuscript": None, "publishing": None},
             "invalidations": [],
@@ -435,6 +552,7 @@ class ContentLoop:
                 "targetLanguage": channel["outputLanguage"],
                 "sourceMode": source_mode,
                 "sourceCount": len(locks),
+                "styleContractCount": len(style_locks),
                 "partialAcceptedCount": sum(1 for item in locks if item["status"] == "PARTIAL"),
                 "next": "生成完整候选并逐项写入检查点",
             },
@@ -534,6 +652,21 @@ class ContentLoop:
         if missing:
             raise ToolError("TOPIC_CANDIDATE_INVALID", "完整候选缺少字段。", details={"missing": missing})
         _safe_identifier(candidate["candidateId"], "candidateId")
+        if state["sourceMode"] == "imitation":
+            compliance = candidate.get("styleContractCompliance")
+            expected_direction = state["styleLocks"][0]["selectedDirectionId"]
+            required_compliance = {
+                "selectedDirectionId": expected_direction,
+                "unifiedCausalEngineApplied": True,
+                "functionalIsomorphismApplied": True,
+                "sourceRolesAndWeightsApplied": True,
+                "copyBoundaryPassed": True,
+            }
+            if compliance != required_compliance:
+                raise ToolError(
+                    "WRITING_STYLE_COMPLIANCE_FAILED",
+                    "仿写候选必须应用已确认方向、统一因果、功能同构、来源权重和反复制硬门。",
+                )
         audience = candidate["audience"]
         audience_required = {"region", "targetLanguage", "locale", "commercialOrientation"}
         if (
@@ -605,7 +738,7 @@ class ContentLoop:
         expected = checkpoint["completedUnits"] + 1
         if candidate_number != expected:
             raise ToolError("TOPIC_CHECKPOINT_SEQUENCE", "每次只能追加下一个缺失候选，completedUnits 只能增加 1。", details={"expected": expected})
-        maximum = 10 if state["sourceMode"] == "channel-library" else 1 if state["sourceMode"] == "provided-outline" else 6
+        maximum = 10 if state["sourceMode"] == "channel-library" else 1 if state["sourceMode"] in {"provided-outline", "imitation"} else 6
         if candidate_number > maximum:
             raise ToolError("TOPIC_CANDIDATE_LIMIT", "候选数量超过当前路线允许上限。")
         candidate = self._validate_candidate(candidate, state)
@@ -641,7 +774,7 @@ class ContentLoop:
         }
         _atomic_json(topic_root / "topic-candidates-v001.partial.json", partial)
         self._save_state(state)
-        required_total = 10 if state["sourceMode"] == "channel-library" else 1 if state["sourceMode"] == "provided-outline" else None
+        required_total = 10 if state["sourceMode"] == "channel-library" else 1 if state["sourceMode"] in {"provided-outline", "imitation"} else None
         return {
             "checkpoint": checkpoint,
             "progress": f"topic {candidate_number}/{required_total or '3-6'}",
@@ -672,7 +805,7 @@ class ContentLoop:
         project_id = _safe_identifier(project_id, "projectId")
         state = self._load_state(channel_profile_id, project_id)
         candidates = self._load_candidates(state)
-        required = 10 if state["sourceMode"] == "channel-library" else 1 if state["sourceMode"] == "provided-outline" else None
+        required = 10 if state["sourceMode"] == "channel-library" else 1 if state["sourceMode"] in {"provided-outline", "imitation"} else None
         if required is not None and len(candidates) != required:
             raise ToolError("TOPIC_CANDIDATES_INCOMPLETE", "当前路线的完整候选尚未全部落盘。", details={"required": required, "actual": len(candidates)})
         if required is None and not 3 <= len(candidates) <= 6:
@@ -713,6 +846,7 @@ class ContentLoop:
             }
             for item in state["sourceLocks"]
         )
+        upstream.extend(item["writingStyleContract"] for item in state.get("styleLocks", []))
         created = utc_now()
         contract_candidates = [
             {
@@ -769,6 +903,9 @@ class ContentLoop:
             "channel-library": "channel-profile-anchored",
             "provided-outline": "provided-outline",
             "market-original": "original",
+            "single-reference": "extension",
+            "multi-reference": "extension",
+            "imitation": "extension",
         }[state["sourceMode"]]
         approval = _approval("G3_TOPIC", confirmation, created)
         backup_ids = ranking[1:3] if len(ranking) > 1 else []
@@ -807,7 +944,7 @@ class ContentLoop:
                 "selection": {
                     "primaryCandidateId": selected_candidate_id,
                     "backupCandidateIds": backup_ids,
-                    "policy": "provided-outline-only" if state["sourceMode"] == "provided-outline" else "auto-best" if confirmation.get("mode") == "auto" else "user-choice",
+                    "policy": "provided-outline-only" if state["sourceMode"] == "provided-outline" else "confirmed-imitation-direction" if state["sourceMode"] == "imitation" else "auto-best" if confirmation.get("mode") == "auto" else "user-choice",
                 },
                 "selectedCandidateId": selected_candidate_id,
                 "selectionConfirmation": approval,
@@ -826,7 +963,15 @@ class ContentLoop:
         self._validate_contract_schema(contract, "topic-package.schema.json")
         root = self._project_root(channel_profile_id, project_id) / "topic-package" / f"v{version}"
         _atomic_json(root / "manifest.json", contract)
-        _atomic_json(root / "source-lock.json", {"sources": state["sourceLocks"], "evidenceClaims": evidence})
+        _atomic_json(
+            root / "source-lock.json",
+            {
+                "sources": state["sourceLocks"],
+                "analysisLocks": state.get("analysisLocks", []),
+                "styleLocks": state.get("styleLocks", []),
+                "evidenceClaims": evidence,
+            },
+        )
         _atomic_json(root / "topic-selection-card.json", {"ranking": contract["ranking"], "selectedCandidateId": selected_candidate_id})
         previous = state["activePackages"]["topic"]
         if previous:
@@ -1349,6 +1494,21 @@ class ContentLoop:
         state = self._load_state(channel_profile_id, project_id)
         errors: list[dict[str, Any]] = []
         contracts: dict[str, dict[str, Any]] = {}
+        for lock in state.get("styleLocks", []):
+            try:
+                if self.style_provider is None:
+                    raise ToolError("WRITING_STYLE_PROVIDER_UNAVAILABLE", "原创仿写契约提供器尚未接入内容中心。")
+                contract = self.style_provider.writing_contract(
+                    channel_profile_id=channel_profile_id,
+                    imitation_id=lock["imitationId"],
+                )
+                if (
+                    contract.get("contentHash") != lock["writingStyleContract"]["targetHash"]
+                    or contract.get("selectedDirection", {}).get("directionId") != lock["selectedDirectionId"]
+                ):
+                    errors.append({"package": "writing-style-contract", "issue": "style-upstream-hash"})
+            except ToolError as exc:
+                errors.append({"package": "writing-style-contract", "issue": exc.code})
         for package_name, expected_type in (("topic", "topic-package"), ("manuscript", "manuscript-package"), ("publishing", "publishing-asset-package")):
             reference = state["activePackages"].get(package_name)
             if not reference:

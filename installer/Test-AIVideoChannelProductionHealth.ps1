@@ -15,6 +15,9 @@ $requiredSkills = @(
     "channel-production",
     "channel-onboarding",
     "source-library",
+    "channel-distillation",
+    "video-copy-deconstruction",
+    "original-imitation-writing",
     "topic-selection",
     "manuscript-production",
     "publishing-assets"
@@ -33,6 +36,28 @@ $requiredContentTools = @(
     "content_project_get",
     "content_integrity_check",
     "content_handoff_check"
+    "channel_distillation_capabilities"
+    "channel_distillation_prepare"
+    "channel_distillation_checkpoint"
+    "channel_distillation_finalize"
+    "channel_distillation_get"
+    "channel_distillation_integrity_check"
+    "video_deconstruction_capabilities"
+    "video_deconstruction_prepare"
+    "video_deconstruction_read_source"
+    "video_deconstruction_checkpoint"
+    "video_deconstruction_finalize"
+    "video_deconstruction_get"
+    "video_deconstruction_integrity_check"
+    "original_imitation_capabilities"
+    "original_imitation_prepare"
+    "original_imitation_read_source"
+    "original_imitation_source_checkpoint"
+    "original_imitation_direction_checkpoint"
+    "original_imitation_directions_finalize"
+    "original_imitation_confirm"
+    "original_imitation_get"
+    "original_imitation_integrity_check"
     "production_capabilities"
     "production_package_assemble"
     "production_task_start"
@@ -107,6 +132,9 @@ foreach ($skill in $requiredSkills) {
 }
 
 $routerText = Get-Content -LiteralPath (Join-Path $skillsRoot "channel-production\SKILL.md") -Raw -Encoding UTF8
+$channelDistillationText = Get-Content -LiteralPath (Join-Path $skillsRoot "channel-distillation\SKILL.md") -Raw -Encoding UTF8
+$videoDeconstructionText = Get-Content -LiteralPath (Join-Path $skillsRoot "video-copy-deconstruction\SKILL.md") -Raw -Encoding UTF8
+$originalImitationText = Get-Content -LiteralPath (Join-Path $skillsRoot "original-imitation-writing\SKILL.md") -Raw -Encoding UTF8
 $productionSkillText = Get-Content -LiteralPath (Join-Path $skillsRoot "production-handoff\SKILL.md") -Raw -Encoding UTF8
 $publishSkillText = Get-Content -LiteralPath (Join-Path $skillsRoot "publish-video\SKILL.md") -Raw -Encoding UTF8
 $dataCenterSkillText = Get-Content -LiteralPath (Join-Path $skillsRoot "data-center\SKILL.md") -Raw -Encoding UTF8
@@ -115,7 +143,7 @@ $dataCenterHealthScript = Join-Path $skillsRoot "data-center\scripts\check_data_
 if (-not (Test-Path -LiteralPath $dataCenterHealthScript -PathType Leaf)) {
     throw "Installation health check failed: data-center health script is missing."
 }
-$declaredToolText = $routerText + "`n" + $productionSkillText + "`n" + $publishSkillText + "`n" + $dataCenterSkillText + "`n" + $dataCenterProtocolText
+$declaredToolText = $routerText + "`n" + $channelDistillationText + "`n" + $videoDeconstructionText + "`n" + $originalImitationText + "`n" + $productionSkillText + "`n" + $publishSkillText + "`n" + $dataCenterSkillText + "`n" + $dataCenterProtocolText
 foreach ($toolName in $requiredContentTools) {
     if (-not $declaredToolText.Contains($toolName)) {
         throw "Installation health check failed: Skills do not declare $toolName."

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/content-analysis-requirements.schema.json",
+  "title": "Account-scoped Content Analysis Requirements v1",
+  "allOf": [
+    { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/envelope" }
+  ],
+  "type": "object",
+  "unevaluatedProperties": false,
+  "required": ["distillationId", "targetChannelProfileId", "scope", "requirements", "status"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "contractType": {
+      "enum": ["account-decomposition-requirements-v1", "account-imitation-requirements-v1"]
+    },
+    "distillationId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "targetChannelProfileId": { "type": "string", "minLength": 3, "maxLength": 160 },
+    "scope": { "const": "target-channel-only" },
+    "requirements": { "type": "object", "minProperties": 1 },
+    "status": { "const": "ACTIVE" }
+  }
+}

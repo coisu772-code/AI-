@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/reference-channel-profile-v1.schema.json",
+  "title": "Reference Channel Profile v1",
+  "allOf": [
+    { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/envelope" }
+  ],
+  "type": "object",
+  "unevaluatedProperties": false,
+  "required": ["distillationId", "targetChannelProfileId", "referenceId", "profile", "status"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "contractType": { "const": "reference-channel-profile-v1" },
+    "distillationId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "targetChannelProfileId": { "type": "string", "minLength": 3, "maxLength": 160 },
+    "referenceId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "profile": {
+      "type": "object",
+      "required": [
+        "referenceId", "analysisBuckets", "dimensions", "audienceProfile",
+        "corePatterns", "specialCases", "doNotAmplify"
+      ]
+    },
+    "status": { "const": "FROZEN" }
+  }
+}

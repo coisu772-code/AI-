@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/writing-style-contract-v1.schema.json",
+  "title": "Writing Style Contract v1",
+  "allOf": [
+    { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/envelope" }
+  ],
+  "type": "object",
+  "unevaluatedProperties": false,
+  "required": [
+    "imitationId",
+    "targetChannelProfileId",
+    "distillationId",
+    "accountRequirement",
+    "accountImitationRequirements",
+    "sources",
+    "sourceLocks",
+    "sourceWeightsTotal",
+    "weightsAreSegmentShares",
+    "selectedDirection",
+    "selectionSummary",
+    "allowedLearning",
+    "mustRebuild",
+    "prohibitedCopy",
+    "unifiedCausalEngine",
+    "functionalIsomorphism",
+    "credibilityGuardrails",
+    "antiCopyAudit",
+    "userConfirmation",
+    "downstreamViews",
+    "status"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "contractType": { "const": "writing-style-contract-v1" },
+    "imitationId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "targetChannelProfileId": { "type": "string", "minLength": 3, "maxLength": 160 },
+    "distillationId": { "type": ["string", "null"], "minLength": 3, "maxLength": 128 },
+    "accountRequirement": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/contractReference" }
+      ]
+    },
+    "accountImitationRequirements": { "type": ["object", "null"] },
+    "sources": { "type": "array", "minItems": 1, "maxItems": 8, "items": { "type": "object" } },
+    "sourceLocks": { "type": "array", "minItems": 1, "items": { "type": "object" } },
+    "sourceWeightsTotal": { "const": 100 },
+    "weightsAreSegmentShares": { "const": false },
+    "selectedDirection": { "type": "object" },
+    "selectionSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allDirectionIds", "ranking", "top3", "selectedFromTop3"],
+      "properties": {
+        "allDirectionIds": { "type": "array", "minItems": 8, "maxItems": 8, "uniqueItems": true, "items": { "type": "string" } },
+        "ranking": { "type": "array", "minItems": 8, "maxItems": 8, "items": { "type": "object" } },
+        "top3": { "type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true, "items": { "type": "string" } },
+        "selectedFromTop3": { "type": "boolean" }
+      }
+    },
+    "allowedLearning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["topicFunction", "structure", "rhythm", "expression", "audiencePayoff"],
+      "properties": {
+        "topicFunction": {},
+        "structure": {},
+        "rhythm": {},
+        "expression": {},
+        "audiencePayoff": {}
+      }
+    },
+    "mustRebuild": { "type": "array", "minItems": 8, "uniqueItems": true, "items": { "type": "string" } },
+    "prohibitedCopy": { "type": "array", "minItems": 6, "uniqueItems": true, "items": { "type": "string" } },
+    "unifiedCausalEngine": {},
+    "functionalIsomorphism": { "type": "array", "minItems": 1, "items": { "type": "object" } },
+    "credibilityGuardrails": { "type": "object" },
+    "antiCopyAudit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "originalSentencesCopied",
+        "properNamesCopied",
+        "completeEventOrderCopied",
+        "singleWorkMainlineCopied",
+        "segmentSplicingUsed",
+        "oneCausalEngineRebuilt"
+      ],
+      "properties": {
+        "originalSentencesCopied": { "const": false },
+        "properNamesCopied": { "const": false },
+        "completeEventOrderCopied": { "const": false },
+        "singleWorkMainlineCopied": { "const": false },
+        "segmentSplicingUsed": { "const": false },
+        "oneCausalEngineRebuilt": { "const": true }
+      }
+    },
+    "userConfirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confirmed", "confirmedBy", "confirmedAt", "mode"],
+      "properties": {
+        "confirmed": { "const": true },
+        "confirmedBy": { "const": "user" },
+        "confirmedAt": { "type": "string", "format": "date-time" },
+        "mode": { "const": "review" }
+      }
+    },
+    "downstreamViews": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["topicCenter", "manuscriptCenter"],
+      "properties": {
+        "topicCenter": { "type": "object" },
+        "manuscriptCenter": { "type": "object" }
+      }
+    },
+    "status": { "const": "FROZEN" }
+  }
+}

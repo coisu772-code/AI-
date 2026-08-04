@@ -34,9 +34,9 @@ If the channel is not bound, return to `channel-production` or `channel-onboardi
 Use the default scope unless the user changes it:
 
 - YouTube channel: create the broad lightweight list; acquire heavy assets only for explicitly selected items.
-- YouTube video: metadata, public Hashtags, thumbnail, public metrics snapshot, and usable transcript; do not save the full video.
-- Novel page: metadata and chapter directory, plus text only when the capability and rights boundary allow it.
-- Local document: retain the original and create normalized text with encoding and chapter/page/paragraph completeness.
+- YouTube video: metadata, public Hashtags, thumbnail, public metrics snapshot, canonical `content.txt`, and `timing-map.json`; do not save the full video or a subtitle file.
+- Novel page: metadata and chapter directory, plus canonical `content.txt` only when the versioned capability and per-work rights boundary allow it. Public/open official sources may download automatically; commercial sources require a user-authorized local file.
+- Local document: retain the original for provenance and create canonical UTF-8 `content.txt` plus `chapters.json` with chapter/page/paragraph completeness.
 
 ## Progress, cancellation, and recovery
 
@@ -49,6 +49,7 @@ Use the default scope unless the user changes it:
 ## Evidence and access boundaries
 
 - Prefer manual subtitles, then automatic subtitles, then configured temporary-audio local transcription.
+- Treat VTT, SRT, JSON3, and ASR output as temporary acquisition inputs. Before persistence, remove cue syntax, deduplicate rolling captions, combine complete paragraphs, and write only `content.txt` plus a JSON timing map. Never persist the subtitle input as a second analysis text.
 - If none yields enough text, keep verified metadata, mark the package `BLOCKED`, and request a local video, audio, subtitle, document, or transcript. Never infer body text from a title, thumbnail, description, comments, or chapter list.
 - Respect each versioned site capability. Never bypass login, paywalls, DRM, CAPTCHA, robots/access restrictions, or rate limits.
 - Treat commercial sites as metadata/directory plus user-authorized import unless the active capability explicitly permits public text acquisition.
@@ -61,6 +62,7 @@ Use the default scope unless the user changes it:
 - Add an alias when the same content arrives under a different filename or locator; do not create a second stored copy.
 - Create a new package version only when the source actually changed. Never overwrite a version already referenced by another task.
 - Keep original, normalized, asset, report, and version files separate. Analysis outputs never belong inside the Source Package.
+- Every downstream analysis reads only the current verified `normalized/.../content.txt`. It may use `timing-map.json` or `chapters.json` as structure, but must never choose among competing subtitle/TXT bodies.
 - Use `source_search` and `source_get` for indexed retrieval; do not scan unrelated channels or production queues.
 
 This Skill ends after a persistent, valid Source Package and completion card. Return to `$channel-production` for a separate content step; do not start analysis or generation inside Source Library.

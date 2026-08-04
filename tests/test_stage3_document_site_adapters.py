@@ -18,7 +18,7 @@ FIXTURES = ROOT / "tests" / "fixtures" / "stage3"
 sys.path.insert(0, str(MCP_ROOT))
 
 from aivcp_tools.source_documents import DocumentAdapter  # noqa: E402
-from aivcp_tools.source_sites import SiteAdapterRegistry  # noqa: E402
+from aivcp_tools.source_sites import OfficialSiteFetcher, SiteAdapterRegistry  # noqa: E402
 
 
 def load_json(path: Path) -> dict[str, object]:
@@ -115,6 +115,11 @@ class DocumentAdapterTests(unittest.TestCase):
                 self.assertGreaterEqual(result["metadata"]["structure"]["extractedUnitCount"], 1)
                 self.assertTrue(result["report"]["originalPreserved"])
                 self.assertEqual({"raw", "normalized"}, {asset["role"] for asset in result["assets"]})
+                self.assertTrue(
+                    {"content.txt", "chapters.json"}.issubset(
+                        {asset["filename"] for asset in result["assets"]}
+                    )
+                )
 
     def test_same_content_with_different_file_encoding_has_one_content_hash(self) -> None:
         text = (FIXTURES / "documents" / "zh" / "short-story.md").read_text(encoding="utf-8")
@@ -235,6 +240,13 @@ class SiteAdapterRegistryTests(unittest.TestCase):
         self.assertTrue(fanqie["ruleUnclear"])
         self.assertEqual("metadata-only-user-import", fanqie["effectiveCapabilityLevel"])
 
+    def test_runtime_registry_enables_only_the_policy_aware_official_fetcher(self) -> None:
+        registry = SiteAdapterRegistry.from_environment()
+        self.assertIsInstance(registry.fetcher, OfficialSiteFetcher)
+        commercial = registry.collect("https://book.qidian.com/info/102030")
+        self.assertEqual("METADATA_READY", commercial["status"])
+        self.assertEqual([], commercial["assets"])
+
     def test_duplicate_commercial_urls_share_canonical_identity_without_fetch(self) -> None:
         fixture = load_json(FIXTURES / "sites" / "en" / "commercial-record.json")
         registry = SiteAdapterRegistry(fetcher=ExplodingFetcher(), today=date(2026, 8, 4))
@@ -279,6 +291,10 @@ class SiteAdapterRegistryTests(unittest.TestCase):
                 self.assertFalse(result["report"]["contentIgnoredByBoundary"])
                 self.assertIn(result["rightsBoundary"]["accessLevel"], {"public-domain", "open-license"})
                 self.assertEqual("normalized", result["assets"][0]["role"])
+                self.assertEqual(
+                    {"content.txt", "chapters.json"},
+                    {asset["filename"] for asset in result["assets"]},
+                )
                 self.assertEqual(1, len(fetcher.calls))
 
     def test_public_content_without_per_work_rights_is_not_stored(self) -> None:

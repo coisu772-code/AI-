@@ -16,6 +16,7 @@ import sys
 sys.path.insert(0, str(MCP_ROOT))
 
 from aivcp_tools.contracts import utc_now  # noqa: E402
+from aivcp_tools.errors import ToolError  # noqa: E402
 from aivcp_tools.source_library import SourceLibrary  # noqa: E402
 from aivcp_tools.store import CHANNEL_SCHEMA_VERSION, ChannelStore  # noqa: E402
 
@@ -327,6 +328,50 @@ class SourceLibraryTestCase(unittest.TestCase):
         self.assertEqual(detail["manifest"]["status"], "CONTENT_READY")
         self.assertTrue(detail["metadata"]["supplemented"])
         self.assertEqual([row["version"] for row in detail["versions"]], ["1.0.0", "1.0.1"])
+
+    def test_user_subtitle_is_canonicalized_without_persisting_subtitle_asset(self) -> None:
+        subtitle = self.root / "supplement.vtt"
+        subtitle.write_text(
+            "WEBVTT\n\n00:00:00.000 --> 00:00:08.000\n"
+            "The opening fulfills the promise and establishes a clear conflict.\n\n"
+            "00:00:08.000 --> 00:00:18.000\n"
+            "The next beat changes the relationship and delivers a concrete audience reward.\n",
+            encoding="utf-8",
+        )
+        result = SourceLibrary(self.store)._apply_youtube_text_supplement(
+            {
+                "sourceType": "youtube-video",
+                "status": "BLOCKED",
+                "title": "Supplement fixture",
+                "language": "en",
+                "platform": "youtube",
+                "platformId": "supplement001",
+                "metadata": {"durationSeconds": 18},
+                "assets": [],
+                "report": {"complete": False},
+            },
+            {"suppliedFile": str(subtitle), "language": "en", "complete": True},
+            type("Adapter", (), {"minimum_text_characters": 80})(),
+        )
+        self.assertEqual("CONTENT_READY", result["status"])
+        self.assertEqual({"content.txt", "timing-map.json"}, {asset["filename"] for asset in result["assets"]})
+        self.assertFalse(any(asset["role"] == "raw" for asset in result["assets"]))
+        content = next(asset["data"] for asset in result["assets"] if asset["filename"] == "content.txt")
+        self.assertNotIn("WEBVTT", content)
+        self.assertNotIn("-->", content)
+        self.assertEqual("user-supplied-subtitle", result["report"]["textAcquisition"]["method"])
+
+    def test_subtitle_cannot_be_added_as_a_second_standalone_text_source(self) -> None:
+        subtitle = self.root / "standalone.vtt"
+        subtitle.write_text("WEBVTT\n", encoding="utf-8")
+        with self.assertRaises(ToolError) as caught:
+            self.library.prepare_add(
+                task_id="task-stage3",
+                channel_profile_id=self.channel_id,
+                binding_proof=self.proof,
+                inputs=[{"path": str(subtitle)}],
+            )
+        self.assertEqual("SOURCE_SUPPLEMENT_CONTEXT_REQUIRED", caught.exception.code)
 
     def test_cancel_prepared_job_keeps_no_source(self) -> None:
         card = self.library.prepare_add(

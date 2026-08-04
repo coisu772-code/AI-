@@ -78,7 +78,7 @@ class Stage4ContentLoopTests(unittest.TestCase):
             local_tool_service=LocalToolService, service_config=ServiceConfig,
         )
         capabilities = service.call("content_capabilities")
-        self.assertEqual("unavailable", capabilities["extensionInterfaces"]["analysis-package-v1"]["status"])
+        self.assertEqual("available", capabilities["extensionInterfaces"]["analysis-package-v1"]["status"])
         self.assertFalse(capabilities["boundaries"]["workshop"])
         self.assertFalse(capabilities["boundaries"]["upload"])
         self.assertFalse(capabilities["boundaries"]["longTermLearningWrite"])

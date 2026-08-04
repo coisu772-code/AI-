@@ -5,6 +5,10 @@ description: 从已确认且哈希有效的 Topic Package v1 冻结 Story Bible�
 
 # 文稿中心
 
+若内容项目的 `analysisLocks` 包含频道蒸馏 `Analysis Package v1`，文稿阶段必须读取同一哈希绑定的 `channel-runtime-profile-v1` 和账号专属要求。若包含视频文案拆解包，则读取 `downstreamViews.manuscriptCenter` 及对应逐视频结构、声音、段落呼吸、表达、时间节奏、留存方法和禁止复制项。两种分析都只约束观众承诺与表达功能；已锁定故事事实、人物声音、目标语言自然度与 TTS 语义边界优先，绝不恢复参考样本的原句、专名、完整事件顺序或单一作品主线。
+
+若内容项目的 `styleLocks` 包含 Writing Style Contract v1，必须读取同一哈希绑定的已确认方向和 `downstreamViews.manuscriptCenter`。只迁移结构、节奏、表达方式和观众回报，并遵守统一因果、可信度、人物能力、规模与反复制边界；不得恢复未确认方向、来源原句、专名、完整事件顺序、单一作品主线或多来源片段拼接。
+
 只形成可以进入发布素材准备的唯一正式口播内容。不要生成正式标题、简介、Hashtags 或封面，不要调用工坊、授权、上传或数据中心。
 
 ## 进入与输入冻结

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/analysis-package-v1.schema.json",
+  "title": "Analysis Package v1",
+  "allOf": [
+    { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/envelope" },
+    {
+      "if": {
+        "properties": { "analysisKind": { "const": "channel-distillation" } },
+        "required": ["analysisKind"]
+      },
+      "then": {
+        "required": ["distillationId", "referenceProfiles", "fusionProfile"]
+      },
+      "else": {
+        "required": ["deconstructionId", "distillationId", "videoAnalyses", "failedVideos", "comparison", "downstreamViews"]
+      }
+    }
+  ],
+  "type": "object",
+  "unevaluatedProperties": false,
+  "required": [
+    "analysisKind", "targetChannelProfileId", "mode", "analysisBuckets", "qualityGate", "status"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "contractType": { "const": "analysis-package-v1" },
+    "analysisKind": { "enum": ["channel-distillation", "video-copy-deconstruction"] },
+    "distillationId": { "type": ["string", "null"], "minLength": 3, "maxLength": 128 },
+    "deconstructionId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "targetChannelProfileId": { "type": "string", "minLength": 3, "maxLength": 160 },
+    "mode": { "enum": ["single", "parallel", "compare", "fusion"] },
+    "analysisBuckets": { "$ref": "#/$defs/buckets" },
+    "referenceProfiles": { "type": "array", "minItems": 1, "maxItems": 8, "items": { "type": "object" } },
+    "fusionProfile": { "type": ["object", "null"] },
+    "videoAnalyses": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/video-deconstruction-analysis-v1.schema.json" }
+    },
+    "failedVideos": { "type": "array", "maxItems": 8, "items": { "type": "object" } },
+    "comparison": { "type": ["object", "null"] },
+    "downstreamViews": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["topicCenter", "manuscriptCenter"],
+      "properties": {
+        "topicCenter": { "type": "object" },
+        "manuscriptCenter": { "type": "object" }
+      }
+    },
+    "qualityGate": { "type": "object" },
+    "status": { "const": "FROZEN" }
+  },
+  "$defs": {
+    "buckets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["originalFacts", "analysisConclusions", "transferableMethods", "prohibitedCopy", "unknowns"],
+      "properties": {
+        "originalFacts": { "type": "array", "minItems": 1, "items": { "type": "object" } },
+        "analysisConclusions": { "type": "array", "minItems": 1, "items": { "type": "object" } },
+        "transferableMethods": { "type": "array", "minItems": 1, "items": { "type": "object" } },
+        "prohibitedCopy": { "type": "array", "minItems": 1, "items": { "type": "object" } },
+        "unknowns": { "type": "array", "minItems": 1, "items": { "type": "object" } }
+      }
+    }
+  }
+}

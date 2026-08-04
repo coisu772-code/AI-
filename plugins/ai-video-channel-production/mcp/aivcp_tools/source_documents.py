@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib
+import json
 import re
 import unicodedata
 import zipfile
@@ -413,15 +414,33 @@ class DocumentAdapter:
             }
         ]
         if text:
-            assets.append(
-                {
-                    "role": "normalized",
-                    "mediaType": "text/plain;charset=utf-8",
-                    "filename": "normalized.txt",
-                    "data": text,
-                    "sha256": content_hash,
-                    "sizeBytes": len(normalized_bytes),
-                }
+            assets.extend(
+                [
+                    {
+                        "role": "normalized",
+                        "mediaType": "text/plain;charset=utf-8",
+                        "filename": "content.txt",
+                        "data": text,
+                        "sha256": content_hash,
+                        "sizeBytes": len(normalized_bytes),
+                    },
+                    {
+                        "role": "normalized",
+                        "mediaType": "application/json",
+                        "filename": "chapters.json",
+                        "data": json.dumps(
+                            {
+                                "schemaVersion": "1.0.0",
+                                "unitType": structure["unitType"],
+                                "expectedUnitCount": structure["expectedUnitCount"],
+                                "extractedUnitCount": structure["extractedUnitCount"],
+                                "units": structure["units"],
+                            },
+                            ensure_ascii=False,
+                            indent=2,
+                        ),
+                    },
+                ]
             )
         return {
             **base,
@@ -436,6 +455,8 @@ class DocumentAdapter:
                 "documentType": extension.removeprefix("."),
                 "originalPreserved": True,
                 "normalizedEncoding": "utf-8",
+                "canonicalTextFile": "content.txt" if text else None,
+                "structureFile": "chapters.json" if text else None,
                 "integrity": structure,
                 "warnings": extracted.warnings,
                 "failure": extracted.blocked_reason,

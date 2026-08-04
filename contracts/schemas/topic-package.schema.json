@@ -39,6 +39,29 @@
       "if": {
         "properties": {
           "sourceMode": {
+            "const": "imitation"
+          }
+        },
+        "required": [
+          "sourceMode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "route": {
+            "const": "extension"
+          },
+          "candidates": {
+            "minItems": 1,
+            "maxItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "sourceMode": {
             "const": "provided-outline"
           }
         },
@@ -224,7 +247,8 @@
         "market-original",
         "single-reference",
         "multi-reference",
-        "provided-outline"
+        "provided-outline",
+        "imitation"
       ]
     },
     "audience": {
@@ -850,7 +874,8 @@
           "enum": [
             "user-choice",
             "auto-best",
-            "provided-outline-only"
+            "provided-outline-only",
+            "confirmed-imitation-direction"
           ]
         }
       }

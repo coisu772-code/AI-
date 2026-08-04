@@ -145,11 +145,19 @@ class Stage3YouTubeAdapterTestCase(unittest.TestCase):
         ).lower()
         self.assertNotIn("ctr", public_json)
         self.assertTrue(any(asset["role"] == "assets" for asset in result["assets"]))
-        original = next(asset for asset in result["assets"] if asset["role"] == "raw")
+        normalized = [asset for asset in result["assets"] if asset["role"] == "normalized"]
+        self.assertEqual({"content.txt", "timing-map.json"}, {asset["filename"] for asset in normalized})
+        self.assertFalse(any(asset["role"] == "raw" for asset in result["assets"]))
+        original = next(asset for asset in normalized if asset["filename"] == "content.txt")
         self.assertIn("人工字幕", original["data"])
         self.assertNotIn("自動字幕", original["data"])
         self.assertEqual(result["report"]["textAcquisition"]["method"], "manual-caption")
         self.assertEqual(result["report"]["textAcquisition"]["completeness"], "complete")
+        timing_map = json.loads(
+            next(asset for asset in normalized if asset["filename"] == "timing-map.json")["data"]
+        )
+        self.assertGreaterEqual(timing_map["paragraphCount"], 1)
+        self.assertFalse(result["report"]["rawCaptionStored"])
         self.assertFalse(result["report"]["bodyGeneratedFromMetadata"])
         self.assertIsNotNone(result["contentSha256"])
 

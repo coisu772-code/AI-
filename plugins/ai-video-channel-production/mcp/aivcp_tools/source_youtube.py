@@ -399,6 +399,7 @@ class _TranscriptCandidate:
     text_sufficient: bool
     completeness: str
     coverage_ratio: float | None
+    timing_map: list[dict[str, Any]]
     source_url: str | None = None
     reported_complete: bool | None = None
 
@@ -674,21 +675,32 @@ class YouTubeAdapter:
                 owned_temp.cleanup()
 
         if transcript and transcript.normalized_text:
-            raw_filename = f"{video_id}-{transcript.method}{transcript.extension}"
             assets.extend(
                 [
                     {
-                        "role": "raw",
-                        "mediaType": transcript.media_type,
-                        "filename": raw_filename,
-                        "data": transcript.raw_text,
-                        **({"sourceUrl": transcript.source_url} if transcript.source_url else {}),
+                        "role": "normalized",
+                        "mediaType": "text/plain; charset=utf-8",
+                        "filename": "content.txt",
+                        "data": transcript.normalized_text,
                     },
                     {
                         "role": "normalized",
-                        "mediaType": "text/plain; charset=utf-8",
-                        "filename": f"{video_id}-transcript.txt",
-                        "data": transcript.normalized_text,
+                        "mediaType": "application/json",
+                        "filename": "timing-map.json",
+                        "data": json.dumps(
+                            {
+                                "schemaVersion": "1.0.0",
+                                "format": "canonical-text-timing-map",
+                                "videoId": video_id,
+                                "language": transcript.language,
+                                "sourceMethod": transcript.method,
+                                "durationSeconds": duration,
+                                "paragraphCount": len(transcript.timing_map),
+                                "entries": transcript.timing_map,
+                            },
+                            ensure_ascii=False,
+                            indent=2,
+                        ),
                     },
                 ]
             )
@@ -733,6 +745,8 @@ class YouTubeAdapter:
                 "textCharacters": len(transcript.normalized_text) if transcript else 0,
                 "minimumCharacters": self.minimum_text_characters,
                 "textSufficient": text_sufficient,
+                "canonicalTextFile": "content.txt" if text_sufficient else None,
+                "timingMapFile": "timing-map.json" if text_sufficient else None,
             },
             "metadataCompleteness": {
                 "level": "complete" if not missing_fields else "partial",
@@ -741,6 +755,8 @@ class YouTubeAdapter:
             "failures": failures,
             "sourceBoundary": _video_source_boundary(),
             "fullVideoStored": False,
+            "rawCaptionStored": False,
+            "temporaryCaptionRetained": False,
             "temporaryAudioRetained": bool(
                 self.keep_temporary_audio and transcript and transcript.method == "local-transcription"
             ),
@@ -1049,7 +1065,7 @@ class YouTubeAdapter:
         else:
             raise ToolError("YOUTUBE_CAPTION_UNAVAILABLE", "字幕轨道缺少可读取的公开地址。")
         extension = _clean_string(track.get("ext")) or "vtt"
-        normalized, coverage = _normalize_caption(raw, extension, duration_seconds)
+        normalized, coverage, timing_map = _normalize_caption(raw, extension, duration_seconds)
         sufficient = len(_text_characters(normalized)) >= self.minimum_text_characters
         completeness = _completeness(coverage, sufficient, self.complete_coverage_ratio)
         return _TranscriptCandidate(
@@ -1062,6 +1078,7 @@ class YouTubeAdapter:
             text_sufficient=sufficient,
             completeness=completeness,
             coverage_ratio=coverage,
+            timing_map=timing_map,
             source_url=source_url,
         )
 
@@ -1104,7 +1121,7 @@ class YouTubeAdapter:
                 reported_coverage = _number(result.get("coverageRatio"))
             else:
                 raise ToolError("TRANSCRIPTION_OUTPUT_INVALID", "转录结果结构无效。")
-            normalized, parsed_coverage = _normalize_caption(raw, extension, duration_seconds)
+            normalized, parsed_coverage, timing_map = _normalize_caption(raw, extension, duration_seconds)
             coverage = reported_coverage if reported_coverage is not None else parsed_coverage
             sufficient = len(_text_characters(normalized)) >= self.minimum_text_characters
             completeness = _completeness(coverage, sufficient, self.complete_coverage_ratio)
@@ -1122,6 +1139,7 @@ class YouTubeAdapter:
                 text_sufficient=sufficient,
                 completeness=completeness,
                 coverage_ratio=coverage,
+                timing_map=timing_map,
                 reported_complete=reported_complete,
             )
             if not sufficient:
@@ -1457,9 +1475,14 @@ def _ordered_tracks(
     return ordered
 
 
-def _normalize_caption(raw: str, extension: str, duration_seconds: float | None) -> tuple[str, float | None]:
+def _normalize_caption(
+    raw: str,
+    extension: str,
+    duration_seconds: float | None,
+) -> tuple[str, float | None, list[dict[str, Any]]]:
     coverage = _caption_coverage(raw, duration_seconds)
     lowered = extension.lower()
+    cues = _caption_cues(raw, lowered)
     if lowered in {"json3", "json"}:
         try:
             document = json.loads(raw)
@@ -1508,7 +1531,164 @@ def _normalize_caption(raw: str, extension: str, duration_seconds: float | None)
             continue
         lines.append(line)
         previous = line
-    return "\n".join(lines).strip(), coverage
+    fallback = "\n".join(lines).strip()
+    if not cues:
+        paragraphs = _canonical_paragraphs(fallback.splitlines())
+        return "\n\n".join(paragraphs), coverage, []
+    canonical_text, timing_map = _canonical_timed_paragraphs(cues)
+    return canonical_text or fallback, coverage, timing_map
+
+
+def _caption_cues(raw: str, extension: str) -> list[tuple[float, float, str]]:
+    if extension in {"json3", "json"}:
+        try:
+            document = json.loads(raw)
+        except json.JSONDecodeError:
+            return []
+        events = document.get("events") if isinstance(document, dict) else None
+        if not isinstance(events, list):
+            return []
+        result: list[tuple[float, float, str]] = []
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+            start_ms = event.get("tStartMs")
+            duration_ms = event.get("dDurationMs")
+            segments = event.get("segs")
+            if not isinstance(start_ms, (int, float)) or not isinstance(segments, list):
+                continue
+            value = "".join(
+                str(segment.get("utf8", "")) for segment in segments if isinstance(segment, dict)
+            )
+            value = _clean_caption_text(value)
+            if value:
+                start = max(float(start_ms) / 1000.0, 0.0)
+                duration = float(duration_ms) / 1000.0 if isinstance(duration_ms, (int, float)) else 0.0
+                result.append((start, max(start + duration, start), value))
+        return result
+
+    timestamp = re.compile(
+        r"(?m)^\s*((?:\d+:)?\d{2}:\d{2}[.,]\d{3})\s+-->\s+"
+        r"((?:\d+:)?\d{2}:\d{2}[.,]\d{3})[^\r\n]*\r?\n"
+    )
+    matches = list(timestamp.finditer(raw))
+    result = []
+    for index, match in enumerate(matches):
+        block_end = matches[index + 1].start() if index + 1 < len(matches) else len(raw)
+        value = raw[match.end() : block_end]
+        value = re.sub(r"(?m)^\s*\d+\s*$", "", value)
+        value = _clean_caption_text(value)
+        if not value:
+            continue
+        result.append((_caption_seconds(match.group(1)), _caption_seconds(match.group(2)), value))
+    return result
+
+
+def _caption_seconds(value: str) -> float:
+    parts = value.replace(",", ".").split(":")
+    try:
+        if len(parts) == 3:
+            return float(parts[0]) * 3600.0 + float(parts[1]) * 60.0 + float(parts[2])
+        return float(parts[0]) * 60.0 + float(parts[1])
+    except (ValueError, IndexError):
+        return 0.0
+
+
+def _clean_caption_text(value: str) -> str:
+    value = re.sub(r"<\d{2}:\d{2}:\d{2}[.,]\d{3}>", "", value)
+    value = _TAG.sub("", value)
+    value = html.unescape(value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _canonical_paragraphs(lines: Sequence[str]) -> list[str]:
+    paragraphs: list[str] = []
+    current = ""
+    for value in lines:
+        line = re.sub(r"\s+", " ", value).strip()
+        if not line:
+            continue
+        candidate = _join_caption_text(current, line)
+        if current and (len(candidate) > 320 or (len(current) >= 100 and _ends_sentence(current))):
+            paragraphs.append(current)
+            current = line
+        else:
+            current = candidate
+    if current:
+        paragraphs.append(current)
+    return paragraphs
+
+
+def _canonical_timed_paragraphs(
+    cues: Sequence[tuple[float, float, str]],
+) -> tuple[str, list[dict[str, Any]]]:
+    groups: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    previous_text = ""
+    for start, end, raw_text in cues:
+        text = raw_text
+        if previous_text and text.startswith(previous_text):
+            text = text[len(previous_text) :].strip()
+        elif previous_text.startswith(text):
+            continue
+        if not text:
+            continue
+        if current is None:
+            current = {"start": start, "end": end, "text": text}
+        else:
+            candidate = _join_caption_text(str(current["text"]), text)
+            gap = max(start - float(current["end"]), 0.0)
+            should_break = gap >= 2.5 or len(candidate) > 320 or (
+                len(str(current["text"])) >= 100 and _ends_sentence(str(current["text"]))
+            )
+            if should_break:
+                groups.append(current)
+                current = {"start": start, "end": end, "text": text}
+            else:
+                current["text"] = candidate
+                current["end"] = max(float(current["end"]), end)
+        previous_text = raw_text
+    if current is not None:
+        groups.append(current)
+
+    entries: list[dict[str, Any]] = []
+    character_offset = 0
+    paragraphs: list[str] = []
+    for index, group in enumerate(groups, start=1):
+        text = str(group["text"]).strip()
+        if not text:
+            continue
+        start_offset = character_offset
+        character_offset += len(text)
+        paragraphs.append(text)
+        entries.append(
+            {
+                "paragraphId": f"p{index:04d}",
+                "startSeconds": round(float(group["start"]), 3),
+                "endSeconds": round(float(group["end"]), 3),
+                "characterStart": start_offset,
+                "characterEnd": character_offset,
+                "textSha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            }
+        )
+        character_offset += 2
+    return "\n\n".join(paragraphs), entries
+
+
+def _join_caption_text(left: str, right: str) -> str:
+    if not left:
+        return right
+    if not right:
+        return left
+    no_space = bool(
+        re.search(r"[\u3040-\u30ff\u3400-\u9fff]$", left)
+        and re.match(r"^[\u3040-\u30ff\u3400-\u9fff]", right)
+    )
+    return f"{left}{'' if no_space else ' '}{right}"
+
+
+def _ends_sentence(value: str) -> bool:
+    return bool(re.search(r"[.!?。！？…][\"'’”）】》]*$", value.strip()))
 
 
 def _caption_coverage(raw: str, duration_seconds: float | None) -> float | None:

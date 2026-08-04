@@ -24,6 +24,7 @@
     { "contractType": "production-result-package", "schema": "schemas/production-result-package.schema.json", "idField": "productionResultPackageId" },
     { "contractType": "publish-intent", "schema": "schemas/publish-intent.schema.json", "idField": "publishIntentId" },
     { "contractType": "publication-receipt", "schema": "schemas/publication-receipt.schema.json", "idField": "receiptId" },
-    { "contractType": "analytics-snapshot", "schema": "schemas/analytics-snapshot.schema.json", "idField": "snapshotId" }
+    { "contractType": "analytics-snapshot", "schema": "schemas/analytics-snapshot.schema.json", "idField": "snapshotId" },
+    { "contractType": "writing-style-contract-v1", "schema": "schemas/writing-style-contract-v1.schema.json", "idField": "imitationId" }
   ]
 }

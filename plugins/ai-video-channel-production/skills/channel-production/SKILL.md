@@ -17,13 +17,16 @@ description: 作为 AI 视频频道生产系统唯一默认总入口，识别系
 
 - 建立频道资料库、进入已有频道、生产默认值、本次覆盖、备份、恢复或迁移：调用 `$channel-onboarding`。
 - 添加、下载、导入、更新、检索、取消或恢复资料任务：调用 `$source-library`。资料库仍属于系统管理中心。
+- 用户提供 YouTube 频道并要求分析频道为什么受欢迎、学习频道后生产、建立频道画像或频道蒸馏：先调用 `$channel-distillation`。若视频尚无 `CONTENT_READY` 的统一正文，先回到 `$source-library` 补齐；不得用标题和封面臆造视频正文。
+- 用户要求拆解一条或多条 YouTube 视频文案、比较结构节奏、提炼可迁移写法，或把视频分析交给选题／文稿中心：调用 `$video-copy-deconstruction`。只读取资料库统一 `content.txt`，可选读取时间映射，不读取字幕文件。
+- 用户要求原创仿写、学习一个或多个视频／小说后创作、融合 YouTube 文案与小说资料，或生成 8 个原创方向：调用 `$original-imitation-writing`。必须先展示全部 8 个方向与 TOP3，等待用户明确选择，再把冻结 `writing-style-contract-v1` 交给选题与文稿中心。
 - 原创选题、按频道画像推荐、用户大纲直通、候选进度、评选或确认完整故事：调用 `$topic-selection`。
 - 目标语言正式母稿、逐行中文审核稿、文稿质量门、逐集恢复或联合确认：调用 `$manuscript-production`。
 - 唯一标题、简介、8～12 个 Hashtags、封面、CTR 联评或发布素材确认：调用 `$publishing-assets`。
 - 标准生产包、工坊移交、制作进度、暂停恢复、失败重试、自动成片、剪映草稿、成片回收或技术验收：调用 `$production-handoff`。
 - `VIDEO_READY` 后准备上传成片、重验／隔离导入发布包、查看上传状态与回执：调用 `$publish-video`。五个冻结工具为 `assemble_publish_package_v2`、`validate_publish_package_v2`、`import_publish_package_v2`、`get_publication_status`、`get_publication_receipt`。
 - 检查频道数据、复盘视频、生成 T+24／T+7／T+28 报告、查看建议或数据进度：调用 `$data-center`。七个工具为 `data_center_capabilities`、`data_video_register`、`data_collection_run`、`data_report_generate`、`data_recommendations_list`、`data_learning_decide`、`data_progress_get`。没有真实 Publication Receipt v1 时保持 `WAITING_FOR_PUBLICATION_RECEIPT`；Analytics 默认 `AUTH_REQUIRED`、`available=false`。
-- 趋势、单作品、多作品、拆书、拆文、拆视频、同类型改写或仿写：先由 `$topic-selection` 检查稳定 `Analysis Package v1` 扩展接口。提供方或对应 Skill 未安装时明确显示 unavailable，并提供原创、频道锚定或大纲直通路线；不得临时伪造分析结果。
+- 频道蒸馏由 `$channel-distillation` 提供频道画像 Analysis Package；视频文案拆解由 `$video-copy-deconstruction` 提供逐视频 Analysis Package；原创仿写由 `$original-imitation-writing` 提供 Writing Style Contract v1。趋势与独立普通作品／书籍拆解仍检查各自扩展接口；未安装时明确显示 unavailable，不得用其他包冒充。
 - 工坊制作只允许走阶段 5 的 Production Package v2.1、Production Task v1 与隔离桥；不得调用旧 `.ready` 自动移交链。
 - 阶段6只允许发布包 v2 本地组装、独立验证、隔离导入和只读状态／回执查询；始终 `networkExecution=false`。Google／YouTube OAuth、真实上传、远端修改和删除仍需外部明确批准。`VIDEO_READY`、`.ready`、`READY_TO_UPLOAD` 均不等于已上传。
 - 阶段7只允许在频道隔离目录内注册真实发布回执、导入／采集有权使用的数据、生成版本化快照／报告并展示建议。它不接触 Token、不发起 OAuth、不调用私有 Analytics API；`syntheticFixture=true` 只能进入隔离命名空间。任何 `channel_default`、`must_avoid` 或其他长期学习写回都必须返回 `LONG_TERM_LEARNING_APPROVAL_REQUIRED`，自动模式也不得绕过。
@@ -33,6 +36,7 @@ description: 作为 AI 视频频道生产系统唯一默认总入口，识别系
 ```text
 Stage 2 Channel Profile / Production Profile
 + Stage 3 Source Package
++ 可选冻结 Analysis Package v1 / Channel Runtime Profile v1 / Writing Style Contract v1
 → Topic Package v1（G3）
 → Manuscript Package v1（G4）
 → Publishing Asset Package v1（G5）

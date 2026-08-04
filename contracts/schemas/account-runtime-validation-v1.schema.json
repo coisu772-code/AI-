@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coisu772-code/AI-/contracts/schemas/account-runtime-validation-v1.schema.json",
+  "title": "Account Runtime Validation Cases v1",
+  "allOf": [
+    { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/envelope" }
+  ],
+  "type": "object",
+  "unevaluatedProperties": false,
+  "required": ["distillationId", "targetChannelProfileId", "scope", "cases", "status"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "contractType": { "const": "account-runtime-validation-v1" },
+    "distillationId": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "targetChannelProfileId": { "type": "string", "minLength": 3, "maxLength": 160 },
+    "scope": { "const": "target-channel-only" },
+    "cases": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decomposition", "imitation"],
+      "properties": {
+        "decomposition": { "type": "array", "minItems": 3, "items": { "type": "object" } },
+        "imitation": { "type": "array", "minItems": 3, "items": { "type": "object" } }
+      }
+    },
+    "status": { "const": "READY" }
+  }
+}

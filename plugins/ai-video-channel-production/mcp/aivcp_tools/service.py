@@ -7,8 +7,10 @@ from pathlib import Path
 from typing import Any
 
 from .content import CONTENT_LOOP_VERSION, SOURCE_MODES, ContentLoop
+from .content_analysis import CONTENT_ANALYSIS_VERSION, ChannelDistillation
 from .data_center import DATA_CENTER_VERSION, DataCenter
 from .errors import ToolError
+from .original_imitation import ORIGINAL_IMITATION_VERSION, OriginalImitationWriting
 from .publisher import PUBLISHER_PROTOCOL_VERSION, PublisherChannelProvider, provider_from_environment
 from .production import PRODUCTION_CENTER_VERSION, ProductionCenter
 from .publish_package_v2 import (
@@ -20,6 +22,7 @@ from .publisher_v2_bridge import PublisherV2Bridge
 from .security import redact
 from .source_library import SOURCE_LIBRARY_VERSION, SourceLibrary
 from .store import ARCHIVE_FORMAT_VERSION, CHANNEL_SCHEMA_VERSION, SYSTEM_SCHEMA_VERSION, ChannelStore
+from .video_deconstruction import VIDEO_DECONSTRUCTION_VERSION, VideoCopyDeconstruction
 from .voices import VoiceCatalog
 from .workshop_bridge import WorkshopBridge
 
@@ -88,7 +91,28 @@ class LocalToolService:
         self.voices = VoiceCatalog(config.voice_catalog_path)
         self.store = ChannelStore(config.data_root)
         self.sources = SourceLibrary(self.store)
-        self.content = ContentLoop(self.store, self.sources, plugin_root=config.plugin_root)
+        self.analysis = ChannelDistillation(self.store, self.sources, plugin_root=config.plugin_root)
+        self.video_analysis = VideoCopyDeconstruction(
+            self.store,
+            self.sources,
+            channel_distillations=self.analysis,
+            plugin_root=config.plugin_root,
+        )
+        self.original_imitation = OriginalImitationWriting(
+            self.store,
+            self.sources,
+            video_analyses=self.video_analysis,
+            channel_distillations=self.analysis,
+            plugin_root=config.plugin_root,
+        )
+        self.content = ContentLoop(
+            self.store,
+            self.sources,
+            plugin_root=config.plugin_root,
+            analyses=self.analysis,
+            video_analyses=self.video_analysis,
+            style_provider=self.original_imitation,
+        )
         bridge = None
         if config.workshop_executable and config.workshop_isolation_root:
             bridge = WorkshopBridge(config.workshop_executable, config.workshop_isolation_root)
@@ -125,6 +149,9 @@ class LocalToolService:
                 "archiveFormat": ARCHIVE_FORMAT_VERSION,
                 "sourceLibrary": SOURCE_LIBRARY_VERSION,
                 "contentLoop": CONTENT_LOOP_VERSION,
+                "contentAnalysis": CONTENT_ANALYSIS_VERSION,
+                "videoCopyDeconstruction": VIDEO_DECONSTRUCTION_VERSION,
+                "originalImitationWriting": ORIGINAL_IMITATION_VERSION,
                 "productionCenter": PRODUCTION_CENTER_VERSION,
                 "channelProfileContract": "1.0.0",
                 "productionProfileContract": "1.0.0",
@@ -158,6 +185,10 @@ class LocalToolService:
                 "sourceIncrementalUpdate": True,
                 "sourceTaskRecovery": True,
                 "contentProduction": True,
+                "channelDistillation": True,
+                "videoCopyDeconstruction": True,
+                "originalImitationWriting": True,
+                "canonicalContentAnalysis": True,
                 "contentPackageHandoffCheck": True,
                 "productionPackage": True,
                 "productionTask": True,
@@ -436,6 +467,169 @@ class LocalToolService:
             )
         elif name == "source_integrity_check":
             result = self.sources.integrity_check(channel_profile_id=args.get("channelProfileId"))
+        elif name == "channel_distillation_capabilities":
+            result = self.analysis.capabilities()
+        elif name == "channel_distillation_prepare":
+            result = self.analysis.prepare(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                distillation_id=args.get("distillationId"),
+                mode=args.get("mode"),
+                references=args.get("references"),
+                previous_distillation_id=args.get("previousDistillationId"),
+            )
+        elif name == "channel_distillation_checkpoint":
+            result = self.analysis.checkpoint(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                distillation_id=args.get("distillationId"),
+                source_package_id=args.get("sourcePackageId"),
+                status=args.get("status"),
+                analysis=args.get("analysis"),
+                failure=args.get("failure"),
+            )
+        elif name == "channel_distillation_finalize":
+            result = self.analysis.finalize(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                distillation_id=args.get("distillationId"),
+                profiles=args.get("profiles"),
+                account_requirements=args.get("accountRequirements"),
+                quality_gate=args.get("qualityGate"),
+                fusion_profile=args.get("fusionProfile"),
+            )
+        elif name == "channel_distillation_get":
+            result = self.analysis.get(
+                channel_profile_id=args.get("channelProfileId"),
+                distillation_id=args.get("distillationId"),
+            )
+        elif name == "channel_distillation_integrity_check":
+            result = self.analysis.integrity_check(
+                channel_profile_id=args.get("channelProfileId"),
+                distillation_id=args.get("distillationId"),
+            )
+        elif name == "video_deconstruction_capabilities":
+            result = self.video_analysis.capabilities()
+        elif name == "video_deconstruction_prepare":
+            result = self.video_analysis.prepare(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                deconstruction_id=args.get("deconstructionId"),
+                mode=args.get("mode"),
+                videos=args.get("videos"),
+                distillation_id=args.get("distillationId"),
+            )
+        elif name == "video_deconstruction_read_source":
+            result = self.video_analysis.read_source(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                deconstruction_id=args.get("deconstructionId"),
+                source_package_id=args.get("sourcePackageId"),
+                start_paragraph=args.get("startParagraph", 1),
+                max_paragraphs=args.get("maxParagraphs", 60),
+            )
+        elif name == "video_deconstruction_checkpoint":
+            result = self.video_analysis.checkpoint(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                deconstruction_id=args.get("deconstructionId"),
+                source_package_id=args.get("sourcePackageId"),
+                status=args.get("status"),
+                analysis=args.get("analysis"),
+                failure=args.get("failure"),
+            )
+        elif name == "video_deconstruction_finalize":
+            result = self.video_analysis.finalize(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                deconstruction_id=args.get("deconstructionId"),
+                quality_gate=args.get("qualityGate"),
+                comparison=args.get("comparison"),
+            )
+        elif name == "video_deconstruction_get":
+            result = self.video_analysis.get(
+                channel_profile_id=args.get("channelProfileId"),
+                deconstruction_id=args.get("deconstructionId"),
+            )
+        elif name == "video_deconstruction_integrity_check":
+            result = self.video_analysis.integrity_check(
+                channel_profile_id=args.get("channelProfileId"),
+                deconstruction_id=args.get("deconstructionId"),
+            )
+        elif name == "original_imitation_capabilities":
+            result = self.original_imitation.capabilities()
+        elif name == "original_imitation_prepare":
+            result = self.original_imitation.prepare(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                imitation_id=args.get("imitationId"),
+                references=args.get("references"),
+                distillation_id=args.get("distillationId"),
+            )
+        elif name == "original_imitation_read_source":
+            result = self.original_imitation.read_source(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                imitation_id=args.get("imitationId"),
+                source_package_id=args.get("sourcePackageId"),
+                start_paragraph=args.get("startParagraph", 1),
+                max_paragraphs=args.get("maxParagraphs", 60),
+            )
+        elif name == "original_imitation_source_checkpoint":
+            result = self.original_imitation.source_checkpoint(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                imitation_id=args.get("imitationId"),
+                source_package_id=args.get("sourcePackageId"),
+                analysis=args.get("analysis"),
+            )
+        elif name == "original_imitation_direction_checkpoint":
+            result = self.original_imitation.direction_checkpoint(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                imitation_id=args.get("imitationId"),
+                direction_number=args.get("directionNumber"),
+                direction=args.get("direction"),
+            )
+        elif name == "original_imitation_directions_finalize":
+            result = self.original_imitation.directions_finalize(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                imitation_id=args.get("imitationId"),
+                pairwise_distinctness=args.get("pairwiseDistinctness"),
+                quality_gate=args.get("qualityGate"),
+            )
+        elif name == "original_imitation_confirm":
+            result = self.original_imitation.confirm(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                imitation_id=args.get("imitationId"),
+                direction_id=args.get("directionId"),
+                confirmation=args.get("confirmation"),
+            )
+        elif name == "original_imitation_get":
+            result = self.original_imitation.get(
+                channel_profile_id=args.get("channelProfileId"),
+                imitation_id=args.get("imitationId"),
+            )
+        elif name == "original_imitation_integrity_check":
+            result = self.original_imitation.integrity_check(
+                channel_profile_id=args.get("channelProfileId"),
+                imitation_id=args.get("imitationId"),
+            )
         elif name == "content_capabilities":
             result = self.content.capabilities()
         elif name == "content_project_start":
@@ -446,6 +640,8 @@ class LocalToolService:
                 project_id=args.get("projectId"),
                 source_mode=args.get("sourceMode"),
                 source_packages=args.get("sourcePackages"),
+                analysis_packages=args.get("analysisPackages"),
+                writing_style_contracts=args.get("writingStyleContracts"),
                 provided_outline=args.get("providedOutline"),
                 learning_snapshot=args.get("learningSnapshot"),
                 one_time_modifications=args.get("oneTimeModifications"),
@@ -846,6 +1042,213 @@ def tool_definitions() -> list[dict[str, Any]]:
             ["channelProfileId"],
         ),
         (
+            "channel_distillation_capabilities",
+            "只读列出频道蒸馏平台、七阶段、契约、证据边界和下游接口。",
+            {},
+            [],
+        ),
+        (
+            "channel_distillation_prepare",
+            "冻结目标频道、参考频道身份、独立视频资料版本、模式、角色、权重与深拆样本计划。",
+            {
+                **binding_properties,
+                "distillationId": {"type": "string"},
+                "mode": {"type": "string", "enum": sorted(["single", "parallel", "compare", "fusion"])},
+                "references": {"type": "array", "minItems": 1, "maxItems": 8},
+                "previousDistillationId": {"type": "string"},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "distillationId", "mode", "references"],
+        ),
+        (
+            "channel_distillation_checkpoint",
+            "逐视频独立保存深拆结果或失败；成功结果强制分开五类证据并覆盖完整频道分析维度。",
+            {
+                **binding_properties,
+                "distillationId": {"type": "string"},
+                "sourcePackageId": {"type": "string"},
+                "status": {"type": "string", "enum": ["SUCCEEDED", "FAILED", "SKIPPED"]},
+                "analysis": {"type": "object"},
+                "failure": {"type": "object"},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "distillationId", "sourcePackageId", "status"],
+        ),
+        (
+            "channel_distillation_finalize",
+            "聚合多条热门证据，分别冻结各参考频道画像、精简运行画像、账号专属拆解／仿写要求和下游 Analysis Package。",
+            {
+                **binding_properties,
+                "distillationId": {"type": "string"},
+                "profiles": {"type": "array", "minItems": 1, "maxItems": 8},
+                "accountRequirements": {"type": "object"},
+                "qualityGate": {"type": "object"},
+                "fusionProfile": {"type": "object"},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "distillationId", "profiles", "accountRequirements", "qualityGate"],
+        ),
+        (
+            "channel_distillation_get",
+            "只读查看频道蒸馏 7/7 进度、冻结输出与下游引用，不改变任何活动步骤。",
+            {"channelProfileId": {"type": "string"}, "distillationId": {"type": "string"}},
+            ["channelProfileId", "distillationId"],
+        ),
+        (
+            "channel_distillation_integrity_check",
+            "只读校验频道蒸馏状态、样本、画像、运行要求和契约哈希。",
+            {"channelProfileId": {"type": "string"}, "distillationId": {"type": "string"}},
+            ["channelProfileId", "distillationId"],
+        ),
+        (
+            "video_deconstruction_capabilities",
+            "只读列出视频文案拆解的模式、维度、契约、下游消费者和反复制边界。",
+            {},
+            [],
+        ),
+        (
+            "video_deconstruction_prepare",
+            "冻结目标频道、独立视频 Source Package、可选频道专属拆解要求和逐视频计划。",
+            {
+                **binding_properties,
+                "deconstructionId": {"type": "string"},
+                "mode": {"type": "string", "enum": sorted(["single", "parallel", "compare"])},
+                "videos": {"type": "array", "minItems": 1, "maxItems": 8},
+                "distillationId": {"type": "string"},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "deconstructionId", "mode", "videos"],
+        ),
+        (
+            "video_deconstruction_read_source",
+            "按段落读取本次计划中已验收的 content.txt 与可选时间映射；不会读取或返回字幕文件。",
+            {
+                **binding_properties,
+                "deconstructionId": {"type": "string"},
+                "sourcePackageId": {"type": "string"},
+                "startParagraph": {"type": "integer", "minimum": 1},
+                "maxParagraphs": {"type": "integer", "minimum": 1, "maximum": 100},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "deconstructionId", "sourcePackageId"],
+        ),
+        (
+            "video_deconstruction_checkpoint",
+            "逐视频独立冻结五类证据、功能区段、完整拆解维度、账号专属覆盖和质量门。",
+            {
+                **binding_properties,
+                "deconstructionId": {"type": "string"},
+                "sourcePackageId": {"type": "string"},
+                "status": {"type": "string", "enum": ["SUCCEEDED", "FAILED", "SKIPPED"]},
+                "analysis": {"type": "object"},
+                "failure": {"type": "object"},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "deconstructionId", "sourcePackageId", "status"],
+        ),
+        (
+            "video_deconstruction_finalize",
+            "冻结可交给选题中心与文稿中心的 Analysis Package v1；多视频保持独立，不求平均、不拼段。",
+            {
+                **binding_properties,
+                "deconstructionId": {"type": "string"},
+                "qualityGate": {"type": "object"},
+                "comparison": {"type": "object"},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "deconstructionId", "qualityGate"],
+        ),
+        (
+            "video_deconstruction_get",
+            "只读查看视频文案拆解进度和冻结输出，不改变任何视频状态。",
+            {"channelProfileId": {"type": "string"}, "deconstructionId": {"type": "string"}},
+            ["channelProfileId", "deconstructionId"],
+        ),
+        (
+            "video_deconstruction_integrity_check",
+            "只读校验视频资料锁、账号专属要求、逐视频拆解和 Analysis Package 哈希。",
+            {"channelProfileId": {"type": "string"}, "deconstructionId": {"type": "string"}},
+            ["channelProfileId", "deconstructionId"],
+        ),
+        (
+            "original_imitation_capabilities",
+            "只读列出原创仿写输入、8 方向、13 项评分、可信度、原创性与下游契约边界。",
+            {},
+            [],
+        ),
+        (
+            "original_imitation_prepare",
+            "冻结视频拆解包与规范化小说资料的角色、权重、版本和目标频道专属仿写要求。",
+            {
+                **binding_properties,
+                "imitationId": {"type": "string"},
+                "references": {"type": "array", "minItems": 1, "maxItems": 8},
+                "distillationId": {"type": "string"},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "imitationId", "references"],
+        ),
+        (
+            "original_imitation_read_source",
+            "按段落读取计划中的规范化小说 content.txt；YouTube 只消费已冻结视频拆解包。",
+            {
+                **binding_properties,
+                "imitationId": {"type": "string"},
+                "sourcePackageId": {"type": "string"},
+                "startParagraph": {"type": "integer", "minimum": 1},
+                "maxParagraphs": {"type": "integer", "minimum": 1, "maximum": 100},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "imitationId", "sourcePackageId"],
+        ),
+        (
+            "original_imitation_source_checkpoint",
+            "逐个冻结直接小说／文本来源的五类证据、可迁移功能与原创边界。",
+            {
+                **binding_properties,
+                "imitationId": {"type": "string"},
+                "sourcePackageId": {"type": "string"},
+                "analysis": {"type": "object"},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "imitationId", "sourcePackageId", "analysis"],
+        ),
+        (
+            "original_imitation_direction_checkpoint",
+            "依次保存 8 个原创方向；逐项执行统一因果、10 问可信度、13 项评分与反复制硬门。",
+            {
+                **binding_properties,
+                "imitationId": {"type": "string"},
+                "directionNumber": {"type": "integer", "minimum": 1, "maximum": 8},
+                "direction": {"type": "object"},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "imitationId", "directionNumber", "direction"],
+        ),
+        (
+            "original_imitation_directions_finalize",
+            "校验 28 组实质差异，展示全部 8 个方向及评分并生成 TOP3，停在人工选择门。",
+            {
+                **binding_properties,
+                "imitationId": {"type": "string"},
+                "pairwiseDistinctness": {"type": "array", "minItems": 28, "maxItems": 28},
+                "qualityGate": {"type": "object"},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "imitationId", "pairwiseDistinctness", "qualityGate"],
+        ),
+        (
+            "original_imitation_confirm",
+            "仅在用户明确确认一个合格方向后冻结 Writing Style Contract v1，供选题与文稿中心继续使用。",
+            {
+                **binding_properties,
+                "imitationId": {"type": "string"},
+                "directionId": {"type": "string"},
+                "confirmation": {"type": "object"},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "imitationId", "directionId", "confirmation"],
+        ),
+        (
+            "original_imitation_get",
+            "只读查看原创仿写进度、8 方向评选或冻结契约，不改变确认状态。",
+            {"channelProfileId": {"type": "string"}, "imitationId": {"type": "string"}},
+            ["channelProfileId", "imitationId"],
+        ),
+        (
+            "original_imitation_integrity_check",
+            "只读校验来源锁、账号专属要求、方向文件和 Writing Style Contract 哈希。",
+            {"channelProfileId": {"type": "string"}, "imitationId": {"type": "string"}},
+            ["channelProfileId", "imitationId"],
+        ),
+        (
             "content_capabilities",
             "只读列出阶段4内容路线、可插拔接口、资料门和禁止触发的下游边界。",
             {},
@@ -859,6 +1262,8 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "projectId": {"type": "string"},
                 "sourceMode": {"type": "string", "enum": sorted(SOURCE_MODES)},
                 "sourcePackages": {"type": "array"},
+                "analysisPackages": {"type": "array"},
+                "writingStyleContracts": {"type": "array"},
                 "providedOutline": {"type": "string"},
                 "learningSnapshot": {"type": "object"},
                 "oneTimeModifications": {"type": "array", "items": {"type": "string"}},

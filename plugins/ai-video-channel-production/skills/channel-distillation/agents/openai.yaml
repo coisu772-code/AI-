@@ -1,0 +1,7 @@
+interface:
+  display_name: "频道蒸馏"
+  short_description: "蒸馏 YouTube 频道 DNA 并生成账号专属内容要求"
+  default_prompt: "Use $channel-distillation to analyze a YouTube channel into an evidence-bound production profile."
+
+policy:
+  allow_implicit_invocation: false

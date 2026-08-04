@@ -43,8 +43,8 @@ try {
     $health = $healthJson | ConvertFrom-Json
     if (
         [string]$health.status -ne "PASS" -or
-        [int]$health.skillCount -ne 9 -or
-        [int]$health.contentToolCount -ne 32 -or
+        [int]$health.skillCount -ne 13 -or
+        [int]$health.contentToolCount -ne 54 -or
         -not [bool]$health.serviceChecked -or
         -not [bool]$health.contentCapabilitiesChecked -or
         -not [bool]$health.productionCapabilitiesChecked -or

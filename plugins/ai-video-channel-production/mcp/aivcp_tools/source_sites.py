@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import re
+import zipfile
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date, datetime
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Callable, Protocol
-from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, unquote, urlencode, urljoin, urlsplit, urlunsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from .contracts import utc_now
 from .errors import ToolError
@@ -31,6 +34,238 @@ _AUTOMATED_METADATA_METHODS = {
 
 class SiteFetcher(Protocol):
     def __call__(self, request_url: str, capability: dict[str, Any]) -> dict[str, Any]: ...
+
+
+class _AllowedRedirectHandler(HTTPRedirectHandler):
+    def __init__(self, allowed_hosts: set[str]) -> None:
+        super().__init__()
+        self.allowed_hosts = allowed_hosts
+
+    def redirect_request(self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> Any:
+        parsed = urlsplit(newurl)
+        if parsed.scheme != "https" or not parsed.hostname or parsed.hostname.lower() not in self.allowed_hosts:
+            raise ToolError(
+                "SITE_REDIRECT_BLOCKED",
+                "站点把下载请求重定向到了未获准的主机；本次没有继续下载。",
+                details={"redirectHost": parsed.hostname},
+            )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+class OfficialSiteFetcher:
+    """Read only the official endpoints allowed by the capability manifest.
+
+    Commercial story pages are deliberately unsupported here. They stay metadata-only
+    and accept full text exclusively from an explicitly user-authorized local file.
+    """
+
+    def __init__(self, *, timeout_seconds: float = 20.0, maximum_bytes: int = 32 * 1024 * 1024) -> None:
+        self.timeout_seconds = timeout_seconds
+        self.maximum_bytes = maximum_bytes
+
+    @classmethod
+    def from_environment(cls) -> "OfficialSiteFetcher":
+        timeout = float(os.environ.get("AIVCP_SITE_DOWNLOAD_TIMEOUT_SECONDS", "20"))
+        maximum = int(os.environ.get("AIVCP_SITE_DOWNLOAD_MAX_BYTES", str(32 * 1024 * 1024)))
+        return cls(
+            timeout_seconds=max(1.0, min(timeout, 60.0)),
+            maximum_bytes=max(1024, min(maximum, 256 * 1024 * 1024)),
+        )
+
+    def __call__(self, request_url: str, capability: dict[str, Any]) -> dict[str, Any]:
+        site_id = str(capability.get("siteId", ""))
+        if site_id == "syosetu":
+            return self._metadata_response(request_url, capability, acquisition_method="narou-novel-api")
+        if site_id == "zh-wikisource":
+            response = self._metadata_response(request_url, capability, acquisition_method="mediawiki-api")
+            response["rights"] = {
+                "accessLevel": "open-license",
+                "basis": (
+                    "Text was read from the official MediaWiki API and remains subject to "
+                    "the page attribution and license information retained in the source record."
+                ),
+                "verified": True,
+            }
+            response.setdefault("metadata", {}).update(
+                {
+                    "license": "Wikisource page license; verify page-specific notices before republication",
+                    "attribution": "中文维基文库及页面贡献者",
+                    "sourceUrl": request_url,
+                }
+            )
+            return response
+        if site_id == "aozora":
+            return self._aozora_response(request_url, capability)
+        if site_id == "project-gutenberg":
+            return self._gutenberg_response(request_url, capability)
+        raise ToolError(
+            "SITE_AUTOMATED_FULL_TEXT_FORBIDDEN",
+            "该站点不允许由资料中心自动下载正文；请提供你有权处理的本地文件。",
+            details={"siteId": site_id},
+        )
+
+    def _metadata_response(
+        self,
+        request_url: str,
+        capability: dict[str, Any],
+        *,
+        acquisition_method: str,
+    ) -> dict[str, Any]:
+        downloaded = self._read(request_url, capability)
+        return {**downloaded, "acquisitionMethod": acquisition_method}
+
+    def _aozora_response(self, request_url: str, capability: dict[str, Any]) -> dict[str, Any]:
+        card = self._read(request_url, capability)
+        body, encoding = _decode_body(card["body"], str(card.get("mediaType")))
+        parser = _MetadataHtmlParser()
+        parser.feed(body)
+        metadata = {**parser.metadata(), "sourceUrl": request_url}
+        explicitly_public = bool(re.search(r"著作権(?:が)?消滅|パブリック[・ ]?ドメイン", body))
+        explicitly_restricted = "著作権存続" in body
+        if not explicitly_public or explicitly_restricted:
+            return {
+                **card,
+                "body": body,
+                "encoding": encoding,
+                "metadata": metadata,
+                "acquisitionMethod": "official-work-card",
+                "rights": {
+                    "accessLevel": "unknown",
+                    "basis": "The official work card did not provide an unambiguous machine-verifiable public-domain marker.",
+                    "verified": False,
+                },
+            }
+        links = [
+            urljoin(request_url, href)
+            for href in re.findall(r"href=[\"']([^\"']+)[\"']", body, flags=re.IGNORECASE)
+            if "/files/" in href and re.search(r"\.(?:zip|txt)(?:$|\?)", href, flags=re.IGNORECASE)
+        ]
+        if not links:
+            return {
+                **card,
+                "body": body,
+                "encoding": encoding,
+                "metadata": metadata,
+                "acquisitionMethod": "official-work-card",
+                "rights": {
+                    "accessLevel": "public-domain",
+                    "basis": "The official work card contains a public-domain marker, but no supported text download was found.",
+                    "verified": True,
+                },
+            }
+        download_url = sorted(links, key=lambda value: (0 if ".zip" in value.lower() else 1, value))[0]
+        downloaded = self._read(download_url, capability)
+        content, content_encoding = self._decode_aozora_download(downloaded["body"], download_url, downloaded.get("mediaType"))
+        metadata["officialDownloadUrl"] = download_url
+        metadata["copyrightStatus"] = "public-domain"
+        return {
+            **downloaded,
+            "content": content,
+            "encoding": content_encoding,
+            "metadata": metadata,
+            "acquisitionMethod": "official-download",
+            "rights": {
+                "accessLevel": "public-domain",
+                "basis": "The official Aozora work card contains an explicit public-domain marker.",
+                "verified": True,
+            },
+        }
+
+    def _gutenberg_response(self, request_url: str, capability: dict[str, Any]) -> dict[str, Any]:
+        template = os.environ.get("AIVCP_GUTENBERG_TEXT_URL_TEMPLATE", "").strip()
+        identifier = re.search(r"/(?:ebooks|epub)/(\d+)", request_url)
+        if not template or not identifier or "{id}" not in template:
+            return {
+                "statusCode": 200,
+                "mediaType": "application/json; charset=utf-8",
+                "body": "{}",
+                "metadata": {"sourceUrl": request_url},
+                "acquisitionMethod": "official-offline-catalog",
+                "rights": {"accessLevel": "unknown", "basis": "No approved mirror template is configured.", "verified": False},
+            }
+        download_url = template.format(id=identifier.group(1))
+        parsed = urlsplit(download_url)
+        if parsed.scheme != "https" or not parsed.hostname:
+            raise ToolError(
+                "GUTENBERG_MIRROR_INVALID",
+                "Project Gutenberg 下载模板必须指向明确的 HTTPS 镜像地址。",
+            )
+        mirror_capability = deepcopy(capability)
+        mirror_capability["hosts"] = [*capability.get("hosts", []), parsed.hostname.lower()]
+        downloaded = self._read(download_url, mirror_capability)
+        content, encoding = _decode_body(downloaded["body"], str(downloaded.get("mediaType")))
+        rights_notice = re.search(r"(?im)^.*public domain in the United States.*$", content)
+        verified = rights_notice is not None
+        return {
+            **downloaded,
+            "content": content if verified else None,
+            "encoding": encoding,
+            "metadata": {
+                "sourceUrl": request_url,
+                "officialDownloadUrl": download_url,
+                "rightsNotice": rights_notice.group(0).strip() if rights_notice else None,
+            },
+            "acquisitionMethod": "official-mirror",
+            "rights": {
+                "accessLevel": "public-domain" if verified else "unknown",
+                "basis": "The downloaded official-mirror text contains a Project Gutenberg rights notice.",
+                "verified": verified,
+            },
+        }
+
+    def _read(self, request_url: str, capability: dict[str, Any]) -> dict[str, Any]:
+        parsed = urlsplit(request_url)
+        allowed_hosts = {str(host).lower() for host in capability.get("hosts", [])}
+        if parsed.scheme != "https" or not parsed.hostname or parsed.hostname.lower() not in allowed_hosts:
+            raise ToolError(
+                "SITE_DOWNLOAD_TARGET_FORBIDDEN",
+                "下载地址不属于能力清单允许的 HTTPS 官方主机。",
+                details={"host": parsed.hostname},
+            )
+        opener = build_opener(_AllowedRedirectHandler(allowed_hosts))
+        request = Request(
+            request_url,
+            headers={
+                "User-Agent": "AI-Video-Channel-Production/1.0 (official-source-library)",
+                "Accept": "application/json,text/plain,text/html,application/zip;q=0.9,*/*;q=0.1",
+            },
+            method="GET",
+        )
+        with opener.open(request, timeout=self.timeout_seconds) as response:
+            body = response.read(self.maximum_bytes + 1)
+            if len(body) > self.maximum_bytes:
+                raise ToolError(
+                    "SITE_DOWNLOAD_TOO_LARGE",
+                    "官方来源文件超过资料中心的安全下载上限。",
+                    details={"maximumBytes": self.maximum_bytes},
+                )
+            return {
+                "statusCode": int(response.status),
+                "mediaType": response.headers.get("Content-Type", "application/octet-stream"),
+                "body": body,
+                "etag": response.headers.get("ETag"),
+                "lastModified": response.headers.get("Last-Modified"),
+            }
+
+    @staticmethod
+    def _decode_aozora_download(body: bytes, url: str, media_type: Any) -> tuple[str, str]:
+        if ".zip" not in url.lower():
+            return _decode_body(body, str(media_type or "text/plain"))
+        try:
+            with zipfile.ZipFile(io.BytesIO(body)) as archive:
+                candidates = [
+                    info for info in archive.infolist()
+                    if not info.is_dir()
+                    and info.filename.lower().endswith(".txt")
+                    and info.file_size <= 32 * 1024 * 1024
+                    and ".." not in Path(info.filename).parts
+                ]
+                if not candidates:
+                    raise ToolError("AOZORA_DOWNLOAD_INVALID", "青空文库压缩包中没有安全的 TXT 正文。")
+                payload = archive.read(sorted(candidates, key=lambda item: item.filename)[0])
+        except (zipfile.BadZipFile, OSError) as exc:
+            raise ToolError("AOZORA_DOWNLOAD_INVALID", "青空文库官方下载文件不是有效压缩包。") from exc
+        return _decode_body(payload, "text/plain; charset=cp932")
 
 
 def _sha256(data: bytes) -> str:
@@ -170,7 +405,10 @@ class SiteAdapterRegistry:
     @classmethod
     def from_environment(cls, *, fetcher: SiteFetcher | None = None) -> "SiteAdapterRegistry":
         configured = os.environ.get("AIVCP_SITE_CAPABILITY_MANIFEST")
-        return cls(configured or DEFAULT_MANIFEST_PATH, fetcher=fetcher)
+        return cls(
+            configured or DEFAULT_MANIFEST_PATH,
+            fetcher=fetcher or OfficialSiteFetcher.from_environment(),
+        )
 
     def _load_manifest(self) -> dict[str, Any]:
         try:
@@ -636,15 +874,30 @@ class SiteAdapterRegistry:
         result["provenance"]["requestUrl"] = request_url
         if content:
             content_bytes = content.encode("utf-8")
+            chapter_directory = filtered_metadata.get("chapterDirectory")
             result["assets"] = [
                 {
                     "role": "normalized",
                     "mediaType": "text/plain;charset=utf-8",
-                    "filename": "normalized.txt",
+                    "filename": "content.txt",
                     "data": content,
                     "sha256": content_hash,
                     "sizeBytes": len(content_bytes),
-                }
+                },
+                {
+                    "role": "normalized",
+                    "mediaType": "application/json",
+                    "filename": "chapters.json",
+                    "data": json.dumps(
+                        {
+                            "schemaVersion": "1.0.0",
+                            "unitType": "chapter",
+                            "units": chapter_directory if isinstance(chapter_directory, list) else [],
+                        },
+                        ensure_ascii=False,
+                        indent=2,
+                    ),
+                },
             ]
         next_actions: list[str] = []
         if not content:
@@ -661,6 +914,8 @@ class SiteAdapterRegistry:
             "ruleExpired": site["ruleExpired"],
             "degradationReason": site.get("degradationReason"),
             "rightsVerified": rights_allow_content,
+            "canonicalTextFile": "content.txt" if content else None,
+            "structureFile": "chapters.json" if content else None,
             "contentIgnoredByBoundary": content_ignored,
             "sourceBoundary": (
                 "Full text came from an approved public source channel with per-work rights evidence."
@@ -752,6 +1007,7 @@ __all__ = [
     "DEFAULT_MANIFEST_PATH",
     "SITE_REGISTRY_ADAPTER_ID",
     "SITE_REGISTRY_ADAPTER_VERSION",
+    "OfficialSiteFetcher",
     "SiteAdapterRegistry",
     "SiteFetcher",
 ]
