@@ -2,7 +2,7 @@
 param(
     [ValidateSet("Check", "Update")][string]$Action = "Check",
     [ValidateSet("stable", "prerelease")][string]$Channel = "stable",
-    [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "AIVCP"),
+    [string]$InstallRoot,
     [string]$ExpectedVersion,
     [switch]$ConfirmUpdate,
     [string]$ReleaseFixturePath,
@@ -15,6 +15,7 @@ $script:ProductId = "ai-video-channel-production"
 $script:RepositoryReleasesApi = "https://api.github.com/repos/coisu772-code/AI-/releases?per_page=100"
 $script:UserAgent = "AIVCP-Update-Skill/1.0"
 $script:Utf8NoBom = New-Object System.Text.UTF8Encoding($false, $true)
+$script:InstallRootWasExplicit = $PSBoundParameters.ContainsKey("InstallRoot") -and -not [string]::IsNullOrWhiteSpace($InstallRoot)
 [Console]::OutputEncoding = $script:Utf8NoBom
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
@@ -53,6 +54,17 @@ function Get-AivcpDownloadBytes {
         if (Test-Path -LiteralPath $Source -PathType Leaf) {
             return [System.IO.File]::ReadAllBytes([System.IO.Path]::GetFullPath($Source))
         }
+        if (-not [string]::IsNullOrWhiteSpace($ReleaseFixturePath)) {
+            [System.Uri]$releaseAssetUri = $null
+            if ([System.Uri]::TryCreate($Source, [System.UriKind]::Absolute, [ref]$releaseAssetUri) -and $releaseAssetUri.Scheme -eq "https") {
+                $fixtureDirectory = Split-Path -Parent ([System.IO.Path]::GetFullPath($ReleaseFixturePath))
+                $fixtureName = [System.Uri]::UnescapeDataString([System.IO.Path]::GetFileName($releaseAssetUri.AbsolutePath))
+                $fixtureAsset = Join-Path $fixtureDirectory $fixtureName
+                if (Test-Path -LiteralPath $fixtureAsset -PathType Leaf) {
+                    return [System.IO.File]::ReadAllBytes($fixtureAsset)
+                }
+            }
+        }
     }
 
     [System.Uri]$uri = $null
@@ -68,6 +80,38 @@ function Get-AivcpDownloadBytes {
     }
     catch { throw "$Label download failed. $($_.Exception.Message)" }
     finally { $client.Dispose() }
+}
+
+function Resolve-AivcpStrictRoot {
+    param([Parameter(Mandatory = $true)][string]$PathValue, [Parameter(Mandatory = $true)][string]$Label)
+    if ([string]::IsNullOrWhiteSpace($PathValue) -or -not [System.IO.Path]::IsPathRooted($PathValue)) {
+        throw "INSTALL_IDENTITY_INVALID: $Label must be an absolute path."
+    }
+    $full = [System.IO.Path]::GetFullPath($PathValue)
+    if ($full -eq [System.IO.Path]::GetPathRoot($full) -or $full.Length -lt 12) {
+        throw "INSTALL_IDENTITY_INVALID: $Label is too broad."
+    }
+    return $full
+}
+
+function Get-AivcpRequiredString {
+    param([Parameter(Mandatory = $true)]$Value, [Parameter(Mandatory = $true)][string]$Name, [Parameter(Mandatory = $true)][string]$Label)
+    $property = $Value.PSObject.Properties[$Name]
+    if ($null -eq $property -or [string]::IsNullOrWhiteSpace([string]$property.Value)) {
+        throw "INSTALL_IDENTITY_INVALID: $Label is missing $Name."
+    }
+    return [string]$property.Value
+}
+
+function Read-AivcpInstallJson {
+    param([Parameter(Mandatory = $true)][string]$PathValue, [Parameter(Mandatory = $true)][string]$Label)
+    try { return Get-Content -LiteralPath $PathValue -Raw -Encoding UTF8 | ConvertFrom-Json }
+    catch { throw "INSTALL_IDENTITY_INVALID: $Label is not valid JSON. $($_.Exception.Message)" }
+}
+
+function Test-AivcpPathEquals {
+    param([Parameter(Mandatory = $true)][string]$Left, [Parameter(Mandatory = $true)][string]$Right)
+    return $Left.Equals($Right, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
 function ConvertTo-AivcpSemVer {
@@ -125,31 +169,130 @@ function Compare-AivcpSemVer {
     return 0
 }
 
-function Get-AivcpInstalledVersion {
-    $installFull = [System.IO.Path]::GetFullPath($InstallRoot)
+function Get-AivcpValidatedInstallation {
+    param(
+        [Parameter(Mandatory = $true)][string]$RootPath,
+        $Locator,
+        [string]$LocatorPath,
+        [Parameter(Mandatory = $true)][string]$Source
+    )
+    $installFull = Resolve-AivcpStrictRoot $RootPath "InstallRoot"
     $markerPath = Join-Path $installFull "installation.json"
-    if (Test-Path -LiteralPath $markerPath -PathType Leaf) {
-        $marker = Get-Content -LiteralPath $markerPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        if ([string]$marker.productId -ne $script:ProductId -or [string]::IsNullOrWhiteSpace([string]$marker.activeVersion)) {
-            throw "Installed product marker is invalid: $markerPath"
-        }
-        $statePath = Join-Path $installFull "current\install-state.json"
-        if (Test-Path -LiteralPath $statePath -PathType Leaf) {
-            $state = Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json
-            if ([string]$state.productId -ne $script:ProductId -or [string]$state.productVersion -ne [string]$marker.activeVersion) {
-                throw "Installed product marker and state versions do not match."
-            }
-        }
-        return [pscustomobject]@{ Version = [string]$marker.activeVersion; Source = "installation-marker" }
+    $statePath = Join-Path $installFull "current\install-state.json"
+    if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf) -or -not (Test-Path -LiteralPath $statePath -PathType Leaf)) {
+        throw "INSTALL_IDENTITY_INVALID: installation.json and current\install-state.json are both required at $installFull."
+    }
+    $marker = Read-AivcpInstallJson $markerPath "installation.json"
+    $state = Read-AivcpInstallJson $statePath "install-state.json"
+    $markerSchema = Get-AivcpRequiredString $marker "schemaVersion" "installation.json"
+    $markerProduct = Get-AivcpRequiredString $marker "productId" "installation.json"
+    $markerVersion = Get-AivcpRequiredString $marker "activeVersion" "installation.json"
+    $markerActiveRoot = Get-AivcpRequiredString $marker "activeRoot" "installation.json"
+    $markerDataRoot = Resolve-AivcpStrictRoot (Get-AivcpRequiredString $marker "userDataRoot" "installation.json") "installation userDataRoot"
+    $markerReleaseHash = Get-AivcpRequiredString $marker "releaseManifestSha256" "installation.json"
+    $stateSchema = Get-AivcpRequiredString $state "schemaVersion" "install-state.json"
+    $stateProduct = Get-AivcpRequiredString $state "productId" "install-state.json"
+    $stateVersion = Get-AivcpRequiredString $state "productVersion" "install-state.json"
+    $stateDataRoot = Resolve-AivcpStrictRoot (Get-AivcpRequiredString $state "userDataRoot" "install-state.json") "install-state userDataRoot"
+    $stateReleaseHash = Get-AivcpRequiredString $state "releaseManifestSha256" "install-state.json"
+    $currentPrefix = (Join-Path $installFull "current").TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+    if (
+        $markerSchema -ne "2.0.0" -or $stateSchema -ne "2.0.0" -or
+        $markerProduct -ne $script:ProductId -or $stateProduct -ne $script:ProductId -or
+        $markerActiveRoot -ne "current" -or $markerVersion -ne $stateVersion -or
+        $null -eq (ConvertTo-AivcpSemVer $stateVersion) -or
+        -not (Test-AivcpPathEquals $markerDataRoot $stateDataRoot) -or
+        (Test-AivcpPathEquals $installFull $stateDataRoot) -or
+        $stateDataRoot.StartsWith($currentPrefix, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $markerReleaseHash -notmatch '^[0-9a-fA-F]{64}$' -or
+        $stateReleaseHash -notmatch '^[0-9a-fA-F]{64}$' -or
+        $markerReleaseHash -ne $stateReleaseHash
+    ) {
+        throw "INSTALL_IDENTITY_MISMATCH: installation.json and install-state.json identity, version, data root, or release hash do not match."
     }
 
+    if ($null -ne $Locator) {
+        $locatorSchema = Get-AivcpRequiredString $Locator "schemaVersion" "runtime locator"
+        $locatorProduct = Get-AivcpRequiredString $Locator "productId" "runtime locator"
+        $locatorVersion = Get-AivcpRequiredString $Locator "productVersion" "runtime locator"
+        $locatorActiveRoot = Get-AivcpRequiredString $Locator "activeRoot" "runtime locator"
+        $locatorInstallRoot = Resolve-AivcpStrictRoot (Get-AivcpRequiredString $Locator "installRoot" "runtime locator") "locator installRoot"
+        $locatorDataRoot = Resolve-AivcpStrictRoot (Get-AivcpRequiredString $Locator "userDataRoot" "runtime locator") "locator userDataRoot"
+        $pythonRelativePath = Get-AivcpRequiredString $Locator "pythonRelativePath" "runtime locator"
+        if (
+            $locatorSchema -ne "1.0.0" -or $locatorProduct -ne $script:ProductId -or
+            $locatorActiveRoot -ne "current" -or $pythonRelativePath -ne "runtime/python/python.exe" -or
+            -not (Test-AivcpPathEquals $locatorInstallRoot $installFull) -or
+            -not (Test-AivcpPathEquals $locatorDataRoot $stateDataRoot) -or
+            $locatorVersion -ne $stateVersion
+        ) {
+            throw "INSTALL_LOCATOR_MISMATCH: runtime locator and active installation identity, version, install root, or data root do not match."
+        }
+    }
+
+    return [pscustomobject]@{
+        Version = $stateVersion
+        Source = $Source
+        InstallRoot = $installFull
+        UserDataRoot = $stateDataRoot
+        LocatorPath = $LocatorPath
+        InstallRootResolved = $true
+    }
+}
+
+function Get-AivcpPluginVersion {
     $pluginManifestPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..\..\.codex-plugin\plugin.json"))
     if (-not (Test-Path -LiteralPath $pluginManifestPath -PathType Leaf)) { throw "Cannot determine the installed product version." }
-    $plugin = Get-Content -LiteralPath $pluginManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ([string]$plugin.name -ne $script:ProductId -or [string]::IsNullOrWhiteSpace([string]$plugin.version)) {
+    $plugin = Read-AivcpInstallJson $pluginManifestPath "plugin manifest"
+    if ([string]$plugin.name -ne $script:ProductId -or $null -eq (ConvertTo-AivcpSemVer ([string]$plugin.version))) {
         throw "Installed plugin manifest is invalid."
     }
-    return [pscustomobject]@{ Version = [string]$plugin.version; Source = "plugin-manifest" }
+    return [pscustomobject]@{
+        Version = [string]$plugin.version
+        Source = "plugin-manifest"
+        InstallRoot = $null
+        UserDataRoot = $null
+        LocatorPath = $null
+        InstallRootResolved = $false
+    }
+}
+
+function Resolve-AivcpInstalledProduct {
+    if ($script:InstallRootWasExplicit) {
+        return Get-AivcpValidatedInstallation -RootPath $InstallRoot -Source "explicit-install-root"
+    }
+
+    $locatorPath = $null
+    if (-not [string]::IsNullOrWhiteSpace($env:AIVCP_RUNTIME_LOCATOR)) {
+        if (-not [System.IO.Path]::IsPathRooted($env:AIVCP_RUNTIME_LOCATOR)) {
+            throw "INSTALL_LOCATOR_INVALID: AIVCP_RUNTIME_LOCATOR must be an absolute path."
+        }
+        $locatorPath = [System.IO.Path]::GetFullPath($env:AIVCP_RUNTIME_LOCATOR)
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        $locatorPath = [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA "AIVCP-Config\runtime-locator.json"))
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($locatorPath) -and (Test-Path -LiteralPath $locatorPath -PathType Leaf)) {
+        $locator = Read-AivcpInstallJson $locatorPath "runtime locator"
+        $locatorInstallRoot = Get-AivcpRequiredString $locator "installRoot" "runtime locator"
+        return Get-AivcpValidatedInstallation -RootPath $locatorInstallRoot -Locator $locator -LocatorPath $locatorPath -Source "runtime-locator"
+    }
+
+    $defaultRoot = $null
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        $defaultRoot = [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA "AIVCP"))
+        $defaultMarker = Join-Path $defaultRoot "installation.json"
+        $defaultState = Join-Path $defaultRoot "current\install-state.json"
+        if ((Test-Path -LiteralPath $defaultMarker -PathType Leaf) -or (Test-Path -LiteralPath $defaultState -PathType Leaf)) {
+            return Get-AivcpValidatedInstallation -RootPath $defaultRoot -Source "default-install-marker"
+        }
+    }
+
+    if ($Action -eq "Update") {
+        throw "INSTALL_ROOT_NOT_RESOLVED: no validated runtime locator or default installation marker was found; refusing to install to a guessed path."
+    }
+    return Get-AivcpPluginVersion
 }
 
 function Get-AivcpReleases {
@@ -189,24 +332,38 @@ function Get-AivcpReleaseAsset {
     return $matches[0]
 }
 
+function Assert-AivcpReleaseAssetUrl {
+    param(
+        [Parameter(Mandatory = $true)][string]$Url,
+        [Parameter(Mandatory = $true)][string]$ExpectedDownloadBaseUrl,
+        [Parameter(Mandatory = $true)][string]$FileName,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+    $expectedUrl = "$ExpectedDownloadBaseUrl/$FileName"
+    if (-not $Url.Equals($expectedUrl, [System.StringComparison]::Ordinal)) {
+        throw "$Label URL must exactly match the built-in repository and selected Release tag: $expectedUrl"
+    }
+}
+
 function Get-AivcpManifestInfo {
     param([Parameter(Mandatory = $true)]$Selection)
     $version = [string]$Selection.Version.Normalized
     $manifestName = "unified-release-v$version.json"
+    $expectedDownloadBaseUrl = "https://github.com/coisu772-code/AI-/releases/download/v$version"
     $manifestAsset = Get-AivcpReleaseAsset -Release $Selection.Release -FileName $manifestName
+    Assert-AivcpReleaseAssetUrl -Url ([string]$manifestAsset.browser_download_url) -ExpectedDownloadBaseUrl $expectedDownloadBaseUrl -FileName $manifestName -Label "Unified Release manifest asset"
     $manifestBytes = Get-AivcpDownloadBytes -Source ([string]$manifestAsset.browser_download_url) -Label "Unified Release manifest"
     $manifestAssetSize = $manifestAsset.PSObject.Properties["size"]
     if ($null -ne $manifestAssetSize -and [int64]$manifestAssetSize.Value -gt 0 -and [int64]$manifestAssetSize.Value -ne $manifestBytes.Length) {
         throw "Unified Release manifest size differs from the GitHub Release asset record."
     }
     $manifest = ConvertFrom-AivcpJsonBytes -Bytes $manifestBytes -Label "Unified Release manifest"
-    $expectedDownloadBaseUrl = "https://github.com/coisu772-code/AI-/releases/download/v$version"
     if (
         [string]$manifest.schemaVersion -ne "2.0.0" -or
         [string]$manifest.productId -ne $script:ProductId -or
         [string]$manifest.productVersion -ne $version -or
         [string]$manifest.hashAlgorithm -ne "SHA-256" -or
-        ([string]$manifest.downloadBaseUrl).TrimEnd('/') -ne $expectedDownloadBaseUrl -or
+        [string]$manifest.downloadBaseUrl -ne $expectedDownloadBaseUrl -or
         $null -eq $manifest.safetyBoundaries -or
         [bool]$manifest.safetyBoundaries.userDataIncluded -or
         [bool]$manifest.safetyBoundaries.credentialsIncluded
@@ -226,6 +383,7 @@ function Get-AivcpManifestInfo {
         @($record.compatibleProductVersions) -notcontains $version
     ) { throw "Unified Release manifest installer record is invalid." }
     $installerAsset = Get-AivcpReleaseAsset -Release $Selection.Release -FileName $fileName
+    Assert-AivcpReleaseAssetUrl -Url ([string]$installerAsset.browser_download_url) -ExpectedDownloadBaseUrl $expectedDownloadBaseUrl -FileName $fileName -Label "Unified installer asset"
     $installerAssetSize = $installerAsset.PSObject.Properties["size"]
     if ($null -ne $installerAssetSize -and [int64]$installerAssetSize.Value -gt 0 -and [int64]$installerAssetSize.Value -ne [int64]$record.sizeBytes) {
         throw "Unified installer size differs between the manifest and GitHub Release asset record."
@@ -268,9 +426,24 @@ function Expand-AivcpInstallerZip {
     return Join-Path $DestinationPath $ExpectedRoot
 }
 
-$installed = Get-AivcpInstalledVersion
+$installed = Resolve-AivcpInstalledProduct
 $currentSemVer = ConvertTo-AivcpSemVer $installed.Version
 if ($null -eq $currentSemVer) { throw "Installed product version is not valid semantic versioning: $($installed.Version)" }
+if (-not [bool]$installed.InstallRootResolved) {
+    [ordered]@{
+        status = "CURRENT_VERSION_ONLY"
+        action = "check"
+        channel = $Channel
+        currentVersion = $currentSemVer.Normalized
+        currentVersionSource = [string]$installed.Source
+        installRootResolved = $false
+        targetVersion = $null
+        confirmationRequired = $false
+        resolution = "No validated runtime locator or default installation marker was found. Check can report the plugin version, but Update will fail closed."
+        userDataImpact = "This Skill did not write user data and did not run the unified installer."
+    } | ConvertTo-Json -Depth 6
+    return
+}
 $selection = Select-AivcpRelease -Releases @(Get-AivcpReleases)
 if ($null -eq $selection) {
     [ordered]@{
@@ -278,6 +451,8 @@ if ($null -eq $selection) {
         action = "check"
         channel = $Channel
         currentVersion = $currentSemVer.Normalized
+        currentVersionSource = [string]$installed.Source
+        installRootResolved = [bool]$installed.InstallRootResolved
         targetVersion = $null
         confirmationRequired = $false
         userDataImpact = "This Skill did not write user data and did not run the unified installer."
@@ -292,6 +467,8 @@ if ($comparison -le 0) {
         action = "check"
         channel = $Channel
         currentVersion = $currentSemVer.Normalized
+        currentVersionSource = [string]$installed.Source
+        installRootResolved = [bool]$installed.InstallRootResolved
         targetVersion = $selection.Version.Normalized
         releaseUrl = [string]$selection.Release.html_url
         changeSummary = [string]$selection.Release.body
@@ -307,6 +484,8 @@ $checkResult = [ordered]@{
     action = "check"
     channel = $Channel
     currentVersion = $currentSemVer.Normalized
+    currentVersionSource = [string]$installed.Source
+    installRootResolved = [bool]$installed.InstallRootResolved
     targetVersion = $selection.Version.Normalized
     releaseUrl = [string]$selection.Release.html_url
     changeSummary = [string]$selection.Release.body
@@ -347,7 +526,7 @@ try {
     $installerScript = Join-Path $installerRoot "Install-AIVideoChannelProduction.ps1"
     if (-not (Test-Path -LiteralPath $installerScript -PathType Leaf)) { throw "Unified installer ZIP is missing Install-AIVideoChannelProduction.ps1." }
     $powerShell = (Get-Command powershell.exe -ErrorAction Stop).Source
-    $installerOutput = & $powerShell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $installerScript -ManifestPath $manifestPath -AssetRoot $installerRoot -DownloadBaseUrl ([string]$manifestInfo.Manifest.downloadBaseUrl) -InstallMode Auto -InstallRoot $InstallRoot -Force -LocatorOperation upgrade 2>&1 | Out-String
+    $installerOutput = & $powerShell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $installerScript -ManifestPath $manifestPath -AssetRoot $installerRoot -DownloadBaseUrl ([string]$manifestInfo.Manifest.downloadBaseUrl) -InstallMode Auto -InstallRoot ([string]$installed.InstallRoot) -Force -LocatorOperation upgrade 2>&1 | Out-String
     $installerExitCode = $LASTEXITCODE
     if ($installerExitCode -ne 0) {
         $tail = if ($installerOutput.Length -gt 1200) { $installerOutput.Substring($installerOutput.Length - 1200) } else { $installerOutput }

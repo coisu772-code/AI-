@@ -17,7 +17,7 @@ description: 检查并更新 AI 视频频道生产系统的已发布版本。用
    ```
 
 3. 根据脚本 JSON 显示当前版本、目标版本、Release 变更摘要、统一安装器文件名／大小／SHA-256，以及“用户数据不受此 Skill 直接写入”的说明。
-4. `NO_UPDATE` 或 `NO_RELEASE_AVAILABLE` 时停止。`UPDATE_AVAILABLE` 时明确询问：`确认更新到 <targetVersion> 吗？`
+4. `CURRENT_VERSION_ONLY`、`NO_UPDATE` 或 `NO_RELEASE_AVAILABLE` 时停止；其中 `CURRENT_VERSION_ONLY` 只报告插件版本和无法验证安装目录的原因。只有 `UPDATE_AVAILABLE` 才明确询问：`确认更新到 <targetVersion> 吗？`
 
 “更新到最新版”等最初请求只表示更新意图，不替代查看检查结果后的确认。没有用户本轮再次明确确认时，不得执行更新命令。
 
@@ -29,7 +29,7 @@ description: 检查并更新 AI 视频频道生产系统的已发布版本。用
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/Update-AIVideoSystem.ps1 -Action Update -Channel stable -ExpectedVersion <targetVersion> -ConfirmUpdate
 ```
 
-脚本会重新检查 Release，只下载该 Release 的统一安装器 ZIP，按统一 manifest 校验大小与 SHA-256，再调用 ZIP 内现有 `Install-AIVideoChannelProduction.ps1`。组件下载、安装、修复、事务回滚和用户数据保护全部由现有安装器负责。
+脚本会重新检查 Release，从 `AIVCP_RUNTIME_LOCATOR` 或 `%LOCALAPPDATA%\AIVCP-Config\runtime-locator.json` 解析并核验真实安装目录，只下载该 Release 的统一安装器 ZIP，按统一 manifest 校验大小与 SHA-256，再调用 ZIP 内现有 `Install-AIVideoChannelProduction.ps1`。组件下载、安装、修复、事务回滚和用户数据保护全部由现有安装器负责。找不到经过 locator 或合法默认安装标记验证的安装目录时，更新必须以 `INSTALL_ROOT_NOT_RESOLVED` 终止，不能猜测目录或执行新安装。
 
 更新失败时只报告安装器错误和其已执行的自动恢复，不自行修复或改写用户数据。更新成功后只提示：重启 Codex 并新建对话。
 
