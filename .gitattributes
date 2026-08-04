@@ -6,4 +6,5 @@
 *.yaml text eol=lf
 *.ps1 text eol=lf
 *.cmd text eol=lf
+*.txt text eol=lf
 contracts/youtube-constraints/catalog-2026.08.04.1.json -text whitespace=cr-at-eol
