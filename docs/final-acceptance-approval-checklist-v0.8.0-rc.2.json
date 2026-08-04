@@ -1,34 +1,43 @@
 {
   "schemaVersion": "1.0.0",
   "productVersion": "0.8.0-rc.2",
-  "overallStatus": "WAITING_FOR_CONTROLLED_REAL_ACCEPTANCE",
-  "externalOperationsExecutedByStage8C": false,
-  "localEvidenceCompletedByStage8C": true,
+  "overallStatus": "CONTROLLED_REAL_ACCEPTANCE_PASS",
+  "releaseReadiness": "APPROVED_FOR_GITHUB_PRERELEASE",
+  "implementationSourceCommitSha": "b08bb215a6fd9fb22704d67a2332adbfeb5afd22",
+  "metadataCommitSha": "b5ec60563d9388a4b9bf077ff5b03cda4f56d4c5",
+  "unifiedManifestSha256": "fbdbb150a24b33fa788f1df31e83cdec9764899eb66560e74bd0309b5646f8d8",
   "gates": [
     {
       "id": "implementation-source-binding",
       "classification": "local-evidence",
-      "owner": "stage8c",
       "executed": true,
       "evidence": {
-        "implementationSourceCommitSha": "4e1699d94efa71fe03316c7f5bda2a44269cc5d8",
-        "boundAssetIds": ["unified-installer", "core"],
-        "manifestPlaceholdersRemaining": false,
-        "verification": "Two deterministic builds plus manifest validation and release dry-run."
+        "implementationSourceCommitSha": "b08bb215a6fd9fb22704d67a2332adbfeb5afd22",
+        "metadataCommitSha": "b5ec60563d9388a4b9bf077ff5b03cda4f56d4c5",
+        "manifestSha256": "fbdbb150a24b33fa788f1df31e83cdec9764899eb66560e74bd0309b5646f8d8",
+        "deterministicBuilds": 2,
+        "reproducible": true
       }
     },
-    { "id": "technical-license-inventories", "classification": "local-evidence", "owner": "stage8c", "executed": true, "evidence": { "status": "TECHNICALLY_VALIDATED", "report": "release-security-license-evidence-v0.8.0-rc.2.json", "publisherReviewRequired": 0, "pythonPackageCount": 12, "pythonLicenseEntryCount": 58, "legalAdviceOrSignoff": false } },
-    { "id": "winps51-mcp-no-bom-jsonl-file-relay", "classification": "local-evidence", "owner": "stage8c", "executed": true, "evidence": { "status": "LOCAL_FIX_VALIDATED_SANDBOX_RERUN_REQUIRED", "report": "controlled-acceptance-attempt-7-fix-v0.8.0-rc.2.json", "rawStdinProbeHex": "efbbbf580a", "fileRelayExitCode": 0, "powershellInputRedirectionOrAccess": false, "parserRelaxed": false } },
-    { "id": "runtime-bound-cached-plugin-actual-codex-cli", "classification": "local-evidence", "owner": "stage8c", "executed": true, "evidence": { "status": "PASS", "mode": "ACTUAL_CODEX_CLI_RUNTIME_BOUND_MCP", "toolsListObservedByCodex": true, "capabilities": ["system_capabilities", "content_capabilities", "production_capabilities", "data_center_capabilities"], "componentIntegration": { "workshopReadOnlyHealthAndCapabilities": true, "ffmpeg": true, "ffprobe": true, "productionPackage21": true, "publisherReadOnly": true, "publisherV2": true, "externalServiceProbeExecuted": false, "networkExecution": false }, "timeoutSeconds": 90, "shellWebOrFileChangeEvents": 0, "oauth": false, "upload": false, "longTermLearningWrite": false } },
-    { "id": "installed-component-runtime-binding", "classification": "local-evidence", "owner": "stage8c", "executed": true, "evidence": { "status": "PASS", "descriptorBindings": ["workshop", "workshop-isolation", "ffmpeg", "ffprobe", "publisher-channel-list", "publisher-v2"], "tamperCasesRejectedBeforeService": 7, "rejectionCode": "RUNTIME_BINDING_MISMATCH", "oldCandidate": "5f5955d/ff30bc2 INVALID_DO_NOT_RELEASE_AS_A_SET" } },
-    { "id": "release-license-owner-approval", "classification": "external-approval", "owner": "legal-release-owner", "executed": false, "evidenceRequired": "Release owner/legal reviewer must approve the technically complete publisher, Python runtime and workshop inventories; technical validation is not legal advice or signoff." },
-    { "id": "clean-windows-install", "classification": "external-approval", "owner": "release-owner", "executed": false, "evidenceRequired": "Sandbox attempt 9 passed only for a superseded set. Rerun the newly bound component-integrated candidate on fresh Windows 10/11 x64 with no Python/py/uv, using the default short program root and preserving retired-path data; local lifecycle evidence cannot mark this gate PASS." },
-    { "id": "visible-restarted-codex-task", "classification": "external-approval", "owner": "release-owner", "executed": false, "evidenceRequired": "After installing the final re-locked assets, install/enable the repository plugin, restart Codex, create a new visible task, and verify tools/list plus system/content/production/data capabilities, workshop health/no-probe, FFmpeg/ffprobe and publisher read-only/v2 offline bridges. The temporary CLI PASS does not replace this visible product-flow gate." },
-    { "id": "code-signing-publisher-identity", "classification": "external-approval", "owner": "release-owner", "executed": false, "evidenceRequired": "Approved signing and Windows reputation evidence." },
-    { "id": "github-release-publication", "classification": "external-approval", "owner": "main-thread", "executed": false, "evidenceRequired": "Explicit authorization for the pre-existing tag and GitHub Release; verify that the tag resolves to the bound implementation/source history." },
-    { "id": "google-youtube-oauth", "classification": "external-approval", "owner": "channel-owner", "executed": false, "evidenceRequired": "Least-privilege OAuth approval on a controlled account." },
-    { "id": "real-private-youtube-upload", "classification": "external-approval", "owner": "channel-owner", "executed": false, "evidenceRequired": "Controlled private upload, real video ID and publication receipt." },
-    { "id": "youtube-studio-private-data", "classification": "external-approval", "owner": "channel-owner", "executed": false, "evidenceRequired": "Approved Studio/Analytics data collection and redacted report." },
-    { "id": "long-term-learning-write", "classification": "external-approval", "owner": "channel-owner", "executed": false, "evidenceRequired": "Separate decision record and bounded write-back audit." }
-  ]
+    {"id": "technical-license-inventories", "classification": "local-evidence", "executed": true, "evidence": {"publisherReviewRequired": 0, "pythonPackageCount": 12, "pythonLicenseEntryCount": 58, "workshopInventoryPresent": true}},
+    {"id": "release-license-owner-approval", "classification": "external-approval", "executed": true, "evidence": {"approvalGate": "final-mvp-live-acceptance-v1"}},
+    {"id": "clean-windows-install", "classification": "controlled-real-evidence", "executed": true, "evidence": {"environment": "Windows Sandbox", "attempt": 11, "passed": 11, "failed": 0}},
+    {"id": "visible-restarted-codex-task", "classification": "controlled-real-evidence", "executed": true, "evidence": {"passed": 12, "failed": 0, "actualPluginTools": true, "networkExecution": false}},
+    {"id": "installed-component-runtime-binding", "classification": "controlled-real-evidence", "executed": true, "evidence": {"workshop": true, "ffmpeg": true, "ffprobe": true, "productionPackage21": true, "publisherReadOnly": true, "publisherV2": true}},
+    {"id": "code-signing-publisher-identity", "classification": "external-approval", "executed": true, "evidence": {"decision": "unsigned-prerelease-approved-no-certificate-present"}},
+    {"id": "google-youtube-publisher-authorization", "classification": "controlled-real-evidence", "executed": true, "evidence": {"existingActiveAuthorizationUsed": true, "oauthFlowStartedByCodex": false, "credentialExported": false}},
+    {"id": "real-private-youtube-upload", "classification": "controlled-real-evidence", "executed": true, "evidence": {"channelSerial": "01", "uploadAttempts": 1, "privacy": "private", "processing": "SUCCEEDED", "thumbnail": "COMPLETED", "caption": "COMPLETED", "realPublicationReceipt": true}},
+    {"id": "formal-data-center-registration", "classification": "controlled-real-evidence", "executed": true, "evidence": {"namespace": "formal", "canonicalUpstreamContracts": 5, "normalizedPublicationReceipt": true, "scheduledCheckpoints": ["T+24H", "T+7D", "T+28D"]}},
+    {"id": "youtube-owner-analytics", "classification": "time-and-authorization-gated", "executed": false, "evidence": {"status": "AUTH_REQUIRED_NOT_DUE", "firstDueAt": "2026-08-05T12:34:13Z", "fabricatedZeroValues": false, "reportGenerated": false}},
+    {"id": "long-term-learning-write", "classification": "controlled-isolated-evidence", "executed": true, "evidence": {"scope": "one synthetic rule in one isolated test channel profile", "productionChannelWrite": false}},
+    {"id": "github-release-publication", "classification": "external-approval", "executed": false, "evidence": {"status": "APPROVED_PENDING_EXECUTION", "releaseType": "prerelease", "tagMustResolveTo": "b08bb215a6fd9fb22704d67a2332adbfeb5afd22"}}
+  ],
+  "restrictions": {
+    "releaseType": "prerelease",
+    "publicUploadAllowed": false,
+    "remoteVideoDeletionAllowed": false,
+    "secondUploadAllowed": false,
+    "userDataMigrationAllowed": false,
+    "credentialExportAllowed": false
+  }
 }

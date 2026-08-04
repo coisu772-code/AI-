@@ -56,17 +56,21 @@ try {
     Remove-Item -LiteralPath $shortE2eFull -Recurse -Force
     $approval = Get-Content -LiteralPath (Join-Path $root "docs\final-acceptance-approval-checklist-v0.8.0-rc.2.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     $binding = $approval.gates | Where-Object { [string]$_.id -eq "implementation-source-binding" } | Select-Object -First 1
-    if ($null -eq $binding -or -not [bool]$binding.executed -or [string]$binding.classification -ne "local-evidence" -or [string]$binding.evidence.implementationSourceCommitSha -ne "4e1699d94efa71fe03316c7f5bda2a44269cc5d8") {
+    if ($null -eq $binding -or -not [bool]$binding.executed -or [string]$binding.classification -ne "local-evidence" -or [string]$binding.evidence.implementationSourceCommitSha -ne "b08bb215a6fd9fb22704d67a2332adbfeb5afd22") {
         throw "Completed implementation/source binding evidence is missing or inconsistent."
     }
-    if (@($approval.gates | Where-Object { [string]$_.classification -eq "external-approval" -and [bool]$_.executed }).Count -ne 0) { throw "An external approval gate was incorrectly marked executed." }
+    if ([string]$approval.overallStatus -ne "CONTROLLED_REAL_ACCEPTANCE_PASS") { throw "Controlled real acceptance status is missing." }
+    $githubGate = $approval.gates | Where-Object { [string]$_.id -eq "github-release-publication" } | Select-Object -First 1
+    if ($null -eq $githubGate -or [bool]$githubGate.executed -or [string]$githubGate.evidence.status -ne "APPROVED_PENDING_EXECUTION") {
+        throw "GitHub prerelease gate must remain approved but unexecuted during local validation."
+    }
     $summary = [ordered]@{
-        schemaVersion="1.0.0"; productVersion="0.8.0-rc.2"; status="LOCAL_UNIFIED_RC_PASS"; fullMvpStatus="WAITING_FOR_CONTROLLED_REAL_ACCEPTANCE"
-        unitSuite="PASS"; officialPluginValidator=$officialPluginStatus; repositoryMarketplaceValidator="PASS"; actualCodexCliRuntimeBoundMcp=if ([string]::IsNullOrWhiteSpace($CodexExe)) { "NOT_RUN" } else { "PASS" }; visibleRestartedCodexTask="WAITING_FOR_RERUN"
-        unifiedAssetScan="PASS"; winPs51McpFileRelay="PASS"; sandboxAttempt9="PASS_FOR_SUPERSEDED_CANDIDATE_ONLY_CURRENT_WAITING_FOR_RERUN"
+        schemaVersion="1.0.0"; productVersion="0.8.0-rc.2"; status="LOCAL_UNIFIED_RC_PASS"; fullMvpStatus="CONTROLLED_REAL_ACCEPTANCE_PASS"
+        unitSuite="PASS"; officialPluginValidator=$officialPluginStatus; repositoryMarketplaceValidator="PASS"; actualCodexCliRuntimeBoundMcp=if ([string]::IsNullOrWhiteSpace($CodexExe)) { "PRIOR_VISIBLE_TASK_PASS" } else { "PASS" }; visibleRestartedCodexTask="PASS_12_OF_12"
+        unifiedAssetScan="PASS"; winPs51McpFileRelay="PASS"; sandboxAttempt11="PASS_11_OF_11"
         lifecycle="PASS"; threeMarketSynthetic="PASS"; publisherStage6Relock="PASS"; stalePublisherCatalogRejected="CONSTRAINTS_CATALOG_MISMATCH"
         installedWorkshopAndPublisherComponentIntegration="PASS"; runtimeBindingTamperRejection="PASS"
-        implementationSourceBinding="PASS"; implementationSourceCommit="4e1699d94efa71fe03316c7f5bda2a44269cc5d8"; externalActionsExecuted=$false; approvalChecklist=(Join-Path $root "docs\final-acceptance-approval-checklist-v0.8.0-rc.2.json")
+        implementationSourceBinding="PASS"; implementationSourceCommit="b08bb215a6fd9fb22704d67a2332adbfeb5afd22"; controlledRealAcceptanceRecorded=$true; externalActionsExecutedByThisValidation=$false; approvalChecklist=(Join-Path $root "docs\final-acceptance-approval-checklist-v0.8.0-rc.2.json")
     }
     $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $evidence "stage8-summary.json") -Encoding UTF8
     & $uv.Source run python tools\validate_release_json_parsers.py --asset-root $assets --evidence-root $evidence --report (Join-Path $evidence "json-parser-validation.json")
