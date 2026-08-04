@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -203,6 +206,19 @@ class Stage7DataCenterTests(unittest.TestCase):
         self.assertEqual("WAITING_FOR_PUBLICATION_RECEIPT", result["status"])
         self.assertFalse(self.data_root.exists())
 
+    def test_installed_plugin_resolves_metric_catalog_from_install_root(self) -> None:
+        temporary = Path(self.temporary.name)
+        plugin_root = temporary / "codex-cache" / "ai-video-channel-production" / "0.8.0-rc.2"
+        plugin_root.mkdir(parents=True)
+        install_root = temporary / "Product"
+        catalog_root = install_root / "current" / "contracts" / "metric-catalog"
+        catalog_root.mkdir(parents=True)
+        source = ROOT / "contracts" / "metric-catalog" / "catalog-2026.08.04.1.json"
+        shutil.copyfile(source, catalog_root / source.name)
+        installed = DataCenter(temporary / "installed-data", plugin_root=plugin_root)
+        with patch.dict(os.environ, {"AIVCP_INSTALL_ROOT": str(install_root)}):
+            self.assertEqual((catalog_root / source.name).resolve(), installed._catalog_path().resolve())
+
     def _receipt(self, *, profile: str = "formal-profile", video_id: str = "fakeVideo01") -> dict:
         return with_hash(
             {
@@ -258,6 +274,171 @@ class Stage7DataCenterTests(unittest.TestCase):
             "DATA_CROSS_CHANNEL_FORBIDDEN",
             lambda: self.center.register_video({"channelProfileId": "formal-profile", "syntheticFixture": False, "publicationReceiptPath": str(cross_path)}),
         )
+
+    def _publisher_upstream_documents(self, *, profile: str, project: str, video_sha: str, thumbnail_sha: str) -> dict[str, str]:
+        root = Path(self.temporary.name) / "publisher-upstream"
+        root.mkdir(exist_ok=True)
+
+        def document(contract_type: str, document_id: str, **extra) -> dict:
+            return with_hash(
+                {
+                    "schemaVersion": "1.0.0",
+                    "contractType": contract_type,
+                    "id": document_id,
+                    "version": "1.0.0",
+                    "createdAt": "2026-08-04T12:25:00Z",
+                    "hashAlgorithm": "SHA-256",
+                    "hashRule": "canonical-json-v1",
+                    "upstream": [],
+                    "projectId": project,
+                    "channelProfileId": profile,
+                    **extra,
+                }
+            )
+
+        values = {
+            "topic": document("topic-package", "topic-publisher-001"),
+            "manuscript": document("manuscript-package", "manuscript-publisher-001"),
+            "publishing": document(
+                "publishing-asset-package",
+                "publishing-publisher-001",
+                thumbnail={"asset": {"sha256": thumbnail_sha}},
+            ),
+            "production": document(
+                "production-result-package",
+                "production-publisher-001",
+                finalVideo={"sha256": video_sha},
+            ),
+        }
+        values["publishIntent"] = document(
+            "publish-intent",
+            "intent-publisher-001",
+            productionResultRef={
+                "targetId": values["production"]["id"],
+                "targetVersion": values["production"]["version"],
+                "targetHash": values["production"]["contentHash"],
+            },
+            publishingAssetRef={
+                "targetId": values["publishing"]["id"],
+                "targetVersion": values["publishing"]["version"],
+                "targetHash": values["publishing"]["contentHash"],
+            },
+        )
+        paths: dict[str, str] = {}
+        for role, value in values.items():
+            path = root / f"{role}.json"
+            path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+            paths[role] = str(path)
+        return paths
+
+    def _publisher_readback_receipt(self, *, profile: str, project: str, video_id: str, video_sha: str, thumbnail_sha: str) -> dict:
+        receipt = {
+            "schema_version": "1.0",
+            "receipt_id": "receipt_publisher_readback_001",
+            "publish_intent_id": "intent-publisher-001",
+            "project_id": project,
+            "task_id": "intent-publisher-001",
+            "g6_approval_id": "g6-publisher-001",
+            "g6_approval_reference": "g6-publisher-001",
+            "target_channel": {
+                "publisher_profile_id": "publisher-profile-001",
+                "channel_profile_id": profile,
+                "channel_serial": "01",
+                "youtube_channel_id": "UC1234567890",
+            },
+            "remote_video": {
+                "video_id": video_id,
+                "url": f"https://youtu.be/{video_id}",
+                "privacy_status": "private",
+                "scheduled_at": None,
+                "processing_status": "succeeded",
+                "readback_at": "2026-08-04T12:34:00Z",
+            },
+            "metadata": {
+                "title": "Publisher readback acceptance",
+                "description": "Private acceptance fixture",
+                "hashtags": ["#acceptance"],
+                "video_sha256": video_sha,
+                "metadata_sha256": fixture_hash("metadata"),
+                "thumbnail_sha256": thumbnail_sha,
+                "subtitle_sha256": fixture_hash("subtitle"),
+            },
+            "post_processing": {
+                "thumbnail_status": "COMPLETED",
+                "caption_status": "COMPLETED",
+                "processing_status": "SUCCEEDED",
+                "visibility_status": "PRIVATE",
+            },
+            "upload": {
+                "started_at": "2026-08-04T12:31:00Z",
+                "completed_at": "2026-08-04T12:34:00Z",
+                "attempts": 1,
+                "session_recovered": False,
+                "confirmed_bytes": 1234,
+            },
+            "source_lock": {
+                "package_content_sha256": fixture_hash("package"),
+                "upload_intent_sha256": fixture_hash("upload-intent"),
+                "approval_sha256": fixture_hash("approval"),
+                "production_result_sha256": fixture_hash("legacy-production"),
+                "publishing_asset_sha256": fixture_hash("legacy-publishing"),
+                "remote_snapshot_sha256": fixture_hash("remote"),
+                "upload_events_sha256": fixture_hash("events"),
+            },
+            "upstream_packages": {},
+            "conclusion": "PRIVATE",
+            "next_action": "data-center",
+            "pending_items": [],
+            "evidence_mode": "publisher-api-readback",
+            "publication_valid": True,
+            "created_at": "2026-08-04T12:34:00Z",
+            "receipt_sha256": "",
+        }
+        body = json.dumps(receipt, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
+        receipt["receipt_sha256"] = hashlib.sha256(body).hexdigest()
+        return receipt
+
+    def test_publisher_api_readback_receipt_is_normalized_and_registered(self) -> None:
+        profile = "formal-profile"
+        project = "project-publisher-readback"
+        video_id = "RealVid_01"
+        video_sha = fixture_hash("real-video")
+        thumbnail_sha = fixture_hash("real-thumbnail")
+        upstream = self._publisher_upstream_documents(
+            profile=profile,
+            project=project,
+            video_sha=video_sha,
+            thumbnail_sha=thumbnail_sha,
+        )
+        receipt_path = Path(self.temporary.name) / "publisher-receipt.json"
+        receipt_path.write_text(
+            json.dumps(
+                self._publisher_readback_receipt(
+                    profile=profile,
+                    project=project,
+                    video_id=video_id,
+                    video_sha=video_sha,
+                    thumbnail_sha=thumbnail_sha,
+                ),
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        result = self.center.register_video(
+            {
+                "channelProfileId": profile,
+                "syntheticFixture": False,
+                "publicationReceiptPath": str(receipt_path),
+                "upstreamDocuments": upstream,
+            }
+        )
+        self.assertEqual("VIDEO_REGISTERED", result["status"])
+        self.assertEqual("formal", result["namespace"])
+        normalized = json.loads(Path(result["publicationReceiptPath"]).read_text(encoding="utf-8"))
+        self.assertEqual("publication-receipt", normalized["contractType"])
+        self.assertEqual(video_id, normalized["youtubeVideoId"])
+        self.assertEqual("UPLOADED_PRIVATE", normalized["remoteState"]["visibility"])
+        self.assertEqual(result["publicationReceiptHash"], normalized["contentHash"])
 
     def test_public_only_report_keeps_owner_metrics_unknown(self) -> None:
         video_id = self.register()

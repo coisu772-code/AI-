@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import sqlite3
@@ -271,11 +272,23 @@ class DataCenter:
     def _catalog_path(self) -> Path:
         if self.plugin_root is None:
             raise ToolError("METRIC_CATALOG_UNAVAILABLE", "缺少插件根目录，无法定位 Metric Catalog v1。")
-        catalog_root = self.plugin_root.parents[1] / "contracts" / "metric-catalog"
-        matches = sorted(catalog_root.glob("catalog-*.json"))
-        if not matches:
-            raise ToolError("METRIC_CATALOG_UNAVAILABLE", "Metric Catalog v1 缺失。")
-        return matches[-1]
+        roots = [
+            self.plugin_root.parents[1] / "contracts" / "metric-catalog",
+            self.plugin_root / "assets" / "metric-catalog",
+        ]
+        install_root_value = os.environ.get("AIVCP_INSTALL_ROOT", "").strip()
+        if install_root_value:
+            install_root = Path(install_root_value).expanduser().resolve()
+            roots.insert(1, install_root / "current" / "contracts" / "metric-catalog")
+        for catalog_root in roots:
+            matches = sorted(catalog_root.glob("catalog-*.json"))
+            if matches:
+                return matches[-1]
+        raise ToolError(
+            "METRIC_CATALOG_UNAVAILABLE",
+            "Metric Catalog v1 缺失。",
+            details={"searched": [str(path) for path in roots]},
+        )
 
     def _copy_catalog(self, analytics_root: Path) -> dict[str, Any]:
         source = self._catalog_path()
@@ -387,44 +400,189 @@ class DataCenter:
         if not isinstance(content_hash, str) or not HEX64.fullmatch(content_hash) or canonical_hash(document) != content_hash:
             raise ToolError("DATA_UPSTREAM_HASH_INVALID", "输入契约的 canonical-json-v1 SHA-256 无效。")
 
+    @staticmethod
+    def _publisher_receipt_hash(receipt: dict[str, Any]) -> str:
+        seed = dict(receipt)
+        seed["receipt_sha256"] = ""
+        body = json.dumps(seed, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha256(body).hexdigest()
+
+    def _normalize_publisher_readback_receipt(
+        self,
+        receipt: dict[str, Any],
+        *,
+        channel_profile_id: str,
+        documents: dict[str, dict[str, Any]],
+    ) -> tuple[dict[str, Any], str, str, datetime]:
+        required = {
+            "schema_version",
+            "receipt_id",
+            "publish_intent_id",
+            "project_id",
+            "target_channel",
+            "remote_video",
+            "metadata",
+            "post_processing",
+            "upload",
+            "source_lock",
+            "evidence_mode",
+            "publication_valid",
+            "created_at",
+            "receipt_sha256",
+        }
+        if not required.issubset(receipt):
+            raise ToolError("PUBLICATION_RECEIPT_INVALID", "发布中心 API 回读回执缺少必填字段。")
+        claimed_hash = receipt.get("receipt_sha256")
+        if (
+            receipt.get("schema_version") != "1.0"
+            or receipt.get("evidence_mode") != "publisher-api-readback"
+            or receipt.get("publication_valid") is not True
+            or not isinstance(claimed_hash, str)
+            or not HEX64.fullmatch(claimed_hash)
+            or self._publisher_receipt_hash(receipt) != claimed_hash
+        ):
+            raise ToolError("PUBLICATION_RECEIPT_INVALID", "发布中心 API 回读回执版本、证据模式或完整性无效。")
+        if receipt.get("syntheticFixture") is not None or receipt.get("synthetic") is not None:
+            raise ToolError("SYNTHETIC_RECEIPT_FORBIDDEN", "标记为 synthetic 的回执不得进入正式命名空间。")
+
+        target = receipt.get("target_channel")
+        remote = receipt.get("remote_video")
+        metadata = receipt.get("metadata")
+        post = receipt.get("post_processing")
+        upload = receipt.get("upload")
+        if not all(isinstance(value, dict) for value in (target, remote, metadata, post, upload)):
+            raise ToolError("PUBLICATION_RECEIPT_INVALID", "发布中心 API 回读回执的远端证据结构无效。")
+        if target.get("channel_profile_id") != channel_profile_id:
+            raise ToolError("DATA_CROSS_CHANNEL_FORBIDDEN", "发布回执属于其他频道。")
+        video_id = remote.get("video_id")
+        if not isinstance(video_id, str) or not REAL_VIDEO_ID.fullmatch(video_id) or FAKE_MARKERS.search(video_id):
+            raise ToolError("SYNTHETIC_VIDEO_ID_FORBIDDEN", "fake/synthetic video ID 不得进入正式命名空间。")
+        if remote.get("url") not in {f"https://youtu.be/{video_id}", f"https://www.youtube.com/watch?v={video_id}"}:
+            raise ToolError("PUBLICATION_RECEIPT_INVALID", "发布回执 URL 与 youtube_video_id 不一致。")
+
+        production = documents["production"]
+        publishing = documents["publishing"]
+        intent = documents["publishIntent"]
+        project_id = receipt.get("project_id")
+        if not isinstance(project_id, str) or not project_id:
+            raise ToolError("PUBLICATION_RECEIPT_INVALID", "发布回执缺少 projectId。")
+        if intent.get("id") != receipt.get("publish_intent_id"):
+            raise ToolError("PUBLICATION_RECEIPT_HASH_BINDING_INVALID", "发布回执与所提供的 Publish Intent ID 不一致。")
+        if (production.get("finalVideo") or {}).get("sha256") != metadata.get("video_sha256"):
+            raise ToolError("PUBLICATION_RECEIPT_HASH_BINDING_INVALID", "发布回执没有绑定所提供制作结果的最终视频。")
+        thumbnail_asset = ((publishing.get("thumbnail") or {}).get("asset") or {})
+        if thumbnail_asset.get("sha256") != metadata.get("thumbnail_sha256"):
+            raise ToolError("PUBLICATION_RECEIPT_HASH_BINDING_INVALID", "发布回执没有绑定所提供发布素材的封面。")
+        production_ref = intent.get("productionResultRef") or {}
+        publishing_ref = intent.get("publishingAssetRef") or {}
+        if (
+            production_ref.get("targetId") != production.get("id")
+            or production_ref.get("targetVersion") != production.get("version")
+            or production_ref.get("targetHash") != production.get("contentHash")
+            or publishing_ref.get("targetId") != publishing.get("id")
+            or publishing_ref.get("targetVersion") != publishing.get("version")
+            or publishing_ref.get("targetHash") != publishing.get("contentHash")
+        ):
+            raise ToolError("PUBLICATION_RECEIPT_HASH_BINDING_INVALID", "Publish Intent 没有绑定所提供的制作结果与发布素材。")
+
+        status_maps = {
+            "thumbnail": {"COMPLETED": "COMPLETE", "MANUAL_REQUIRED": "MANUAL_REQUIRED", "FAILED": "FAILED"},
+            "captions": {"COMPLETED": "COMPLETE", "NOT_REQUESTED": "NOT_REQUESTED", "FAILED": "FAILED"},
+            "processing": {"SUCCEEDED": "COMPLETE", "PROCESSING": "PROCESSING", "FAILED": "FAILED"},
+            "visibility": {
+                "PRIVATE": "UPLOADED_PRIVATE",
+                "UNLISTED": "UPLOADED_UNLISTED",
+                "SCHEDULED": "SCHEDULED",
+                "PUBLIC": "PUBLISHED",
+            },
+        }
+        source_statuses = {
+            "thumbnail": post.get("thumbnail_status"),
+            "captions": post.get("caption_status"),
+            "processing": post.get("processing_status"),
+            "visibility": post.get("visibility_status"),
+        }
+        try:
+            remote_state = {key: status_maps[key][str(value).upper()] for key, value in source_statuses.items()}
+        except KeyError as exc:
+            raise ToolError("PUBLICATION_RECEIPT_INVALID", "发布回执包含无法归一化的远端状态。") from exc
+        uploaded_at = _parse_time(upload.get("completed_at"), "upload.completed_at")
+        intent_ref = {
+            "targetContractType": "publish-intent",
+            "targetId": intent.get("id"),
+            "targetVersion": intent.get("version"),
+            "targetSchemaVersion": intent.get("schemaVersion"),
+            "targetHash": intent.get("contentHash"),
+        }
+        normalized = with_hash(
+            {
+                "schemaVersion": "1.0.0",
+                "contractType": "publication-receipt",
+                "id": str(receipt.get("receipt_id")),
+                "version": "1.0.0",
+                "createdAt": str(receipt.get("created_at")),
+                "hashAlgorithm": "SHA-256",
+                "hashRule": "canonical-json-v1",
+                "upstream": [intent_ref],
+                "receiptId": str(receipt.get("receipt_id")),
+                "publishIntentRef": intent_ref,
+                "projectId": project_id,
+                "channelProfileId": channel_profile_id,
+                "status": "RECEIPT_COMPLETE",
+                "youtubeVideoId": video_id,
+                "youtubeUrl": f"https://www.youtube.com/watch?v={video_id}",
+                "targetChannel": {
+                    "publisherProfileId": target.get("publisher_profile_id"),
+                    "channelSerial": target.get("channel_serial"),
+                    "youtubeChannelId": target.get("youtube_channel_id"),
+                },
+                "uploadedAt": _iso(uploaded_at),
+                "remoteState": remote_state,
+            }
+        )
+        self._validate_hashed_document(normalized, expected_type="publication-receipt")
+        return normalized, video_id, project_id, uploaded_at
+
     def _formal_registration(self, args: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]], str, str, datetime]:
         receipt_path_value = args.get("publicationReceiptPath")
         if not isinstance(receipt_path_value, str) or not receipt_path_value:
             raise ToolError("WAITING_FOR_PUBLICATION_RECEIPT", "尚无真实 Publication Receipt v1，不能注册正式视频。")
-        receipt = _read_json(Path(receipt_path_value).resolve())
-        self._validate_hashed_document(receipt, expected_type="publication-receipt")
-        if receipt.get("syntheticFixture") is not None or receipt.get("synthetic") is not None:
-            raise ToolError("SYNTHETIC_RECEIPT_FORBIDDEN", "标记为 synthetic 的回执不得进入正式命名空间。")
-        receipt_required = {
-            "receiptId",
-            "publishIntentRef",
-            "projectId",
-            "channelProfileId",
-            "status",
-            "youtubeVideoId",
-            "youtubeUrl",
-            "targetChannel",
-            "uploadedAt",
-            "remoteState",
-        }
-        if not receipt_required.issubset(receipt):
-            raise ToolError("PUBLICATION_RECEIPT_INVALID", "Publication Receipt v1 缺少必填字段。")
-        if receipt.get("schemaVersion") != "1.0.0" or receipt.get("status") != "RECEIPT_COMPLETE":
-            raise ToolError("PUBLICATION_RECEIPT_INVALID", "正式注册只接受完成且版本为 v1 的发布回执。")
         channel_profile_id = args["channelProfileId"]
-        if receipt.get("channelProfileId") != channel_profile_id:
-            raise ToolError("DATA_CROSS_CHANNEL_FORBIDDEN", "发布回执属于其他频道。")
-        video_id = receipt.get("youtubeVideoId")
-        if not isinstance(video_id, str) or not REAL_VIDEO_ID.fullmatch(video_id) or FAKE_MARKERS.search(video_id):
-            raise ToolError("SYNTHETIC_VIDEO_ID_FORBIDDEN", "fake/synthetic video ID 不得进入正式命名空间。")
-        if receipt.get("youtubeUrl") != f"https://www.youtube.com/watch?v={video_id}":
-            raise ToolError("PUBLICATION_RECEIPT_INVALID", "回执 URL 与 youtube_video_id 不一致。")
-        target = receipt.get("targetChannel")
-        if not isinstance(target, dict) or not isinstance(target.get("youtubeChannelId"), str):
-            raise ToolError("PUBLICATION_RECEIPT_INVALID", "回执缺少目标频道身份。")
-        remote_state = receipt.get("remoteState")
-        if not isinstance(remote_state, dict) or not {"thumbnail", "captions", "processing", "visibility"}.issubset(remote_state):
-            raise ToolError("PUBLICATION_RECEIPT_INVALID", "回执缺少可核验的远端状态。")
+        receipt_source = _read_json(Path(receipt_path_value).resolve())
+        canonical_receipt = receipt_source.get("contractType") == "publication-receipt"
+        if canonical_receipt:
+            self._validate_hashed_document(receipt_source, expected_type="publication-receipt")
+            if receipt_source.get("syntheticFixture") is not None or receipt_source.get("synthetic") is not None:
+                raise ToolError("SYNTHETIC_RECEIPT_FORBIDDEN", "标记为 synthetic 的回执不得进入正式命名空间。")
+            receipt_required = {
+                "receiptId",
+                "publishIntentRef",
+                "projectId",
+                "channelProfileId",
+                "status",
+                "youtubeVideoId",
+                "youtubeUrl",
+                "targetChannel",
+                "uploadedAt",
+                "remoteState",
+            }
+            if not receipt_required.issubset(receipt_source):
+                raise ToolError("PUBLICATION_RECEIPT_INVALID", "Publication Receipt v1 缺少必填字段。")
+            if receipt_source.get("schemaVersion") != "1.0.0" or receipt_source.get("status") != "RECEIPT_COMPLETE":
+                raise ToolError("PUBLICATION_RECEIPT_INVALID", "正式注册只接受完成且版本为 v1 的发布回执。")
+            if receipt_source.get("channelProfileId") != channel_profile_id:
+                raise ToolError("DATA_CROSS_CHANNEL_FORBIDDEN", "发布回执属于其他频道。")
+            video_id = receipt_source.get("youtubeVideoId")
+            if not isinstance(video_id, str) or not REAL_VIDEO_ID.fullmatch(video_id) or FAKE_MARKERS.search(video_id):
+                raise ToolError("SYNTHETIC_VIDEO_ID_FORBIDDEN", "fake/synthetic video ID 不得进入正式命名空间。")
+            if receipt_source.get("youtubeUrl") != f"https://www.youtube.com/watch?v={video_id}":
+                raise ToolError("PUBLICATION_RECEIPT_INVALID", "回执 URL 与 youtube_video_id 不一致。")
+            target = receipt_source.get("targetChannel")
+            if not isinstance(target, dict) or not isinstance(target.get("youtubeChannelId"), str):
+                raise ToolError("PUBLICATION_RECEIPT_INVALID", "回执缺少目标频道身份。")
+            remote_state = receipt_source.get("remoteState")
+            if not isinstance(remote_state, dict) or not {"thumbnail", "captions", "processing", "visibility"}.issubset(remote_state):
+                raise ToolError("PUBLICATION_RECEIPT_INVALID", "回执缺少可核验的远端状态。")
 
         paths = args.get("upstreamDocuments")
         if not isinstance(paths, dict) or set(paths) != set(UPSTREAM_TYPES):
@@ -449,9 +607,18 @@ class DataCenter:
                     "sourcePath": str(Path(value).resolve()),
                 }
             )
-        project_id = receipt.get("projectId")
-        if not isinstance(project_id, str) or not project_id:
-            raise ToolError("PUBLICATION_RECEIPT_INVALID", "回执缺少 projectId。")
+        if canonical_receipt:
+            receipt = receipt_source
+            project_id = receipt.get("projectId")
+            if not isinstance(project_id, str) or not project_id:
+                raise ToolError("PUBLICATION_RECEIPT_INVALID", "回执缺少 projectId。")
+            published_at = _parse_time(receipt.get("uploadedAt"), "uploadedAt")
+        else:
+            receipt, video_id, project_id, published_at = self._normalize_publisher_readback_receipt(
+                receipt_source,
+                channel_profile_id=channel_profile_id,
+                documents=documents,
+            )
         for document in documents.values():
             if document.get("projectId") not in {None, project_id}:
                 raise ToolError("DATA_PROJECT_MISMATCH", "上游项目 ID 与发布回执不一致。")
@@ -465,7 +632,6 @@ class DataCenter:
             or receipt_ref.get("targetHash") != intent.get("contentHash")
         ):
             raise ToolError("PUBLICATION_RECEIPT_HASH_BINDING_INVALID", "发布回执没有哈希绑定所提供的 Publish Intent。")
-        published_at = _parse_time(receipt.get("uploadedAt"), "uploadedAt")
         return receipt, upstream, video_id, project_id, published_at
 
     def _synthetic_registration(self, args: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]], str, str, datetime]:
@@ -542,6 +708,8 @@ class DataCenter:
             }
         )
         registration_path = analytics_root / "baselines" / video_id / "registration-v001.json"
+        receipt_filename = "synthetic-receipt-v001.json" if synthetic else "publication-receipt-v001.json"
+        normalized_receipt_path = analytics_root / "baselines" / video_id / receipt_filename
         existing = connection.execute("SELECT * FROM videos WHERE video_id = ?", (video_id,)).fetchone()
         if existing:
             if existing["receipt_hash"] != receipt.get("contentHash") or existing["project_id"] != project_id:
@@ -555,7 +723,9 @@ class DataCenter:
                 "videoId": video_id,
                 "namespace": namespace,
                 "registrationPath": existing["registration_path"],
+                "publicationReceiptPath": str(normalized_receipt_path),
             }
+        _write_json(normalized_receipt_path, receipt)
         _write_json(registration_path, registration)
         with connection:
             connection.execute(
@@ -587,6 +757,8 @@ class DataCenter:
             "namespace": namespace,
             "registrationPath": str(registration_path),
             "registrationHash": registration["contentHash"],
+            "publicationReceiptPath": str(normalized_receipt_path),
+            "publicationReceiptHash": receipt.get("contentHash"),
             "schedule": {checkpoint: _iso(published_at + offset) for checkpoint, offset in CHECKPOINTS.items()},
         }
 
