@@ -9,7 +9,7 @@
     { "capability": "technical-license-inventories", "localStatus": "TECHNICALLY_VALIDATED", "realStatus": "RELEASE_OWNER_LEGAL_APPROVAL_REQUIRED", "syntheticMaySatisfy": false },
     { "capability": "transaction-upgrade-repair-rollback-uninstall", "localStatus": "PROVABLE", "realStatus": "CLEAN_MACHINE_RECHECK_REQUIRED", "syntheticMaySatisfy": false },
     { "capability": "no-python-no-uv-unicode-spaces", "localStatus": "PROVABLE_BY_PATH_SIMULATION", "realStatus": "ANOTHER_CLEAN_WINDOWS_REQUIRED", "syntheticMaySatisfy": false },
-    { "capability": "windows-sandbox-winps51-mcp-utf8-stdin", "localStatus": "FIX_IMPLEMENTED_LOCAL_WINPS51_INTEGRATION_PASS", "realStatus": "ATTEMPT_5_FAILED_CONTROLLED_RERUN_REQUIRED", "syntheticMaySatisfy": false },
+    { "capability": "windows-sandbox-winps51-mcp-jsonl-file-relay", "localStatus": "FILE_RELAY_FIX_IMPLEMENTED_LOCAL_WINPS51_INTEGRATION_PASS", "realStatus": "ATTEMPT_7_FAILED_WAITING_FOR_RERUN", "syntheticMaySatisfy": false },
     { "capability": "codex-plugin-load", "localStatus": "STRUCTURE_PROVABLE", "realStatus": "RESTART_AND_NEW_TASK_REQUIRED", "syntheticMaySatisfy": false },
     { "capability": "workshop-real-production", "localStatus": "UPSTREAM_FROZEN_REPORT_ONLY", "realStatus": "APPROVED_REAL_SERVICE_SMOKE_REQUIRED", "syntheticMaySatisfy": false },
     { "capability": "youtube-oauth", "localStatus": "NOT_EXECUTED", "realStatus": "EXPLICIT_APPROVAL_REQUIRED", "syntheticMaySatisfy": false },

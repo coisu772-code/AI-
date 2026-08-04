@@ -145,53 +145,81 @@ if (-not $SkipServiceCheck) {
         $installedPython = [System.IO.Path]::GetFullPath((Join-Path $pluginFull "..\..\runtime\python\python.exe"))
         $legacyPython = Join-Path $env:LOCALAPPDATA "AI Video Channel Production\current\runtime\python\python.exe"
         $fileName = $null
-        $argumentText = $null
+        $useUv = $false
         if (-not [string]::IsNullOrWhiteSpace($configuredPython) -and (Test-Path -LiteralPath $configuredPython -PathType Leaf)) {
             $fileName = $configuredPython
-            $argumentText = '"' + $serverScript.Replace('"', '\"') + '" mcp'
         }
         elseif (Test-Path -LiteralPath $installedPython -PathType Leaf) {
             $fileName = $installedPython
-            $argumentText = '"' + $serverScript.Replace('"', '\"') + '" mcp'
         }
         elseif (Test-Path -LiteralPath $legacyPython -PathType Leaf) {
             $fileName = $legacyPython
-            $argumentText = '"' + $serverScript.Replace('"', '\"') + '" mcp'
         }
         else {
             $uv = Get-Command uv -ErrorAction SilentlyContinue
             if ($null -eq $uv) { throw "Installation health check failed: no compatible Python runtime or uv was found." }
             $fileName = $uv.Source
-            $argumentText = 'run --no-project python "' + $serverScript.Replace('"', '\"') + '" mcp'
+            $useUv = $true
         }
-        $info = New-Object System.Diagnostics.ProcessStartInfo
-        $info.FileName = $fileName
-        $info.Arguments = $argumentText
-        $info.WorkingDirectory = $pluginFull
-        $info.UseShellExecute = $false
-        $info.CreateNoWindow = $true
-        $info.RedirectStandardInput = $true
-        $info.RedirectStandardOutput = $true
-        $info.RedirectStandardError = $true
+
         $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
-        if ($null -ne $info.PSObject.Properties["StandardInputEncoding"]) {
-            $info.StandardInputEncoding = $utf8NoBom
+        $relayRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("aivcp-mcp-file-relay-" + [guid]::NewGuid().ToString("N"))
+        $requestPath = Join-Path $relayRoot "request.jsonl"
+        $relayPath = Join-Path $relayRoot "relay.py"
+        $relayCode = @'
+import pathlib
+import subprocess
+import sys
+
+payload = pathlib.Path(sys.argv[2]).read_bytes()
+completed = subprocess.run(
+    [sys.executable, sys.argv[1], "mcp"],
+    input=payload,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    check=False,
+)
+sys.stdout.buffer.write(completed.stdout)
+sys.stderr.buffer.write(completed.stderr)
+raise SystemExit(completed.returncode)
+'@
+        New-Item -ItemType Directory -Path $relayRoot -Force | Out-Null
+        try {
+            [System.IO.File]::WriteAllText($requestPath, $RequestText + "`n", $utf8NoBom)
+            [System.IO.File]::WriteAllText($relayPath, $relayCode, [System.Text.Encoding]::ASCII)
+            $quotedRelay = '"' + $relayPath.Replace('"', '\"') + '"'
+            $quotedServer = '"' + $serverScript.Replace('"', '\"') + '"'
+            $quotedRequest = '"' + $requestPath.Replace('"', '\"') + '"'
+            $argumentText = if ($useUv) {
+                "run --no-project python $quotedRelay $quotedServer $quotedRequest"
+            }
+            else {
+                "$quotedRelay $quotedServer $quotedRequest"
+            }
+            $info = New-Object System.Diagnostics.ProcessStartInfo
+            $info.FileName = $fileName
+            $info.Arguments = $argumentText
+            $info.WorkingDirectory = $pluginFull
+            $info.UseShellExecute = $false
+            $info.CreateNoWindow = $true
+            $info.RedirectStandardOutput = $true
+            $info.RedirectStandardError = $true
+            $info.StandardOutputEncoding = $utf8NoBom
+            $info.StandardErrorEncoding = $utf8NoBom
+            $process = New-Object System.Diagnostics.Process
+            $process.StartInfo = $info
+            if (-not $process.Start()) { throw "Installation health check failed: local tool relay process did not start." }
+            $stdout = $process.StandardOutput.ReadToEnd()
+            $stderr = $process.StandardError.ReadToEnd()
+            $process.WaitForExit()
+            if ($process.ExitCode -ne 0) { throw "Installation health check failed: local tool relay exited with $($process.ExitCode): $($stderr.Substring(0, [Math]::Min(400, $stderr.Length)))" }
+            return $stdout
         }
-        $info.StandardOutputEncoding = $utf8NoBom
-        $info.StandardErrorEncoding = $utf8NoBom
-        $process = New-Object System.Diagnostics.Process
-        $process.StartInfo = $info
-        if (-not $process.Start()) { throw "Installation health check failed: local tool service process did not start." }
-        $inputBytes = $utf8NoBom.GetBytes($RequestText + "`n")
-        $inputStream = $process.StandardInput.BaseStream
-        $inputStream.Write($inputBytes, 0, $inputBytes.Length)
-        $inputStream.Flush()
-        $inputStream.Close()
-        $stdout = $process.StandardOutput.ReadToEnd()
-        $stderr = $process.StandardError.ReadToEnd()
-        $process.WaitForExit()
-        if ($process.ExitCode -ne 0) { throw "Installation health check failed: local tool service exited with $($process.ExitCode): $($stderr.Substring(0, [Math]::Min(400, $stderr.Length)))" }
-        return $stdout
+        finally {
+            if (Test-Path -LiteralPath $relayRoot) {
+                Remove-Item -LiteralPath $relayRoot -Recurse -Force
+            }
+        }
     }
     $request = '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
     $responseText = Invoke-AivcpHealthRequest $request

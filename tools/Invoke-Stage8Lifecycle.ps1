@@ -109,7 +109,7 @@ try {
     $summary = [ordered]@{
         schemaVersion="1.0.0"; status="PASS"; offlineInstall=$true; fakeOnlineInstall=$true; singleFileOnlineEntry=$true; versionLockedManifestDownload=$true; noPreinstalledPython=$true; noPreinstalledUv=$true
         unicodeAndSpacesPath=$true; idempotentInstall=$true; tamperRejected=$true; injectedFailureRollback=$true; upgradeEntry=$true; explicitRollback=$true; repair=$true
-        missingCodexGuidance=$true; windowsPowerShellMcpNoBomUtf8Health=$true; sandboxAttempt5RerunRequired=$true
+        missingCodexGuidance=$true; windowsPowerShellMcpNoBomJsonlFileRelayHealth=$true; sandboxAttempt7RerunRequired=$true
         uninstallPreservedData=$true; externalActionsExecuted=$false; formalProgramTouched=$false; userDataSentinel=$sentinel
     }
     $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $evidence "lifecycle-summary.json") -Encoding UTF8

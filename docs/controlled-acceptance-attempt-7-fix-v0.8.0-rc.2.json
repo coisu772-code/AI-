@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "1.0.0",
+  "productVersion": "0.8.0-rc.2",
+  "status": "FIX_IMPLEMENTED_LOCAL_VALIDATION_PENDING_CONTROLLED_SANDBOX_RERUN",
+  "sandboxAttempt": {
+    "id": "windows-sandbox-attempt-7",
+    "status": "FAIL",
+    "environment": "Windows 11 Enterprise 22621; Windows PowerShell 5.1; no Python/py/uv; network disabled",
+    "evidenceFile": "clean-windows-sandbox-result.json",
+    "evidenceSizeBytes": 36632,
+    "evidenceSha256": "05e806c73ab2eff8e6ec27cd89151464300d46fbcc8b05f2a3d341b7130c6ec9",
+    "failure": "MCP tools/list returned JSON-RPC -32700 Parse error and installation rolled back even though the package contained the prior BaseStream workaround.",
+    "rootCause": "Windows PowerShell 5.1 inserted UTF-8 BOM bytes merely by materializing the redirected input object; a raw probe intended as 58 0a reached Python as ef bb bf 58 0a.",
+    "rawStdinProbeHex": "efbbbf580a",
+    "fileRelay": {
+      "exitCode": 0,
+      "stderrEmpty": true,
+      "toolsListSucceeded": true
+    }
+  },
+  "fix": {
+    "transport": "Create a unique temporary directory, write one no-BOM UTF-8 JSONL request file and one fixed ASCII Python relay, then execute only the relay with redirected output and error streams.",
+    "relay": "The selected Python runs relay.py; relay.py invokes the same interpreter and strict server.py mcp process with subprocess.run(input=request_file.read_bytes()).",
+    "uvFallback": "uv run --no-project python relay.py server.py request.jsonl",
+    "powershellInputRedirectionOrAccess": false,
+    "temporaryDirectoryCleanedInFinally": true,
+    "parserRelaxed": false
+  },
+  "localRegression": {
+    "staticForbiddenTokenGate": {
+      "status": "PASS",
+      "forbiddenInHealthRequestPath": ["RedirectStandardInput", "StandardInput", "BaseStream", "WriteLine"]
+    },
+    "windowsPowerShell51RealMcpSubprocess": "PASS",
+    "requiredCalls": ["tools/list", "content_capabilities", "production_capabilities", "data_center_capabilities"],
+    "packagedRuntimeEvidence": "mcp-file-relay-validation.json"
+  },
+  "invalidatedCandidate": {
+    "implementationSourceCommit": "511954e008e097bccb679ba53b3455aed35554cf",
+    "status": "INVALID_DO_NOT_RELEASE_AS_A_SET",
+    "assets": [
+      { "fileName": "AI-Video-Channel-Production-Unified-Installer-v0.8.0-rc.2.zip", "sizeBytes": 9242, "sha256": "69099e4e5880d253d8d5d8161acabfa59266dfb2d65396178d31b7ef98cac48c" },
+      { "fileName": "ai-video-channel-production-core-v0.8.0-rc.2-windows.zip", "sizeBytes": 364153, "sha256": "c00c49491857e4737ab71a371030136beac923dc3c99682ab9111b15f57862e4" },
+      { "fileName": "unified-release-v0.8.0-rc.2.json", "sizeBytes": 7107, "sha256": "cd6fdda0c8cc2526e3a7bb8f024afaefa2a2a169d3bfc42507dc5092b4c3e514" },
+      { "fileName": "SHA256SUMS.txt", "sizeBytes": 724, "sha256": "99a9a440a8f38a5e0ff1c33ea91b255c07eceb11847738afea464556554ab76e" }
+    ],
+    "frozenComponentsReusableAfterRevalidation": ["python-runtime", "workshop", "publisher-center"]
+  },
+  "controlledSandboxRerun": {
+    "executed": false,
+    "required": true,
+    "status": "WAITING_FOR_RERUN",
+    "mayBeMarkedPassByLocalSimulation": false
+  },
+  "externalActionsExecuted": false
+}

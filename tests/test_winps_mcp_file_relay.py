@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @unittest.skipUnless(os.name == "nt" and shutil.which("powershell"), "Windows PowerShell integration requires Windows")
-class WindowsPowerShellMcpStdinTests(unittest.TestCase):
-    def test_real_mcp_tools_and_capabilities_accept_no_bom_utf8_stdin(self) -> None:
+class WindowsPowerShellMcpFileRelayTests(unittest.TestCase):
+    def test_real_mcp_tools_and_capabilities_accept_no_bom_jsonl_file_relay(self) -> None:
         completed = subprocess.run(
             [
                 shutil.which("powershell") or "powershell",
@@ -23,7 +23,7 @@ class WindowsPowerShellMcpStdinTests(unittest.TestCase):
                 "-ExecutionPolicy",
                 "Bypass",
                 "-File",
-                str(ROOT / "tools/Test-McpUtf8Stdin.ps1"),
+                str(ROOT / "tools/Test-McpFileRelay.ps1"),
                 "-PythonExecutable",
                 sys.executable,
                 "-ServerScript",
@@ -39,9 +39,15 @@ class WindowsPowerShellMcpStdinTests(unittest.TestCase):
         report = json.loads(completed.stdout.lstrip("\ufeff"))
         self.assertEqual("PASS", report["status"])
         self.assertTrue(report["powershell"]["desktop51"])
-        self.assertEqual(0, report["stdin"]["preambleBytes"])
-        self.assertTrue(report["stdin"]["rawBaseStreamWrite"])
-        self.assertEqual("PASS", report["stdin"]["unicodeJsonProbe"])
+        self.assertEqual("NO_BOM_JSONL_FILE_PYTHON_RELAY", report["transport"]["mode"])
+        self.assertEqual([0, 0, 0, 0], report["transport"]["requestPreambleBytes"])
+        self.assertFalse(report["transport"]["powershellInputRedirection"])
+        self.assertFalse(report["transport"]["powershellInputObjectAccess"])
+        self.assertEqual("PASS", report["transport"]["unicodeJsonProbe"])
+        self.assertEqual(0, report["fileRelay"]["exitCode"])
+        self.assertEqual([0, 0, 0, 0], report["fileRelay"]["exitCodes"])
+        self.assertEqual("efbbbf580a", report["controlledRootCauseEvidence"]["rawStdinProbeHex"])
+        self.assertEqual(0, report["controlledRootCauseEvidence"]["fileRelay"]["exitCode"])
         self.assertEqual(
             {"content_capabilities", "production_capabilities", "data_center_capabilities"},
             set(report["toolsList"]["required"]),

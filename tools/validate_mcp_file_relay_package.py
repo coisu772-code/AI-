@@ -35,7 +35,7 @@ def extract_safe(archive_path: Path, destination: Path) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate packaged MCP with WinPS no-BOM UTF-8 stdin")
+    parser = argparse.ArgumentParser(description="Validate packaged MCP with WinPS no-BOM JSONL file relay")
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--asset-root", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
@@ -52,7 +52,7 @@ def main() -> int:
     powershell = shutil.which("powershell")
     if not powershell:
         raise RuntimeError("Windows PowerShell is unavailable")
-    with tempfile.TemporaryDirectory(prefix="aivcp-packaged-mcp-stdin-") as temporary_name:
+    with tempfile.TemporaryDirectory(prefix="aivcp-packaged-mcp-file-relay-") as temporary_name:
         temporary = Path(temporary_name)
         extract_safe(selected["core"], temporary)
         extract_safe(selected["python-runtime"], temporary)
@@ -65,7 +65,7 @@ def main() -> int:
             "-ExecutionPolicy",
             "Bypass",
             "-File",
-            str(root / "tools/Test-McpUtf8Stdin.ps1"),
+            str(root / "tools/Test-McpFileRelay.ps1"),
             "-PythonExecutable",
             str(python_executable),
             "-ServerScript",
@@ -77,11 +77,22 @@ def main() -> int:
             raise RuntimeError(f"packaged MCP validation wrote stderr: {completed.stderr}")
         powershell_report = json.loads(completed.stdout.lstrip("\ufeff"))
     if powershell_report.get("status") != "PASS":
-        raise RuntimeError("packaged MCP stdin validation failed")
-    if powershell_report.get("stdin", {}).get("preambleBytes") != 0 or not powershell_report.get("stdin", {}).get("rawBaseStreamWrite"):
-        raise RuntimeError("packaged MCP stdin was not written as raw no-BOM UTF-8")
+        raise RuntimeError("packaged MCP file-relay validation failed")
+    transport = powershell_report.get("transport", {})
+    if (
+        transport.get("mode") != "NO_BOM_JSONL_FILE_PYTHON_RELAY"
+        or any(transport.get("requestPreambleBytes", [-1]))
+        or transport.get("powershellInputRedirection")
+        or transport.get("powershellInputObjectAccess")
+    ):
+        raise RuntimeError("packaged MCP did not use the no-BOM JSONL file relay")
+    if powershell_report.get("fileRelay", {}).get("exitCode") != 0:
+        raise RuntimeError("packaged MCP file relay did not exit successfully")
     if not powershell_report.get("powershell", {}).get("desktop51"):
         raise RuntimeError("packaged MCP validation did not run under Windows PowerShell 5.1")
+    root_cause = powershell_report.get("controlledRootCauseEvidence", {})
+    if root_cause.get("rawStdinProbeHex") != "efbbbf580a" or root_cause.get("fileRelay", {}).get("exitCode") != 0:
+        raise RuntimeError("attempt-7 root-cause evidence was not preserved")
     report = {
         "schemaVersion": "1.0.0",
         "status": "PASS",
@@ -90,7 +101,7 @@ def main() -> int:
             for asset_id, path in selected.items()
         },
         "powershellIntegration": powershell_report,
-        "sandboxAttempt5": "FAIL_FIX_REQUIRES_CONTROLLED_RERUN",
+        "sandboxAttempt7": "FAIL_FIXED_LOCALLY_WAITING_FOR_CONTROLLED_RERUN",
         "externalActionsExecuted": False,
     }
     args.report.resolve().write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")

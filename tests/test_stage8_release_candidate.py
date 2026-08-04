@@ -122,14 +122,18 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
         self.assertIn("manual step", installer)
         self.assertIn("preserve user data", uninstall.lower())
 
-    def test_health_script_writes_strict_no_bom_utf8_mcp_stdin(self) -> None:
+    def test_health_script_uses_strict_no_bom_jsonl_file_relay(self) -> None:
         health = (ROOT / "installer/Test-AIVideoChannelProductionHealth.ps1").read_text(encoding="utf-8")
         server = (ROOT / "plugins/ai-video-channel-production/mcp/server.py").read_text(encoding="utf-8")
-        self.assertIn('$info.PSObject.Properties["StandardInputEncoding"]', health)
-        self.assertIn("$info.StandardInputEncoding = $utf8NoBom", health)
-        self.assertIn("$process.StandardInput.BaseStream", health)
-        self.assertIn("$utf8NoBom.GetBytes", health)
-        self.assertNotIn("$process.StandardInput.WriteLine", health)
+        for forbidden in ("RedirectStandardInput", "StandardInput", "BaseStream", "WriteLine"):
+            self.assertNotIn(forbidden, health)
+        self.assertIn('("aivcp-mcp-file-relay-" + [guid]::NewGuid().ToString("N"))', health)
+        self.assertIn('[System.IO.File]::WriteAllText($requestPath, $RequestText + "`n", $utf8NoBom)', health)
+        self.assertIn('[System.IO.File]::WriteAllText($relayPath, $relayCode, [System.Text.Encoding]::ASCII)', health)
+        self.assertIn("completed = subprocess.run(", health)
+        self.assertIn("input=payload", health)
+        self.assertIn('"run --no-project python $quotedRelay $quotedServer $quotedRequest"', health)
+        self.assertIn("Remove-Item -LiteralPath $relayRoot -Recurse -Force", health)
         self.assertIn('raw_line.decode("utf-8")', server)
         self.assertIn("json.loads", server)
         self.assertIn("UnicodeDecodeError", server)
