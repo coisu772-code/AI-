@@ -2,16 +2,28 @@
   "schemaVersion": "1.0.0",
   "productVersion": "0.8.0-rc.2",
   "overallStatus": "WAITING_FOR_CONTROLLED_REAL_ACCEPTANCE",
-  "operationsExecutedByStage8C": false,
+  "externalOperationsExecutedByStage8C": false,
+  "localEvidenceCompletedByStage8C": true,
   "gates": [
-    { "id": "final-local-commit-binding", "owner": "main-thread", "executed": false, "evidenceRequired": "Replace manifest commit placeholders and rebuild twice." },
-    { "id": "publisher-third-party-notices", "owner": "legal-release-owner", "executed": false, "evidenceRequired": "Review dependencies and provide required notices; current ZIP has no standalone notice file." },
-    { "id": "clean-windows-install", "owner": "release-owner", "executed": false, "evidenceRequired": "Fresh Windows 10/11 x64 machine with no Python or uv." },
-    { "id": "code-signing-publisher-identity", "owner": "release-owner", "executed": false, "evidenceRequired": "Approved signing and Windows reputation evidence." },
-    { "id": "github-release-publication", "owner": "main-thread", "executed": false, "evidenceRequired": "Explicit authorization for tag/push/Release and exact manifest hash." },
-    { "id": "google-youtube-oauth", "owner": "channel-owner", "executed": false, "evidenceRequired": "Least-privilege OAuth approval on a controlled account." },
-    { "id": "real-private-youtube-upload", "owner": "channel-owner", "executed": false, "evidenceRequired": "Controlled private upload, real video ID and publication receipt." },
-    { "id": "youtube-studio-private-data", "owner": "channel-owner", "executed": false, "evidenceRequired": "Approved Studio/Analytics data collection and redacted report." },
-    { "id": "long-term-learning-write", "owner": "channel-owner", "executed": false, "evidenceRequired": "Separate decision record and bounded write-back audit." }
+    {
+      "id": "implementation-source-binding",
+      "classification": "local-evidence",
+      "owner": "stage8c",
+      "executed": true,
+      "evidence": {
+        "implementationSourceCommitSha": "7a6bfa9f438a72e1f613f5b32b5f8d551be563e5",
+        "boundAssetIds": ["unified-installer", "core"],
+        "manifestPlaceholdersRemaining": false,
+        "verification": "Two deterministic builds plus manifest validation and release dry-run."
+      }
+    },
+    { "id": "publisher-third-party-notices", "classification": "external-approval", "owner": "legal-release-owner", "executed": false, "evidenceRequired": "Review dependencies and provide required notices; current ZIP has no standalone notice file." },
+    { "id": "clean-windows-install", "classification": "external-approval", "owner": "release-owner", "executed": false, "evidenceRequired": "Fresh Windows 10/11 x64 machine with no Python or uv." },
+    { "id": "code-signing-publisher-identity", "classification": "external-approval", "owner": "release-owner", "executed": false, "evidenceRequired": "Approved signing and Windows reputation evidence." },
+    { "id": "github-release-publication", "classification": "external-approval", "owner": "main-thread", "executed": false, "evidenceRequired": "Explicit authorization for the pre-existing tag and GitHub Release; verify that the tag resolves to the bound implementation/source history." },
+    { "id": "google-youtube-oauth", "classification": "external-approval", "owner": "channel-owner", "executed": false, "evidenceRequired": "Least-privilege OAuth approval on a controlled account." },
+    { "id": "real-private-youtube-upload", "classification": "external-approval", "owner": "channel-owner", "executed": false, "evidenceRequired": "Controlled private upload, real video ID and publication receipt." },
+    { "id": "youtube-studio-private-data", "classification": "external-approval", "owner": "channel-owner", "executed": false, "evidenceRequired": "Approved Studio/Analytics data collection and redacted report." },
+    { "id": "long-term-learning-write", "classification": "external-approval", "owner": "channel-owner", "executed": false, "evidenceRequired": "Separate decision record and bounded write-back audit." }
   ]
 }

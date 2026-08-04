@@ -13,6 +13,9 @@
 - 隔离生命周期实际覆盖：单文件伪在线清单下载、完全离线、无 Python/uv、中文/空格路径、重复安装、篡改拒绝、升级、故障回滚、显式回滚、修复、Codex CLI 缺失说明、卸载保留数据。
 - 日/中/英三市场 recorded-synthetic 链通过；网络执行、OAuth、真实上传、真实回执、Studio 私有数据与长期学习写回均为 false。
 - 本地发布脚本 dry-run 通过；CI 只有只读源码预检，不能自动发布缺少桌面资产的 Release。
+- 统一入口和核心资产已绑定 implementation/source commit `7a6bfa9f438a72e1f613f5b32b5f8d551be563e5`；总清单不存在 commit 占位，发布预检会拒绝占位清单。此项是已完成的本地证据，不是外部批准门。
+
+后续提交只更新绑定工具、报告或验收元数据，属于 metadata commits；机器报告记录当前 metadata HEAD，但不把报告文件哈希或当前 HEAD 反写进自身，因此没有自绑定循环。
 
 ## 许可证边界
 
@@ -20,4 +23,4 @@
 
 ## 尚需外部批准/环境
 
-另一台干净 Windows 安装、代码签名与发布者身份、最终 commit 绑定、GitHub Release、Google/YouTube OAuth、受控 private 上传与真实回执、Studio 私有数据、正式工坊真实服务烟测和长期学习写回，均不能由本地合成结果代替。机器批准清单和真实验收矩阵分别见 `final-acceptance-approval-checklist-v0.8.0-rc.2.json` 与 `real-acceptance-matrix-v0.8.0-rc.2.json`。
+另一台干净 Windows 安装、代码签名与发布者身份、预先存在的发布 tag 到已绑定源码历史的核对、GitHub Release、Google/YouTube OAuth、受控 private 上传与真实回执、Studio 私有数据、正式工坊真实服务烟测和长期学习写回，均不能由本地合成结果代替。机器批准清单和真实验收矩阵分别见 `final-acceptance-approval-checklist-v0.8.0-rc.2.json` 与 `real-acceptance-matrix-v0.8.0-rc.2.json`。
