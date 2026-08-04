@@ -26,10 +26,10 @@ def current_manifest_path() -> Path:
 
 def validate_release_manifest(manifest_path: Path | None = None) -> list[str]:
     plugin = load_json(ROOT / "plugins" / "ai-video-channel-production" / ".codex-plugin" / "plugin.json")
-    if plugin.get("version") == "0.8.0-rc.2" and manifest_path is None:
-        selected = ROOT / "release-manifests" / "unified-release-v0.8.0-rc.2.json"
+    if plugin.get("version") == "0.9.0-rc.1" and manifest_path is None:
+        selected = ROOT / "release-manifests" / "unified-release-v0.9.0-rc.1.json"
         if not selected.is_file():
-            return ["unified-release-v0.8.0-rc.2.json is missing"]
+            return ["unified-release-v0.9.0-rc.1.json is missing"]
         manifest = load_json(selected)
         schema = load_json(ROOT / "release-manifests" / "unified-release-manifest.schema.json")
         errors = []
@@ -47,7 +47,7 @@ def validate_release_manifest(manifest_path: Path | None = None) -> list[str]:
         source = publisher.get("source", {})
         if source.get("commit") != "e6350fd290e2e75782334d712ba01ad0411a1efd":
             errors.append("publisher source commit is not locked to the final candidate")
-        if source.get("componentManifest", {}).get("sha256") != "ead48c9c0c234512ab16ef978d35e2f1dc15c6332b298d0513b2d784548514b8":
+        if source.get("componentManifest", {}).get("sha256") != "9a9de05c3171c515952ae5bbf43606c96670ef5903b1a0e11f8704cab3d16b36":
             errors.append("publisher component manifest is not locked")
         if source.get("constraintsCatalog", {}).get("sha256") != "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13":
             errors.append("publisher constraints catalog is not locked")

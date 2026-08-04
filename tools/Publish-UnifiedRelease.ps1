@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$AssetRoot,
-    [string]$Tag = "v0.8.0-rc.2",
+    [string]$Tag = "v0.9.0-rc.1",
     [switch]$Execute,
     [string]$ApprovalFile
 )
@@ -9,7 +9,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $assetFull = [System.IO.Path]::GetFullPath($AssetRoot)
-$manifestPath = Join-Path $assetFull "unified-release-v0.8.0-rc.2.json"
+$manifestPath = Join-Path $assetFull "unified-release-v0.9.0-rc.1.json"
 $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
 if ((Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8).Contains("LOCAL_COMMIT_TO_BE_RECORDED")) { throw "Release manifest still contains an unbound source commit placeholder." }
 $boundSourceCommits = @(
@@ -49,9 +49,9 @@ $tagCommit = (& git -C $repositoryRoot rev-list -n 1 $Tag).Trim()
 if ($LASTEXITCODE -ne 0 -or $tagCommit -ne $boundSourceCommit) { throw "The approved tag does not resolve to the bound implementation/source commit; this script will not create or push tags." }
 $releaseFiles = New-Object System.Collections.Generic.List[string]
 foreach ($asset in @($manifest.assets)) { $releaseFiles.Add((Join-Path $assetFull ([string]$asset.fileName))) }
-foreach ($metadataName in @("unified-release-v0.8.0-rc.2.json", "SHA256SUMS.txt")) {
+foreach ($metadataName in @("unified-release-v0.9.0-rc.1.json", "SHA256SUMS.txt")) {
     $metadataPath = Join-Path $assetFull $metadataName
     if (Test-Path -LiteralPath $metadataPath -PathType Leaf) { $releaseFiles.Add($metadataPath) }
 }
-& $gh.Source release create $Tag @releaseFiles --verify-tag --prerelease --latest=false --title "AI Video Channel Production $Tag" --notes-file (Join-Path $repositoryRoot "docs\release-notes-v0.8.0-rc.2.md")
+& $gh.Source release create $Tag @releaseFiles --verify-tag --prerelease --latest=false --title "AI Video Channel Production $Tag" --notes-file (Join-Path $repositoryRoot "docs\release-notes-v0.9.0-rc.1.md")
 if ($LASTEXITCODE -ne 0) { throw "GitHub Release creation failed. No push or tag creation was attempted." }

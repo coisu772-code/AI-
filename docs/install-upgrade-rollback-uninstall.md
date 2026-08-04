@@ -8,7 +8,7 @@
 
 ## 安装入口和路径
 
-联网用户只下载统一安装器 ZIP，解压后双击 `install.cmd`。若同目录没有总清单，入口只从版本锁定的 `v0.8.0-rc.2` HTTPS Release URL 获取它，先校验 schema、产品和精确版本，再下载缺失资产；不使用 `latest`。完全离线时，把总清单和四个组件 ZIP 放在 `install.cmd` 同目录。
+联网用户只下载统一安装器 ZIP，解压后双击 `install.cmd`。若同目录没有总清单，入口只从版本锁定的 `v0.9.0-rc.1` HTTPS Release URL 获取它，先校验 schema、产品和精确版本，再下载缺失资产；不使用 `latest`。完全离线时，把总清单和四个组件 ZIP 放在 `install.cmd` 同目录。
 
 默认程序根是 `%LOCALAPPDATA%\AIVCP`，默认数据根是 `%LOCALAPPDATA%\AI Video Channel Production Data`。旧 `%LOCALAPPDATA%\AI Video Channel Production\data` 只作为既有用户数据保留，不自动迁移、删除或覆盖。程序根与数据根始终分离。
 

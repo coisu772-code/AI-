@@ -32,7 +32,7 @@ from validate_unified_release import safe_zip_entries  # noqa: E402
 
 class Stage8UnifiedReleaseTests(unittest.TestCase):
     def manifest(self) -> dict[str, object]:
-        return json.loads((ROOT / "release-manifests/unified-release-v0.8.0-rc.2.json").read_text(encoding="utf-8"))
+        return json.loads((ROOT / f"release-manifests/unified-release-v{VERSION}.json").read_text(encoding="utf-8"))
 
     def test_rc2_identity_and_repository_marketplace(self) -> None:
         plugin = json.loads((ROOT / "plugins/ai-video-channel-production/.codex-plugin/plugin.json").read_text(encoding="utf-8"))
@@ -63,7 +63,7 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
         assets = {asset["assetId"]: asset for asset in self.manifest()["assets"]}
         self.assertEqual((WORKSHOP_NAME, WORKSHOP_SIZE, WORKSHOP_SHA), (assets["workshop"]["fileName"], assets["workshop"]["sizeBytes"], assets["workshop"]["sha256"]))
         self.assertEqual((PUBLISHER_NAME, PUBLISHER_SIZE, PUBLISHER_SHA), (assets["publisher-center"]["fileName"], assets["publisher-center"]["sizeBytes"], assets["publisher-center"]["sha256"]))
-        self.assertEqual("CANDIDATE_READY_FOR_CONTROLLED_REAL_ACCEPTANCE", assets["publisher-center"]["source"]["acceptanceStatus"])
+        self.assertEqual("PUBLISHED_COMPONENT_REUSED_AFTER_HASH_REVALIDATION", assets["publisher-center"]["source"]["acceptanceStatus"])
         self.assertEqual(PUBLISHER_SOURCE_COMMIT, assets["publisher-center"]["source"]["commit"])
         self.assertEqual(PUBLISHER_COMPONENT_MANIFEST_SHA, assets["publisher-center"]["source"]["componentManifest"]["sha256"])
         self.assertEqual(PUBLISHER_CONSTRAINTS_SHA, assets["publisher-center"]["source"]["constraintsCatalog"]["sha256"])
@@ -121,7 +121,7 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
             self.assertIn(marker, installer)
         self.assertIn("Invoke-WebRequest", common)
         self.assertIn("Asset SHA-256 mismatch", common)
-        self.assertIn("releases/download/v0.8.0-rc.2/unified-release-v0.8.0-rc.2.json", installer)
+        self.assertIn(f"releases/download/v{VERSION}/unified-release-v{VERSION}.json", installer)
         self.assertNotIn("/latest/", installer)
         self.assertIn("AllowInsecureTestTransport", installer)
         self.assertIn("manual step", installer)

@@ -13,10 +13,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.8.0-rc.2"
+VERSION = "0.9.0-rc.1"
 PYTHON_VERSION = "3.12.13"
 PYTHON_BUILD = "20260610"
-FIXED_TIME = (2026, 8, 4, 0, 0, 0)
+FIXED_TIME = (2026, 8, 5, 0, 0, 0)
 TEXT_SUFFIXES = {".cmd", ".json", ".md", ".ps1", ".py", ".txt", ".yaml", ".yml"}
 EXACT_BYTE_TEXT_PATHS = {"contracts/youtube-constraints/catalog-2026.08.04.1.json"}
 RUNTIME_LICENSE_NAME_MARKERS = ("license", "copying", "notice", "copyright", "patent", "authors")
@@ -27,17 +27,20 @@ BOOTSTRAP_FILES = (
     "installer/Install-AIVideoChannelProduction.ps1",
     "installer/install.cmd",
 )
-WORKSHOP_NAME = "Z-Manga-Workshop-2.1.0-stage5-for-AIVCP-0.8.0-rc.1-windows-x64-portable.zip"
-WORKSHOP_SHA = "7a9cb4562e3c82606436ad76d1620a1fa1d59a652deb9f46be01cccad5085167"
-WORKSHOP_SIZE = 82990897
-WORKSHOP_ROOT = "Z-Manga-Workshop-2.1.0-stage5-for-AIVCP-0.8.0-rc.1-windows-x64-portable"
+WORKSHOP_VERSION = "2.2.0-rc.1"
+WORKSHOP_NAME = "Z-Manga-Workshop-2.2.0-rc.1-for-AIVCP-0.9.0-rc.1-windows-x64-portable.zip"
+WORKSHOP_SHA = "6516228eb482af0b5453b12d6bc7cf37bf3ace1f1d4d10461d4e8824545f5a2a"
+WORKSHOP_SIZE = 82504081
+WORKSHOP_ROOT = "Z-Manga-Workshop-2.2.0-rc.1-for-AIVCP-0.9.0-rc.1-windows-x64-portable"
+WORKSHOP_SOURCE_COMMIT = "6913232984b78bf9600c0f95d4beaff22b11ec6b"
+PUBLISHER_VERSION = "0.8.0-rc.2"
 PUBLISHER_NAME = "youtube-publisher-center-v0.8.0-rc.2-windows-amd64.zip"
 PUBLISHER_SHA = "8d2644c11310fd5ee31f6e39250f75a000ccf038cd8c35a9eed8f0f23388c48d"
 PUBLISHER_SIZE = 32585503
 PUBLISHER_ROOT = "youtube-publisher-center-v0.8.0-rc.2-windows-amd64"
 PUBLISHER_SOURCE_COMMIT = "e6350fd290e2e75782334d712ba01ad0411a1efd"
 PUBLISHER_COMPONENT_MANIFEST_NAME = "publisher-component-manifest-v0.8.0-rc.2.json"
-PUBLISHER_COMPONENT_MANIFEST_SHA = "ead48c9c0c234512ab16ef978d35e2f1dc15c6332b298d0513b2d784548514b8"
+PUBLISHER_COMPONENT_MANIFEST_SHA = "9a9de05c3171c515952ae5bbf43606c96670ef5903b1a0e11f8704cab3d16b36"
 PUBLISHER_CONSTRAINTS_SHA = "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13"
 
 
@@ -80,8 +83,8 @@ def excluded(path: Path, relative: str) -> bool:
         or path.suffix.lower() == ".pyc"
         or relative.startswith("docs/phase") and "validation" in path.name.lower()
         or relative == "docs/baseline-inventory-2026-08-03.md"
-        or relative == "docs/final-acceptance-approval-checklist-v0.8.0-rc.2.json"
-        or relative == "release-manifests/unified-release-v0.8.0-rc.2.json"
+        or relative.startswith("docs/final-acceptance-approval-checklist-v")
+        or relative.startswith("release-manifests/unified-release-v")
     )
 
 
@@ -114,8 +117,8 @@ def build_bootstrap(output: Path) -> dict[str, object]:
     readme = (
         "AI Video Channel Production unified installer\n\n"
         "Online: download only this installer ZIP, extract it, and double-click install.cmd.\n"
-        "The entry retrieves the manifest only from the version-specific v0.8.0-rc.2 Release URL, then verifies every missing asset.\n"
-        "Offline: keep unified-release-v0.8.0-rc.2.json and all four component ZIP files beside install.cmd.\n"
+        f"The entry retrieves the manifest only from the version-specific v{VERSION} Release URL, then verifies every missing asset.\n"
+        f"Offline: keep unified-release-v{VERSION}.json and all four component ZIP files beside install.cmd.\n"
         "No Token, API key, OAuth or upload is performed.\n"
     ).encode("utf-8")
     files.append(("README-INSTALL.txt", readme))
@@ -259,17 +262,17 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
         asset_record("unified-installer", bootstrap, version=VERSION, compatibleProductVersions=[VERSION], install=False, archiveRoot=f"AI-Video-Channel-Production-Unified-Installer-v{VERSION}", installSubpath="", license={"expression":"LicenseRef-AI-Video-Channel-Production-1.0","source":"LICENSE.md","reviewStatus":"product-license-applies"}, source={"repository":"https://github.com/coisu772-code/AI-/","commit":"LOCAL_COMMIT_TO_BE_RECORDED"}),
         asset_record("core", core, version=VERSION, compatibleProductVersions=[VERSION], install=True, archiveRoot="ai-video-channel-production-core", installSubpath="", license={"expression":"LicenseRef-AI-Video-Channel-Production-1.0","source":"LICENSE.md","reviewStatus":"product-license-applies"}, source={"repository":"https://github.com/coisu772-code/AI-/","commit":"LOCAL_COMMIT_TO_BE_RECORDED"}),
         asset_record("python-runtime", runtime, version=PYTHON_VERSION, compatibleProductVersions=[VERSION], install=True, archiveRoot=f"aivcp-python-runtime-{PYTHON_VERSION}", installSubpath="runtime/python", license={"expression":"PSF-2.0 AND bundled-third-party-licenses","source":"LICENSE.txt plus 58 license entries covering all 12 packages","reviewStatus":"technical-inventory-validated-release-owner-approval-required"}, source={"url":"https://github.com/astral-sh/python-build-standalone","build":PYTHON_BUILD,"technicalLicenseInventory":runtime["technicalLicenseInventory"]}),
-        {"assetId":"workshop","fileName":WORKSHOP_NAME,"sizeBytes":WORKSHOP_SIZE,"sha256":WORKSHOP_SHA,"version":"2.1.0-stage5","compatibleProductVersions":["0.8.0-rc.1",VERSION],"install":True,"archiveRoot":WORKSHOP_ROOT,"installSubpath":"apps/workshop","license":{"expression":"LicenseRef-AIVCP-Workshop AND GPL-3.0-only","source":"licenses/ application license, FFmpeg GPL text and Gyan README inside archive","reviewStatus":"technical-inventory-validated-release-owner-approval-required"},"source":{"commit":"224e11ecdaec2eae2833ac9f63893f9d72ac5c84","upstreamReport":"validation-summary-v2.1.0-stage5.json"}},
-        {"assetId":"publisher-center","fileName":PUBLISHER_NAME,"sizeBytes":PUBLISHER_SIZE,"sha256":PUBLISHER_SHA,"version":VERSION,"compatibleProductVersions":[VERSION],"install":True,"archiveRoot":PUBLISHER_ROOT,"installSubpath":"apps/publisher","license":{"expression":"LicenseRef-AI-Video-Channel-Production-1.0 AND bundled-third-party-licenses","source":"LICENSE.md, THIRD-PARTY-NOTICES.json/.md and 101 third-party license texts inside archive","reviewStatus":"technical-inventory-validated-release-owner-approval-required"},"source":{"commit":PUBLISHER_SOURCE_COMMIT,"acceptanceStatus":"CANDIDATE_READY_FOR_CONTROLLED_REAL_ACCEPTANCE","componentManifest":{"fileName":PUBLISHER_COMPONENT_MANIFEST_NAME,"sha256":PUBLISHER_COMPONENT_MANIFEST_SHA},"constraintsCatalog":{"version":"2026.08.04.1","sha256":PUBLISHER_CONSTRAINTS_SHA},"fileEntries":publisher_manifest["release_asset"]["file_entries"],"licenseReviewRequired":publisher_manifest["legal_inventory"]["review_required"]}},
+        {"assetId":"workshop","fileName":WORKSHOP_NAME,"sizeBytes":WORKSHOP_SIZE,"sha256":WORKSHOP_SHA,"version":WORKSHOP_VERSION,"compatibleProductVersions":[VERSION],"install":True,"archiveRoot":WORKSHOP_ROOT,"installSubpath":"apps/workshop","license":{"expression":"LicenseRef-AIVCP-Workshop AND GPL-3.0-only","source":"licenses/application/LICENSE.md, licenses/ffmpeg/COPYING.GPLv3 and FFMPEG-PROVENANCE.txt inside archive","reviewStatus":"technical-inventory-validated-release-owner-approval-required"},"source":{"commit":WORKSHOP_SOURCE_COMMIT,"acceptanceStatus":"LOCAL_MERGED_ACCEPTANCE_PASS"}},
+        {"assetId":"publisher-center","fileName":PUBLISHER_NAME,"sizeBytes":PUBLISHER_SIZE,"sha256":PUBLISHER_SHA,"version":PUBLISHER_VERSION,"compatibleProductVersions":[VERSION],"install":True,"archiveRoot":PUBLISHER_ROOT,"installSubpath":"apps/publisher","license":{"expression":"LicenseRef-AI-Video-Channel-Production-1.0 AND bundled-third-party-licenses","source":"LICENSE.md, THIRD-PARTY-NOTICES.json/.md and 101 third-party license texts inside archive","reviewStatus":"technical-inventory-validated-release-owner-approval-required"},"source":{"commit":PUBLISHER_SOURCE_COMMIT,"acceptanceStatus":"PUBLISHED_COMPONENT_REUSED_AFTER_HASH_REVALIDATION","componentManifest":{"fileName":PUBLISHER_COMPONENT_MANIFEST_NAME,"sha256":PUBLISHER_COMPONENT_MANIFEST_SHA},"constraintsCatalog":{"version":"2026.08.04.1","sha256":PUBLISHER_CONSTRAINTS_SHA},"fileEntries":publisher_manifest["release_asset"]["file_entries"],"licenseReviewRequired":publisher_manifest["legal_inventory"]["review_required"]}},
     ]
     manifest = {
         "schemaVersion":"2.0.0","productId":"ai-video-channel-production","productName":"AI 视频频道生产系统","productVersion":VERSION,
         "releaseStatus":"candidate","hashAlgorithm":"SHA-256","downloadBaseUrl":f"https://github.com/coisu772-code/AI-/releases/download/v{VERSION}",
-        "generatedAt":"2026-08-04T00:00:00Z","assets":assets,
+        "generatedAt":"2026-08-05T00:00:00Z","assets":assets,
         "runtime":{"pythonVersion":PYTHON_VERSION,"pythonBuild":PYTHON_BUILD,"requiresPreinstalledPython":False,"requiresPreinstalledUv":False},
-        "logicalComponents":[{"componentId":"ffmpeg-runtime","version":"8.1.2","providedByAsset":"workshop","license":{"expression":"GPL-3.0-only","source":"apps/workshop/licenses/ffmpeg/COPYING.GPLv3 and GYAN-BUILD-README.txt"},"healthCheck":{"command":"apps/workshop/tools/ffmpeg/bin/ffmpeg.exe -version","expected":"ffmpeg version 8.1.2"},"files":[
-            {"relativeInstallPath":"apps/workshop/tools/ffmpeg/bin/ffmpeg.exe","sizeBytes":101897728,"sha256":"1326dde4c84ff1f96fe6b8916c5bed29e163e9b5dccf995f6f3db069d143ec5e"},
-            {"relativeInstallPath":"apps/workshop/tools/ffmpeg/bin/ffprobe.exe","sizeBytes":101692928,"sha256":"b49ccc7c6547b141ad5a2f6ec69cc04323d7133d7704d70b331b904c63eecb07"}
+        "logicalComponents":[{"componentId":"ffmpeg-runtime","version":"8.1.1","providedByAsset":"workshop","license":{"expression":"GPL-3.0-only","source":"apps/workshop/licenses/ffmpeg/COPYING.GPLv3 and FFMPEG-PROVENANCE.txt"},"healthCheck":{"command":"apps/workshop/tools/ffmpeg/bin/ffmpeg.exe -version","expected":"ffmpeg version 8.1.1"},"files":[
+            {"relativeInstallPath":"apps/workshop/tools/ffmpeg/bin/ffmpeg.exe","sizeBytes":101457920,"sha256":"228d7a8556258de907fdb55f36850078ebc7680b84ec30d84ea02e99bec1d1eb"},
+            {"relativeInstallPath":"apps/workshop/tools/ffmpeg/bin/ffprobe.exe","sizeBytes":101251072,"sha256":"0fde260f5abd35c9cafd96f594cc76365a780c1b73a90e35b6a3409ea1db1bf0"}
         ]}],
         "safetyBoundaries":{"credentialsIncluded":False,"userDataIncluded":False,"oauthExecuted":False,"realUploadExecuted":False,"longTermLearningWriteExecuted":False},
         "publicationGates":["replace-local-commit-placeholders","release-license-owner-approval","clean-windows-acceptance","github-release-approval","google-oauth-approval","private-upload-approval","studio-data-approval","long-term-learning-write-approval"]

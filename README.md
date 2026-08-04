@@ -1,12 +1,12 @@
 # AI 视频频道生产系统 RC
 
-当前候选版本是 `v0.8.0-rc.2`。这是本地待验收候选，不表示已经发布到 GitHub，也不表示 YouTube 真实上传已经验收。
+当前候选版本是 `v0.9.0-rc.1`。这是本地待验收候选，不表示已经发布到 GitHub，也不表示 YouTube 真实上传已经验收。
 
 ## Windows 一键安装
 
-[下载 Windows 统一安装器（v0.8.0-rc.2）](https://github.com/coisu772-code/AI-/releases/download/v0.8.0-rc.2/AI-Video-Channel-Production-Unified-Installer-v0.8.0-rc.2.zip)
+[下载 Windows 统一安装器（v0.9.0-rc.1）](https://github.com/coisu772-code/AI-/releases/download/v0.9.0-rc.1/AI-Video-Channel-Production-Unified-Installer-v0.9.0-rc.1.zip)
 
-Release 获批后，普通联网用户只需下载这一个 ZIP，解压并双击 `install.cmd`。入口只从锁定的 `v0.8.0-rc.2` Release URL 获取总清单，不使用 `latest`；随后逐项校验大小和 SHA-256，再事务式安装全部组件。
+Release 获批后，普通联网用户只需下载这一个 ZIP，解压并双击 `install.cmd`。入口只从锁定的 `v0.9.0-rc.1` Release URL 获取总清单，不使用 `latest`；随后逐项校验大小和 SHA-256，再事务式安装全部组件。
 
 先决条件：Windows 10/11 x64、PowerShell 5.1 或更高版本、约 1 GB 可用空间，以及 Codex 桌面版或支持 `plugin` 命令的 Codex CLI。无需预装 Python、uv 或 FFmpeg。
 
