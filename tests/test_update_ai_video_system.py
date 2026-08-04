@@ -253,6 +253,24 @@ $record | ConvertTo-Json | Set-Content -LiteralPath $env:AIVCP_TEST_INSTALL_RECO
         self.assertEqual("runtime-locator", result["currentVersionSource"])
         self.assertTrue(result["installRootResolved"])
 
+    def test_explicit_missing_environment_locator_blocks_all_default_fallbacks(self) -> None:
+        default_install = self.local_app_data / "AIVCP"
+        shutil.copytree(self.install, default_install)
+        missing_locator = self.base / "Missing Explicit Locator/runtime-locator.json"
+        for action_arguments in (
+            ("-Action", "Check"),
+            ("-Action", "Update", "-ExpectedVersion", "1.1.0", "-ConfirmUpdate"),
+        ):
+            with self.subTest(action=action_arguments[1]):
+                completed = self._run(
+                    *action_arguments,
+                    expect_success=False,
+                    environment_updates={"AIVCP_RUNTIME_LOCATOR": str(missing_locator)},
+                )
+                self.assertIn("INSTALL_LOCATOR_INVALID", completed.stderr)
+                self.assertNotIn("releases.json", completed.stderr)
+                self.assertFalse(self.record.exists())
+
     def test_default_root_is_used_only_with_valid_installation_markers(self) -> None:
         default_install = self.local_app_data / "AIVCP"
         shutil.copytree(self.install, default_install)

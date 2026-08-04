@@ -16,6 +16,7 @@ $script:RepositoryReleasesApi = "https://api.github.com/repos/coisu772-code/AI-/
 $script:UserAgent = "AIVCP-Update-Skill/1.0"
 $script:Utf8NoBom = New-Object System.Text.UTF8Encoding($false, $true)
 $script:InstallRootWasExplicit = $PSBoundParameters.ContainsKey("InstallRoot") -and -not [string]::IsNullOrWhiteSpace($InstallRoot)
+$script:RuntimeLocatorWasExplicit = Test-Path -LiteralPath "Env:AIVCP_RUNTIME_LOCATOR"
 [Console]::OutputEncoding = $script:Utf8NoBom
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
@@ -263,11 +264,29 @@ function Resolve-AivcpInstalledProduct {
     }
 
     $locatorPath = $null
-    if (-not [string]::IsNullOrWhiteSpace($env:AIVCP_RUNTIME_LOCATOR)) {
-        if (-not [System.IO.Path]::IsPathRooted($env:AIVCP_RUNTIME_LOCATOR)) {
+    if ($script:RuntimeLocatorWasExplicit) {
+        if ([string]::IsNullOrWhiteSpace($env:AIVCP_RUNTIME_LOCATOR) -or -not [System.IO.Path]::IsPathRooted($env:AIVCP_RUNTIME_LOCATOR)) {
             throw "INSTALL_LOCATOR_INVALID: AIVCP_RUNTIME_LOCATOR must be an absolute path."
         }
-        $locatorPath = [System.IO.Path]::GetFullPath($env:AIVCP_RUNTIME_LOCATOR)
+        try { $locatorPath = [System.IO.Path]::GetFullPath($env:AIVCP_RUNTIME_LOCATOR) }
+        catch { throw "INSTALL_LOCATOR_INVALID: AIVCP_RUNTIME_LOCATOR cannot be resolved. $($_.Exception.Message)" }
+        try { $locatorIsFile = Test-Path -LiteralPath $locatorPath -PathType Leaf }
+        catch { throw "INSTALL_LOCATOR_INVALID: explicit runtime locator cannot be inspected. $($_.Exception.Message)" }
+        if (-not $locatorIsFile) {
+            throw "INSTALL_LOCATOR_INVALID: explicit runtime locator is missing or is not a regular file: $locatorPath"
+        }
+        try {
+            $locator = Read-AivcpInstallJson $locatorPath "runtime locator"
+            $locatorInstallRoot = Get-AivcpRequiredString $locator "installRoot" "runtime locator"
+            return Get-AivcpValidatedInstallation -RootPath $locatorInstallRoot -Locator $locator -LocatorPath $locatorPath -Source "runtime-locator"
+        }
+        catch {
+            if ($_.Exception.Message -match '^INSTALL_LOCATOR_(INVALID|MISMATCH):') { throw }
+            if ($_.Exception.Message -match '^INSTALL_IDENTITY_') {
+                throw "INSTALL_LOCATOR_MISMATCH: explicit runtime locator does not match a valid active installation. $($_.Exception.Message)"
+            }
+            throw "INSTALL_LOCATOR_INVALID: explicit runtime locator cannot be read or validated. $($_.Exception.Message)"
+        }
     }
     elseif (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
         $locatorPath = [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA "AIVCP-Config\runtime-locator.json"))
