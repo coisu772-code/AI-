@@ -11,6 +11,7 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $assetFull = [System.IO.Path]::GetFullPath($AssetRoot)
 $manifestPath = Join-Path $assetFull "unified-release-v0.8.0-rc.2.json"
 $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+if ((Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8).Contains("LOCAL_COMMIT_TO_BE_RECORDED")) { throw "Release manifest still contains an unbound source commit placeholder." }
 foreach ($asset in @($manifest.assets)) {
     $path = Join-Path $assetFull ([string]$asset.fileName)
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing release asset: $($asset.fileName)" }

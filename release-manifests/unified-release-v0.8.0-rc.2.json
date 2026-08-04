@@ -10,7 +10,7 @@
       "license": { "expression": "LicenseRef-AI-Video-Channel-Production-1.0", "reviewStatus": "product-license-applies", "source": "LICENSE.md" },
       "sha256": "878864ce62da65f438f20580806e0aabdf2947657cc1365a2e5e7f9e9dbdfc78",
       "sizeBytes": 9198,
-      "source": { "commit": "LOCAL_COMMIT_TO_BE_RECORDED", "repository": "https://github.com/coisu772-code/AI-/" },
+      "source": { "commit": "7a6bfa9f438a72e1f613f5b32b5f8d551be563e5", "repository": "https://github.com/coisu772-code/AI-/" },
       "version": "0.8.0-rc.2"
     },
     {
@@ -23,7 +23,7 @@
       "license": { "expression": "LicenseRef-AI-Video-Channel-Production-1.0", "reviewStatus": "product-license-applies", "source": "LICENSE.md" },
       "sha256": "359bd9821d9fe39e61863fe340707ffd12afb9c59265a7b2ef6116d1e9b584c4",
       "sizeBytes": 359696,
-      "source": { "commit": "LOCAL_COMMIT_TO_BE_RECORDED", "repository": "https://github.com/coisu772-code/AI-/" },
+      "source": { "commit": "7a6bfa9f438a72e1f613f5b32b5f8d551be563e5", "repository": "https://github.com/coisu772-code/AI-/" },
       "version": "0.8.0-rc.2"
     },
     {
@@ -86,7 +86,7 @@
   "productName": "AI 视频频道生产系统",
   "productVersion": "0.8.0-rc.2",
   "publicationGates": [
-    "replace-local-commit-placeholders",
+    "tag-to-source-commit-verification",
     "publisher-third-party-notice-review",
     "clean-windows-acceptance",
     "github-release-approval",
