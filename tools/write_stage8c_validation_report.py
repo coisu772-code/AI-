@@ -56,7 +56,9 @@ def main() -> int:
     mcp_file_relay = json.loads((evidence / "mcp-file-relay-validation.json").read_text(encoding="utf-8"))
     lifecycle = json.loads((evidence / "installation-lifecycle/lifecycle-summary.json").read_text(encoding="utf-8-sig"))
     actual_codex = json.loads((evidence / "installation-lifecycle/actual-codex-cli-mcp-validation.json").read_text(encoding="utf-8"))
-    official_plugin_validator = json.loads((evidence / "official-plugin-validator.json").read_text(encoding="utf-8"))
+    # Windows PowerShell 5.1 writes UTF-8 JSON with a BOM. Accept that
+    # machine-generated evidence just as the three-parser validation gate does.
+    official_plugin_validator = json.loads((evidence / "official-plugin-validator.json").read_text(encoding="utf-8-sig"))
     if (
         unit_summary.get("status") != "PASS"
         or publisher_relock.get("status") != "PASS"
