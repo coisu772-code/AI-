@@ -1,14 +1,16 @@
-# RC.2 安装、升级、回滚、修复与卸载
+# v0.10.0-rc.1 安装、升级、回滚、修复与卸载
 
 ## 统一资产
 
-锁定总清单管理五个 Release ZIP：统一安装入口、无大型 EXE 的核心插件、独立 Python 3.12.13 runtime、新漫剧工坊和 YouTube 发布中心。FFmpeg 8.1.2 与 ffprobe 是工坊包内的显式受管组件，总清单记录逐文件哈希、GPL-3.0 许可来源与健康检查。
+锁定总清单管理五个核心 Release ZIP：统一安装入口、无大型 EXE 的核心插件、独立 Python 3.12.13 runtime、新漫剧工坊和 YouTube 发布中心。FFmpeg 8.1.1 与 ffprobe 是工坊包内的显式受管组件，总清单记录逐文件哈希、GPL-3.0 许可来源与健康检查。
+
+同一个 Release 另外携带 Kokoro-FastAPI 的 CPU、NVIDIA 和 NVIDIA Blackwell 三套可选分卷资产。它们不属于统一安装器的五个安装 ZIP，不会在安装或升级系统时自动下载；用户在新漫剧工坊中明确选择本地 Kokoro 后，工坊才从锁定版本的公开 Release 读取对应 JSON 清单，逐卷校验大小和 SHA-256、重组并验证整包 SHA-256，然后安装到工坊程序目录。清单只接受 `coisu772-code/AI-` 的公开 GitHub Release 地址。
 
 发布中心冻结包含产品 `LICENSE.md`、JSON/Markdown 告知和 101 份第三方许可文本，技术清单 `REVIEW_REQUIRED=0`。Python runtime 的 12 个包共有 58 个许可条目，均有声明和许可文件；工坊应用与 FFmpeg 告知也已技术核对。技术库存不构成法律意见或签署，正式 Release 仍需发布负责人/法律审核者批准。
 
 ## 安装入口和路径
 
-联网用户只下载统一安装器 ZIP，解压后双击 `install.cmd`。若同目录没有总清单，入口只从版本锁定的 `v0.9.0-rc.1` HTTPS Release URL 获取它，先校验 schema、产品和精确版本，再下载缺失资产；不使用 `latest`。完全离线时，把总清单和四个组件 ZIP 放在 `install.cmd` 同目录。
+联网用户只下载统一安装器 ZIP，解压后双击 `install.cmd`。若同目录没有总清单，入口只从版本锁定的 `v0.10.0-rc.1` HTTPS Release URL 获取它，先校验 schema、产品和精确版本，再下载缺失资产；不使用 `latest`。完全离线时，把总清单和另外四个核心组件 ZIP 放在 `install.cmd` 同目录。仅在离线安装 Kokoro 时，才另行准备对应的 JSON 清单与全部分卷文件。
 
 默认程序根是 `%LOCALAPPDATA%\AIVCP`，默认数据根是 `%LOCALAPPDATA%\AI Video Channel Production Data`。旧 `%LOCALAPPDATA%\AI Video Channel Production\data` 只作为既有用户数据保留，不自动迁移、删除或覆盖。程序根与数据根始终分离。
 

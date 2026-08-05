@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.9.0-rc.1"
+VERSION = "0.10.0-rc.1"
 PYTHON_VERSION = "3.12.13"
 PYTHON_BUILD = "20260610"
 FIXED_TIME = (2026, 8, 5, 0, 0, 0)
@@ -27,21 +27,22 @@ BOOTSTRAP_FILES = (
     "installer/Install-AIVideoChannelProduction.ps1",
     "installer/install.cmd",
 )
-WORKSHOP_VERSION = "2.2.0-rc.1"
-WORKSHOP_NAME = "Z-Manga-Workshop-2.2.0-rc.1-for-AIVCP-0.9.0-rc.1-windows-x64-portable.zip"
-WORKSHOP_SHA = "6516228eb482af0b5453b12d6bc7cf37bf3ace1f1d4d10461d4e8824545f5a2a"
-WORKSHOP_SIZE = 82504081
-WORKSHOP_ROOT = "Z-Manga-Workshop-2.2.0-rc.1-for-AIVCP-0.9.0-rc.1-windows-x64-portable"
-WORKSHOP_SOURCE_COMMIT = "6913232984b78bf9600c0f95d4beaff22b11ec6b"
+WORKSHOP_VERSION = "2.3.0-rc.1"
+WORKSHOP_NAME = "Z-Manga-Workshop-2.3.0-rc.1-for-AIVCP-0.10.0-rc.1-windows-x64-portable.zip"
+WORKSHOP_SHA = "8b21506cd7638de0448eb472cf1afd08578ddb72a8803c40bb0cd2343aad325b"
+WORKSHOP_SIZE = 94957874
+WORKSHOP_ROOT = "Z-Manga-Workshop-2.3.0-rc.1-for-AIVCP-0.10.0-rc.1-windows-x64-portable"
+WORKSHOP_SOURCE_COMMIT = "343c064a7d73cb5aa68a09d973d93a8fca57c4bb"
 PUBLISHER_VERSION = "0.8.0-rc.2"
 PUBLISHER_NAME = "youtube-publisher-center-v0.8.0-rc.2-windows-amd64.zip"
 PUBLISHER_SHA = "8d2644c11310fd5ee31f6e39250f75a000ccf038cd8c35a9eed8f0f23388c48d"
 PUBLISHER_SIZE = 32585503
 PUBLISHER_ROOT = "youtube-publisher-center-v0.8.0-rc.2-windows-amd64"
 PUBLISHER_SOURCE_COMMIT = "e6350fd290e2e75782334d712ba01ad0411a1efd"
-PUBLISHER_COMPONENT_MANIFEST_NAME = "publisher-component-manifest-v0.8.0-rc.2.json"
-PUBLISHER_COMPONENT_MANIFEST_SHA = "9a9de05c3171c515952ae5bbf43606c96670ef5903b1a0e11f8704cab3d16b36"
+PUBLISHER_COMPONENT_MANIFEST_NAME = "publisher-component-reuse-attestation-v0.8.0-rc.2.json"
+PUBLISHER_COMPONENT_MANIFEST_SHA = "fac82b06df0516fc137bc56620a3d1aedf7bc7d260cd442278403f3e7e644816"
 PUBLISHER_CONSTRAINTS_SHA = "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13"
+KOKORO_VARIANTS = ("cpu", "nvidia", "nvidia-blackwell")
 
 
 def sha256(path: Path) -> str:
@@ -241,11 +242,78 @@ def asset_record(asset_id: str, build: dict[str, object], **extra: object) -> di
     return {"assetId": asset_id, "fileName": build["fileName"], "sizeBytes": build["sizeBytes"], "sha256": build["sha256"], **extra}
 
 
-def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, publisher_dir: Path) -> dict[str, object]:
+def copy_kokoro_packages(output: Path, kokoro_dir: Path) -> tuple[list[dict[str, object]], list[Path]]:
+    packages: list[dict[str, object]] = []
+    copied: list[Path] = []
+    seen_names: set[str] = set()
+    for variant in KOKORO_VARIANTS:
+        base = f"Z-Manga-Studio-kokoro-runtime-{variant}"
+        manifest_source = kokoro_dir / f"{base}.json"
+        if not manifest_source.is_file():
+            raise RuntimeError(f"Kokoro manifest is missing: {manifest_source.name}")
+        document = json.loads(manifest_source.read_text(encoding="utf-8-sig"))
+        archive_name = f"{base}.zip"
+        if (
+            document.get("schemaVersion") != "1.0"
+            or document.get("variant") != variant
+            or document.get("archiveName") != archive_name
+            or not isinstance(document.get("runtimeVersion"), str)
+            or not document["runtimeVersion"].strip()
+            or not isinstance(document.get("archiveSha256"), str)
+            or len(document["archiveSha256"]) != 64
+            or not isinstance(document.get("parts"), list)
+            or not document["parts"]
+        ):
+            raise RuntimeError(f"Kokoro manifest fields are invalid: {manifest_source.name}")
+        archive_digest = hashlib.sha256()
+        part_records: list[dict[str, object]] = []
+        for index, part in enumerate(document["parts"], start=1):
+            expected_name = f"{archive_name}.{index:03d}"
+            if not isinstance(part, dict) or part.get("name") != expected_name:
+                raise RuntimeError(f"Kokoro part order or name is invalid: {manifest_source.name}:{expected_name}")
+            part_source = kokoro_dir / expected_name
+            if not part_source.is_file() or part_source.stat().st_size != part.get("size") or sha256(part_source) != part.get("sha256"):
+                raise RuntimeError(f"Kokoro part size or SHA-256 mismatch: {expected_name}")
+            if expected_name in seen_names:
+                raise RuntimeError(f"Duplicate Kokoro release attachment: {expected_name}")
+            seen_names.add(expected_name)
+            with part_source.open("rb") as stream:
+                for block in iter(lambda: stream.read(1024 * 1024), b""):
+                    archive_digest.update(block)
+            target = output / expected_name
+            shutil.copy2(part_source, target)
+            copied.append(target)
+            part_records.append({"fileName": expected_name, "sizeBytes": target.stat().st_size, "sha256": sha256(target)})
+        if archive_digest.hexdigest() != document["archiveSha256"]:
+            raise RuntimeError(f"Kokoro assembled archive SHA-256 mismatch: {archive_name}")
+        if manifest_source.name in seen_names:
+            raise RuntimeError(f"Duplicate Kokoro release attachment: {manifest_source.name}")
+        seen_names.add(manifest_source.name)
+        manifest_target = output / manifest_source.name
+        shutil.copy2(manifest_source, manifest_target)
+        copied.append(manifest_target)
+        packages.append({
+            "runtimeId": "kokoro-fastapi",
+            "runtimeVersion": document["runtimeVersion"],
+            "variant": variant,
+            "manifest": {"fileName": manifest_target.name, "sizeBytes": manifest_target.stat().st_size, "sha256": sha256(manifest_target)},
+            "archive": {"fileName": archive_name, "sha256": document["archiveSha256"]},
+            "parts": part_records,
+            "license": {
+                "expression": "Apache-2.0 AND bundled-third-party-licenses",
+                "source": "LICENSE-Kokoro-FastAPI.txt and THIRD_PARTY_NOTICES.txt inside the assembled runtime archive",
+                "reviewStatus": "technical-inventory-validated-release-owner-approval-required",
+            },
+            "source": {"workshopCommit": WORKSHOP_SOURCE_COMMIT, "packager": "scripts/package-kokoro-runtime.ps1"},
+        })
+    return packages, copied
+
+
+def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, publisher_dir: Path, kokoro_dir: Path) -> dict[str, object]:
     output.mkdir(parents=True, exist_ok=True)
     workshop_source = workshop_dir / WORKSHOP_NAME
     publisher_source = publisher_dir / PUBLISHER_NAME
-    publisher_manifest_path = publisher_dir / PUBLISHER_COMPONENT_MANIFEST_NAME
+    publisher_manifest_path = ROOT / "release-manifests" / PUBLISHER_COMPONENT_MANIFEST_NAME
     assert_frozen(workshop_source, WORKSHOP_SIZE, WORKSHOP_SHA)
     assert_frozen(publisher_source, PUBLISHER_SIZE, PUBLISHER_SHA)
     publisher_manifest = publisher_machine_manifest(publisher_manifest_path)
@@ -258,6 +326,7 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
     publisher_target = output / PUBLISHER_NAME
     shutil.copy2(workshop_source, workshop_target)
     shutil.copy2(publisher_source, publisher_target)
+    kokoro_packages, kokoro_paths = copy_kokoro_packages(output, kokoro_dir)
     assets = [
         asset_record("unified-installer", bootstrap, version=VERSION, compatibleProductVersions=[VERSION], install=False, archiveRoot=f"AI-Video-Channel-Production-Unified-Installer-v{VERSION}", installSubpath="", license={"expression":"LicenseRef-AI-Video-Channel-Production-1.0","source":"LICENSE.md","reviewStatus":"product-license-applies"}, source={"repository":"https://github.com/coisu772-code/AI-/","commit":"LOCAL_COMMIT_TO_BE_RECORDED"}),
         asset_record("core", core, version=VERSION, compatibleProductVersions=[VERSION], install=True, archiveRoot="ai-video-channel-production-core", installSubpath="", license={"expression":"LicenseRef-AI-Video-Channel-Production-1.0","source":"LICENSE.md","reviewStatus":"product-license-applies"}, source={"repository":"https://github.com/coisu772-code/AI-/","commit":"LOCAL_COMMIT_TO_BE_RECORDED"}),
@@ -268,7 +337,7 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
     manifest = {
         "schemaVersion":"2.0.0","productId":"ai-video-channel-production","productName":"AI 视频频道生产系统","productVersion":VERSION,
         "releaseStatus":"candidate","hashAlgorithm":"SHA-256","downloadBaseUrl":f"https://github.com/coisu772-code/AI-/releases/download/v{VERSION}",
-        "generatedAt":"2026-08-05T00:00:00Z","assets":assets,
+        "generatedAt":"2026-08-05T00:00:00Z","assets":assets,"optionalRuntimePackages":kokoro_packages,
         "runtime":{"pythonVersion":PYTHON_VERSION,"pythonBuild":PYTHON_BUILD,"requiresPreinstalledPython":False,"requiresPreinstalledUv":False},
         "logicalComponents":[{"componentId":"ffmpeg-runtime","version":"8.1.1","providedByAsset":"workshop","license":{"expression":"GPL-3.0-only","source":"apps/workshop/licenses/ffmpeg/COPYING.GPLv3 and FFMPEG-PROVENANCE.txt"},"healthCheck":{"command":"apps/workshop/tools/ffmpeg/bin/ffmpeg.exe -version","expected":"ffmpeg version 8.1.1"},"files":[
             {"relativeInstallPath":"apps/workshop/tools/ffmpeg/bin/ffmpeg.exe","sizeBytes":101457920,"sha256":"228d7a8556258de907fdb55f36850078ebc7680b84ec30d84ea02e99bec1d1eb"},
@@ -279,11 +348,11 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
     }
     manifest_path = output / f"unified-release-v{VERSION}.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
-    checksum_paths = [output / record["fileName"] for record in assets] + [manifest_path]
+    checksum_paths = [output / record["fileName"] for record in assets] + kokoro_paths + [manifest_path]
     checksums = output / "SHA256SUMS.txt"
     checksums.write_text("".join(f"{sha256(path)}  {path.name}\n" for path in sorted(checksum_paths, key=lambda item: item.name)), encoding="ascii", newline="\n")
     report = {
-        "schemaVersion":"1.0.0","status":"BUILD_PASS","productVersion":VERSION,"assets":assets,
+        "schemaVersion":"1.0.0","status":"BUILD_PASS","productVersion":VERSION,"assets":assets,"optionalRuntimePackages":kokoro_packages,
         "manifest":{"fileName":manifest_path.name,"sizeBytes":manifest_path.stat().st_size,"sha256":sha256(manifest_path)},
         "checksums":{"fileName":checksums.name,"sizeBytes":checksums.stat().st_size,"sha256":sha256(checksums)},
         "runtimePackageCount":len(runtime["packageInventory"]),"runtimeTechnicalLicenseInventory":runtime["technicalLicenseInventory"],
@@ -302,8 +371,9 @@ def main() -> int:
     parser.add_argument("--uv", type=Path, required=True)
     parser.add_argument("--workshop-dir", type=Path, required=True)
     parser.add_argument("--publisher-dir", type=Path, required=True)
+    parser.add_argument("--kokoro-dir", type=Path, required=True)
     args = parser.parse_args()
-    result = build_all(*(path.resolve() for path in (args.output, args.runtime_source, args.uv, args.workshop_dir, args.publisher_dir)))
+    result = build_all(*(path.resolve() for path in (args.output, args.runtime_source, args.uv, args.workshop_dir, args.publisher_dir, args.kokoro_dir)))
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
 

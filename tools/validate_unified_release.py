@@ -13,6 +13,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = ROOT / "release-manifests" / "unified-release-manifest.schema.json"
 EXPECTED_IDS = {"unified-installer", "core", "python-runtime", "workshop", "publisher-center"}
+EXPECTED_KOKORO_VARIANTS = {"cpu", "nvidia", "nvidia-blackwell"}
 SENSITIVE_NAME = re.compile(r"(?:client[_-]?secret|access[_-]?token|refresh[_-]?token|credentials?\.json$|cookies?\.txt$|\.env$)", re.I)
 SENSITIVE_BYTES = (
     re.compile(rb"-----BEGIN (?:RSA |OPENSSH )?PRIVATE KEY-----"),
@@ -89,6 +90,81 @@ def validate(manifest_path: Path, asset_root: Path) -> dict[str, object]:
         zip_errors, zip_records = safe_zip_entries(path, asset["archiveRoot"], asset["assetId"] == "core")
         errors.extend(zip_errors)
         records_by_id[asset["assetId"]] = zip_records
+    runtime_packages = manifest.get("optionalRuntimePackages", [])
+    runtime_variants = [package.get("variant") for package in runtime_packages if isinstance(package, dict)]
+    if set(runtime_variants) != EXPECTED_KOKORO_VARIANTS or len(runtime_variants) != len(set(runtime_variants)):
+        errors.append(f"Kokoro runtime variants must be exactly {sorted(EXPECTED_KOKORO_VARIANTS)}")
+    attachment_names: set[str] = set()
+    for package in runtime_packages:
+        if not isinstance(package, dict):
+            continue
+        variant = package.get("variant", "")
+        expected_base = f"Z-Manga-Studio-kokoro-runtime-{variant}"
+        manifest_record = package.get("manifest", {})
+        archive_record = package.get("archive", {})
+        part_records = package.get("parts", [])
+        manifest_name = manifest_record.get("fileName", "")
+        if manifest_name != f"{expected_base}.json" or archive_record.get("fileName") != f"{expected_base}.zip":
+            errors.append(f"Kokoro runtime filenames do not match variant: {variant}")
+            continue
+        manifest_file = asset_root / manifest_name
+        if not manifest_file.is_file():
+            errors.append(f"missing Kokoro manifest: {manifest_name}")
+            continue
+        if manifest_name in attachment_names:
+            errors.append(f"duplicate optional runtime attachment: {manifest_name}")
+        attachment_names.add(manifest_name)
+        if manifest_file.stat().st_size != manifest_record.get("sizeBytes") or sha256(manifest_file) != manifest_record.get("sha256"):
+            errors.append(f"Kokoro manifest size or SHA-256 mismatch: {manifest_name}")
+            continue
+        try:
+            runtime_manifest = json.loads(manifest_file.read_text(encoding="utf-8-sig"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            errors.append(f"Kokoro manifest is unreadable: {manifest_name}: {exc}")
+            continue
+        if (
+            runtime_manifest.get("schemaVersion") != "1.0"
+            or runtime_manifest.get("variant") != variant
+            or runtime_manifest.get("runtimeVersion") != package.get("runtimeVersion")
+            or runtime_manifest.get("archiveName") != archive_record.get("fileName")
+            or runtime_manifest.get("archiveSha256") != archive_record.get("sha256")
+            or runtime_manifest.get("parts") != [
+                {"name": part.get("fileName"), "size": part.get("sizeBytes"), "sha256": part.get("sha256")}
+                for part in part_records
+            ]
+        ):
+            errors.append(f"Kokoro release record does not match its manifest: {manifest_name}")
+            continue
+        archive_digest = hashlib.sha256()
+        for index, part in enumerate(part_records, start=1):
+            part_name = part.get("fileName", "")
+            if part_name != f"{expected_base}.zip.{index:03d}":
+                errors.append(f"Kokoro part order or name mismatch: {part_name}")
+                continue
+            if part_name in attachment_names:
+                errors.append(f"duplicate optional runtime attachment: {part_name}")
+            attachment_names.add(part_name)
+            part_file = asset_root / part_name
+            if not part_file.is_file():
+                errors.append(f"missing Kokoro part: {part_name}")
+                continue
+            if part_file.stat().st_size != part.get("sizeBytes") or sha256(part_file) != part.get("sha256"):
+                errors.append(f"Kokoro part size or SHA-256 mismatch: {part_name}")
+                continue
+            with part_file.open("rb") as stream:
+                for block in iter(lambda: stream.read(1024 * 1024), b""):
+                    archive_digest.update(block)
+        if archive_digest.hexdigest() != archive_record.get("sha256"):
+            errors.append(f"Kokoro assembled archive SHA-256 mismatch: {variant}")
+        if package.get("license", {}).get("reviewStatus") != "technical-inventory-validated-release-owner-approval-required":
+            errors.append(f"Kokoro technical license approval gate is missing: {variant}")
+    unexpected_kokoro = {
+        path.name
+        for path in asset_root.glob("Z-Manga-Studio-kokoro-runtime-*")
+        if path.is_file() and path.name not in attachment_names
+    }
+    if unexpected_kokoro:
+        errors.append(f"untracked Kokoro release attachments: {sorted(unexpected_kokoro)}")
     assets_by_id = {asset.get("assetId"): asset for asset in manifest.get("assets", [])}
     publisher = assets_by_id.get("publisher-center", {})
     runtime_asset = assets_by_id.get("python-runtime", {})
@@ -101,7 +177,7 @@ def validate(manifest_path: Path, asset_root: Path) -> dict[str, object]:
     publisher_source = publisher.get("source", {})
     expected_publisher_source = {
         "commit": "e6350fd290e2e75782334d712ba01ad0411a1efd",
-        "componentManifestSha256": "9a9de05c3171c515952ae5bbf43606c96670ef5903b1a0e11f8704cab3d16b36",
+        "componentManifestSha256": "fac82b06df0516fc137bc56620a3d1aedf7bc7d260cd442278403f3e7e644816",
         "constraintsSha256": "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13",
     }
     if publisher_source.get("commit") != expected_publisher_source["commit"]:
@@ -151,7 +227,7 @@ def validate(manifest_path: Path, asset_root: Path) -> dict[str, object]:
                 errors.append(f"logical component record mismatch: {file['relativeInstallPath']}")
     return {
         "schemaVersion":"1.0.0","status":"PASS" if not errors else "FAIL","productVersion":manifest.get("productVersion"),
-        "manifestPath":str(manifest_path),"manifestSha256":sha256(manifest_path),"assetCount":len(ids),"errors":errors,
+        "manifestPath":str(manifest_path),"manifestSha256":sha256(manifest_path),"assetCount":len(ids),"optionalRuntimeAttachmentCount":len(attachment_names),"errors":errors,
         "boundaries":{"credentialsPresent":False if not errors else None,"userDataPresent":False if not errors else None,"coreExecutablesPresent":False if not errors else None,"developmentAbsolutePathsPresent":False if not errors else None,"externalActionsExecuted":False},
     }
 

@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "1.0.0",
+  "component": "youtube-publisher-center",
+  "version": "0.8.0-rc.2",
+  "reuseStatus": "PUBLISHED_COMPONENT_REUSED_AFTER_HASH_REVALIDATION",
+  "source": {
+    "repository": "local-source-commit-attestation",
+    "commit": "e6350fd290e2e75782334d712ba01ad0411a1efd"
+  },
+  "publishedRelease": {
+    "repository": "https://github.com/coisu772-code/AI-/",
+    "tag": "v0.9.0-rc.1",
+    "downloadUrl": "https://github.com/coisu772-code/AI-/releases/download/v0.9.0-rc.1/youtube-publisher-center-v0.8.0-rc.2-windows-amd64.zip"
+  },
+  "release_asset": {
+    "name": "youtube-publisher-center-v0.8.0-rc.2-windows-amd64.zip",
+    "size_bytes": 32585503,
+    "sha256": "8d2644c11310fd5ee31f6e39250f75a000ccf038cd8c35a9eed8f0f23388c48d",
+    "file_entries": 112
+  },
+  "legal_inventory": {
+    "license_text_files": 101,
+    "review_required": 0
+  },
+  "external_integration_gate": {
+    "publisher_constraints_sha256": "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13"
+  },
+  "safetyBoundaries": {
+    "credentialsIncluded": false,
+    "userDataIncluded": false,
+    "oauthExecuted": false,
+    "realUploadExecuted": false
+  }
+}

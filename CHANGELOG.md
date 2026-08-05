@@ -1,5 +1,13 @@
 # 更新记录
 
+## 0.10.0-rc.1 - 本地发布候选
+
+- 新漫剧工坊升级为 `2.3.0-rc.1`，新增 Kokoro-FastAPI CPU、NVIDIA 和 NVIDIA Blackwell 三种一键本地运行时选择，并保留现有 VOICEVOX 流程。
+- Kokoro 运行包改从公开的统一系统 GitHub Release 获取，支持 prerelease；严格锁定分卷清单、大小、SHA-256 和来源地址，拒绝私有仓库或不受信任下载地址。
+- 统一 Release 新增三套 Kokoro 清单与分卷附件的构建、组装哈希、发布前校验和上传清单；统一安装器仍只安装五个核心 ZIP，不会自动安装大型可选语音包。
+- 新漫剧工坊便携包名称、根目录、版本和源提交均已锁定，继续复用已发布并重新校验的 YouTube 发布中心 `0.8.0-rc.2`。
+- 不包含 Token、API Key、OAuth 凭据、频道、项目或运行数据；未执行 GitHub 推送、Release 创建、OAuth 或真实上传。
+
 ## 0.9.0-rc.1 - GitHub prerelease
 
 - 新增安全更新中心：只读取版本索引和发布清单，校验版本、大小与 SHA-256 后执行事务式升级，并在显式定位信息异常时关闭更新。

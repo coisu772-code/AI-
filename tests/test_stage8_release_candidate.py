@@ -26,6 +26,7 @@ from build_unified_release import (  # noqa: E402
     WORKSHOP_SIZE,
     build_bootstrap,
     build_core,
+    copy_kokoro_packages,
 )
 from validate_unified_release import safe_zip_entries  # noqa: E402
 
@@ -58,6 +59,50 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
         self.assertEqual(expected_license_status, assets["python-runtime"]["license"]["reviewStatus"])
         self.assertEqual(expected_license_status, assets["workshop"]["license"]["reviewStatus"])
         self.assertIn("release-license-owner-approval", manifest["publicationGates"])
+
+        runtime_packages = {package["variant"]: package for package in manifest["optionalRuntimePackages"]}
+        self.assertEqual({"cpu", "nvidia", "nvidia-blackwell"}, set(runtime_packages))
+        for variant, package in runtime_packages.items():
+            self.assertEqual("kokoro-fastapi", package["runtimeId"])
+            self.assertEqual(variant, package["variant"])
+            self.assertTrue(package["parts"])
+            self.assertEqual(expected_license_status, package["license"]["reviewStatus"])
+
+    def test_kokoro_release_attachments_are_hash_bound_and_copied(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="aivcp-kokoro-build-") as temporary:
+            base = Path(temporary)
+            source, output = base / "source", base / "output"
+            source.mkdir()
+            output.mkdir()
+            for variant in ("cpu", "nvidia", "nvidia-blackwell"):
+                archive_name = f"Z-Manga-Studio-kokoro-runtime-{variant}.zip"
+                archive = source / archive_name
+                with zipfile.ZipFile(archive, "w") as handle:
+                    handle.writestr("tools/kokoro-fastapi/LICENSE-Kokoro-FastAPI.txt", "Apache-2.0")
+                    handle.writestr("tools/kokoro-fastapi/start-auto.ps1", "Write-Host ready")
+                payload = archive.read_bytes()
+                split = max(1, len(payload) // 2)
+                parts = []
+                for index, content in enumerate((payload[:split], payload[split:]), start=1):
+                    part_name = f"{archive_name}.{index:03d}"
+                    (source / part_name).write_bytes(content)
+                    parts.append({"name": part_name, "size": len(content), "sha256": hashlib.sha256(content).hexdigest()})
+                (source / f"Z-Manga-Studio-kokoro-runtime-{variant}.json").write_text(
+                    json.dumps({
+                        "schemaVersion": "1.0",
+                        "runtimeVersion": "test-runtime",
+                        "variant": variant,
+                        "archiveName": archive_name,
+                        "archiveSha256": hashlib.sha256(payload).hexdigest(),
+                        "parts": parts,
+                    }),
+                    encoding="utf-8",
+                )
+                archive.unlink()
+            packages, copied = copy_kokoro_packages(output, source)
+            self.assertEqual(3, len(packages))
+            self.assertEqual(9, len(copied))
+            self.assertTrue(all(path.is_file() for path in copied))
 
     def test_frozen_upstream_records_are_exact(self) -> None:
         assets = {asset["assetId"]: asset for asset in self.manifest()["assets"]}
