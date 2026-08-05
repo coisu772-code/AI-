@@ -124,6 +124,7 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
         server = (ROOT / "plugins/ai-video-channel-production/mcp/server.py").read_text(encoding="utf-8")
 
         self.assertEqual("2026.7.4", contract["collector"]["version"])
+        self.assertEqual("2026.07.04", contract["collector"]["commandVersion"])
         self.assertEqual("0.8.0", contract["collector"]["ejsVersion"])
         self.assertEqual("2.9.4", contract["javascriptRuntime"]["version"])
         self.assertFalse(contract["requiresSystemPath"])
@@ -135,6 +136,7 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
         ):
             self.assertIn(requirement, requirements)
         self.assertIn("DENO_ARCHIVE_SHA", builder)
+        self.assertIn("YT_DLP_COMMAND_VERSION", builder)
         self.assertIn("locked Deno executable size or SHA-256 mismatch", builder)
         self.assertIn("AIVCP_YT_DLP_COMMAND_JSON", common)
         self.assertIn("--js-runtimes", common)

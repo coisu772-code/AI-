@@ -28,11 +28,12 @@
     "runtime": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["pythonVersion", "pythonBuild", "youtubeCollectorVersion", "javascriptRuntimeVersion", "requiresPreinstalledPython", "requiresPreinstalledUv", "requiresPreinstalledYoutubeCollector", "requiresPreinstalledJavascriptRuntime"],
+      "required": ["pythonVersion", "pythonBuild", "youtubeCollectorVersion", "youtubeCollectorCommandVersion", "javascriptRuntimeVersion", "requiresPreinstalledPython", "requiresPreinstalledUv", "requiresPreinstalledYoutubeCollector", "requiresPreinstalledJavascriptRuntime"],
       "properties": {
         "pythonVersion": { "const": "3.12.13" },
         "pythonBuild": { "const": "20260610" },
         "youtubeCollectorVersion": { "const": "2026.7.4" },
+        "youtubeCollectorCommandVersion": { "const": "2026.07.04" },
         "javascriptRuntimeVersion": { "const": "2.9.4" },
         "requiresPreinstalledPython": { "const": false },
         "requiresPreinstalledUv": { "const": false },

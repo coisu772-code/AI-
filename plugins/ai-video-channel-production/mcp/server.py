@@ -150,9 +150,10 @@ def _validate_runtime_binding() -> None:
         str(expected_ffmpeg.parent),
     ]
     youtube_runtime_matches = (
-        youtube_runtime_contract.get("schemaVersion") == "1.0.0"
+        youtube_runtime_contract.get("schemaVersion") == "1.1.0"
         and youtube_runtime_contract.get("collector", {}).get("id") == "yt-dlp"
         and youtube_runtime_contract.get("collector", {}).get("version") == "2026.7.4"
+        and youtube_runtime_contract.get("collector", {}).get("commandVersion") == "2026.07.04"
         and youtube_runtime_contract.get("javascriptRuntime", {}).get("id") == "deno"
         and youtube_runtime_contract.get("javascriptRuntime", {}).get("version") == "2.9.4"
         and youtube_runtime_contract.get("requiresSystemPath") is False

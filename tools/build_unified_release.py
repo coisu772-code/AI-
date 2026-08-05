@@ -49,6 +49,7 @@ KOKORO_REUSE_VERSION = "0.10.0-rc.1"
 KOKORO_REUSE_MANIFEST = f"unified-release-v{KOKORO_REUSE_VERSION}.json"
 KOKORO_REUSE_MANIFEST_SHA = "a145f756030e4b8c630031906352d42b3ab5212aba353708d1a045730bd2af5d"
 YT_DLP_VERSION = "2026.7.4"
+YT_DLP_COMMAND_VERSION = "2026.07.04"
 DENO_VERSION = "2.9.4"
 DENO_ARCHIVE_NAME = "deno-x86_64-pc-windows-msvc.zip"
 DENO_ARCHIVE_URL = f"https://github.com/denoland/deno/releases/download/v{DENO_VERSION}/{DENO_ARCHIVE_NAME}"
@@ -269,6 +270,11 @@ def prepare_runtime(runtime_source: Path, uv: Path, working: Path, deno_archive:
     yt_dlp_ejs = next(item for item in inventory if str(item.get("name", "")).lower() == "yt-dlp-ejs")
     if yt_dlp.get("version") != YT_DLP_VERSION:
         raise RuntimeError(f"yt-dlp version mismatch: {yt_dlp.get('version')}")
+    command_version = subprocess.check_output(
+        [str(runtime / "python.exe"), "-m", "yt_dlp", "--version"], text=True, encoding="utf-8"
+    ).strip()
+    if command_version != YT_DLP_COMMAND_VERSION:
+        raise RuntimeError(f"yt-dlp command version mismatch: {command_version}")
     runtime_manifest = {
         "schemaVersion": "1.1.0",
         "componentId": "python-runtime",
@@ -283,6 +289,7 @@ def prepare_runtime(runtime_source: Path, uv: Path, working: Path, deno_archive:
         "youtubeCollector": {
             "collectorId": "yt-dlp",
             "version": YT_DLP_VERSION,
+            "commandVersion": YT_DLP_COMMAND_VERSION,
             "entryPoint": ["python.exe", "-m", "yt_dlp"],
             "ejsVersion": yt_dlp_ejs.get("version"),
             "javascriptRuntime": {"toolId": "deno", "relativePath": "tools/deno.exe", "version": DENO_VERSION},
@@ -461,7 +468,7 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
         "schemaVersion":"2.0.0","productId":"ai-video-channel-production","productName":"AI 视频频道生产系统","productVersion":VERSION,
         "releaseStatus":"candidate","hashAlgorithm":"SHA-256","downloadBaseUrl":f"https://github.com/coisu772-code/AI-/releases/download/v{VERSION}",
         "generatedAt":"2026-08-06T00:00:00Z","assets":assets,"optionalRuntimePackages":kokoro_packages,
-        "runtime":{"pythonVersion":PYTHON_VERSION,"pythonBuild":PYTHON_BUILD,"youtubeCollectorVersion":YT_DLP_VERSION,"javascriptRuntimeVersion":DENO_VERSION,"requiresPreinstalledPython":False,"requiresPreinstalledUv":False,"requiresPreinstalledYoutubeCollector":False,"requiresPreinstalledJavascriptRuntime":False},
+        "runtime":{"pythonVersion":PYTHON_VERSION,"pythonBuild":PYTHON_BUILD,"youtubeCollectorVersion":YT_DLP_VERSION,"youtubeCollectorCommandVersion":YT_DLP_COMMAND_VERSION,"javascriptRuntimeVersion":DENO_VERSION,"requiresPreinstalledPython":False,"requiresPreinstalledUv":False,"requiresPreinstalledYoutubeCollector":False,"requiresPreinstalledJavascriptRuntime":False},
         "logicalComponents":[{"componentId":"ffmpeg-runtime","version":"8.1.1","providedByAsset":"workshop","license":{"expression":"GPL-3.0-only","source":"apps/workshop/licenses/ffmpeg/COPYING.GPLv3 and FFMPEG-PROVENANCE.txt"},"healthCheck":{"command":"apps/workshop/tools/ffmpeg/bin/ffmpeg.exe -version","expected":"ffmpeg version 8.1.1"},"files":[
             {"relativeInstallPath":"apps/workshop/tools/ffmpeg/bin/ffmpeg.exe","sizeBytes":101457920,"sha256":"228d7a8556258de907fdb55f36850078ebc7680b84ec30d84ea02e99bec1d1eb"},
             {"relativeInstallPath":"apps/workshop/tools/ffmpeg/bin/ffprobe.exe","sizeBytes":101251072,"sha256":"0fde260f5abd35c9cafd96f594cc76365a780c1b73a90e35b6a3409ea1db1bf0"}

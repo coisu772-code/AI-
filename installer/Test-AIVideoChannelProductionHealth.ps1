@@ -138,8 +138,10 @@ catch {
     throw "Installation health check failed: portable YouTube runtime contract is unreadable."
 }
 if (
-    [string]$youtubeRuntimeContract.schemaVersion -ne "1.0.0" -or
+    [string]$youtubeRuntimeContract.schemaVersion -ne "1.1.0" -or
     [string]$youtubeRuntimeContract.collector.id -ne "yt-dlp" -or
+    [string]::IsNullOrWhiteSpace([string]$youtubeRuntimeContract.collector.version) -or
+    [string]::IsNullOrWhiteSpace([string]$youtubeRuntimeContract.collector.commandVersion) -or
     [string]$youtubeRuntimeContract.javascriptRuntime.id -ne "deno" -or
     [bool]$youtubeRuntimeContract.requiresSystemPath -ne $false
 ) {
@@ -245,7 +247,7 @@ if (-not $SkipServiceCheck) {
         $collectorVersionOutput = @(& $expectedPython -m yt_dlp --version 2>&1)
         $collectorVersionExit = $LASTEXITCODE
         $collectorVersion = $collectorVersionOutput | Select-Object -First 1
-        if ($collectorVersionExit -ne 0 -or [string]$collectorVersion -ne [string]$youtubeRuntimeContract.collector.version) {
+        if ($collectorVersionExit -ne 0 -or [string]$collectorVersion -ne [string]$youtubeRuntimeContract.collector.commandVersion) {
             throw "Installation health check failed: bundled yt-dlp version check failed."
         }
         $denoVersionOutput = @(& $expectedDeno --version 2>&1)

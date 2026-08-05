@@ -258,6 +258,7 @@ def validate(manifest_path: Path, asset_root: Path) -> dict[str, object]:
                 if (
                     collector.get("collectorId") != "yt-dlp"
                     or collector.get("version") != "2026.7.4"
+                    or collector.get("commandVersion") != "2026.07.04"
                     or collector.get("ejsVersion") != "0.8.0"
                     or collector.get("requiresSystemPath") is not False
                     or deno.get("version") != "2.9.4"

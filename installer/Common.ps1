@@ -283,8 +283,10 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
             throw "Cannot bind MCP runtime because the portable YouTube runtime contract is unreadable."
         }
         if (
-            [string]$youtubeRuntimeContract.schemaVersion -ne "1.0.0" -or
+            [string]$youtubeRuntimeContract.schemaVersion -ne "1.1.0" -or
             [string]$youtubeRuntimeContract.collector.id -ne "yt-dlp" -or
+            [string]::IsNullOrWhiteSpace([string]$youtubeRuntimeContract.collector.version) -or
+            [string]::IsNullOrWhiteSpace([string]$youtubeRuntimeContract.collector.commandVersion) -or
             [string]$youtubeRuntimeContract.javascriptRuntime.id -ne "deno" -or
             [bool]$youtubeRuntimeContract.requiresSystemPath -ne $false -or
             @($youtubeRuntimeContract.collector.entryPointArguments).Count -ne 2 -or
