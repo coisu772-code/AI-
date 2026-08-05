@@ -130,6 +130,7 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
         self.assertIn("ls-remote origin", script)
         self.assertIn("remote[0].digest", script)
         self.assertNotIn("gh auth login", script)
+        self.assertNotIn("Get-Command gh", script)
         self.assertNotIn("$gh.Source release create", script)
 
     def test_runtime_is_standalone_and_ffmpeg_is_explicit(self) -> None:

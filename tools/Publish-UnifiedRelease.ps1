@@ -163,7 +163,6 @@ if (
 ) {
     throw "Approval file does not authorize this exact tag and manifest."
 }
-$gh = Get-Command gh -ErrorAction Stop
 $tagCommit = (& git -C $repositoryRoot rev-list -n 1 $Tag).Trim()
 if ($LASTEXITCODE -ne 0 -or $tagCommit -ne $boundSourceCommit) { throw "The approved tag does not resolve to the bound implementation/source commit; this script will not create or push tags." }
 $remoteTagRecords = @(& git -C $repositoryRoot ls-remote origin "refs/tags/$Tag" "refs/tags/$Tag^{}")
@@ -212,9 +211,12 @@ try {
             if ([int64]$existing[0].size -ne $file.Length -or [string]$existing[0].digest -ne $localDigest) {
                 throw "Existing GitHub Release asset does not match the approved local file: $($file.Name)"
             }
+            Write-Output "UPLOAD_SKIP_VERIFIED: $($file.Name)"
             continue
         }
+        Write-Output "UPLOAD_START: $($file.Name) ($($file.Length) bytes)"
         Send-GitHubReleaseAsset -UploadUrl ([string]$release.upload_url) -PathValue $file.FullName -Token $token | Out-Null
+        Write-Output "UPLOAD_PASS: $($file.Name)"
         $release = Get-GitHubReleaseByTag -Repository $repository -ReleaseTag $Tag -Headers $headers
     }
     $release = Get-GitHubReleaseByTag -Repository $repository -ReleaseTag $Tag -Headers $headers
@@ -225,6 +227,7 @@ try {
         if ($remote.Count -ne 1 -or [int64]$remote[0].size -ne $file.Length -or [string]$remote[0].digest -ne $expectedDigest) {
             throw "Remote GitHub Release verification failed: $($file.Name)"
         }
+        Write-Output "REMOTE_VERIFY_PASS: $($file.Name)"
     }
     Write-Output "GITHUB_RELEASE_PASS: existing Git credential reused; no browser login was started."
 }
