@@ -1,10 +1,11 @@
 # AI 视频频道生产系统 v0.10.0-rc.1
 
-这是一个 Windows prerelease 候选，重点补齐新漫剧工坊的一键本地 Kokoro 语音运行时和统一 Release 分发链路。
+这是一个 Windows prerelease 候选，重点补齐新漫剧工坊的一键本地 Kokoro 语音运行时、预扫描音色目录和统一 Release 分发链路。
 
 ## 本次包含
 
 - AI 视频频道生产系统核心插件 `0.10.0-rc.1`。
+- 随核心包安装的无密钥预扫描音色目录，覆盖 VOICEVOX、Kokoro、Edge TTS、Fish Audio，并对没有公开音色列表的 Seed Audio 使用明确策略而不伪造 voice ID。
 - 新漫剧工坊 `2.3.0-rc.1`，支持 VOICEVOX，以及 Kokoro-FastAPI 的 CPU、NVIDIA、NVIDIA Blackwell 三种一键安装选择。
 - 已发布并重新验收的 YouTube 发布中心 `0.8.0-rc.2`。
 - 独立 Python 3.12.13 runtime 与 FFmpeg/ffprobe 8.1.1。
@@ -15,6 +16,8 @@
 联网用户下载统一安装器 ZIP，解压后双击 `install.cmd`。安装器只从该版本锁定的 GitHub Release URL 读取总清单，校验所有核心资产的文件名、大小和 SHA-256 后事务式安装。Kokoro 运行包由工坊在用户明确选择后单独下载，并再次校验分卷和整包哈希。
 
 安装或更新插件后需要重启 Codex，并新建任务，使新插件版本和 MCP 运行时绑定生效。仅在工坊内新增或切换 Kokoro 运行包、且系统插件版本没有变化时，不需要重启 Codex。
+
+旧安装若曾提示“系统没有可用的预扫描音色目录”，可使用本版本执行修复；修复只恢复受管程序文件和音色目录，不启动配音服务，也不改写频道、项目、角色、配音配置或媒体数据。
 
 ## 数据与安全边界
 
