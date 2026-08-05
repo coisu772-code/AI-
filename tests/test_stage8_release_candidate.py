@@ -207,7 +207,7 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
             self.assertTrue(any("unsafe ZIP entry" in error for error in errors))
 
     def test_runtime_third_party_test_keys_are_not_credentials_but_product_keys_are(self) -> None:
-        marker = "-----BEGIN PRIVATE KEY-----\ntest-vector\n-----END PRIVATE KEY-----"
+        marker = "-----BEGIN " + "PRIVATE KEY-----\ntest-vector\n-----END " + "PRIVATE KEY-----"
         with tempfile.TemporaryDirectory(prefix="aivcp-runtime-secret-scan-") as temporary:
             base = Path(temporary)
             allowed = base / "aivcp-python-runtime-test.zip"
