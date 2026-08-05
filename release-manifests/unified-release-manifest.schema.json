@@ -9,7 +9,7 @@
     "schemaVersion": { "const": "2.0.0" },
     "productId": { "const": "ai-video-channel-production" },
     "productName": { "const": "AI 视频频道生产系统" },
-    "productVersion": { "const": "0.10.0-rc.1" },
+    "productVersion": { "const": "0.10.1-rc.1" },
     "releaseStatus": { "const": "candidate" },
     "hashAlgorithm": { "const": "SHA-256" },
     "downloadBaseUrl": { "type": "string", "format": "uri" },
@@ -28,12 +28,16 @@
     "runtime": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["pythonVersion", "pythonBuild", "requiresPreinstalledPython", "requiresPreinstalledUv"],
+      "required": ["pythonVersion", "pythonBuild", "youtubeCollectorVersion", "javascriptRuntimeVersion", "requiresPreinstalledPython", "requiresPreinstalledUv", "requiresPreinstalledYoutubeCollector", "requiresPreinstalledJavascriptRuntime"],
       "properties": {
         "pythonVersion": { "const": "3.12.13" },
         "pythonBuild": { "const": "20260610" },
+        "youtubeCollectorVersion": { "const": "2026.7.4" },
+        "javascriptRuntimeVersion": { "const": "2.9.4" },
         "requiresPreinstalledPython": { "const": false },
-        "requiresPreinstalledUv": { "const": false }
+        "requiresPreinstalledUv": { "const": false },
+        "requiresPreinstalledYoutubeCollector": { "const": false },
+        "requiresPreinstalledJavascriptRuntime": { "const": false }
       }
     },
     "logicalComponents": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/logicalComponent" } },

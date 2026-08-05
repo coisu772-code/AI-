@@ -4,7 +4,6 @@ param(
     [Parameter(Mandatory = $true)][string]$RuntimeSource,
     [Parameter(Mandatory = $true)][string]$WorkshopAssetRoot,
     [Parameter(Mandatory = $true)][string]$PublisherAssetRoot,
-    [Parameter(Mandatory = $true)][string]$KokoroAssetRoot,
     [string]$DenoArchive
 )
 Set-StrictMode -Version Latest
@@ -17,8 +16,7 @@ $arguments = @(
     "--runtime-source", $RuntimeSource,
     "--uv", $uv.Source,
     "--workshop-dir", $WorkshopAssetRoot,
-    "--publisher-dir", $PublisherAssetRoot,
-    "--kokoro-dir", $KokoroAssetRoot
+    "--publisher-dir", $PublisherAssetRoot
 )
 if (-not [string]::IsNullOrWhiteSpace($DenoArchive)) {
     $arguments += @("--deno-archive", $DenoArchive)

@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = ROOT / "release-manifests" / "unified-release-manifest.schema.json"
 EXPECTED_IDS = {"unified-installer", "core", "python-runtime", "workshop", "publisher-center"}
 EXPECTED_KOKORO_VARIANTS = {"cpu", "nvidia", "nvidia-blackwell"}
+TRUSTED_KOKORO_REUSE_REPOSITORY = "coisu772-code/AI-"
 SENSITIVE_NAME = re.compile(r"(?:client[_-]?secret|access[_-]?token|refresh[_-]?token|credentials?\.json$|cookies?\.txt$|\.env$)", re.I)
 SENSITIVE_BYTES = (
     re.compile(rb"-----BEGIN (?:RSA |OPENSSH )?PRIVATE KEY-----"),
@@ -106,6 +107,39 @@ def validate(manifest_path: Path, asset_root: Path) -> dict[str, object]:
         manifest_name = manifest_record.get("fileName", "")
         if manifest_name != f"{expected_base}.json" or archive_record.get("fileName") != f"{expected_base}.zip":
             errors.append(f"Kokoro runtime filenames do not match variant: {variant}")
+            continue
+        source = package.get("source", {})
+        reused_release_tag = source.get("releaseTag") if isinstance(source, dict) else None
+        if reused_release_tag:
+            referenced_names = [manifest_name] + [part.get("fileName", "") for part in part_records]
+            for name in referenced_names:
+                if not name or name in attachment_names:
+                    errors.append(f"duplicate or empty reused optional runtime attachment: {name}")
+                attachment_names.add(name)
+            source_manifest_record = source.get("releaseManifest", {})
+            source_manifest_name = source_manifest_record.get("fileName", "")
+            source_manifest_path = ROOT / "release-manifests" / source_manifest_name
+            if (
+                source.get("repository") != TRUSTED_KOKORO_REUSE_REPOSITORY
+                or source.get("reuseStatus") != "PUBLISHED_RUNTIME_REUSED_AFTER_REMOTE_DIGEST_REVALIDATION"
+                or not isinstance(reused_release_tag, str)
+                or not reused_release_tag.startswith("v")
+                or not source_manifest_path.is_file()
+                or sha256(source_manifest_path) != source_manifest_record.get("sha256")
+            ):
+                errors.append(f"reused Kokoro provenance is invalid: {variant}")
+                continue
+            trusted_manifest = json.loads(source_manifest_path.read_text(encoding="utf-8"))
+            trusted_package = next(
+                (item for item in trusted_manifest.get("optionalRuntimePackages", []) if item.get("variant") == variant),
+                None,
+            )
+            package_payload = {key: value for key, value in package.items() if key != "source"}
+            trusted_payload = {key: value for key, value in trusted_package.items() if key != "source"} if isinstance(trusted_package, dict) else None
+            if package_payload != trusted_payload:
+                errors.append(f"reused Kokoro records differ from the trusted published manifest: {variant}")
+            if package.get("license", {}).get("reviewStatus") != "technical-inventory-validated-release-owner-approval-required":
+                errors.append(f"Kokoro technical license approval gate is missing: {variant}")
             continue
         manifest_file = asset_root / manifest_name
         if not manifest_file.is_file():

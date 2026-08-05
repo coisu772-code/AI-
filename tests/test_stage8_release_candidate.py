@@ -27,6 +27,7 @@ from build_unified_release import (  # noqa: E402
     build_bootstrap,
     build_core,
     copy_kokoro_packages,
+    reuse_kokoro_packages,
 )
 from validate_unified_release import safe_zip_entries  # noqa: E402
 
@@ -104,6 +105,16 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
             self.assertEqual(9, len(copied))
             self.assertTrue(all(path.is_file() for path in copied))
 
+    def test_unchanged_kokoro_packages_are_reused_from_one_trusted_public_release(self) -> None:
+        packages = reuse_kokoro_packages()
+        self.assertEqual({"cpu", "nvidia", "nvidia-blackwell"}, {package["variant"] for package in packages})
+        for package in packages:
+            source = package["source"]
+            self.assertEqual("coisu772-code/AI-", source["repository"])
+            self.assertEqual("v0.10.0-rc.1", source["releaseTag"])
+            self.assertEqual("PUBLISHED_RUNTIME_REUSED_AFTER_REMOTE_DIGEST_REVALIDATION", source["reuseStatus"])
+            self.assertRegex(source["releaseManifest"]["sha256"], r"^[0-9a-f]{64}$")
+
     def test_portable_youtube_runtime_is_pinned_and_installer_bound(self) -> None:
         contract = json.loads((ROOT / "plugins/ai-video-channel-production/assets/portable-youtube-runtime.json").read_text(encoding="utf-8"))
         requirements = (ROOT / "installer/runtime-requirements.txt").read_text(encoding="utf-8")
@@ -158,6 +169,7 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
         self.assertIn("JavaScriptSerializer", script)
         self.assertIn("ls-remote origin", script)
         self.assertIn("remote[0].digest", script)
+        self.assertIn("REUSED_REMOTE_VERIFY_PASS", script)
         self.assertNotIn("gh auth login", script)
         self.assertNotIn("Get-Command gh", script)
         self.assertNotIn("$gh.Source release create", script)

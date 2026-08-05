@@ -26,7 +26,7 @@ def main() -> int:
     if args.metadata_commit and not re.fullmatch(r"[0-9a-f]{40}", args.metadata_commit):
         raise SystemExit("metadata commit must be 40 lowercase hexadecimal characters")
     root = args.asset_root.resolve()
-    manifest_path = root / "unified-release-v0.10.0-rc.1.json"
+    manifest_path = root / "unified-release-v0.10.1-rc.1.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     bound_assets = 0
     changed = 0
@@ -53,8 +53,9 @@ def main() -> int:
     manifest_path.write_text(rendered, encoding="utf-8", newline="\n")
     names = [asset["fileName"] for asset in manifest["assets"]]
     for package in manifest.get("optionalRuntimePackages", []):
-        names.append(package["manifest"]["fileName"])
-        names.extend(part["fileName"] for part in package["parts"])
+        if not package.get("source", {}).get("releaseTag"):
+            names.append(package["manifest"]["fileName"])
+            names.extend(part["fileName"] for part in package["parts"])
     names.append(manifest_path.name)
     (root / "SHA256SUMS.txt").write_text(
         "".join(f"{sha256(root / name)}  {name}\n" for name in sorted(names)), encoding="ascii", newline="\n"

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$AssetRoot,
-    [string]$Tag = "v0.10.0-rc.1",
+    [string]$Tag = "v0.10.1-rc.1",
     [switch]$Execute,
     [string]$ApprovalFile
 )
@@ -9,7 +9,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $assetFull = [System.IO.Path]::GetFullPath($AssetRoot)
-$manifestPath = Join-Path $assetFull "unified-release-v0.10.0-rc.1.json"
+$manifestPath = Join-Path $assetFull "unified-release-v0.10.1-rc.1.json"
 $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
 
 function Get-ExistingGitHubCredential {
@@ -142,7 +142,17 @@ if ($runtimePackages.Count -ne 3 -or $runtimeVariants.Count -ne 3 -or @($runtime
     throw "The release must contain exactly the CPU, NVIDIA, and NVIDIA Blackwell Kokoro runtime packages."
 }
 $optionalReleaseFiles = New-Object System.Collections.Generic.List[string]
+$reusedRuntimePackages = New-Object System.Collections.Generic.List[object]
 foreach ($package in $runtimePackages) {
+    $releaseTagProperty = $package.source.PSObject.Properties["releaseTag"]
+    $sourceReleaseTag = if ($null -eq $releaseTagProperty) { "" } else { [string]$releaseTagProperty.Value }
+    if (-not [string]::IsNullOrWhiteSpace($sourceReleaseTag)) {
+        if ([string]$package.source.repository -ne "coisu772-code/AI-" -or $sourceReleaseTag -eq $Tag) {
+            throw "Reused optional runtime provenance is invalid: $($package.variant)"
+        }
+        $reusedRuntimePackages.Add($package)
+        continue
+    }
     $records = @($package.manifest) + @($package.parts)
     foreach ($record in $records) {
         $path = Join-Path $assetFull ([string]$record.fileName)
@@ -179,7 +189,7 @@ if ($LASTEXITCODE -ne 0 -or @($remoteTagRecords | Where-Object { ([string]$_).Sp
 $releaseFiles = New-Object System.Collections.Generic.List[string]
 foreach ($asset in @($manifest.assets)) { $releaseFiles.Add((Join-Path $assetFull ([string]$asset.fileName))) }
 $releaseFiles.AddRange($optionalReleaseFiles)
-foreach ($metadataName in @("unified-release-v0.10.0-rc.1.json", "SHA256SUMS.txt")) {
+foreach ($metadataName in @("unified-release-v0.10.1-rc.1.json", "SHA256SUMS.txt")) {
     $metadataPath = Join-Path $assetFull $metadataName
     if (Test-Path -LiteralPath $metadataPath -PathType Leaf) { $releaseFiles.Add($metadataPath) }
 }
@@ -193,9 +203,23 @@ try {
     if ([string]$repositoryRecord.full_name -ne $repository -or -not [bool]$repositoryRecord.permissions.push) {
         throw "The existing GitHub credential does not have push permission for $repository."
     }
+    foreach ($package in @($reusedRuntimePackages)) {
+        $sourceRelease = Get-GitHubReleaseByTag -Repository ([string]$package.source.repository) -ReleaseTag ([string]$package.source.releaseTag) -Headers $headers
+        if ($null -eq $sourceRelease -or [bool]$sourceRelease.draft -or -not [bool]$sourceRelease.prerelease) {
+            throw "Reused optional runtime Release is missing or not a public prerelease: $($package.source.releaseTag)"
+        }
+        foreach ($record in @($package.manifest) + @($package.parts)) {
+            $remote = @($sourceRelease.assets | Where-Object { [string]$_.name -eq [string]$record.fileName })
+            $expectedDigest = "sha256:$([string]$record.sha256)"
+            if ($remote.Count -ne 1 -or [int64]$remote[0].size -ne [int64]$record.sizeBytes -or [string]$remote[0].digest -ne $expectedDigest) {
+                throw "Reused optional runtime asset failed remote digest verification: $($record.fileName)"
+            }
+            Write-Output "REUSED_REMOTE_VERIFY_PASS: $($record.fileName) from $($package.source.releaseTag)"
+        }
+    }
     $release = Get-GitHubReleaseByTag -Repository $repository -ReleaseTag $Tag -Headers $headers
     if ($null -eq $release) {
-        $notesPath = Join-Path $repositoryRoot "docs\release-notes-v0.10.0-rc.1.md"
+        $notesPath = Join-Path $repositoryRoot "docs\release-notes-v0.10.1-rc.1.md"
         $release = Invoke-GitHubJson -Method Post -Uri "https://api.github.com/repos/$repository/releases" -Headers $headers -Body @{
             tag_name = $Tag
             target_commitish = $boundSourceCommit

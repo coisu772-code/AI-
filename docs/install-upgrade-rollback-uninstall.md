@@ -1,4 +1,4 @@
-# v0.10.0-rc.1 安装、升级、回滚、修复与卸载
+# v0.10.1-rc.1 安装、升级、回滚、修复与卸载
 
 ## 统一资产
 
@@ -10,7 +10,7 @@
 
 ## 安装入口和路径
 
-联网用户只下载统一安装器 ZIP，解压后双击 `install.cmd`。若同目录没有总清单，入口只从版本锁定的 `v0.10.0-rc.1` HTTPS Release URL 获取它，先校验 schema、产品和精确版本，再下载缺失资产；不使用 `latest`。完全离线时，把总清单和另外四个核心组件 ZIP 放在 `install.cmd` 同目录。仅在离线安装 Kokoro 时，才另行准备对应的 JSON 清单与全部分卷文件。
+联网用户只下载统一安装器 ZIP，解压后双击 `install.cmd`。若同目录没有总清单，入口只从版本锁定的 `v0.10.1-rc.1` HTTPS Release URL 获取它，先校验 schema、产品和精确版本，再下载缺失资产；不使用 `latest`。完全离线时，把总清单和另外四个核心组件 ZIP 放在 `install.cmd` 同目录。仅在离线安装 Kokoro 时，才另行准备对应的 JSON 清单与全部分卷文件。本版本的三套 Kokoro 运行包内容未变化，继续从已校验的公开 `v0.10.0-rc.1` Release 获取。
 
 默认程序根是 `%LOCALAPPDATA%\AIVCP`，默认数据根是 `%LOCALAPPDATA%\AI Video Channel Production Data`。旧 `%LOCALAPPDATA%\AI Video Channel Production\data` 只作为既有用户数据保留，不自动迁移、删除或覆盖。程序根与数据根始终分离。
 

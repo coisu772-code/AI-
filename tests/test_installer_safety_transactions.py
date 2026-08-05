@@ -39,7 +39,7 @@ class InstallerSafetyTransactionTests(unittest.TestCase):
             plugin = current / "plugins/ai-video-channel-production"
             data = base / "User Data"
             (data / "workshop-isolation").mkdir(parents=True)
-            write_json(plugin / ".codex-plugin/plugin.json", {"name": "ai-video-channel-production", "version": "0.10.0-rc.1"})
+            write_json(plugin / ".codex-plugin/plugin.json", {"name": "ai-video-channel-production", "version": "0.10.1-rc.1"})
             write_json(plugin / "assets/voice-catalog.json", {"schemaVersion": "1.0.0", "engines": [{"engineId": "fixture"}]})
             (plugin / "assets").mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / "plugins/ai-video-channel-production/assets/portable-youtube-runtime.json", plugin / "assets/portable-youtube-runtime.json")
@@ -61,7 +61,7 @@ class InstallerSafetyTransactionTests(unittest.TestCase):
             wrapper.write_text(
                 f'''
 . "{COMMON}"
-Write-AivcpRuntimeBoundMcpDescriptor -PluginRoot "{plugin}" -InstallRoot "{install}" -DataRoot "{data}" -ProductVersion "0.10.0-rc.1" -ReleaseManifestSha256 "{'a' * 64}" -ComponentVerificationRoot "{current}" | Write-Output
+Write-AivcpRuntimeBoundMcpDescriptor -PluginRoot "{plugin}" -InstallRoot "{install}" -DataRoot "{data}" -ProductVersion "0.10.1-rc.1" -ReleaseManifestSha256 "{'a' * 64}" -ComponentVerificationRoot "{current}" | Write-Output
 '''.lstrip(),
                 encoding="utf-8-sig",
             )

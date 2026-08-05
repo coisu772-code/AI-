@@ -1,5 +1,13 @@
 # 更新记录
 
+## 0.10.1-rc.1 - GitHub prerelease
+
+- 内置固定版本的 `yt-dlp`、`yt-dlp-ejs` 与 Deno JavaScript 运行时，其他电脑无需预装 Python、下载器或浏览器扩展即可读取可公开访问的 YouTube 视频资料与字幕。
+- 安装、升级、修复、启动和健康检查统一绑定并校验便携 YouTube 采集器，拒绝环境变量篡改、系统 PATH 误用和不完整运行时。
+- 新漫剧工坊升级为 `2.3.1-rc.1`，Kokoro 清单与全部分卷严格绑定到同一个公开系统 Release，修复错误校验到私有工坊仓库而导致的一键安装失败。
+- 三套未变化的 Kokoro 大型运行包继续复用 `v0.10.0-rc.1` 的公开、哈希锁定资产，本次 Release 仅上传实际变化的组件。
+- 不包含 Token、API Key、OAuth 凭据、频道、项目或运行数据；未执行 Google/YouTube OAuth 或真实视频上传。
+
 ## 0.10.0-rc.1 - GitHub prerelease
 
 - 新漫剧工坊升级为 `2.3.0-rc.1`，新增 Kokoro-FastAPI CPU、NVIDIA 和 NVIDIA Blackwell 三种一键本地运行时选择，并保留现有 VOICEVOX 流程。

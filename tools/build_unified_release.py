@@ -15,10 +15,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.10.0-rc.1"
+VERSION = "0.10.1-rc.1"
 PYTHON_VERSION = "3.12.13"
 PYTHON_BUILD = "20260610"
-FIXED_TIME = (2026, 8, 5, 0, 0, 0)
+FIXED_TIME = (2026, 8, 6, 0, 0, 0)
 TEXT_SUFFIXES = {".cmd", ".json", ".md", ".ps1", ".py", ".txt", ".yaml", ".yml"}
 EXACT_BYTE_TEXT_PATHS = {"contracts/youtube-constraints/catalog-2026.08.04.1.json"}
 RUNTIME_LICENSE_NAME_MARKERS = ("license", "copying", "notice", "copyright", "patent", "authors")
@@ -29,12 +29,12 @@ BOOTSTRAP_FILES = (
     "installer/Install-AIVideoChannelProduction.ps1",
     "installer/install.cmd",
 )
-WORKSHOP_VERSION = "2.3.0-rc.1"
-WORKSHOP_NAME = "Z-Manga-Workshop-2.3.0-rc.1-for-AIVCP-0.10.0-rc.1-windows-x64-portable.zip"
-WORKSHOP_SHA = "8b21506cd7638de0448eb472cf1afd08578ddb72a8803c40bb0cd2343aad325b"
-WORKSHOP_SIZE = 94957874
-WORKSHOP_ROOT = "Z-Manga-Workshop-2.3.0-rc.1-for-AIVCP-0.10.0-rc.1-windows-x64-portable"
-WORKSHOP_SOURCE_COMMIT = "343c064a7d73cb5aa68a09d973d93a8fca57c4bb"
+WORKSHOP_VERSION = "2.3.1-rc.1"
+WORKSHOP_NAME = "Z-Manga-Workshop-2.3.1-rc.1-for-AIVCP-0.10.1-rc.1-windows-x64-portable.zip"
+WORKSHOP_SHA = "6d7a5100821c590a99fc9e96d742503282da2526f5582f7585437abf7a0b109f"
+WORKSHOP_SIZE = 94959814
+WORKSHOP_ROOT = "Z-Manga-Workshop-2.3.1-rc.1-for-AIVCP-0.10.1-rc.1-windows-x64-portable"
+WORKSHOP_SOURCE_COMMIT = "01ef170a797da4a9b7210135babd58d6a0ab3277"
 PUBLISHER_VERSION = "0.8.0-rc.2"
 PUBLISHER_NAME = "youtube-publisher-center-v0.8.0-rc.2-windows-amd64.zip"
 PUBLISHER_SHA = "8d2644c11310fd5ee31f6e39250f75a000ccf038cd8c35a9eed8f0f23388c48d"
@@ -45,6 +45,9 @@ PUBLISHER_COMPONENT_MANIFEST_NAME = "publisher-component-reuse-attestation-v0.8.
 PUBLISHER_COMPONENT_MANIFEST_SHA = "fac82b06df0516fc137bc56620a3d1aedf7bc7d260cd442278403f3e7e644816"
 PUBLISHER_CONSTRAINTS_SHA = "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13"
 KOKORO_VARIANTS = ("cpu", "nvidia", "nvidia-blackwell")
+KOKORO_REUSE_VERSION = "0.10.0-rc.1"
+KOKORO_REUSE_MANIFEST = f"unified-release-v{KOKORO_REUSE_VERSION}.json"
+KOKORO_REUSE_MANIFEST_SHA = "a145f756030e4b8c630031906352d42b3ab5212aba353708d1a045730bd2af5d"
 YT_DLP_VERSION = "2026.7.4"
 DENO_VERSION = "2.9.4"
 DENO_ARCHIVE_NAME = "deno-x86_64-pc-windows-msvc.zip"
@@ -406,7 +409,30 @@ def copy_kokoro_packages(output: Path, kokoro_dir: Path) -> tuple[list[dict[str,
     return packages, copied
 
 
-def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, publisher_dir: Path, kokoro_dir: Path, deno_archive: Path | None = None) -> dict[str, object]:
+def reuse_kokoro_packages() -> list[dict[str, object]]:
+    source_path = ROOT / "release-manifests" / KOKORO_REUSE_MANIFEST
+    if not source_path.is_file() or sha256(source_path) != KOKORO_REUSE_MANIFEST_SHA:
+        raise RuntimeError(f"trusted Kokoro source manifest mismatch: {source_path.name}")
+    source_manifest = json.loads(source_path.read_text(encoding="utf-8"))
+    packages = source_manifest.get("optionalRuntimePackages")
+    if not isinstance(packages, list) or {package.get("variant") for package in packages if isinstance(package, dict)} != set(KOKORO_VARIANTS):
+        raise RuntimeError("trusted Kokoro source manifest does not contain the three required variants")
+    reused: list[dict[str, object]] = []
+    for package in packages:
+        record = json.loads(json.dumps(package))
+        prior_source = record.get("source") if isinstance(record.get("source"), dict) else {}
+        record["source"] = {
+            **prior_source,
+            "repository": "coisu772-code/AI-",
+            "releaseTag": f"v{KOKORO_REUSE_VERSION}",
+            "releaseManifest": {"fileName": KOKORO_REUSE_MANIFEST, "sha256": KOKORO_REUSE_MANIFEST_SHA},
+            "reuseStatus": "PUBLISHED_RUNTIME_REUSED_AFTER_REMOTE_DIGEST_REVALIDATION",
+        }
+        reused.append(record)
+    return reused
+
+
+def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, publisher_dir: Path, deno_archive: Path | None = None) -> dict[str, object]:
     output.mkdir(parents=True, exist_ok=True)
     workshop_source = workshop_dir / WORKSHOP_NAME
     publisher_source = publisher_dir / PUBLISHER_NAME
@@ -423,7 +449,7 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
     publisher_target = output / PUBLISHER_NAME
     shutil.copy2(workshop_source, workshop_target)
     shutil.copy2(publisher_source, publisher_target)
-    kokoro_packages, kokoro_paths = copy_kokoro_packages(output, kokoro_dir)
+    kokoro_packages = reuse_kokoro_packages()
     assets = [
         asset_record("unified-installer", bootstrap, version=VERSION, compatibleProductVersions=[VERSION], install=False, archiveRoot=f"AI-Video-Channel-Production-Unified-Installer-v{VERSION}", installSubpath="", license={"expression":"LicenseRef-AI-Video-Channel-Production-1.0","source":"LICENSE.md","reviewStatus":"product-license-applies"}, source={"repository":"https://github.com/coisu772-code/AI-/","commit":"LOCAL_COMMIT_TO_BE_RECORDED"}),
         asset_record("core", core, version=VERSION, compatibleProductVersions=[VERSION], install=True, archiveRoot="ai-video-channel-production-core", installSubpath="", license={"expression":"LicenseRef-AI-Video-Channel-Production-1.0","source":"LICENSE.md","reviewStatus":"product-license-applies"}, source={"repository":"https://github.com/coisu772-code/AI-/","commit":"LOCAL_COMMIT_TO_BE_RECORDED"}),
@@ -434,7 +460,7 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
     manifest = {
         "schemaVersion":"2.0.0","productId":"ai-video-channel-production","productName":"AI 视频频道生产系统","productVersion":VERSION,
         "releaseStatus":"candidate","hashAlgorithm":"SHA-256","downloadBaseUrl":f"https://github.com/coisu772-code/AI-/releases/download/v{VERSION}",
-        "generatedAt":"2026-08-05T00:00:00Z","assets":assets,"optionalRuntimePackages":kokoro_packages,
+        "generatedAt":"2026-08-06T00:00:00Z","assets":assets,"optionalRuntimePackages":kokoro_packages,
         "runtime":{"pythonVersion":PYTHON_VERSION,"pythonBuild":PYTHON_BUILD,"youtubeCollectorVersion":YT_DLP_VERSION,"javascriptRuntimeVersion":DENO_VERSION,"requiresPreinstalledPython":False,"requiresPreinstalledUv":False,"requiresPreinstalledYoutubeCollector":False,"requiresPreinstalledJavascriptRuntime":False},
         "logicalComponents":[{"componentId":"ffmpeg-runtime","version":"8.1.1","providedByAsset":"workshop","license":{"expression":"GPL-3.0-only","source":"apps/workshop/licenses/ffmpeg/COPYING.GPLv3 and FFMPEG-PROVENANCE.txt"},"healthCheck":{"command":"apps/workshop/tools/ffmpeg/bin/ffmpeg.exe -version","expected":"ffmpeg version 8.1.1"},"files":[
             {"relativeInstallPath":"apps/workshop/tools/ffmpeg/bin/ffmpeg.exe","sizeBytes":101457920,"sha256":"228d7a8556258de907fdb55f36850078ebc7680b84ec30d84ea02e99bec1d1eb"},
@@ -445,7 +471,7 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
     }
     manifest_path = output / f"unified-release-v{VERSION}.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
-    checksum_paths = [output / record["fileName"] for record in assets] + kokoro_paths + [manifest_path]
+    checksum_paths = [output / record["fileName"] for record in assets] + [manifest_path]
     checksums = output / "SHA256SUMS.txt"
     checksums.write_text("".join(f"{sha256(path)}  {path.name}\n" for path in sorted(checksum_paths, key=lambda item: item.name)), encoding="ascii", newline="\n")
     report = {
@@ -454,7 +480,7 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
         "checksums":{"fileName":checksums.name,"sizeBytes":checksums.stat().st_size,"sha256":sha256(checksums)},
         "runtimePackageCount":len(runtime["packageInventory"]),"runtimeTechnicalLicenseInventory":runtime["technicalLicenseInventory"],
         "publisherMachineManifest":{"fileName":publisher_manifest_path.name,"sha256":sha256(publisher_manifest_path),"sourceCommit":publisher_manifest["source"]["commit"]},
-        "upstreamInputsUnmodified":True,"externalActionsExecuted":False,
+        "upstreamInputsUnmodified":True,"reusedOptionalRuntimeVersion":KOKORO_REUSE_VERSION,"externalActionsExecuted":False,
     }
     report_path = output / "unified-release-build-report.json"
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
@@ -468,10 +494,9 @@ def main() -> int:
     parser.add_argument("--uv", type=Path, required=True)
     parser.add_argument("--workshop-dir", type=Path, required=True)
     parser.add_argument("--publisher-dir", type=Path, required=True)
-    parser.add_argument("--kokoro-dir", type=Path, required=True)
     parser.add_argument("--deno-archive", type=Path)
     args = parser.parse_args()
-    fixed_paths = tuple(path.resolve() for path in (args.output, args.runtime_source, args.uv, args.workshop_dir, args.publisher_dir, args.kokoro_dir))
+    fixed_paths = tuple(path.resolve() for path in (args.output, args.runtime_source, args.uv, args.workshop_dir, args.publisher_dir))
     result = build_all(*fixed_paths, deno_archive=args.deno_archive.resolve() if args.deno_archive else None)
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
