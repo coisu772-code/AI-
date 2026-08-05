@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "1.0.0",
+  "productVersion": "0.10.0-rc.1",
+  "status": "PASS",
+  "publishedAt": "2026-08-05T13:29:49Z",
+  "release": {
+    "id": 365547557,
+    "url": "https://github.com/coisu772-code/AI-/releases/tag/v0.10.0-rc.1",
+    "tag": "v0.10.0-rc.1",
+    "draft": false,
+    "prerelease": true,
+    "latest": false,
+    "remoteMainCommitShaAtPublication": "0ca2fad58711d38bc118148bc87cdd833149c6cc",
+    "annotatedTagObjectSha": "25e68cb536da7da6fcb30aeb79ab091256f03251",
+    "tagResolvedCommitSha": "273e1326bf1e8a53524766f7674c66303491e93b"
+  },
+  "workshopSource": {
+    "repository": "https://github.com/coisu772-code/zz-",
+    "tag": "v2.3.0-rc.1",
+    "remoteMainCommitSha": "343c064a7d73cb5aa68a09d973d93a8fca57c4bb",
+    "annotatedTagObjectSha": "e767944a2ee2e37c03c95b58ffad05c255dcbefc",
+    "tagResolvedCommitSha": "343c064a7d73cb5aa68a09d973d93a8fca57c4bb"
+  },
+  "assets": {
+    "total": 16,
+    "corePackages": 5,
+    "optionalRuntimeAttachments": 9,
+    "metadata": 2,
+    "totalBytes": 9548303122,
+    "manifestSha256": "a145f756030e4b8c630031906352d42b3ab5212aba353708d1a045730bd2af5d",
+    "checksumsSha256": "62d6df305db937a5162e0a076861d7d7650a1c50953103fb0ea9ab14d393239d",
+    "allManifestSizesMatched": true,
+    "allGitHubDigestSha256Matched": true
+  },
+  "authentication": {
+    "existingGitCredentialReused": true,
+    "interactiveBrowserLoginStarted": false,
+    "ghCliRequired": false
+  },
+  "privacy": {
+    "youtubeChannelIdIncluded": false,
+    "youtubeVideoIdIncluded": false,
+    "channelNameIncluded": false,
+    "oauthTokenIncluded": false,
+    "credentialIncluded": false,
+    "userProjectIncluded": false,
+    "runtimeDataIncluded": false
+  }
+}
