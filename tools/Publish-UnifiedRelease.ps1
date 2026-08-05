@@ -203,7 +203,7 @@ try {
     if ([string]$repositoryRecord.full_name -ne $repository -or -not [bool]$repositoryRecord.permissions.push) {
         throw "The existing GitHub credential does not have push permission for $repository."
     }
-    foreach ($package in @($reusedRuntimePackages)) {
+    foreach ($package in $reusedRuntimePackages) {
         $sourceRelease = Get-GitHubReleaseByTag -Repository ([string]$package.source.repository) -ReleaseTag ([string]$package.source.releaseTag) -Headers $headers
         if ($null -eq $sourceRelease -or [bool]$sourceRelease.draft -or -not [bool]$sourceRelease.prerelease) {
             throw "Reused optional runtime Release is missing or not a public prerelease: $($package.source.releaseTag)"
