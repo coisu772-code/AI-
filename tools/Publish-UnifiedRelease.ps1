@@ -11,6 +11,109 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $assetFull = [System.IO.Path]::GetFullPath($AssetRoot)
 $manifestPath = Join-Path $assetFull "unified-release-v0.10.0-rc.1.json"
 $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+
+function Get-ExistingGitHubCredential {
+    $credentialLines = @("protocol=https", "host=github.com", "") | & git credential fill
+    if ($LASTEXITCODE -ne 0) { throw "Existing GitHub credential could not be read from Git Credential Manager." }
+    $credential = @{}
+    foreach ($line in @($credentialLines)) {
+        $separator = ([string]$line).IndexOf("=")
+        if ($separator -gt 0) {
+            $credential[([string]$line).Substring(0, $separator)] = ([string]$line).Substring($separator + 1)
+        }
+    }
+    if (-not $credential.ContainsKey("password") -or [string]::IsNullOrWhiteSpace([string]$credential.password)) {
+        throw "Existing GitHub credential is unavailable. This publisher never starts an interactive browser login."
+    }
+    return $credential
+}
+
+function New-GitHubHeaders {
+    param([Parameter(Mandatory = $true)][string]$Token)
+    return @{
+        Authorization = "Bearer $Token"
+        Accept = "application/vnd.github+json"
+        "X-GitHub-Api-Version" = "2022-11-28"
+        "User-Agent" = "AIVCP-Release-Center"
+    }
+}
+
+function Invoke-GitHubJson {
+    param(
+        [Parameter(Mandatory = $true)][ValidateSet("Get", "Post")][string]$Method,
+        [Parameter(Mandatory = $true)][string]$Uri,
+        [Parameter(Mandatory = $true)][hashtable]$Headers,
+        $Body
+    )
+    $parameters = @{ Method = $Method; Uri = $Uri; Headers = $Headers }
+    if ($null -ne $Body) {
+        $parameters.Body = ($Body | ConvertTo-Json -Depth 8 -Compress)
+        $parameters.ContentType = "application/json; charset=utf-8"
+    }
+    return Invoke-RestMethod @parameters
+}
+
+function Get-GitHubReleaseByTag {
+    param(
+        [Parameter(Mandatory = $true)][string]$Repository,
+        [Parameter(Mandatory = $true)][string]$ReleaseTag,
+        [Parameter(Mandatory = $true)][hashtable]$Headers
+    )
+    $encodedTag = [System.Uri]::EscapeDataString($ReleaseTag)
+    try {
+        return Invoke-GitHubJson -Method Get -Uri "https://api.github.com/repos/$Repository/releases/tags/$encodedTag" -Headers $Headers
+    }
+    catch {
+        $response = $_.Exception.Response
+        if ($null -ne $response -and [int]$response.StatusCode -eq 404) { return $null }
+        throw
+    }
+}
+
+function Send-GitHubReleaseAsset {
+    param(
+        [Parameter(Mandatory = $true)][string]$UploadUrl,
+        [Parameter(Mandatory = $true)][string]$PathValue,
+        [Parameter(Mandatory = $true)][string]$Token
+    )
+    Add-Type -AssemblyName System.Net.Http
+    $templateIndex = $UploadUrl.IndexOf("{")
+    $baseUrl = if ($templateIndex -ge 0) { $UploadUrl.Substring(0, $templateIndex) } else { $UploadUrl }
+    $file = Get-Item -LiteralPath $PathValue
+    $targetUrl = "$baseUrl`?name=$([System.Uri]::EscapeDataString($file.Name))"
+    $client = [System.Net.Http.HttpClient]::new()
+    $client.Timeout = [System.Threading.Timeout]::InfiniteTimeSpan
+    $client.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::new("Bearer", $Token)
+    $client.DefaultRequestHeaders.Accept.Add([System.Net.Http.Headers.MediaTypeWithQualityHeaderValue]::new("application/vnd.github+json"))
+    $client.DefaultRequestHeaders.UserAgent.ParseAdd("AIVCP-Release-Center")
+    $client.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28")
+    $stream = $null
+    $content = $null
+    $request = $null
+    $response = $null
+    try {
+        $stream = [System.IO.File]::Open($file.FullName, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+        $content = [System.Net.Http.StreamContent]::new($stream, 1048576)
+        $content.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::new("application/octet-stream")
+        $content.Headers.ContentLength = $file.Length
+        $request = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Post, $targetUrl)
+        $request.Content = $content
+        $response = $client.SendAsync($request, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
+        $responseText = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+        if (-not $response.IsSuccessStatusCode) {
+            throw "GitHub rejected release asset $($file.Name) with HTTP $([int]$response.StatusCode): $responseText"
+        }
+        return $responseText | ConvertFrom-Json
+    }
+    finally {
+        if ($null -ne $response) { $response.Dispose() }
+        if ($null -ne $request) { $request.Dispose() }
+        elseif ($null -ne $content) { $content.Dispose() }
+        elseif ($null -ne $stream) { $stream.Dispose() }
+        $client.Dispose()
+    }
+}
+
 if ((Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8).Contains("LOCAL_COMMIT_TO_BE_RECORDED")) { throw "Release manifest still contains an unbound source commit placeholder." }
 $boundSourceCommits = @(
     $manifest.assets |
@@ -63,6 +166,10 @@ if (
 $gh = Get-Command gh -ErrorAction Stop
 $tagCommit = (& git -C $repositoryRoot rev-list -n 1 $Tag).Trim()
 if ($LASTEXITCODE -ne 0 -or $tagCommit -ne $boundSourceCommit) { throw "The approved tag does not resolve to the bound implementation/source commit; this script will not create or push tags." }
+$remoteTagRecords = @(& git -C $repositoryRoot ls-remote origin "refs/tags/$Tag" "refs/tags/$Tag^{}")
+if ($LASTEXITCODE -ne 0 -or @($remoteTagRecords | Where-Object { ([string]$_).Split("`t")[0] -eq $boundSourceCommit }).Count -ne 1) {
+    throw "The approved tag is not present on origin at the bound implementation/source commit; this script will not create or push tags."
+}
 $releaseFiles = New-Object System.Collections.Generic.List[string]
 foreach ($asset in @($manifest.assets)) { $releaseFiles.Add((Join-Path $assetFull ([string]$asset.fileName))) }
 $releaseFiles.AddRange($optionalReleaseFiles)
@@ -70,5 +177,58 @@ foreach ($metadataName in @("unified-release-v0.10.0-rc.1.json", "SHA256SUMS.txt
     $metadataPath = Join-Path $assetFull $metadataName
     if (Test-Path -LiteralPath $metadataPath -PathType Leaf) { $releaseFiles.Add($metadataPath) }
 }
-& $gh.Source release create $Tag @releaseFiles --verify-tag --prerelease --latest=false --title "AI Video Channel Production $Tag" --notes-file (Join-Path $repositoryRoot "docs\release-notes-v0.10.0-rc.1.md")
-if ($LASTEXITCODE -ne 0) { throw "GitHub Release creation failed. No push or tag creation was attempted." }
+$repository = "coisu772-code/AI-"
+$credential = Get-ExistingGitHubCredential
+$token = [string]$credential.password
+$headers = New-GitHubHeaders -Token $token
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+try {
+    $repositoryRecord = Invoke-GitHubJson -Method Get -Uri "https://api.github.com/repos/$repository" -Headers $headers
+    if ([string]$repositoryRecord.full_name -ne $repository -or -not [bool]$repositoryRecord.permissions.push) {
+        throw "The existing GitHub credential does not have push permission for $repository."
+    }
+    $release = Get-GitHubReleaseByTag -Repository $repository -ReleaseTag $Tag -Headers $headers
+    if ($null -eq $release) {
+        $notesPath = Join-Path $repositoryRoot "docs\release-notes-v0.10.0-rc.1.md"
+        $release = Invoke-GitHubJson -Method Post -Uri "https://api.github.com/repos/$repository/releases" -Headers $headers -Body @{
+            tag_name = $Tag
+            target_commitish = $boundSourceCommit
+            name = "AI Video Channel Production $Tag"
+            body = Get-Content -LiteralPath $notesPath -Raw -Encoding UTF8
+            draft = $false
+            prerelease = $true
+            make_latest = "false"
+        }
+    }
+    if ([string]$release.tag_name -ne $Tag -or [bool]$release.draft -or -not [bool]$release.prerelease) {
+        throw "GitHub returned a Release whose tag or prerelease state does not match the approval."
+    }
+    foreach ($path in @($releaseFiles | Sort-Object -Unique)) {
+        $file = Get-Item -LiteralPath $path
+        $localDigest = "sha256:$((Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant())"
+        $existing = @($release.assets | Where-Object { [string]$_.name -eq $file.Name })
+        if ($existing.Count -gt 1) { throw "GitHub Release contains duplicate asset names: $($file.Name)" }
+        if ($existing.Count -eq 1) {
+            if ([int64]$existing[0].size -ne $file.Length -or [string]$existing[0].digest -ne $localDigest) {
+                throw "Existing GitHub Release asset does not match the approved local file: $($file.Name)"
+            }
+            continue
+        }
+        Send-GitHubReleaseAsset -UploadUrl ([string]$release.upload_url) -PathValue $file.FullName -Token $token | Out-Null
+        $release = Get-GitHubReleaseByTag -Repository $repository -ReleaseTag $Tag -Headers $headers
+    }
+    $release = Get-GitHubReleaseByTag -Repository $repository -ReleaseTag $Tag -Headers $headers
+    foreach ($path in @($releaseFiles | Sort-Object -Unique)) {
+        $file = Get-Item -LiteralPath $path
+        $expectedDigest = "sha256:$((Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant())"
+        $remote = @($release.assets | Where-Object { [string]$_.name -eq $file.Name })
+        if ($remote.Count -ne 1 -or [int64]$remote[0].size -ne $file.Length -or [string]$remote[0].digest -ne $expectedDigest) {
+            throw "Remote GitHub Release verification failed: $($file.Name)"
+        }
+    }
+    Write-Output "GITHUB_RELEASE_PASS: existing Git credential reused; no browser login was started."
+}
+finally {
+    $token = $null
+    $credential = $null
+}

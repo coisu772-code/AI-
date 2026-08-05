@@ -125,6 +125,12 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
         self.assertIn("implementationSourceCommitSha", script)
         self.assertIn("rev-list -n 1 $Tag", script)
         self.assertIn("$tagCommit -ne $boundSourceCommit", script)
+        self.assertIn("git credential fill", script)
+        self.assertIn("This publisher never starts an interactive browser login", script)
+        self.assertIn("ls-remote origin", script)
+        self.assertIn("remote[0].digest", script)
+        self.assertNotIn("gh auth login", script)
+        self.assertNotIn("$gh.Source release create", script)
 
     def test_runtime_is_standalone_and_ffmpeg_is_explicit(self) -> None:
         manifest = self.manifest()
