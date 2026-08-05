@@ -10,7 +10,8 @@
       "status": "local-release-candidate",
       "gitTag": "v0.10.1-rc.1",
       "manifest": "unified-release-v0.10.1-rc.1.json",
-      "remotePublished": false
+      "remotePublished": false,
+      "manifestFileSha256": "a43108d1bfa3d598f1650758bf8179ad6d417312ac55ca6e87a9d3e84cb18df8"
     },
     {
       "version": "0.10.0-rc.1",
