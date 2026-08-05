@@ -114,6 +114,28 @@ if ([string]$manifest.name -ne "ai-video-channel-production") {
 if ($null -ne $installState -and [string]$installState.productVersion -ne [string]$manifest.version) {
     throw "Installation health check failed: install state and plugin versions differ."
 }
+$voiceCatalogPath = Join-Path $pluginFull "assets\voice-catalog.json"
+if (-not (Test-Path -LiteralPath $voiceCatalogPath -PathType Leaf)) {
+    throw "Installation health check failed: bundled pre-scanned voice catalog is missing."
+}
+try {
+    $voiceCatalog = Get-Content -LiteralPath $voiceCatalogPath -Raw -Encoding UTF8 | ConvertFrom-Json
+}
+catch {
+    throw "Installation health check failed: bundled pre-scanned voice catalog is unreadable."
+}
+if ([string]$voiceCatalog.schemaVersion -ne "1.0.0" -or @($voiceCatalog.engines).Count -eq 0) {
+    throw "Installation health check failed: bundled pre-scanned voice catalog contract is invalid."
+}
+foreach ($voiceEngine in @($voiceCatalog.engines)) {
+    if ([string]::IsNullOrWhiteSpace([string]$voiceEngine.engineId) -or -not [bool]$voiceEngine.installed -or @($voiceEngine.voices).Count -eq 0) {
+        throw "Installation health check failed: bundled pre-scanned voice catalog contains an unusable engine."
+    }
+}
+$voiceCatalogCoverage = @(
+    @($voiceCatalog.engines | ForEach-Object { [string]$_.engineId }) +
+    @($voiceCatalog.enginePolicies | ForEach-Object { [string]$_.engineId })
+) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
 
 $skillsRoot = Join-Path $pluginFull "skills"
 $installedSkills = @(Get-ChildItem -LiteralPath $skillsRoot -Directory | ForEach-Object { $_.Name })
@@ -155,6 +177,7 @@ $systemCapabilitiesChecked = $false
 $contentCapabilitiesChecked = $false
 $productionCapabilitiesChecked = $false
 $dataCenterCapabilitiesChecked = $false
+$voiceCatalogChecked = $false
 if (-not $SkipServiceCheck) {
     $healthDataRoot = $null
     $healthEnvironment = [ordered]@{}
@@ -312,6 +335,14 @@ raise SystemExit(completed.returncode)
         ) {
             throw "Installation health check failed: installed workshop, FFmpeg, ffprobe, or Production Package 2.1 bridge is not healthy."
         }
+        $uncoveredVoiceEngines = @(
+            @($productionPayload.result.workshopCapabilities.voiceEngines) |
+                ForEach-Object { [string]$_.engine } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and $voiceCatalogCoverage -notcontains $_ }
+        )
+        if ($uncoveredVoiceEngines.Count -gt 0) {
+            throw "Installation health check failed: workshop voice engine coverage is missing from the catalog or an explicit no-list policy: $($uncoveredVoiceEngines -join ', ')"
+        }
     }
     $productionCapabilitiesChecked = $true
     $systemRequest = '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"system_capabilities","arguments":{}}}'
@@ -320,6 +351,12 @@ raise SystemExit(completed.returncode)
     $systemPayload = $systemResponse.result.structuredContent
     if ($null -eq $systemPayload -or -not [bool]$systemPayload.ok -or $null -eq $systemPayload.result) {
         throw "Installation health check failed: system capabilities are not healthy."
+    }
+    if (
+        -not [bool]$systemPayload.result.voiceCatalog.available -or
+        -not [bool]$systemPayload.result.capabilities.preScannedVoiceCatalog
+    ) {
+        throw "Installation health check failed: pre-scanned voice catalog is not available to the local tool service."
     }
     if ($null -ne $installState -and (
         -not [bool]$systemPayload.result.publisherInterface.available -or
@@ -331,7 +368,20 @@ raise SystemExit(completed.returncode)
         throw "Installation health check failed: installed publisher read-only or publish-package-v2 offline bridge is not configured."
     }
     $systemCapabilitiesChecked = $true
-    $dataRequest = '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"data_center_capabilities","arguments":{}}}'
+    $voiceCatalogRequest = '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"system_voice_catalog","arguments":{}}}'
+    $voiceCatalogResponseText = Invoke-AivcpHealthRequest $voiceCatalogRequest
+    $voiceCatalogResponse = $voiceCatalogResponseText | ConvertFrom-Json
+    $voiceCatalogPayload = $voiceCatalogResponse.result.structuredContent
+    if (
+        $null -eq $voiceCatalogPayload -or
+        -not [bool]$voiceCatalogPayload.ok -or
+        [string]$voiceCatalogPayload.result.schemaVersion -ne "1.0.0" -or
+        @($voiceCatalogPayload.result.engines).Count -eq 0
+    ) {
+        throw "Installation health check failed: pre-scanned voice catalog cannot be read safely."
+    }
+    $voiceCatalogChecked = $true
+    $dataRequest = '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"data_center_capabilities","arguments":{}}}'
     $dataResponseText = Invoke-AivcpHealthRequest $dataRequest
     $dataResponse = $dataResponseText | ConvertFrom-Json
     $dataCapabilityPayload = $dataResponse.result.structuredContent
@@ -381,6 +431,7 @@ $result = [ordered]@{
     contentCapabilitiesChecked = $contentCapabilitiesChecked
     productionCapabilitiesChecked = $productionCapabilitiesChecked
     dataCenterCapabilitiesChecked = $dataCenterCapabilitiesChecked
+    voiceCatalogChecked = $voiceCatalogChecked
     userDataRoot = if ([string]::IsNullOrWhiteSpace($DataRoot)) { $null } else { Resolve-AivcpFullPath $DataRoot }
     userDataSeparatedFromActiveProgram = if ([string]::IsNullOrWhiteSpace($DataRoot)) { $null } else {
         $activeProgram = Resolve-AivcpFullPath (Join-Path (Resolve-AivcpFullPath $InstallRoot) "current")

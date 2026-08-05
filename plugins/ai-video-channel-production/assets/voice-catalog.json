@@ -1,0 +1,2878 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-07-27T22:14:07.0568471+08:00",
+  "engines": [
+    {
+      "engineId": "voicevox_external",
+      "displayName": "VOICEVOX 本地配音",
+      "installed": true,
+      "voices": [
+        {
+          "voiceId": "0",
+          "displayName": "四国めたん / あまあま",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "1",
+          "displayName": "ずんだもん / あまあま",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "2",
+          "displayName": "四国めたん / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "3",
+          "displayName": "ずんだもん / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "4",
+          "displayName": "四国めたん / セクシー",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "5",
+          "displayName": "ずんだもん / セクシー",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "6",
+          "displayName": "四国めたん / ツンツン",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "7",
+          "displayName": "ずんだもん / ツンツン",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "8",
+          "displayName": "春日部つむぎ / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "9",
+          "displayName": "波音リツ / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "10",
+          "displayName": "雨晴はう / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "11",
+          "displayName": "玄野武宏 / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "12",
+          "displayName": "白上虎太郎 / ふつう",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "13",
+          "displayName": "青山龍星 / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "14",
+          "displayName": "冥鳴ひまり / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "15",
+          "displayName": "九州そら / あまあま",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "16",
+          "displayName": "九州そら / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "17",
+          "displayName": "九州そら / セクシー",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "18",
+          "displayName": "九州そら / ツンツン",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "19",
+          "displayName": "九州そら / ささやき",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": false
+        },
+        {
+          "voiceId": "20",
+          "displayName": "もち子さん / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "21",
+          "displayName": "剣崎雌雄 / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "22",
+          "displayName": "ずんだもん / ささやき",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": false
+        },
+        {
+          "voiceId": "23",
+          "displayName": "WhiteCUL / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "24",
+          "displayName": "WhiteCUL / たのしい",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "25",
+          "displayName": "WhiteCUL / かなしい",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "26",
+          "displayName": "WhiteCUL / びえーん",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "27",
+          "displayName": "後鬼 / 人間ver.",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "28",
+          "displayName": "後鬼 / ぬいぐるみver.",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "29",
+          "displayName": "No.7 / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "30",
+          "displayName": "No.7 / アナウンス",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "31",
+          "displayName": "No.7 / 読み聞かせ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "32",
+          "displayName": "白上虎太郎 / わーい",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "33",
+          "displayName": "白上虎太郎 / びくびく",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "34",
+          "displayName": "白上虎太郎 / おこ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "35",
+          "displayName": "白上虎太郎 / びえーん",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "36",
+          "displayName": "四国めたん / ささやき",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": false
+        },
+        {
+          "voiceId": "37",
+          "displayName": "四国めたん / ヒソヒソ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": false
+        },
+        {
+          "voiceId": "38",
+          "displayName": "ずんだもん / ヒソヒソ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": false
+        },
+        {
+          "voiceId": "39",
+          "displayName": "玄野武宏 / 喜び",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "40",
+          "displayName": "玄野武宏 / ツンギレ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "41",
+          "displayName": "玄野武宏 / 悲しみ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": false
+        },
+        {
+          "voiceId": "42",
+          "displayName": "ちび式じい / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "43",
+          "displayName": "櫻歌ミコ / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "44",
+          "displayName": "櫻歌ミコ / 第二形態",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "45",
+          "displayName": "櫻歌ミコ / ロリ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "46",
+          "displayName": "小夜/SAYO / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "47",
+          "displayName": "ナースロボ＿タイプＴ / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "48",
+          "displayName": "ナースロボ＿タイプＴ / 楽々",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "49",
+          "displayName": "ナースロボ＿タイプＴ / 恐怖",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "50",
+          "displayName": "ナースロボ＿タイプＴ / 内緒話",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "51",
+          "displayName": "†聖騎士 紅桜† / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "52",
+          "displayName": "雀松朱司 / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "53",
+          "displayName": "麒ヶ島宗麟 / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "54",
+          "displayName": "春歌ナナ / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "55",
+          "displayName": "猫使アル / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "56",
+          "displayName": "猫使アル / おちつき",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "57",
+          "displayName": "猫使アル / うきうき",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "58",
+          "displayName": "猫使ビィ / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "59",
+          "displayName": "猫使ビィ / おちつき",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "60",
+          "displayName": "猫使ビィ / 人見知り",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "61",
+          "displayName": "中国うさぎ / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "62",
+          "displayName": "中国うさぎ / おどろき",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "63",
+          "displayName": "中国うさぎ / こわがり",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "64",
+          "displayName": "中国うさぎ / へろへろ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "65",
+          "displayName": "波音リツ / クイーン",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "66",
+          "displayName": "もち子さん / セクシー／あん子",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "67",
+          "displayName": "栗田まろん / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "68",
+          "displayName": "あいえるたん / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "69",
+          "displayName": "満別花丸 / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "70",
+          "displayName": "満別花丸 / 元気",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "71",
+          "displayName": "満別花丸 / ささやき",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": false
+        },
+        {
+          "voiceId": "72",
+          "displayName": "満別花丸 / ぶりっ子",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "73",
+          "displayName": "満別花丸 / ボーイ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "74",
+          "displayName": "琴詠ニア / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "75",
+          "displayName": "ずんだもん / ヘロヘロ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "76",
+          "displayName": "ずんだもん / なみだめ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "77",
+          "displayName": "もち子さん / 泣き",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": false
+        },
+        {
+          "voiceId": "78",
+          "displayName": "もち子さん / 怒り",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "79",
+          "displayName": "もち子さん / 喜び",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "80",
+          "displayName": "もち子さん / のんびり",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "81",
+          "displayName": "青山龍星 / 熱血",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "82",
+          "displayName": "青山龍星 / 不機嫌",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "83",
+          "displayName": "青山龍星 / 喜び",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "84",
+          "displayName": "青山龍星 / しっとり",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "85",
+          "displayName": "青山龍星 / かなしみ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "86",
+          "displayName": "青山龍星 / 囁き",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": false
+        },
+        {
+          "voiceId": "87",
+          "displayName": "後鬼 / 人間（怒り）ver.",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "88",
+          "displayName": "後鬼 / 鬼ver.",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "89",
+          "displayName": "Voidoll / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "90",
+          "displayName": "ぞん子 / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "91",
+          "displayName": "ぞん子 / 低血圧",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "92",
+          "displayName": "ぞん子 / 覚醒",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "93",
+          "displayName": "ぞん子 / 実況風",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "94",
+          "displayName": "中部つるぎ / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "95",
+          "displayName": "中部つるぎ / 怒り",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "96",
+          "displayName": "中部つるぎ / ヒソヒソ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": false
+        },
+        {
+          "voiceId": "97",
+          "displayName": "中部つるぎ / おどおど",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "98",
+          "displayName": "中部つるぎ / 絶望と敗北",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "99",
+          "displayName": "離途 / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "100",
+          "displayName": "黒沢冴白 / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "101",
+          "displayName": "離途 / シリアス",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "102",
+          "displayName": "ユーレイちゃん / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "103",
+          "displayName": "ユーレイちゃん / 甘々",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "104",
+          "displayName": "ユーレイちゃん / 哀しみ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "105",
+          "displayName": "ユーレイちゃん / ささやき",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": false
+        },
+        {
+          "voiceId": "106",
+          "displayName": "ユーレイちゃん / ツクモちゃん",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "107",
+          "displayName": "東北ずん子 / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "108",
+          "displayName": "東北きりたん / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "109",
+          "displayName": "東北イタコ / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "110",
+          "displayName": "猫使アル / つよつよ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "111",
+          "displayName": "猫使アル / へろへろ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "112",
+          "displayName": "猫使ビィ / つよつよ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "113",
+          "displayName": "あんこもん / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "114",
+          "displayName": "あんこもん / つよつよ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "115",
+          "displayName": "あんこもん / よわよわ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "116",
+          "displayName": "あんこもん / けだるげ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "117",
+          "displayName": "あんこもん / ささやき",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": false
+        },
+        {
+          "voiceId": "118",
+          "displayName": "夜語トバリ / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "119",
+          "displayName": "夜語トバリ / 明るい",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "120",
+          "displayName": "夜語トバリ / 哀しみ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "121",
+          "displayName": "夜語トバリ / 呆れ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "122",
+          "displayName": "暁記ミタマ / ノーマル",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "123",
+          "displayName": "暁記ミタマ / 怒り",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "124",
+          "displayName": "暁記ミタマ / 哀しみ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        },
+        {
+          "voiceId": "125",
+          "displayName": "暁記ミタマ / ささやき",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": false
+        },
+        {
+          "voiceId": "126",
+          "displayName": "里石ユカ / つぼみ",
+          "languages": [
+            "ja-JP"
+          ],
+          "recommended": true
+        }
+      ]
+    },
+    {
+      "engineId": "fish_audio",
+      "displayName": "Fish Audio API",
+      "installed": true,
+      "voices": [
+        {
+          "voiceId": "0a690dbeb3984a9f88cd39353880775f",
+          "displayName": "Меллстрой",
+          "languages": [
+            "ru"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "0eb38bc974e1459facca38b359e13511",
+          "displayName": "赛马娘",
+          "languages": [
+            "zh"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "01d3008e895343ed8fd3d019cab00431",
+          "displayName": "السيسي",
+          "languages": [
+            "ar"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "1dc6c2dc086b48c4b2a7f943401059b6",
+          "displayName": "announcer Super Smash Bros",
+          "languages": [
+            "en",
+            "ja",
+            "ko"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "1e17dc57eaba4f27ac3ee8d50cb8d040",
+          "displayName": "Steal a Brainrot (Brainrots Voice)",
+          "languages": [
+            "sw",
+            "en",
+            "fr",
+            "es",
+            "ro",
+            "el",
+            "pt",
+            "it",
+            "ru",
+            "tl",
+            "sv"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "2a1036d645634680b3cc69aeeb60375b",
+          "displayName": "Спокойный женский голос",
+          "languages": [
+            "ru"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "3f45a7fd7a614655a61eb7027b955783",
+          "displayName": "voz de locutor k",
+          "languages": [
+            "es"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "4c6a6762e4ac4bdebdb4fa8525d054a2",
+          "displayName": "ATOMIC",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "4f7b3d2243ae422a8e4bd061abfb0fd6",
+          "displayName": "L-gang",
+          "languages": [
+            "es"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "4fb9539672c34e3cab46da3c5104fe85",
+          "displayName": "ميماتي باش",
+          "languages": [
+            "ar"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "5ac6fb7171ba419190700620738209d8",
+          "displayName": "Raiden Shogun",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "5b67899dc9a34685ae09c94c890a606f",
+          "displayName": "عصام الشوالي",
+          "languages": [
+            "ar"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "5bec805f042d447cb4c542f49f225178",
+          "displayName": "Farid dick 2",
+          "languages": [
+            "es"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "6dc11f3f67a543f6ad4537a4a347e224",
+          "displayName": "Mita Miside (Russian voice)",
+          "languages": [
+            "en",
+            "ru"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "7e4fa512aa564e198f8659b466f6ff70",
+          "displayName": "AboFlah - أبو فلة",
+          "languages": [
+            "ar"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "7eee0787bf1a476fb0864270853e344a",
+          "displayName": "يي",
+          "languages": [
+            "ar"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "7f92f8afb8ec43bf81429cc1c9199cb1",
+          "displayName": "AD学姐",
+          "languages": [
+            "zh"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "7ffbc30676794fd989cda022638314b5",
+          "displayName": "3editsfx",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "8bed0e9b444046e2bf72da4b251d9a1d",
+          "displayName": "Marcus the worm",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "8d2c17a9b26d4d83888ea67a1ee565b2",
+          "displayName": "Valentino Narración Biblica Fer",
+          "languages": [
+            "es"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "8d7cd78f391d412b8d9715427f0615c9",
+          "displayName": "a2ksi",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "8d21b053e2804e2a890e1cf62f267b6f",
+          "displayName": "Verity",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "9a9cf47702da476aa4629e2506d4a857",
+          "displayName": "Hannah",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "9f850ee9ada24b20a6866825eaefd3f8",
+          "displayName": "Goku (Mario Castañeda)",
+          "languages": [
+            "es"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "14f1000b77d547eeb5f03b474dd29e0f",
+          "displayName": "اسماء",
+          "languages": [
+            "ar"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "26ff45fab722431c85eea2536e5c5197",
+          "displayName": "Idea Vilariño",
+          "languages": [
+            "es"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "33ceed22a1ff4c15b5a7d4b0617e21b8",
+          "displayName": "ميماتي",
+          "languages": [
+            "ar"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "35a41c4c9e754e49a124a4bab5aa47e6",
+          "displayName": "Energetic Crowd",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "47a7c0605b6a4a658acc1fb85df19444",
+          "displayName": "Waldemaro Martinez voz profesional",
+          "languages": [
+            "es"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "52e0660e03fe4f9a8d2336f67cab5440",
+          "displayName": "ALEX_CHIKNA",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "54a5170264694bfc8e9ad98df7bd89c3",
+          "displayName": "丁真",
+          "languages": [
+            "zh"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "59e9dc1cb20c452584788a2690c80970",
+          "displayName": "ALLE",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "79b0fd32e00645e2827b841629034be5",
+          "displayName": "فارس عوض",
+          "languages": [
+            "ar"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "85d6a6c915f545b399b0bfb358244fb9",
+          "displayName": "ezzy ezzy not again",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "86c3dd42c08f4082a2ad9ba59441c743",
+          "displayName": "metal sonic?",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "90e65eaaf50e4470b8e6d43ee6afd7d5",
+          "displayName": "Super Smash Bros. 4/Ultimate Announcer",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "0118a35dcb604837abe7961a43e13ba8",
+          "displayName": "Kasane Teto (español)",
+          "languages": [
+            "es"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "179b5cc736974d96913c7849d0bb68c5",
+          "displayName": "jjk narrator",
+          "languages": [
+            "en"
+          ]
+        },
+        {
+          "voiceId": "396cad318c7146c59ab3f4476bb504bc",
+          "displayName": "Slax",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "536d3a5e000945adb7038665781a4aca",
+          "displayName": "Ethan",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "555e8b1807534cfc81deeef2a26b6413",
+          "displayName": "Try EZZY EZZY",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "692eb1e1023242219dc8caae8c56fb12",
+          "displayName": "Verity",
+          "languages": [
+            "es"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "802e3bc2b27e49c2995d23ef70e6ac89",
+          "displayName": "Energetic Male",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "906b8b47c30d4ba2a7f1287773e8a3ed",
+          "displayName": "Verity",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "03397b4c4be74759b72533b663fbd001",
+          "displayName": "Elon Musk(Noise reduction)",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "04736e4d6a644abab81e601a7d2ae4b9",
+          "displayName": "Waldo Morais",
+          "languages": [
+            "pt"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "5161d41404314212af1254556477c17d",
+          "displayName": "元気な女性",
+          "languages": [
+            "ja"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "5196af35f6ff4a0dbf541793fc9f2157",
+          "displayName": "Donald J. Trump(Noise reduction)",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "6717a74323274cb296ea9a0da654c977",
+          "displayName": "Hatsune Miku",
+          "languages": [
+            "cy",
+            "ja",
+            "en"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "9032b5f2e2554b5a957ad655c052af16",
+          "displayName": "Slax",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "15742afadec44b82bf52f7bb62b83f83",
+          "displayName": "Twinko",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "35199d5438854f5d9157c500479ab684",
+          "displayName": "Narrador v2",
+          "languages": [
+            "es"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "076065d538244dc890501f48cb9b7bb0",
+          "displayName": "Kendrick Lamar",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "88872b3d83694d8490b55d75480205a0",
+          "displayName": "Mortal Kombat Announcer",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "92565bd2b241473eb8255cf392323cf4",
+          "displayName": "Smash Bros",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "98655a12fa944e26b274c535e5e03842",
+          "displayName": "E-girl",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "679558fcc104467e865e4df271cdb07c",
+          "displayName": "Super smash bross",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "690813f2df56491b82ee02a22d1c67fd",
+          "displayName": "Fille",
+          "languages": [
+            "fr"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "2940732d8b7a4054b2ae0f289a927383",
+          "displayName": "ميماتي باش في مسلسل وادي الذئاب",
+          "languages": [
+            "ar"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "5567200c7d8341738f0892bbacd3be3c",
+          "displayName": "Féminine",
+          "languages": [
+            "fr"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "46745543e52548238593a3962be77e3a",
+          "displayName": "ふうか",
+          "languages": [
+            "ja"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "83154314d3d64d56b8a434583a659a91",
+          "displayName": "Kylian Mbappé",
+          "languages": [
+            "fr"
+          ]
+        },
+        {
+          "voiceId": "933563129e564b19a115bedd57b7406a",
+          "displayName": "Sarah",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "a00a2848fef646fdacfc21830af27d2c",
+          "displayName": "Madoka",
+          "languages": [
+            "es"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "a3b3f0a9c49340bd8fa722d83c81cb08",
+          "displayName": "teto",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "a4ac1426e4a749839c86853ad613eebe",
+          "displayName": "Lula",
+          "languages": [
+            "pt"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "a335d470fff248e8890dce6550a2874b",
+          "displayName": "Esqueleto voz",
+          "languages": [
+            "es"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "a2346273eb314b6cb82ba83dbc9d9fee",
+          "displayName": "Markiplier.",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "aa615eaff73f417e91cfbb4ea0e42df8",
+          "displayName": "Женский голос",
+          "languages": [
+            "ru"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "aae99fc0a25f49feba0bceb06a089734",
+          "displayName": "smash",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "acc8237220d8470985ec9be6c4c480a9",
+          "displayName": "Hatsune Miku (Text To Speech)",
+          "languages": [
+            "es",
+            "en"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "b8a16ccac9ad4bc78f5f3f5dd46dc6b5",
+          "displayName": "ميماتي",
+          "languages": [
+            "ar"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "b38d657d5c254c5a903ff38db82624f7",
+          "displayName": "Caine español latino",
+          "languages": [
+            "es"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "b94a93bc73ee4ddc93652e3a54f2a22d",
+          "displayName": "Alastor español latino",
+          "languages": [
+            "es"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "b347db033a6549378b48d00acb0d06cd",
+          "displayName": "Selene",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "b545c585f631496c914815291da4e893",
+          "displayName": "Friendly Women",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "bcdc2d4b044d4a6992d9260ce16715eb",
+          "displayName": "Loquendo",
+          "languages": [
+            "es"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "bf322df2096a46f18c579d0baa36f41d",
+          "displayName": "Adrian",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "c5f56a6cc2ec4fa8920cb4c5889a3fb7",
+          "displayName": "Slax",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "ca2ded615b7243629317ef7c804c6e56",
+          "displayName": "a2ksi",
+          "languages": [
+            "pt"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "ca3007f96ae7499ab87d27ea3599956a",
+          "displayName": "E-girl",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "ce57a282aa274f94a61d7256e5f264c2",
+          "displayName": "عصام الشوالي",
+          "languages": [
+            "ar"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "d1e9fc34d3704984a9a25c1b3ea4f091",
+          "displayName": "حفيظ دراجي",
+          "languages": [
+            "ar"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "d8a1340984ee4b63ad1ffae27a6a4339",
+          "displayName": "ELITE",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "d13f84b987ad4f22b56d2b47f4eb838e",
+          "displayName": "Mortal Kombat",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "d60c136243984ec78a3be125b2f38faf",
+          "displayName": "My producer tag",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "d94fc2ac8b504fe1aba35edd087136ce",
+          "displayName": "Mortal Kombat",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "dfa5b230c8054f429e434f4a6e9bbdec",
+          "displayName": "Farid Dieck",
+          "languages": [
+            "es"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "e7d040c683a544db8024d73e5c2bdbd7",
+          "displayName": "Slax",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "e9b134e4c0b547a3894793be502314f1",
+          "displayName": "Jasphina",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "e9e9d36027424e55ac3faa620f78a72b",
+          "displayName": "a2ksi",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "e58b0d7efca34eb38d5c4985e378abcb",
+          "displayName": "POTUS 47 - Trump",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "ead241ca12c64514a5acc9e97106fe82",
+          "displayName": "Joe (Family guy) got Angry",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "ef9c79b62ef34530bf452c0e50e3c260",
+          "displayName": "horror",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "f9ae9be4831448acb831ee1990ef9605",
+          "displayName": "قرد",
+          "languages": [
+            "ar"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "f14e1f9fb32d4dbd8cd5b40a0fef86a5",
+          "displayName": "Спокойный женский голос",
+          "languages": [
+            "ru"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "f28d669a0eff409bbf07c4d3f12aabb3",
+          "displayName": "голос путина",
+          "languages": [
+            "ru"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "f48d143a59a946ab87c0130fd081f349",
+          "displayName": "Polo",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "f73b1f3cdcd54fcf87568789b7bb23d3",
+          "displayName": "Диппер",
+          "languages": [
+            "ru"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "fc8bcaf1ca664417bea247ae028d6074",
+          "displayName": "ZANN",
+          "languages": [
+            "en"
+          ],
+          "genderStyle": "male"
+        }
+      ]
+    },
+    {
+      "engineId": "kokoro",
+      "displayName": "Kokoro TTS 本地配音",
+      "installed": true,
+      "voices": [
+        {
+          "voiceId": "af_alloy",
+          "displayName": "美式英语 - 女声 - alloy",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "af_aoede",
+          "displayName": "美式英语 - 女声 - aoede",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "af_bella",
+          "displayName": "美式英语 - 女声 - bella",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "af_heart",
+          "displayName": "美式英语 - 女声 - heart",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "af_jadzia",
+          "displayName": "美式英语 - 女声 - jadzia",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "af_jessica",
+          "displayName": "美式英语 - 女声 - jessica",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "af_kore",
+          "displayName": "美式英语 - 女声 - kore",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "af_nicole",
+          "displayName": "美式英语 - 女声 - nicole",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "af_nova",
+          "displayName": "美式英语 - 女声 - nova",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "af_river",
+          "displayName": "美式英语 - 女声 - river",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "af_sarah",
+          "displayName": "美式英语 - 女声 - sarah",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "af_sky",
+          "displayName": "美式英语 - 女声 - sky",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "af_v0",
+          "displayName": "美式英语 - 女声 - v0",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "af_v0bella",
+          "displayName": "美式英语 - 女声 - v0bella",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "af_v0irulan",
+          "displayName": "美式英语 - 女声 - v0irulan",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "af_v0nicole",
+          "displayName": "美式英语 - 女声 - v0nicole",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "af_v0sarah",
+          "displayName": "美式英语 - 女声 - v0sarah",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "af_v0sky",
+          "displayName": "美式英语 - 女声 - v0sky",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "am_adam",
+          "displayName": "美式英语 - 男声 - adam",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "am_echo",
+          "displayName": "美式英语 - 男声 - echo",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "am_eric",
+          "displayName": "美式英语 - 男声 - eric",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "am_fenrir",
+          "displayName": "美式英语 - 男声 - fenrir",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "am_liam",
+          "displayName": "美式英语 - 男声 - liam",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "am_michael",
+          "displayName": "美式英语 - 男声 - michael",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "am_onyx",
+          "displayName": "美式英语 - 男声 - onyx",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "am_puck",
+          "displayName": "美式英语 - 男声 - puck",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "am_santa",
+          "displayName": "美式英语 - 男声 - santa",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "am_v0adam",
+          "displayName": "美式英语 - 男声 - v0adam",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "am_v0gurney",
+          "displayName": "美式英语 - 男声 - v0gurney",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "am_v0michael",
+          "displayName": "美式英语 - 男声 - v0michael",
+          "languages": [
+            "en-US"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "bf_alice",
+          "displayName": "英式英语 - 女声 - alice",
+          "languages": [
+            "en-GB"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "bf_emma",
+          "displayName": "英式英语 - 女声 - emma",
+          "languages": [
+            "en-GB"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "bf_lily",
+          "displayName": "英式英语 - 女声 - lily",
+          "languages": [
+            "en-GB"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "bf_v0emma",
+          "displayName": "英式英语 - 女声 - v0emma",
+          "languages": [
+            "en-GB"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "bf_v0isabella",
+          "displayName": "英式英语 - 女声 - v0isabella",
+          "languages": [
+            "en-GB"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "bm_daniel",
+          "displayName": "英式英语 - 男声 - daniel",
+          "languages": [
+            "en-GB"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "bm_fable",
+          "displayName": "英式英语 - 男声 - fable",
+          "languages": [
+            "en-GB"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "bm_george",
+          "displayName": "英式英语 - 男声 - george",
+          "languages": [
+            "en-GB"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "bm_lewis",
+          "displayName": "英式英语 - 男声 - lewis",
+          "languages": [
+            "en-GB"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "bm_v0george",
+          "displayName": "英式英语 - 男声 - v0george",
+          "languages": [
+            "en-GB"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "bm_v0lewis",
+          "displayName": "英式英语 - 男声 - v0lewis",
+          "languages": [
+            "en-GB"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "ef_dora",
+          "displayName": "西班牙语 - 女声 - dora",
+          "languages": [
+            "es-ES"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "em_alex",
+          "displayName": "西班牙语 - 男声 - alex",
+          "languages": [
+            "es-ES"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "em_santa",
+          "displayName": "西班牙语 - 男声 - santa",
+          "languages": [
+            "es-ES"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "ff_siwis",
+          "displayName": "法语 - 女声 - siwis",
+          "languages": [
+            "fr-FR"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "hf_alpha",
+          "displayName": "印地语 - 女声 - alpha",
+          "languages": [
+            "hi-IN"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "hf_beta",
+          "displayName": "印地语 - 女声 - beta",
+          "languages": [
+            "hi-IN"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "hm_omega",
+          "displayName": "印地语 - 男声 - omega",
+          "languages": [
+            "hi-IN"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "hm_psi",
+          "displayName": "印地语 - 男声 - psi",
+          "languages": [
+            "hi-IN"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "if_sara",
+          "displayName": "意大利语 - 女声 - sara",
+          "languages": [
+            "it-IT"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "im_nicola",
+          "displayName": "意大利语 - 男声 - nicola",
+          "languages": [
+            "it-IT"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "jf_alpha",
+          "displayName": "日语 - 女声 - alpha",
+          "languages": [
+            "ja-JP"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "jf_gongitsune",
+          "displayName": "日语 - 女声 - gongitsune",
+          "languages": [
+            "ja-JP"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "jf_nezumi",
+          "displayName": "日语 - 女声 - nezumi",
+          "languages": [
+            "ja-JP"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "jf_tebukuro",
+          "displayName": "日语 - 女声 - tebukuro",
+          "languages": [
+            "ja-JP"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "jm_kumo",
+          "displayName": "日语 - 男声 - kumo",
+          "languages": [
+            "ja-JP"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "pf_dora",
+          "displayName": "葡萄牙语 - 女声 - dora",
+          "languages": [
+            "pt-BR"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "pm_alex",
+          "displayName": "葡萄牙语 - 男声 - alex",
+          "languages": [
+            "pt-BR"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "pm_santa",
+          "displayName": "葡萄牙语 - 男声 - santa",
+          "languages": [
+            "pt-BR"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "zf_xiaobei",
+          "displayName": "中文普通话 - 女声 - xiaobei",
+          "languages": [
+            "zh-CN"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "zf_xiaoni",
+          "displayName": "中文普通话 - 女声 - xiaoni",
+          "languages": [
+            "zh-CN"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "zf_xiaoxiao",
+          "displayName": "中文普通话 - 女声 - xiaoxiao",
+          "languages": [
+            "zh-CN"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "zf_xiaoyi",
+          "displayName": "中文普通话 - 女声 - xiaoyi",
+          "languages": [
+            "zh-CN"
+          ],
+          "genderStyle": "female"
+        },
+        {
+          "voiceId": "zm_yunjian",
+          "displayName": "中文普通话 - 男声 - yunjian",
+          "languages": [
+            "zh-CN"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "zm_yunxi",
+          "displayName": "中文普通话 - 男声 - yunxi",
+          "languages": [
+            "zh-CN"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "zm_yunxia",
+          "displayName": "中文普通话 - 男声 - yunxia",
+          "languages": [
+            "zh-CN"
+          ],
+          "genderStyle": "male"
+        },
+        {
+          "voiceId": "zm_yunyang",
+          "displayName": "中文普通话 - 男声 - yunyang",
+          "languages": [
+            "zh-CN"
+          ],
+          "genderStyle": "male"
+        }
+      ]
+    },
+    {
+      "engineId": "edge_tts",
+      "displayName": "Edge TTS 在线配音",
+      "installed": true,
+      "voices": [
+        {
+          "voiceId": "en-AU-NatashaNeural",
+          "displayName": "英语（澳大利亚）- 女声 - Natasha",
+          "languages": [
+            "en-AU"
+          ]
+        },
+        {
+          "voiceId": "en-AU-WilliamNeural",
+          "displayName": "英语（澳大利亚）- 男声 - William",
+          "languages": [
+            "en-AU"
+          ]
+        },
+        {
+          "voiceId": "en-CA-ClaraNeural",
+          "displayName": "英语（加拿大）- 女声 - Clara",
+          "languages": [
+            "en-CA"
+          ]
+        },
+        {
+          "voiceId": "en-CA-LiamNeural",
+          "displayName": "英语（加拿大）- 男声 - Liam",
+          "languages": [
+            "en-CA"
+          ]
+        },
+        {
+          "voiceId": "en-GB-LibbyNeural",
+          "displayName": "英语（英国）- 女声 - Libby",
+          "languages": [
+            "en-GB"
+          ]
+        },
+        {
+          "voiceId": "en-GB-MaisieNeural",
+          "displayName": "英语（英国）- 女童声 - Maisie",
+          "languages": [
+            "en-GB"
+          ]
+        },
+        {
+          "voiceId": "en-GB-RyanNeural",
+          "displayName": "英语（英国）- 男声 - Ryan",
+          "languages": [
+            "en-GB"
+          ]
+        },
+        {
+          "voiceId": "en-GB-SoniaNeural",
+          "displayName": "英语（英国）- 女声 - Sonia",
+          "languages": [
+            "en-GB"
+          ]
+        },
+        {
+          "voiceId": "en-GB-ThomasNeural",
+          "displayName": "英语（英国）- 男声 - Thomas",
+          "languages": [
+            "en-GB"
+          ]
+        },
+        {
+          "voiceId": "en-HK-SamNeural",
+          "displayName": "英语（香港）- 男声 - Sam",
+          "languages": [
+            "en-HK"
+          ]
+        },
+        {
+          "voiceId": "en-HK-YanNeural",
+          "displayName": "英语（香港）- 女声 - Yan",
+          "languages": [
+            "en-HK"
+          ]
+        },
+        {
+          "voiceId": "en-IE-ConnorNeural",
+          "displayName": "英语（爱尔兰）- 男声 - Connor",
+          "languages": [
+            "en-IE"
+          ]
+        },
+        {
+          "voiceId": "en-IE-EmilyNeural",
+          "displayName": "英语（爱尔兰）- 女声 - Emily",
+          "languages": [
+            "en-IE"
+          ]
+        },
+        {
+          "voiceId": "en-IN-NeerjaNeural",
+          "displayName": "英语（印度）- 女声 - Neerja",
+          "languages": [
+            "en-IN"
+          ]
+        },
+        {
+          "voiceId": "en-IN-PrabhatNeural",
+          "displayName": "英语（印度）- 男声 - Prabhat",
+          "languages": [
+            "en-IN"
+          ]
+        },
+        {
+          "voiceId": "en-KE-AsiliaNeural",
+          "displayName": "英语（肯尼亚）- 女声 - Asilia",
+          "languages": [
+            "en-KE"
+          ]
+        },
+        {
+          "voiceId": "en-KE-ChilembaNeural",
+          "displayName": "英语（肯尼亚）- 男声 - Chilemba",
+          "languages": [
+            "en-KE"
+          ]
+        },
+        {
+          "voiceId": "en-MY-OsmanNeural",
+          "displayName": "英语（马来西亚）- 男声 - Osman",
+          "languages": [
+            "en-MY"
+          ]
+        },
+        {
+          "voiceId": "en-MY-YasminNeural",
+          "displayName": "英语（马来西亚）- 女声 - Yasmin",
+          "languages": [
+            "en-MY"
+          ]
+        },
+        {
+          "voiceId": "en-NG-AbeoNeural",
+          "displayName": "英语（尼日利亚）- 男声 - Abeo",
+          "languages": [
+            "en-NG"
+          ]
+        },
+        {
+          "voiceId": "en-NG-EzinneNeural",
+          "displayName": "英语（尼日利亚）- 女声 - Ezinne",
+          "languages": [
+            "en-NG"
+          ]
+        },
+        {
+          "voiceId": "en-NZ-MitchellNeural",
+          "displayName": "英语（新西兰）- 男声 - Mitchell",
+          "languages": [
+            "en-NZ"
+          ]
+        },
+        {
+          "voiceId": "en-NZ-MollyNeural",
+          "displayName": "英语（新西兰）- 女声 - Molly",
+          "languages": [
+            "en-NZ"
+          ]
+        },
+        {
+          "voiceId": "en-PH-JamesNeural",
+          "displayName": "英语（菲律宾）- 男声 - James",
+          "languages": [
+            "en-PH"
+          ]
+        },
+        {
+          "voiceId": "en-PH-RosaNeural",
+          "displayName": "英语（菲律宾）- 女声 - Rosa",
+          "languages": [
+            "en-PH"
+          ]
+        },
+        {
+          "voiceId": "en-PK-AsadNeural",
+          "displayName": "英语（巴基斯坦）- 男声 - Asad",
+          "languages": [
+            "en-PK"
+          ]
+        },
+        {
+          "voiceId": "en-PK-UzmaNeural",
+          "displayName": "英语（巴基斯坦）- 女声 - Uzma",
+          "languages": [
+            "en-PK"
+          ]
+        },
+        {
+          "voiceId": "en-SG-LunaNeural",
+          "displayName": "英语（新加坡）- 女声 - Luna",
+          "languages": [
+            "en-SG"
+          ]
+        },
+        {
+          "voiceId": "en-SG-WayneNeural",
+          "displayName": "英语（新加坡）- 男声 - Wayne",
+          "languages": [
+            "en-SG"
+          ]
+        },
+        {
+          "voiceId": "en-TZ-ElimuNeural",
+          "displayName": "英语（坦桑尼亚）- 男声 - Elimu",
+          "languages": [
+            "en-TZ"
+          ]
+        },
+        {
+          "voiceId": "en-TZ-ImaniNeural",
+          "displayName": "英语（坦桑尼亚）- 女声 - Imani",
+          "languages": [
+            "en-TZ"
+          ]
+        },
+        {
+          "voiceId": "en-US-AmberNeural",
+          "displayName": "英语（美国）- 女声 - Amber",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-AnaNeural",
+          "displayName": "英语（美国）- 女童声 - Ana",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-AndrewNeural",
+          "displayName": "英语（美国）- 男声 - Andrew",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-AriaNeural",
+          "displayName": "英语（美国）- 女声 - Aria",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-AshleyNeural",
+          "displayName": "英语（美国）- 女声 - Ashley",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-BrandonNeural",
+          "displayName": "英语（美国）- 男声 - Brandon",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-ChristopherNeural",
+          "displayName": "英语（美国）- 男声 - Christopher",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-CoraNeural",
+          "displayName": "英语（美国）- 女声 - Cora",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-DavisNeural",
+          "displayName": "英语（美国）- 男声 - Davis",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-ElizabethNeural",
+          "displayName": "英语（美国）- 女声 - Elizabeth",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-EricNeural",
+          "displayName": "英语（美国）- 男声 - Eric",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-GuyNeural",
+          "displayName": "英语（美国）- 男声 - Guy",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-JacobNeural",
+          "displayName": "英语（美国）- 男声 - Jacob",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-JaneNeural",
+          "displayName": "英语（美国）- 女声 - Jane",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-JasonNeural",
+          "displayName": "英语（美国）- 男声 - Jason",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-JennyNeural",
+          "displayName": "英语（美国）- 女声 - Jenny",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-MichelleNeural",
+          "displayName": "英语（美国）- 女声 - Michelle",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-MonicaNeural",
+          "displayName": "英语（美国）- 女声 - Monica",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-NancyNeural",
+          "displayName": "英语（美国）- 女声 - Nancy",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-RogerNeural",
+          "displayName": "英语（美国）- 男声 - Roger",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-SaraNeural",
+          "displayName": "英语（美国）- 女声 - Sara",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-US-SteffanNeural",
+          "displayName": "英语（美国）- 男声 - Steffan",
+          "languages": [
+            "en-US"
+          ]
+        },
+        {
+          "voiceId": "en-ZA-LeahNeural",
+          "displayName": "英语（南非）- 女声 - Leah",
+          "languages": [
+            "en-ZA"
+          ]
+        },
+        {
+          "voiceId": "en-ZA-LukeNeural",
+          "displayName": "英语（南非）- 男声 - Luke",
+          "languages": [
+            "en-ZA"
+          ]
+        },
+        {
+          "voiceId": "ja-JP-KeitaNeural",
+          "displayName": "日语 - 男声 - Keita",
+          "languages": [
+            "ja-JP"
+          ]
+        },
+        {
+          "voiceId": "ja-JP-NanamiNeural",
+          "displayName": "日语 - 女声 - Nanami",
+          "languages": [
+            "ja-JP"
+          ]
+        },
+        {
+          "voiceId": "ko-KR-InJoonNeural",
+          "displayName": "韩语 - 男声 - InJoon",
+          "languages": [
+            "ko-KR"
+          ]
+        },
+        {
+          "voiceId": "ko-KR-SunHiNeural",
+          "displayName": "韩语 - 女声 - SunHi",
+          "languages": [
+            "ko-KR"
+          ]
+        },
+        {
+          "voiceId": "zh-CN-liaoning-XiaobeiNeural",
+          "displayName": "中文辽宁方言 - 女声 - 晓北",
+          "languages": [
+            "zh-CN"
+          ]
+        },
+        {
+          "voiceId": "zh-CN-shaanxi-XiaoniNeural",
+          "displayName": "中文陕西方言 - 女声 - 晓妮",
+          "languages": [
+            "zh-CN"
+          ]
+        },
+        {
+          "voiceId": "zh-CN-XiaoxiaoNeural",
+          "displayName": "中文普通话 - 女声 - 晓晓",
+          "languages": [
+            "zh-CN"
+          ]
+        },
+        {
+          "voiceId": "zh-CN-XiaoyiNeural",
+          "displayName": "中文普通话 - 女声 - 晓伊",
+          "languages": [
+            "zh-CN"
+          ]
+        },
+        {
+          "voiceId": "zh-CN-YunjianNeural",
+          "displayName": "中文普通话 - 男声 - 云健",
+          "languages": [
+            "zh-CN"
+          ]
+        },
+        {
+          "voiceId": "zh-CN-YunxiaNeural",
+          "displayName": "中文普通话 - 男童声 - 云夏",
+          "languages": [
+            "zh-CN"
+          ]
+        },
+        {
+          "voiceId": "zh-CN-YunxiNeural",
+          "displayName": "中文普通话 - 男声 - 云希",
+          "languages": [
+            "zh-CN"
+          ]
+        },
+        {
+          "voiceId": "zh-CN-YunyangNeural",
+          "displayName": "中文普通话 - 男声 - 云扬",
+          "languages": [
+            "zh-CN"
+          ]
+        }
+      ]
+    }
+  ],
+  "enginePolicies": [
+    {
+      "engineId": "seed_audio",
+      "displayName": "Seed Audio API",
+      "catalogMode": "provider_default_or_explicit_voice_id",
+      "selectableFromCatalog": false,
+      "reasonCode": "PROVIDER_HAS_NO_PUBLIC_VOICE_LIST"
+    }
+  ]
+}

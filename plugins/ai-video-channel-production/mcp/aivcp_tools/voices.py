@@ -69,10 +69,25 @@ class VoiceCatalog:
                     "voices": clean_voices,
                 }
             )
+        policies = document.get("enginePolicies", [])
+        if not isinstance(policies, list):
+            raise ToolError("VOICE_CATALOG_INVALID", "预扫描音色目录的 enginePolicies 无效。")
+        clean_policies: list[dict[str, Any]] = []
+        for policy in policies:
+            if not isinstance(policy, dict) or not isinstance(policy.get("engineId"), str) or not policy["engineId"]:
+                raise ToolError("VOICE_CATALOG_INVALID", "预扫描音色目录包含无效的引擎策略。")
+            clean_policies.append(
+                {
+                    key: policy[key]
+                    for key in ("engineId", "displayName", "catalogMode", "selectableFromCatalog", "reasonCode")
+                    if key in policy
+                }
+            )
         return {
             "schemaVersion": VOICE_CATALOG_SCHEMA_VERSION,
             "generatedAt": document.get("generatedAt"),
             "engines": normalized,
+            "enginePolicies": clean_policies,
         }
 
     def validate_selection(self, engine_id: Any, voice_id: Any) -> None:

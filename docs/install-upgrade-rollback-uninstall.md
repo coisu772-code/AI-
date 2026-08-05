@@ -18,7 +18,9 @@
 
 ## Codex 缓存插件、运行时绑定与 locator
 
-安装、升级、修复、回滚和幂等重装都会在 Codex 注册前重写当前插件的 `.mcp.json`：`command` 直接绑定该安装 `current\runtime\python\python.exe`，`args` 只使用缓存插件内的 `./mcp/server.py mcp`，`env` 显式绑定独立数据根、配置根和离线安全默认。Codex 复制插件后直接连接 bundled Python，不经过 PowerShell/CMD stdin 代理，也不依赖系统 Python 或 uv。旧缓存保留旧版本绑定，不能借用新 runtime 打开数据；新的安装事务只有在版本化描述符、marker、state 和健康门一致后才提交。
+安装、升级、修复、回滚和幂等重装都会在 Codex 注册前重写当前插件的 `.mcp.json`：`command` 直接绑定该安装 `current\runtime\python\python.exe`，`args` 只使用缓存插件内的 `./mcp/server.py mcp`，`env` 显式绑定独立数据根、配置根、`assets\voice-catalog.json` 和离线安全默认。Codex 复制插件后直接连接 bundled Python，不经过 PowerShell/CMD stdin 代理，也不依赖系统 Python 或 uv。旧缓存保留旧版本绑定，不能借用新 runtime 打开数据；新的安装事务只有在版本化描述符、marker、state 和健康门一致后才提交。
+
+核心包固定携带 schema `1.0.0` 的无密钥预扫描音色目录，当前包含 VOICEVOX、Kokoro、Edge TTS 与 Fish Audio 的真实 voice ID。Seed Audio 的公开 API 没有可枚举音色列表，目录使用 `PROVIDER_HAS_NO_PUBLIC_VOICE_LIST` 策略如实标记，只允许后续使用服务默认音色或使用者明确提供的账户音色 ID，不伪造预设。安装与修复在切换 `current` 前检查文件、schema、引擎和音色列表，完整健康门还会实际调用 `system_voice_catalog`，并把工坊 `--no-probe` 返回的全部配音引擎与“真实目录或明确无列表策略”逐项对账。以后工坊新增本地或 API 配音引擎而发布包漏配目录策略时，安装健康门直接失败。目录读取不探测或启动本地配音服务、不读取 API Key，也不调用收费 API；因此服务暂时未运行不会阻塞频道建库。若新包缺失、损坏或含不受支持的目录，事务会失败并保留此前可用版本。
 
 安装器同时在 `%LOCALAPPDATA%\AIVCP-Config\runtime-locator.json` 写入不含凭据的受控 locator，用于安装所有权、修复、回滚和 generic source launcher 的严格回退。它绑定产品、版本、安装根、`current`、bundled Python 相对路径和独立数据根；locator 与 marker/state 不一致时拒绝使用。
 
@@ -39,6 +41,8 @@ Install、Upgrade、Repair、Rollback 和 Uninstall 共享包含当前 Windows �
 ```
 
 `Uninstall -WhatIf` 不改变程序、locator 或 Codex 注册；程序删除失败也不会提前移除 locator。Restore 的 `-WhatIf` 不创建临时目录、不解压，返回 `WHATIF_NO_CHANGE`，而不是 `RESTORE_COMPLETE`。真正卸载只移除程序并保留独立数据；删除用户数据必须由用户另行明确决定。
+
+频道建库出现 `VOICE_CATALOG_UNAVAILABLE` 时，使用同版或更高版本核心包执行 Repair，然后重启 Codex 并新建任务。Repair 只恢复受管程序文件和运行绑定，不会覆盖独立数据根中的频道、项目、角色、配音配置、图片或视频。
 
 ## 未执行的外部动作
 
