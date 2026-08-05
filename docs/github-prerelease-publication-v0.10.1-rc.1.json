@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "1.0.0",
+  "productVersion": "0.10.1-rc.1",
+  "status": "PASS",
+  "publishedAt": "2026-08-05T18:08:58Z",
+  "release": {
+    "id": 365723201,
+    "url": "https://github.com/coisu772-code/AI-/releases/tag/v0.10.1-rc.1",
+    "tag": "v0.10.1-rc.1",
+    "draft": false,
+    "prerelease": true,
+    "latest": false,
+    "remoteMainCommitShaAtPublication": "199765d051b63be96d5515dfeeb7727b920cb983",
+    "annotatedTagObjectSha": "d5aa5211f1d6a7ed754f16979f07a51d5f46c5c1",
+    "tagResolvedCommitSha": "9a92f800712af1b374248b532776177ca53f6a4a"
+  },
+  "workshopSource": {
+    "repository": "https://github.com/coisu772-code/zz-",
+    "tag": "v2.3.1-rc.1",
+    "remoteMainCommitSha": "01ef170a797da4a9b7210135babd58d6a0ab3277",
+    "annotatedTagObjectSha": "1c2915eeaa28053ea1efc138492b930c8f0758fe",
+    "tagResolvedCommitSha": "01ef170a797da4a9b7210135babd58d6a0ab3277"
+  },
+  "assets": {
+    "uploadedTotal": 7,
+    "corePackages": 5,
+    "metadata": 2,
+    "uploadedBytes": 200959230,
+    "reusedOptionalRuntimeAttachments": 9,
+    "reusedOptionalRuntimeTag": "v0.10.0-rc.1",
+    "manifestSha256": "a43108d1bfa3d598f1650758bf8179ad6d417312ac55ca6e87a9d3e84cb18df8",
+    "checksumsSha256": "2704b8ad10fb2033d2bd0ad5cfffb5edae4cfab6085c5417dac9b0d3fb252486",
+    "allManifestSizesMatched": true,
+    "allGitHubDigestSha256Matched": true,
+    "allReusedRuntimeDigestsMatched": true
+  },
+  "acceptance": {
+    "publicInstallerRedownloaded": true,
+    "publicOnlineInstallPassed": true,
+    "installedHealthPassed": true,
+    "skillCount": 13,
+    "contentToolCount": 54,
+    "portableYoutubeCollectorPassed": true,
+    "realPublicChannelAndCaptionReadPassed": true,
+    "kokoroCpuNvidiaBlackwellMetadataPassed": true
+  },
+  "authentication": {
+    "existingGitCredentialReused": true,
+    "interactiveBrowserLoginStarted": false,
+    "ghCliRequired": false
+  },
+  "privacy": {
+    "oauthTokenIncluded": false,
+    "credentialIncluded": false,
+    "userProjectIncluded": false,
+    "runtimeDataIncluded": false,
+    "googleYoutubeOAuthExecuted": false,
+    "realVideoUploadExecuted": false,
+    "longTermLearningWriteExecuted": false
+  }
+}
