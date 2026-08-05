@@ -37,6 +37,7 @@ def _validate_runtime_binding() -> None:
         "AIVCP_FFPROBE_PATH",
         "AIVCP_PUBLISHER_CHANNEL_LIST_EXE",
         "AIVCP_PUBLISHER_V2_CLI",
+        "AIVCP_VOICE_CATALOG",
     )
     values = {name: os.environ.get(name, "").strip() for name in binding_names}
     if not any(values.values()):
@@ -235,6 +236,11 @@ def run_stdio(service: LocalToolService) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # MCP stdio is UTF-8 regardless of the Windows console code page.  The
+    # catalog contains real Japanese and multilingual display names that are
+    # not representable in legacy GBK/ANSI process defaults.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="strict", newline="\n")
     parser = argparse.ArgumentParser(description="AI Video Channel Production local tool service")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("mcp", help="run the MCP stdio server")

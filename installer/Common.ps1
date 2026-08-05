@@ -260,6 +260,19 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
     if ([string]$pluginManifest.name -ne $script:AivcpProductId -or [string]$pluginManifest.version -ne $ProductVersion) {
         throw "Cannot bind MCP runtime because the plugin identity or version differs from the installation."
     }
+    $voiceCatalogVerificationPath = Join-Path $pluginFull "assets\voice-catalog.json"
+    if (-not (Test-Path -LiteralPath $voiceCatalogVerificationPath -PathType Leaf)) {
+        throw "Cannot bind MCP runtime because the bundled pre-scanned voice catalog is missing."
+    }
+    try {
+        $voiceCatalog = Get-Content -LiteralPath $voiceCatalogVerificationPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    }
+    catch {
+        throw "Cannot bind MCP runtime because the bundled pre-scanned voice catalog is unreadable."
+    }
+    if ([string]$voiceCatalog.schemaVersion -ne "1.0.0" -or @($voiceCatalog.engines).Count -eq 0) {
+        throw "Cannot bind MCP runtime because the bundled pre-scanned voice catalog contract is invalid."
+    }
     $activeRoot = Resolve-AivcpFullPath (Join-Path $installFull "current")
     $verificationRoot = if ([string]::IsNullOrWhiteSpace($ComponentVerificationRoot)) {
         $activeRoot
@@ -293,6 +306,7 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
     $ffprobePath = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.ffprobe)
     $publisherChannelListPath = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.publisherChannelList)
     $publisherV2Path = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.publisherV2)
+    $voiceCatalogPath = Resolve-AivcpFullPath (Join-Path $activeRoot "plugins\$($script:AivcpProductId)\assets\voice-catalog.json")
     $workshopIsolationRoot = Resolve-AivcpFullPath (Join-Path $dataFull "workshop-isolation")
     if (-not (Test-Path -LiteralPath $workshopIsolationRoot -PathType Container)) {
         throw "Cannot bind MCP runtime because the managed workshop isolation root is missing: $workshopIsolationRoot"
@@ -320,6 +334,7 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
                         AIVCP_FFPROBE_PATH = $ffprobePath
                         AIVCP_PUBLISHER_CHANNEL_LIST_EXE = $publisherChannelListPath
                         AIVCP_PUBLISHER_V2_CLI = $publisherV2Path
+                        AIVCP_VOICE_CATALOG = $voiceCatalogPath
                         AIVCP_PUBLISHER_TIMEOUT_SECONDS = "8"
                         AIVCP_NETWORK_EXECUTION = "false"
                         AIVCP_PUBLISHER_NETWORK_EXECUTION = "false"
@@ -355,6 +370,7 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
         [string]$server.env.AIVCP_FFPROBE_PATH -ne $ffprobePath -or
         [string]$server.env.AIVCP_PUBLISHER_CHANNEL_LIST_EXE -ne $publisherChannelListPath -or
         [string]$server.env.AIVCP_PUBLISHER_V2_CLI -ne $publisherV2Path -or
+        [string]$server.env.AIVCP_VOICE_CATALOG -ne $voiceCatalogPath -or
         [string]$server.env.AIVCP_PUBLISHER_TIMEOUT_SECONDS -ne "8" -or
         [string]$server.env.AIVCP_NETWORK_EXECUTION -ne "false" -or
         [string]$server.env.AIVCP_PUBLISHER_NETWORK_EXECUTION -ne "false"

@@ -81,6 +81,7 @@ def main() -> int:
         "AIVCP_FFPROBE_PATH",
         "AIVCP_PUBLISHER_CHANNEL_LIST_EXE",
         "AIVCP_PUBLISHER_V2_CLI",
+        "AIVCP_VOICE_CATALOG",
     )
     if any(not environment.get(name) for name in required_component_bindings):
         raise SystemExit("Runtime-bound descriptor is missing installed component paths.")
@@ -89,11 +90,11 @@ def main() -> int:
         "Use only the MCP server aivcpfresh. Call system_capabilities, content_capabilities, "
         "production_capabilities, and data_center_capabilities exactly once each. Confirm from the "
         "results that the workshop bridge, FFmpeg, ffprobe, Production Package 2.1, publisher read-only "
-        "interface and publisher v2 bridge are configured, externalServiceProbeExecuted is false, and "
+        "interface, publisher v2 bridge and pre-scanned voice catalog are configured, externalServiceProbeExecuted is false, and "
         "publisherV2Bridge.networkExecution is false. Do not call shell or any other tool. "
         "Do not perform network operations, OAuth, uploads, or writes. Return only one compact "
         "JSON object with keys toolsLoaded, system, content, production, data, workshop, ffmpeg, ffprobe, "
-        "package21, publisherReadOnly, publisherV2, externalProbeFalse, networkFalse, all true only if verified."
+        "package21, publisherReadOnly, publisherV2, voiceCatalog, externalProbeFalse, networkFalse, all true only if verified."
     )
     env_toml = "{" + ",".join(f"{key}={toml_literal(str(value))}" for key, value in environment.items()) + "}"
     command = [
@@ -178,6 +179,7 @@ def main() -> int:
     final_keys = (
         "toolsLoaded", "system", "content", "production", "data", "workshop", "ffmpeg", "ffprobe",
         "package21", "publisherReadOnly", "publisherV2", "externalProbeFalse", "networkFalse",
+        "voiceCatalog",
     )
     final_pass = all(final_value.get(key) is True for key in final_keys)
     success = (
@@ -212,6 +214,7 @@ def main() -> int:
             "productionPackage21": final_value.get("package21") is True,
             "publisherReadOnly": final_value.get("publisherReadOnly") is True,
             "publisherV2": final_value.get("publisherV2") is True,
+            "voiceCatalog": final_value.get("voiceCatalog") is True,
             "externalServiceProbeExecuted": False if final_value.get("externalProbeFalse") is True else None,
             "networkExecution": False if final_value.get("networkFalse") is True else None,
         },

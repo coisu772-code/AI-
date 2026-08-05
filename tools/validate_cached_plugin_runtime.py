@@ -103,6 +103,7 @@ def main() -> int:
         "AIVCP_FFPROBE_PATH": str((active_root / "apps/workshop/tools/ffmpeg/bin/ffprobe.exe").resolve()),
         "AIVCP_PUBLISHER_CHANNEL_LIST_EXE": str((active_root / "apps/publisher/channel-list.exe").resolve()),
         "AIVCP_PUBLISHER_V2_CLI": str((active_root / "apps/publisher/publish-package-v2.exe").resolve()),
+        "AIVCP_VOICE_CATALOG": str((active_root / "plugins/ai-video-channel-production/assets/voice-catalog.json").resolve()),
         "AIVCP_PUBLISHER_TIMEOUT_SECONDS": "8",
         "AIVCP_NETWORK_EXECUTION": "false",
         "AIVCP_PUBLISHER_NETWORK_EXECUTION": "false",
@@ -131,7 +132,7 @@ def main() -> int:
     environment["LOCALAPPDATA"] = str(local_app_data)
     environment["PATH"] = target_path
     environment["AIVCP_NETWORK_EXECUTION"] = "false"
-    for name in ("AIVCP_PYTHON", "AIVCP_DATA_ROOT", "AIVCP_CONFIG_ROOT", "AIVCP_INSTALL_ROOT", "AIVCP_EXPECTED_PRODUCT_VERSION", "AIVCP_EXPECTED_RELEASE_MANIFEST_SHA256", "AIVCP_WORKSHOP_EXECUTABLE", "AIVCP_WORKSHOP_ISOLATION_ROOT", "AIVCP_FFMPEG_PATH", "AIVCP_FFPROBE_PATH", "AIVCP_PUBLISHER_CHANNEL_LIST_EXE", "AIVCP_PUBLISHER_V2_CLI", "AIVCP_RUNTIME_LOCATOR", "UV", "PYTHONHOME"):
+    for name in ("AIVCP_PYTHON", "AIVCP_DATA_ROOT", "AIVCP_CONFIG_ROOT", "AIVCP_INSTALL_ROOT", "AIVCP_EXPECTED_PRODUCT_VERSION", "AIVCP_EXPECTED_RELEASE_MANIFEST_SHA256", "AIVCP_WORKSHOP_EXECUTABLE", "AIVCP_WORKSHOP_ISOLATION_ROOT", "AIVCP_FFMPEG_PATH", "AIVCP_FFPROBE_PATH", "AIVCP_PUBLISHER_CHANNEL_LIST_EXE", "AIVCP_PUBLISHER_V2_CLI", "AIVCP_VOICE_CATALOG", "AIVCP_RUNTIME_LOCATOR", "UV", "PYTHONHOME"):
         environment.pop(name, None)
     environment.update(expected_environment)
     python_visible = shutil.which("python", path=target_path)
@@ -180,14 +181,29 @@ def main() -> int:
                 or result.get("capabilities", {}).get("publisherV2BridgeConfigured") is not True
                 or result.get("publisherV2Bridge", {}).get("configured") is not True
                 or result.get("publisherV2Bridge", {}).get("networkExecution") is not False
+                or result.get("voiceCatalog", {}).get("available") is not True
+                or result.get("capabilities", {}).get("preScannedVoiceCatalog") is not True
             ):
-                raise SystemExit("Cached plugin did not expose the installed publisher read-only and offline v2 bridges.")
+                raise SystemExit("Cached plugin did not expose the voice catalog and installed publisher bridges.")
             component_integration["publisherReadOnlyConfigured"] = True
             component_integration["publisherV2Configured"] = True
             component_integration["publisherNetworkExecution"] = False
+            component_integration["voiceCatalogAvailable"] = True
         if tool_name == "production_capabilities":
             workshop_health = result.get("workshopHealth", {})
             workshop_capabilities = result.get("workshopCapabilities", {})
+            voice_catalog = json.loads(Path(expected_environment["AIVCP_VOICE_CATALOG"]).read_text(encoding="utf-8-sig"))
+            covered_voice_engines = {
+                str(item.get("engineId"))
+                for group in (voice_catalog.get("engines", []), voice_catalog.get("enginePolicies", []))
+                for item in group
+                if isinstance(item, dict) and item.get("engineId")
+            }
+            reported_voice_engines = {
+                str(item.get("engine"))
+                for item in workshop_capabilities.get("voiceEngines", [])
+                if isinstance(item, dict) and item.get("engine")
+            }
             if (
                 result.get("workshopBridgeConfigured") is not True
                 or result.get("ffmpegAvailable") is not True
@@ -198,14 +214,16 @@ def main() -> int:
                 or workshop_health.get("ffprobePathSet") is not True
                 or "2.1" not in workshop_capabilities.get("supportedPackageVersions", [])
                 or workshop_capabilities.get("externalServiceProbeExecuted") is not False
+                or not reported_voice_engines.issubset(covered_voice_engines)
             ):
-                raise SystemExit("Cached plugin did not execute the installed workshop read-only health/capabilities bridge successfully.")
+                raise SystemExit("Cached plugin workshop bridge or voice-engine catalog coverage is incomplete.")
             component_integration["workshopHealthCheckExecuted"] = True
             component_integration["workshopCapabilitiesNoProbeExecuted"] = True
             component_integration["productionPackage21"] = True
             component_integration["ffmpegAvailable"] = True
             component_integration["ffprobeAvailable"] = True
             component_integration["externalServiceProbeExecuted"] = False
+            component_integration["workshopVoiceEnginesCovered"] = sorted(reported_voice_engines)
         capability_status[tool_name] = "PASS"
 
     report = {
