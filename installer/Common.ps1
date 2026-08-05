@@ -273,6 +273,27 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
     if ([string]$voiceCatalog.schemaVersion -ne "1.0.0" -or @($voiceCatalog.engines).Count -eq 0) {
         throw "Cannot bind MCP runtime because the bundled pre-scanned voice catalog contract is invalid."
     }
+    $youtubeRuntimeContractPath = Join-Path $pluginFull "assets\portable-youtube-runtime.json"
+    $youtubeRuntimeContract = $null
+    if (Test-Path -LiteralPath $youtubeRuntimeContractPath -PathType Leaf) {
+        try {
+            $youtubeRuntimeContract = Get-Content -LiteralPath $youtubeRuntimeContractPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        }
+        catch {
+            throw "Cannot bind MCP runtime because the portable YouTube runtime contract is unreadable."
+        }
+        if (
+            [string]$youtubeRuntimeContract.schemaVersion -ne "1.0.0" -or
+            [string]$youtubeRuntimeContract.collector.id -ne "yt-dlp" -or
+            [string]$youtubeRuntimeContract.javascriptRuntime.id -ne "deno" -or
+            [bool]$youtubeRuntimeContract.requiresSystemPath -ne $false -or
+            @($youtubeRuntimeContract.collector.entryPointArguments).Count -ne 2 -or
+            [string]$youtubeRuntimeContract.collector.entryPointArguments[0] -ne "-m" -or
+            [string]$youtubeRuntimeContract.collector.entryPointArguments[1] -ne "yt_dlp"
+        ) {
+            throw "Cannot bind MCP runtime because the portable YouTube runtime contract is invalid."
+        }
+    }
     $activeRoot = Resolve-AivcpFullPath (Join-Path $installFull "current")
     $verificationRoot = if ([string]::IsNullOrWhiteSpace($ComponentVerificationRoot)) {
         $activeRoot
@@ -294,6 +315,11 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
         publisherChannelList = "apps\publisher\channel-list.exe"
         publisherV2 = "apps\publisher\publish-package-v2.exe"
     }
+    if ($null -ne $youtubeRuntimeContract) {
+        $managedFiles.youtubeCollectorModule = ([string]$youtubeRuntimeContract.collector.moduleRelativePath).Replace("/", "\")
+        $managedFiles.youtubeEjsModule = ([string]$youtubeRuntimeContract.collector.ejsModuleRelativePath).Replace("/", "\")
+        $managedFiles.youtubeJavascriptRuntime = ([string]$youtubeRuntimeContract.javascriptRuntime.executableRelativePath).Replace("/", "\")
+    }
     foreach ($managed in $managedFiles.GetEnumerator()) {
         $verificationPath = Join-Path $verificationRoot ([string]$managed.Value)
         if (-not (Test-Path -LiteralPath $verificationPath -PathType Leaf)) {
@@ -307,6 +333,20 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
     $publisherChannelListPath = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.publisherChannelList)
     $publisherV2Path = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.publisherV2)
     $voiceCatalogPath = Resolve-AivcpFullPath (Join-Path $activeRoot "plugins\$($script:AivcpProductId)\assets\voice-catalog.json")
+    $youtubeCollectorCommandJson = $null
+    if ($null -ne $youtubeRuntimeContract) {
+        $denoPath = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.youtubeJavascriptRuntime)
+        $ffmpegDirectory = Resolve-AivcpFullPath (Split-Path -Parent $ffmpegPath)
+        $youtubeCollectorCommandJson = ConvertTo-Json -InputObject @(
+            $pythonPath,
+            "-m",
+            "yt_dlp",
+            "--js-runtimes",
+            ("deno:" + $denoPath),
+            "--ffmpeg-location",
+            $ffmpegDirectory
+        ) -Compress
+    }
     $workshopIsolationRoot = Resolve-AivcpFullPath (Join-Path $dataFull "workshop-isolation")
     if (-not (Test-Path -LiteralPath $workshopIsolationRoot -PathType Container)) {
         throw "Cannot bind MCP runtime because the managed workshop isolation root is missing: $workshopIsolationRoot"
@@ -315,6 +355,28 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
     $descriptorPath = Join-Path $pluginFull ".mcp.json"
     $temporaryPath = Join-Path $pluginFull (".mcp-bound-" + [guid]::NewGuid().ToString("N") + ".json")
     try {
+        $runtimeEnvironment = [ordered]@{
+            AIVCP_DATA_ROOT = $dataFull
+            AIVCP_CONFIG_ROOT = $configRoot
+            AIVCP_INSTALL_ROOT = $installFull
+            AIVCP_EXPECTED_PRODUCT_VERSION = $ProductVersion
+            AIVCP_EXPECTED_RELEASE_MANIFEST_SHA256 = $ReleaseManifestSha256.ToLowerInvariant()
+            AIVCP_WORKSHOP_EXECUTABLE = $workshopPath
+            AIVCP_WORKSHOP_ISOLATION_ROOT = $workshopIsolationRoot
+            AIVCP_FFMPEG_PATH = $ffmpegPath
+            AIVCP_FFPROBE_PATH = $ffprobePath
+            AIVCP_PUBLISHER_CHANNEL_LIST_EXE = $publisherChannelListPath
+            AIVCP_PUBLISHER_V2_CLI = $publisherV2Path
+            AIVCP_VOICE_CATALOG = $voiceCatalogPath
+            AIVCP_PUBLISHER_TIMEOUT_SECONDS = "8"
+            AIVCP_NETWORK_EXECUTION = "false"
+            AIVCP_PUBLISHER_NETWORK_EXECUTION = "false"
+            PYTHONUTF8 = "1"
+            PYTHONDONTWRITEBYTECODE = "1"
+        }
+        if ($null -ne $youtubeCollectorCommandJson) {
+            $runtimeEnvironment.AIVCP_YT_DLP_COMMAND_JSON = $youtubeCollectorCommandJson
+        }
         Write-AivcpJsonFile -Value ([ordered]@{
             mcpServers = [ordered]@{
                 "ai-video-channel-tools" = [ordered]@{
@@ -322,25 +384,7 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
                     cwd = "."
                     command = $pythonPath
                     args = @("./mcp/server.py", "mcp")
-                    env = [ordered]@{
-                        AIVCP_DATA_ROOT = $dataFull
-                        AIVCP_CONFIG_ROOT = $configRoot
-                        AIVCP_INSTALL_ROOT = $installFull
-                        AIVCP_EXPECTED_PRODUCT_VERSION = $ProductVersion
-                        AIVCP_EXPECTED_RELEASE_MANIFEST_SHA256 = $ReleaseManifestSha256.ToLowerInvariant()
-                        AIVCP_WORKSHOP_EXECUTABLE = $workshopPath
-                        AIVCP_WORKSHOP_ISOLATION_ROOT = $workshopIsolationRoot
-                        AIVCP_FFMPEG_PATH = $ffmpegPath
-                        AIVCP_FFPROBE_PATH = $ffprobePath
-                        AIVCP_PUBLISHER_CHANNEL_LIST_EXE = $publisherChannelListPath
-                        AIVCP_PUBLISHER_V2_CLI = $publisherV2Path
-                        AIVCP_VOICE_CATALOG = $voiceCatalogPath
-                        AIVCP_PUBLISHER_TIMEOUT_SECONDS = "8"
-                        AIVCP_NETWORK_EXECUTION = "false"
-                        AIVCP_PUBLISHER_NETWORK_EXECUTION = "false"
-                        PYTHONUTF8 = "1"
-                        PYTHONDONTWRITEBYTECODE = "1"
-                    }
+                    env = $runtimeEnvironment
                     tool_timeout_sec = 60
                 }
             }
@@ -352,6 +396,7 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
     }
     $verified = Get-Content -LiteralPath $descriptorPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $server = $verified.mcpServers."ai-video-channel-tools"
+    $youtubeBindingInvalid = $null -ne $youtubeRuntimeContract -and [string]$server.env.AIVCP_YT_DLP_COMMAND_JSON -ne $youtubeCollectorCommandJson
     if (
         [string]$server.type -ne "stdio" -or
         [string]$server.cwd -ne "." -or
@@ -373,7 +418,8 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
         [string]$server.env.AIVCP_VOICE_CATALOG -ne $voiceCatalogPath -or
         [string]$server.env.AIVCP_PUBLISHER_TIMEOUT_SECONDS -ne "8" -or
         [string]$server.env.AIVCP_NETWORK_EXECUTION -ne "false" -or
-        [string]$server.env.AIVCP_PUBLISHER_NETWORK_EXECUTION -ne "false"
+        [string]$server.env.AIVCP_PUBLISHER_NETWORK_EXECUTION -ne "false" -or
+        $youtubeBindingInvalid
     ) {
         throw "Runtime-bound MCP descriptor verification failed."
     }

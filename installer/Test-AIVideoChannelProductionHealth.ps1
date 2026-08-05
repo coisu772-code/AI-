@@ -127,6 +127,24 @@ catch {
 if ([string]$voiceCatalog.schemaVersion -ne "1.0.0" -or @($voiceCatalog.engines).Count -eq 0) {
     throw "Installation health check failed: bundled pre-scanned voice catalog contract is invalid."
 }
+$youtubeRuntimeContractPath = Join-Path $pluginFull "assets\portable-youtube-runtime.json"
+if (-not (Test-Path -LiteralPath $youtubeRuntimeContractPath -PathType Leaf)) {
+    throw "Installation health check failed: portable YouTube runtime contract is missing."
+}
+try {
+    $youtubeRuntimeContract = Get-Content -LiteralPath $youtubeRuntimeContractPath -Raw -Encoding UTF8 | ConvertFrom-Json
+}
+catch {
+    throw "Installation health check failed: portable YouTube runtime contract is unreadable."
+}
+if (
+    [string]$youtubeRuntimeContract.schemaVersion -ne "1.0.0" -or
+    [string]$youtubeRuntimeContract.collector.id -ne "yt-dlp" -or
+    [string]$youtubeRuntimeContract.javascriptRuntime.id -ne "deno" -or
+    [bool]$youtubeRuntimeContract.requiresSystemPath -ne $false
+) {
+    throw "Installation health check failed: portable YouTube runtime contract is invalid."
+}
 foreach ($voiceEngine in @($voiceCatalog.engines)) {
     if ([string]::IsNullOrWhiteSpace([string]$voiceEngine.engineId) -or -not [bool]$voiceEngine.installed -or @($voiceEngine.voices).Count -eq 0) {
         throw "Installation health check failed: bundled pre-scanned voice catalog contains an unusable engine."
@@ -178,6 +196,7 @@ $contentCapabilitiesChecked = $false
 $productionCapabilitiesChecked = $false
 $dataCenterCapabilitiesChecked = $false
 $voiceCatalogChecked = $false
+$youtubeCollectorChecked = $false
 if (-not $SkipServiceCheck) {
     $healthDataRoot = $null
     $healthEnvironment = [ordered]@{}
@@ -194,6 +213,48 @@ if (-not $SkipServiceCheck) {
         foreach ($property in $descriptorServer.env.PSObject.Properties) {
             $healthEnvironment[[string]$property.Name] = [string]$property.Value
         }
+        $installedActiveRoot = [System.IO.Path]::GetFullPath((Join-Path $InstallRoot "current"))
+        $expectedPython = Join-Path $installedActiveRoot "runtime\python\python.exe"
+        $expectedDeno = Join-Path $installedActiveRoot (([string]$youtubeRuntimeContract.javascriptRuntime.executableRelativePath).Replace("/", "\"))
+        $expectedCollectorModule = Join-Path $installedActiveRoot (([string]$youtubeRuntimeContract.collector.moduleRelativePath).Replace("/", "\"))
+        $expectedEjsModule = Join-Path $installedActiveRoot (([string]$youtubeRuntimeContract.collector.ejsModuleRelativePath).Replace("/", "\"))
+        $expectedFFmpeg = Join-Path $installedActiveRoot "apps\workshop\tools\ffmpeg\bin\ffmpeg.exe"
+        foreach ($requiredPath in @($expectedPython, $expectedDeno, $expectedCollectorModule, $expectedEjsModule, $expectedFFmpeg)) {
+            if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+                throw "Installation health check failed: portable YouTube runtime file is missing: $requiredPath"
+            }
+        }
+        try {
+            $boundYoutubeCommand = @(([string]$descriptorServer.env.AIVCP_YT_DLP_COMMAND_JSON | ConvertFrom-Json))
+        }
+        catch {
+            throw "Installation health check failed: portable YouTube collector command is unreadable."
+        }
+        $expectedYoutubeCommand = @(
+            [System.IO.Path]::GetFullPath($expectedPython),
+            "-m",
+            "yt_dlp",
+            "--js-runtimes",
+            ("deno:" + [System.IO.Path]::GetFullPath($expectedDeno)),
+            "--ffmpeg-location",
+            [System.IO.Path]::GetFullPath((Split-Path -Parent $expectedFFmpeg))
+        )
+        if ($boundYoutubeCommand.Count -ne $expectedYoutubeCommand.Count -or (Compare-Object -ReferenceObject $expectedYoutubeCommand -DifferenceObject $boundYoutubeCommand -SyncWindow 0)) {
+            throw "Installation health check failed: portable YouTube collector command is not bound to managed files."
+        }
+        $collectorVersionOutput = @(& $expectedPython -m yt_dlp --version 2>&1)
+        $collectorVersionExit = $LASTEXITCODE
+        $collectorVersion = $collectorVersionOutput | Select-Object -First 1
+        if ($collectorVersionExit -ne 0 -or [string]$collectorVersion -ne [string]$youtubeRuntimeContract.collector.version) {
+            throw "Installation health check failed: bundled yt-dlp version check failed."
+        }
+        $denoVersionOutput = @(& $expectedDeno --version 2>&1)
+        $denoVersionExit = $LASTEXITCODE
+        $denoVersionLine = $denoVersionOutput | Select-Object -First 1
+        if ($denoVersionExit -ne 0 -or [string]$denoVersionLine -notlike ("deno " + [string]$youtubeRuntimeContract.javascriptRuntime.version + " *")) {
+            throw "Installation health check failed: bundled Deno version check failed."
+        }
+        $youtubeCollectorChecked = $true
     }
     else {
         $healthDataRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("aivcp-rc-health-" + [guid]::NewGuid().ToString("N"))
@@ -432,6 +493,7 @@ $result = [ordered]@{
     productionCapabilitiesChecked = $productionCapabilitiesChecked
     dataCenterCapabilitiesChecked = $dataCenterCapabilitiesChecked
     voiceCatalogChecked = $voiceCatalogChecked
+    youtubeCollectorChecked = $youtubeCollectorChecked
     userDataRoot = if ([string]::IsNullOrWhiteSpace($DataRoot)) { $null } else { Resolve-AivcpFullPath $DataRoot }
     userDataSeparatedFromActiveProgram = if ([string]::IsNullOrWhiteSpace($DataRoot)) { $null } else {
         $activeProgram = Resolve-AivcpFullPath (Join-Path (Resolve-AivcpFullPath $InstallRoot) "current")

@@ -8,6 +8,8 @@ import shutil
 import stat
 import subprocess
 import tempfile
+import urllib.parse
+import urllib.request
 import zipfile
 from pathlib import Path
 
@@ -43,6 +45,22 @@ PUBLISHER_COMPONENT_MANIFEST_NAME = "publisher-component-reuse-attestation-v0.8.
 PUBLISHER_COMPONENT_MANIFEST_SHA = "fac82b06df0516fc137bc56620a3d1aedf7bc7d260cd442278403f3e7e644816"
 PUBLISHER_CONSTRAINTS_SHA = "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13"
 KOKORO_VARIANTS = ("cpu", "nvidia", "nvidia-blackwell")
+YT_DLP_VERSION = "2026.7.4"
+DENO_VERSION = "2.9.4"
+DENO_ARCHIVE_NAME = "deno-x86_64-pc-windows-msvc.zip"
+DENO_ARCHIVE_URL = f"https://github.com/denoland/deno/releases/download/v{DENO_VERSION}/{DENO_ARCHIVE_NAME}"
+DENO_ARCHIVE_SIZE = 42599274
+DENO_ARCHIVE_SHA = "68ed08b05c56cf887e9aa509947dc3f468f7e12f47a13e5c1abd51d46d1453ef"
+DENO_EXE_SIZE = 97175328
+DENO_EXE_SHA = "4a2757fe99afc2c62c46500c8221cfa0189ac4bfb7064141875ad9c0f04b60ef"
+DENO_LICENSE_SHA = "f62497fffecc0852960c8d3e6934b9db86d16396e9b604072e923892cae3a588"
+EXPECTED_RUNTIME_PACKAGE_NAMES = {
+    "attrs", "brotli", "certifi", "charset-normalizer", "idna", "jsonschema",
+    "jsonschema-specifications", "lxml", "mutagen", "pip", "pycryptodomex", "pypdf",
+    "python-docx", "pyyaml", "referencing", "requests", "rpds-py",
+    "typing_extensions", "tzdata", "urllib3", "websockets", "yt-dlp", "yt-dlp-ejs",
+}
+EXPECTED_RUNTIME_LICENSE_ENTRIES = 72
 
 
 def sha256(path: Path) -> str:
@@ -128,7 +146,69 @@ def build_bootstrap(output: Path) -> dict[str, object]:
     return result | {"path": str(target), "fileCount": len(files)}
 
 
-def prepare_runtime(runtime_source: Path, uv: Path, working: Path) -> tuple[Path, list[dict[str, object]], dict[str, object]]:
+def download_locked_asset(url: str, target: Path, expected_size: int, expected_sha: str) -> Path:
+    parsed = urllib.parse.urlsplit(url)
+    if url != DENO_ARCHIVE_URL or parsed.scheme != "https" or parsed.hostname != "github.com" or parsed.username or parsed.password or parsed.port or parsed.query or parsed.fragment:
+        raise RuntimeError(f"locked dependency URL is not an exact trusted GitHub HTTPS asset: {url}")
+    if target.is_file() and target.stat().st_size == expected_size and sha256(target) == expected_sha:
+        return target
+    target.parent.mkdir(parents=True, exist_ok=True)
+    partial = target.with_name(target.name + ".partial")
+    partial.unlink(missing_ok=True)
+    request = urllib.request.Request(url, headers={"User-Agent": f"AIVCP-release-builder/{VERSION}"})
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response, partial.open("wb") as output:
+            if response.status != 200:
+                raise RuntimeError(f"locked dependency download returned HTTP {response.status}: {url}")
+            shutil.copyfileobj(response, output, length=1024 * 1024)
+        assert_frozen(partial, expected_size, expected_sha)
+        partial.replace(target)
+    finally:
+        partial.unlink(missing_ok=True)
+    return target
+
+
+def install_deno_runtime(runtime: Path, working: Path, deno_archive: Path | None = None) -> dict[str, object]:
+    archive = deno_archive or download_locked_asset(
+        DENO_ARCHIVE_URL,
+        working / DENO_ARCHIVE_NAME,
+        DENO_ARCHIVE_SIZE,
+        DENO_ARCHIVE_SHA,
+    )
+    assert_frozen(archive, DENO_ARCHIVE_SIZE, DENO_ARCHIVE_SHA)
+    with zipfile.ZipFile(archive) as bundle:
+        files = [item for item in bundle.infolist() if not item.is_dir()]
+        if len(files) != 1 or files[0].filename != "deno.exe":
+            raise RuntimeError(f"locked Deno archive has unexpected entries: {[item.filename for item in files]}")
+        payload = bundle.read(files[0])
+    if len(payload) != DENO_EXE_SIZE or hashlib.sha256(payload).hexdigest() != DENO_EXE_SHA:
+        raise RuntimeError("locked Deno executable size or SHA-256 mismatch")
+    tools = runtime / "tools"
+    tools.mkdir(parents=True, exist_ok=True)
+    deno = tools / "deno.exe"
+    deno.write_bytes(payload)
+    license_source = ROOT / "installer" / "runtime-tool-licenses" / "deno-LICENSE.md"
+    license_payload = normalized(license_source) if license_source.is_file() else b""
+    if hashlib.sha256(license_payload).hexdigest() != DENO_LICENSE_SHA:
+        raise RuntimeError("locked Deno license text is missing or changed")
+    license_target = tools / "licenses" / "deno-LICENSE.md"
+    license_target.parent.mkdir(parents=True, exist_ok=True)
+    license_target.write_bytes(license_payload)
+    version_output = subprocess.check_output([str(deno), "--version"], text=True, encoding="utf-8").splitlines()[0]
+    if version_output != f"deno {DENO_VERSION} (stable, release, x86_64-pc-windows-msvc)":
+        raise RuntimeError(f"locked Deno executable reported an unexpected version: {version_output}")
+    return {
+        "toolId": "deno",
+        "version": DENO_VERSION,
+        "relativePath": "tools/deno.exe",
+        "sizeBytes": DENO_EXE_SIZE,
+        "sha256": DENO_EXE_SHA,
+        "source": {"url": DENO_ARCHIVE_URL, "archiveSha256": DENO_ARCHIVE_SHA},
+        "license": {"expression": "MIT", "path": "tools/licenses/deno-LICENSE.md", "sha256": DENO_LICENSE_SHA},
+    }
+
+
+def prepare_runtime(runtime_source: Path, uv: Path, working: Path, deno_archive: Path | None = None) -> tuple[Path, list[dict[str, object]], dict[str, object], list[dict[str, object]]]:
     runtime = working / f"aivcp-python-runtime-{PYTHON_VERSION}"
     shutil.copytree(runtime_source, runtime)
     for pycache in list(runtime.rglob("__pycache__")):
@@ -150,6 +230,7 @@ def prepare_runtime(runtime_source: Path, uv: Path, working: Path) -> tuple[Path
             encoding="utf-8",
             newline="\n",
         )
+    bundled_tools = [install_deno_runtime(runtime, working, deno_archive)]
     inventory_script = (
         "import importlib.metadata as m,json;"
         "print(json.dumps([{'name':d.metadata['Name'],'version':d.version,'licenseExpression':d.metadata.get('License-Expression'),"
@@ -176,10 +257,17 @@ def prepare_runtime(runtime_source: Path, uv: Path, working: Path) -> tuple[Path
         "reviewRequired": len(missing_declared_license) + len(missing_license_file),
         "legalAdviceOrSignoff": False,
     }
-    if len(inventory) != 12 or len(license_entries) != 58 or technical_license_inventory["reviewRequired"] != 0:
+    package_names = {str(item.get("name", "")).lower() for item in inventory}
+    if package_names != EXPECTED_RUNTIME_PACKAGE_NAMES:
+        raise RuntimeError(f"Python runtime package set mismatch: {sorted(package_names)}")
+    if len(license_entries) != EXPECTED_RUNTIME_LICENSE_ENTRIES or technical_license_inventory["reviewRequired"] != 0:
         raise RuntimeError(f"Python runtime technical license inventory mismatch: {technical_license_inventory}")
+    yt_dlp = next(item for item in inventory if str(item.get("name", "")).lower() == "yt-dlp")
+    yt_dlp_ejs = next(item for item in inventory if str(item.get("name", "")).lower() == "yt-dlp-ejs")
+    if yt_dlp.get("version") != YT_DLP_VERSION:
+        raise RuntimeError(f"yt-dlp version mismatch: {yt_dlp.get('version')}")
     runtime_manifest = {
-        "schemaVersion": "1.0.0",
+        "schemaVersion": "1.1.0",
         "componentId": "python-runtime",
         "pythonVersion": PYTHON_VERSION,
         "pythonBuild": PYTHON_BUILD,
@@ -188,20 +276,29 @@ def prepare_runtime(runtime_source: Path, uv: Path, working: Path) -> tuple[Path
         "licenseFile": "LICENSE.txt",
         "technicalLicenseInventory": technical_license_inventory,
         "packages": inventory,
+        "bundledTools": bundled_tools,
+        "youtubeCollector": {
+            "collectorId": "yt-dlp",
+            "version": YT_DLP_VERSION,
+            "entryPoint": ["python.exe", "-m", "yt_dlp"],
+            "ejsVersion": yt_dlp_ejs.get("version"),
+            "javascriptRuntime": {"toolId": "deno", "relativePath": "tools/deno.exe", "version": DENO_VERSION},
+            "requiresSystemPath": False,
+        },
     }
     (runtime / "RUNTIME-MANIFEST.json").write_text(json.dumps(runtime_manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
-    return runtime, inventory, technical_license_inventory
+    return runtime, inventory, technical_license_inventory, bundled_tools
 
 
-def build_runtime(output: Path, runtime_source: Path, uv: Path, working: Path) -> dict[str, object]:
-    runtime, inventory, technical_license_inventory = prepare_runtime(runtime_source, uv, working)
+def build_runtime(output: Path, runtime_source: Path, uv: Path, working: Path, deno_archive: Path | None = None) -> dict[str, object]:
+    runtime, inventory, technical_license_inventory, bundled_tools = prepare_runtime(runtime_source, uv, working, deno_archive)
     files = []
     for path in runtime.rglob("*"):
         if path.is_file() and "__pycache__" not in path.parts and path.suffix.lower() != ".pyc":
             files.append((path.relative_to(runtime).as_posix(), normalized(path)))
     target = output / f"aivcp-python-runtime-{PYTHON_VERSION}-windows-x64.zip"
     result = deterministic_zip(target, runtime.name, files)
-    return result | {"path": str(target), "fileCount": len(files), "packageInventory": inventory, "technicalLicenseInventory": technical_license_inventory}
+    return result | {"path": str(target), "fileCount": len(files), "packageInventory": inventory, "technicalLicenseInventory": technical_license_inventory, "bundledTools": bundled_tools}
 
 
 def assert_frozen(path: Path, expected_size: int, expected_sha: str) -> None:
@@ -309,7 +406,7 @@ def copy_kokoro_packages(output: Path, kokoro_dir: Path) -> tuple[list[dict[str,
     return packages, copied
 
 
-def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, publisher_dir: Path, kokoro_dir: Path) -> dict[str, object]:
+def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, publisher_dir: Path, kokoro_dir: Path, deno_archive: Path | None = None) -> dict[str, object]:
     output.mkdir(parents=True, exist_ok=True)
     workshop_source = workshop_dir / WORKSHOP_NAME
     publisher_source = publisher_dir / PUBLISHER_NAME
@@ -321,7 +418,7 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
         working = Path(temp)
         core = build_core(output)
         bootstrap = build_bootstrap(output)
-        runtime = build_runtime(output, runtime_source, uv, working)
+        runtime = build_runtime(output, runtime_source, uv, working, deno_archive)
     workshop_target = output / WORKSHOP_NAME
     publisher_target = output / PUBLISHER_NAME
     shutil.copy2(workshop_source, workshop_target)
@@ -330,7 +427,7 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
     assets = [
         asset_record("unified-installer", bootstrap, version=VERSION, compatibleProductVersions=[VERSION], install=False, archiveRoot=f"AI-Video-Channel-Production-Unified-Installer-v{VERSION}", installSubpath="", license={"expression":"LicenseRef-AI-Video-Channel-Production-1.0","source":"LICENSE.md","reviewStatus":"product-license-applies"}, source={"repository":"https://github.com/coisu772-code/AI-/","commit":"LOCAL_COMMIT_TO_BE_RECORDED"}),
         asset_record("core", core, version=VERSION, compatibleProductVersions=[VERSION], install=True, archiveRoot="ai-video-channel-production-core", installSubpath="", license={"expression":"LicenseRef-AI-Video-Channel-Production-1.0","source":"LICENSE.md","reviewStatus":"product-license-applies"}, source={"repository":"https://github.com/coisu772-code/AI-/","commit":"LOCAL_COMMIT_TO_BE_RECORDED"}),
-        asset_record("python-runtime", runtime, version=PYTHON_VERSION, compatibleProductVersions=[VERSION], install=True, archiveRoot=f"aivcp-python-runtime-{PYTHON_VERSION}", installSubpath="runtime/python", license={"expression":"PSF-2.0 AND bundled-third-party-licenses","source":"LICENSE.txt plus 58 license entries covering all 12 packages","reviewStatus":"technical-inventory-validated-release-owner-approval-required"}, source={"url":"https://github.com/astral-sh/python-build-standalone","build":PYTHON_BUILD,"technicalLicenseInventory":runtime["technicalLicenseInventory"]}),
+        asset_record("python-runtime", runtime, version=PYTHON_VERSION, compatibleProductVersions=[VERSION], install=True, archiveRoot=f"aivcp-python-runtime-{PYTHON_VERSION}", installSubpath="runtime/python", license={"expression":"PSF-2.0 AND bundled-third-party-licenses AND MIT","source":f"LICENSE.txt plus {EXPECTED_RUNTIME_LICENSE_ENTRIES} license entries covering {len(EXPECTED_RUNTIME_PACKAGE_NAMES)} packages and the bundled Deno runtime","reviewStatus":"technical-inventory-validated-release-owner-approval-required"}, source={"url":"https://github.com/astral-sh/python-build-standalone","build":PYTHON_BUILD,"technicalLicenseInventory":runtime["technicalLicenseInventory"],"bundledTools":runtime["bundledTools"]}),
         {"assetId":"workshop","fileName":WORKSHOP_NAME,"sizeBytes":WORKSHOP_SIZE,"sha256":WORKSHOP_SHA,"version":WORKSHOP_VERSION,"compatibleProductVersions":[VERSION],"install":True,"archiveRoot":WORKSHOP_ROOT,"installSubpath":"apps/workshop","license":{"expression":"LicenseRef-AIVCP-Workshop AND GPL-3.0-only","source":"licenses/application/LICENSE.md, licenses/ffmpeg/COPYING.GPLv3 and FFMPEG-PROVENANCE.txt inside archive","reviewStatus":"technical-inventory-validated-release-owner-approval-required"},"source":{"commit":WORKSHOP_SOURCE_COMMIT,"acceptanceStatus":"LOCAL_MERGED_ACCEPTANCE_PASS"}},
         {"assetId":"publisher-center","fileName":PUBLISHER_NAME,"sizeBytes":PUBLISHER_SIZE,"sha256":PUBLISHER_SHA,"version":PUBLISHER_VERSION,"compatibleProductVersions":[VERSION],"install":True,"archiveRoot":PUBLISHER_ROOT,"installSubpath":"apps/publisher","license":{"expression":"LicenseRef-AI-Video-Channel-Production-1.0 AND bundled-third-party-licenses","source":"LICENSE.md, THIRD-PARTY-NOTICES.json/.md and 101 third-party license texts inside archive","reviewStatus":"technical-inventory-validated-release-owner-approval-required"},"source":{"commit":PUBLISHER_SOURCE_COMMIT,"acceptanceStatus":"PUBLISHED_COMPONENT_REUSED_AFTER_HASH_REVALIDATION","componentManifest":{"fileName":PUBLISHER_COMPONENT_MANIFEST_NAME,"sha256":PUBLISHER_COMPONENT_MANIFEST_SHA},"constraintsCatalog":{"version":"2026.08.04.1","sha256":PUBLISHER_CONSTRAINTS_SHA},"fileEntries":publisher_manifest["release_asset"]["file_entries"],"licenseReviewRequired":publisher_manifest["legal_inventory"]["review_required"]}},
     ]
@@ -338,7 +435,7 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
         "schemaVersion":"2.0.0","productId":"ai-video-channel-production","productName":"AI 视频频道生产系统","productVersion":VERSION,
         "releaseStatus":"candidate","hashAlgorithm":"SHA-256","downloadBaseUrl":f"https://github.com/coisu772-code/AI-/releases/download/v{VERSION}",
         "generatedAt":"2026-08-05T00:00:00Z","assets":assets,"optionalRuntimePackages":kokoro_packages,
-        "runtime":{"pythonVersion":PYTHON_VERSION,"pythonBuild":PYTHON_BUILD,"requiresPreinstalledPython":False,"requiresPreinstalledUv":False},
+        "runtime":{"pythonVersion":PYTHON_VERSION,"pythonBuild":PYTHON_BUILD,"youtubeCollectorVersion":YT_DLP_VERSION,"javascriptRuntimeVersion":DENO_VERSION,"requiresPreinstalledPython":False,"requiresPreinstalledUv":False,"requiresPreinstalledYoutubeCollector":False,"requiresPreinstalledJavascriptRuntime":False},
         "logicalComponents":[{"componentId":"ffmpeg-runtime","version":"8.1.1","providedByAsset":"workshop","license":{"expression":"GPL-3.0-only","source":"apps/workshop/licenses/ffmpeg/COPYING.GPLv3 and FFMPEG-PROVENANCE.txt"},"healthCheck":{"command":"apps/workshop/tools/ffmpeg/bin/ffmpeg.exe -version","expected":"ffmpeg version 8.1.1"},"files":[
             {"relativeInstallPath":"apps/workshop/tools/ffmpeg/bin/ffmpeg.exe","sizeBytes":101457920,"sha256":"228d7a8556258de907fdb55f36850078ebc7680b84ec30d84ea02e99bec1d1eb"},
             {"relativeInstallPath":"apps/workshop/tools/ffmpeg/bin/ffprobe.exe","sizeBytes":101251072,"sha256":"0fde260f5abd35c9cafd96f594cc76365a780c1b73a90e35b6a3409ea1db1bf0"}
@@ -372,8 +469,10 @@ def main() -> int:
     parser.add_argument("--workshop-dir", type=Path, required=True)
     parser.add_argument("--publisher-dir", type=Path, required=True)
     parser.add_argument("--kokoro-dir", type=Path, required=True)
+    parser.add_argument("--deno-archive", type=Path)
     args = parser.parse_args()
-    result = build_all(*(path.resolve() for path in (args.output, args.runtime_source, args.uv, args.workshop_dir, args.publisher_dir, args.kokoro_dir)))
+    fixed_paths = tuple(path.resolve() for path in (args.output, args.runtime_source, args.uv, args.workshop_dir, args.publisher_dir, args.kokoro_dir))
+    result = build_all(*fixed_paths, deno_archive=args.deno_archive.resolve() if args.deno_archive else None)
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
 

@@ -73,6 +73,7 @@ def _validate_runtime_binding() -> None:
         manifest_bytes = paths["manifest"].read_bytes()
         manifest = json.loads(manifest_bytes.decode("utf-8-sig"))
         locator = json.loads(paths["locator"].read_text(encoding="utf-8-sig"))
+        youtube_runtime_contract = json.loads((PLUGIN_ROOT / "assets" / "portable-youtube-runtime.json").read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise _runtime_binding_error("The installed MCP binding records are unreadable. Run installer repair.") from exc
     try:
@@ -116,6 +117,8 @@ def _validate_runtime_binding() -> None:
         and str(state.get("releaseManifestSha256", "")).lower() == expected_release
         and runtime.get("bundled") is True
         and runtime.get("python") == "runtime/python/python.exe"
+        and runtime.get("youtubeCollectorModule") == "runtime/python/Lib/site-packages/yt_dlp/__init__.py"
+        and runtime.get("youtubeJavascriptRuntime") == "runtime/python/tools/deno.exe"
         and manifest.get("schemaVersion") == "2.0.0"
         and manifest.get("productId") == "ai-video-channel-production"
         and manifest.get("productVersion") == expected_version
@@ -129,9 +132,36 @@ def _validate_runtime_binding() -> None:
         and locator.get("pythonRelativePath") == "runtime/python/python.exe"
     )
     expected_python = install_root / "current" / "runtime" / "python" / "python.exe"
+    expected_deno = install_root / "current" / "runtime" / "python" / "tools" / "deno.exe"
+    expected_youtube_module = install_root / "current" / "runtime" / "python" / "Lib" / "site-packages" / "yt_dlp" / "__init__.py"
+    expected_ejs_module = install_root / "current" / "runtime" / "python" / "Lib" / "site-packages" / "yt_dlp_ejs" / "__init__.py"
+    expected_ffmpeg = install_root / "current" / "apps" / "workshop" / "tools" / "ffmpeg" / "bin" / "ffmpeg.exe"
+    try:
+        youtube_command = json.loads(os.environ.get("AIVCP_YT_DLP_COMMAND_JSON", ""))
+    except json.JSONDecodeError as exc:
+        raise _runtime_binding_error("The installed YouTube collector binding is invalid. Run installer repair.") from exc
+    expected_youtube_command = [
+        str(expected_python),
+        "-m",
+        "yt_dlp",
+        "--js-runtimes",
+        f"deno:{expected_deno}",
+        "--ffmpeg-location",
+        str(expected_ffmpeg.parent),
+    ]
+    youtube_runtime_matches = (
+        youtube_runtime_contract.get("schemaVersion") == "1.0.0"
+        and youtube_runtime_contract.get("collector", {}).get("id") == "yt-dlp"
+        and youtube_runtime_contract.get("collector", {}).get("version") == "2026.7.4"
+        and youtube_runtime_contract.get("javascriptRuntime", {}).get("id") == "deno"
+        and youtube_runtime_contract.get("javascriptRuntime", {}).get("version") == "2.9.4"
+        and youtube_runtime_contract.get("requiresSystemPath") is False
+        and youtube_command == expected_youtube_command
+        and all(path.is_file() and not path.is_symlink() for path in (expected_deno, expected_youtube_module, expected_ejs_module))
+    )
     managed_paths = {
         "AIVCP_WORKSHOP_EXECUTABLE": install_root / "current" / "apps" / "workshop" / "Z 漫剧工坊.exe",
-        "AIVCP_FFMPEG_PATH": install_root / "current" / "apps" / "workshop" / "tools" / "ffmpeg" / "bin" / "ffmpeg.exe",
+        "AIVCP_FFMPEG_PATH": expected_ffmpeg,
         "AIVCP_FFPROBE_PATH": install_root / "current" / "apps" / "workshop" / "tools" / "ffmpeg" / "bin" / "ffprobe.exe",
         "AIVCP_PUBLISHER_CHANNEL_LIST_EXE": install_root / "current" / "apps" / "publisher" / "channel-list.exe",
         "AIVCP_PUBLISHER_V2_CLI": install_root / "current" / "apps" / "publisher" / "publish-package-v2.exe",
@@ -152,6 +182,7 @@ def _validate_runtime_binding() -> None:
         or not _same_path(locator_data, data_root)
         or not _same_path(Path(sys.executable), expected_python)
         or not component_paths_match
+        or not youtube_runtime_matches
         or not _same_path(Path(values["AIVCP_WORKSHOP_ISOLATION_ROOT"]), expected_isolation)
         or not expected_isolation.is_dir()
         or os.environ.get("AIVCP_NETWORK_EXECUTION") != "false"

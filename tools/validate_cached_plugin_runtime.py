@@ -104,6 +104,15 @@ def main() -> int:
         "AIVCP_PUBLISHER_CHANNEL_LIST_EXE": str((active_root / "apps/publisher/channel-list.exe").resolve()),
         "AIVCP_PUBLISHER_V2_CLI": str((active_root / "apps/publisher/publish-package-v2.exe").resolve()),
         "AIVCP_VOICE_CATALOG": str((active_root / "plugins/ai-video-channel-production/assets/voice-catalog.json").resolve()),
+        "AIVCP_YT_DLP_COMMAND_JSON": json.dumps([
+            str(runtime_python),
+            "-m",
+            "yt_dlp",
+            "--js-runtimes",
+            "deno:" + str((active_root / "runtime/python/tools/deno.exe").resolve()),
+            "--ffmpeg-location",
+            str((active_root / "apps/workshop/tools/ffmpeg/bin").resolve()),
+        ], separators=(",", ":")),
         "AIVCP_PUBLISHER_TIMEOUT_SECONDS": "8",
         "AIVCP_NETWORK_EXECUTION": "false",
         "AIVCP_PUBLISHER_NETWORK_EXECUTION": "false",
@@ -132,7 +141,7 @@ def main() -> int:
     environment["LOCALAPPDATA"] = str(local_app_data)
     environment["PATH"] = target_path
     environment["AIVCP_NETWORK_EXECUTION"] = "false"
-    for name in ("AIVCP_PYTHON", "AIVCP_DATA_ROOT", "AIVCP_CONFIG_ROOT", "AIVCP_INSTALL_ROOT", "AIVCP_EXPECTED_PRODUCT_VERSION", "AIVCP_EXPECTED_RELEASE_MANIFEST_SHA256", "AIVCP_WORKSHOP_EXECUTABLE", "AIVCP_WORKSHOP_ISOLATION_ROOT", "AIVCP_FFMPEG_PATH", "AIVCP_FFPROBE_PATH", "AIVCP_PUBLISHER_CHANNEL_LIST_EXE", "AIVCP_PUBLISHER_V2_CLI", "AIVCP_VOICE_CATALOG", "AIVCP_RUNTIME_LOCATOR", "UV", "PYTHONHOME"):
+    for name in ("AIVCP_PYTHON", "AIVCP_DATA_ROOT", "AIVCP_CONFIG_ROOT", "AIVCP_INSTALL_ROOT", "AIVCP_EXPECTED_PRODUCT_VERSION", "AIVCP_EXPECTED_RELEASE_MANIFEST_SHA256", "AIVCP_WORKSHOP_EXECUTABLE", "AIVCP_WORKSHOP_ISOLATION_ROOT", "AIVCP_FFMPEG_PATH", "AIVCP_FFPROBE_PATH", "AIVCP_PUBLISHER_CHANNEL_LIST_EXE", "AIVCP_PUBLISHER_V2_CLI", "AIVCP_VOICE_CATALOG", "AIVCP_YT_DLP_COMMAND_JSON", "AIVCP_RUNTIME_LOCATOR", "UV", "PYTHONHOME"):
         environment.pop(name, None)
     environment.update(expected_environment)
     python_visible = shutil.which("python", path=target_path)

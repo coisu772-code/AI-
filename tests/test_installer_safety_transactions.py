@@ -30,6 +30,71 @@ def write_json(path: Path, value: object) -> bytes:
 
 @unittest.skipUnless(os.name == "nt" and shutil.which("powershell"), "Windows PowerShell integration requires Windows")
 class InstallerSafetyTransactionTests(unittest.TestCase):
+    def test_runtime_descriptor_binds_portable_youtube_collector_without_path_lookup(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="aivcp-portable-youtube-binding-") as temporary:
+            base = Path(temporary)
+            local = base / "Local App Data"
+            install = base / "Program Root"
+            current = install / "current"
+            plugin = current / "plugins/ai-video-channel-production"
+            data = base / "User Data"
+            (data / "workshop-isolation").mkdir(parents=True)
+            write_json(plugin / ".codex-plugin/plugin.json", {"name": "ai-video-channel-production", "version": "0.10.0-rc.1"})
+            write_json(plugin / "assets/voice-catalog.json", {"schemaVersion": "1.0.0", "engines": [{"engineId": "fixture"}]})
+            (plugin / "assets").mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / "plugins/ai-video-channel-production/assets/portable-youtube-runtime.json", plugin / "assets/portable-youtube-runtime.json")
+            required = (
+                current / "runtime/python/python.exe",
+                current / "runtime/python/Lib/site-packages/yt_dlp/__init__.py",
+                current / "runtime/python/Lib/site-packages/yt_dlp_ejs/__init__.py",
+                current / "runtime/python/tools/deno.exe",
+                current / "apps/workshop/Workshop.exe",
+                current / "apps/workshop/tools/ffmpeg/bin/ffmpeg.exe",
+                current / "apps/workshop/tools/ffmpeg/bin/ffprobe.exe",
+                current / "apps/publisher/channel-list.exe",
+                current / "apps/publisher/publish-package-v2.exe",
+            )
+            for path in required:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"fixture")
+            wrapper = base / "bind.ps1"
+            wrapper.write_text(
+                f'''
+. "{COMMON}"
+Write-AivcpRuntimeBoundMcpDescriptor -PluginRoot "{plugin}" -InstallRoot "{install}" -DataRoot "{data}" -ProductVersion "0.10.0-rc.1" -ReleaseManifestSha256 "{'a' * 64}" -ComponentVerificationRoot "{current}" | Write-Output
+'''.lstrip(),
+                encoding="utf-8-sig",
+            )
+            environment = os.environ.copy()
+            environment["LOCALAPPDATA"] = str(local)
+            completed = subprocess.run(
+                [POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(wrapper)],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                env=environment,
+            )
+            self.assertEqual(0, completed.returncode, completed.stderr)
+            descriptor = json.loads((plugin / ".mcp.json").read_text(encoding="utf-8-sig"))
+            command = json.loads(descriptor["mcpServers"]["ai-video-channel-tools"]["env"]["AIVCP_YT_DLP_COMMAND_JSON"])
+            self.assertEqual(str((current / "runtime/python/python.exe").resolve()), command[0])
+            self.assertEqual(["-m", "yt_dlp"], command[1:3])
+            self.assertEqual("--js-runtimes", command[3])
+            self.assertEqual("deno:" + str((current / "runtime/python/tools/deno.exe").resolve()), command[4])
+            self.assertEqual("--ffmpeg-location", command[5])
+            self.assertEqual(str((current / "apps/workshop/tools/ffmpeg/bin").resolve()), command[6])
+
+            (current / "runtime/python/tools/deno.exe").unlink()
+            missing = subprocess.run(
+                [POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(wrapper)],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                env=environment,
+            )
+            self.assertNotEqual(0, missing.returncode)
+            self.assertIn("youtubeJavascriptRuntime", missing.stderr)
+
     def test_global_operation_mutex_rejects_concurrent_mutator(self) -> None:
         with tempfile.TemporaryDirectory(prefix="aivcp-lock-") as temporary:
             base = Path(temporary)

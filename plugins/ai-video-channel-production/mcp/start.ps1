@@ -21,6 +21,7 @@ $OutputEncoding = $utf8NoBom
 $boundPython = $null
 $boundDataRoot = $null
 $boundConfigRoot = $null
+$boundActiveRoot = $null
 $installedStatePath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..\..\install-state.json"))
 $installedRuntime = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..\..\runtime\python\python.exe"))
 if ((Test-Path -LiteralPath $installedStatePath -PathType Leaf) -and (Test-Path -LiteralPath $installedRuntime -PathType Leaf)) {
@@ -35,6 +36,7 @@ if ((Test-Path -LiteralPath $installedStatePath -PathType Leaf) -and (Test-Path 
         throw "The installed plugin, state, and bundled runtime versions do not match. Run installer repair."
     }
     $boundPython = $installedRuntime
+    $boundActiveRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..\.."))
     $boundDataRoot = [System.IO.Path]::GetFullPath([string]$installedState.userDataRoot)
     if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
         $boundConfigRoot = [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA "AIVCP-Config"))
@@ -95,6 +97,7 @@ else {
         }
         $boundDataRoot = $stateDataRoot
         $boundConfigRoot = Split-Path -Parent $locatorPath
+        $boundActiveRoot = Join-Path $installRoot "current"
     }
 }
 
@@ -105,6 +108,21 @@ if (-not [string]::IsNullOrWhiteSpace($boundConfigRoot)) {
     $env:AIVCP_CONFIG_ROOT = $boundConfigRoot
 }
 if (-not [string]::IsNullOrWhiteSpace($boundPython)) {
+    $boundDeno = Join-Path $boundActiveRoot "runtime\python\tools\deno.exe"
+    $boundFFmpeg = Join-Path $boundActiveRoot "apps\workshop\tools\ffmpeg\bin\ffmpeg.exe"
+    if (-not (Test-Path -LiteralPath $boundDeno -PathType Leaf) -or -not (Test-Path -LiteralPath $boundFFmpeg -PathType Leaf)) {
+        throw "The portable YouTube collector dependencies are missing. Run installer repair."
+    }
+    $env:AIVCP_FFMPEG_PATH = [System.IO.Path]::GetFullPath($boundFFmpeg)
+    $env:AIVCP_YT_DLP_COMMAND_JSON = ConvertTo-Json -InputObject @(
+        [System.IO.Path]::GetFullPath($boundPython),
+        "-m",
+        "yt_dlp",
+        "--js-runtimes",
+        ("deno:" + [System.IO.Path]::GetFullPath($boundDeno)),
+        "--ffmpeg-location",
+        [System.IO.Path]::GetFullPath((Split-Path -Parent $boundFFmpeg))
+    ) -Compress
     & $boundPython $server mcp
     exit $LASTEXITCODE
 }

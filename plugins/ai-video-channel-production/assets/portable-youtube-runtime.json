@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "1.0.0",
+  "collector": {
+    "id": "yt-dlp",
+    "version": "2026.7.4",
+    "moduleRelativePath": "runtime/python/Lib/site-packages/yt_dlp/__init__.py",
+    "ejsVersion": "0.8.0",
+    "ejsModuleRelativePath": "runtime/python/Lib/site-packages/yt_dlp_ejs/__init__.py",
+    "entryPointArguments": ["-m", "yt_dlp"]
+  },
+  "javascriptRuntime": {
+    "id": "deno",
+    "version": "2.9.4",
+    "executableRelativePath": "runtime/python/tools/deno.exe"
+  },
+  "ffmpegSource": "managed-workshop",
+  "requiresSystemPath": false
+}

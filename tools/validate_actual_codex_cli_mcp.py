@@ -82,6 +82,7 @@ def main() -> int:
         "AIVCP_PUBLISHER_CHANNEL_LIST_EXE",
         "AIVCP_PUBLISHER_V2_CLI",
         "AIVCP_VOICE_CATALOG",
+        "AIVCP_YT_DLP_COMMAND_JSON",
     )
     if any(not environment.get(name) for name in required_component_bindings):
         raise SystemExit("Runtime-bound descriptor is missing installed component paths.")

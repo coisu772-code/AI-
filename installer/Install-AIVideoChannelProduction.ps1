@@ -165,7 +165,14 @@ try {
         schemaVersion = "2.0.0"; productId = $script:AivcpProductId; productVersion = [string]$manifest.productVersion
         marketplaceName = $script:AivcpMarketplaceName; releaseManifestSha256 = $manifestHash; userDataRoot = $dataFull
         installedAssets = @($assets | ForEach-Object { [ordered]@{ assetId = $_.assetId; fileName = $_.fileName; sha256 = $_.sha256; sizeBytes = $_.sizeBytes } })
-        runtime = [ordered]@{ bundled = $true; python = "runtime/python/python.exe"; locator = "AIVCP-Config/runtime-locator.json"; version = [string]$manifest.runtime.pythonVersion }
+        runtime = [ordered]@{
+            bundled = $true
+            python = "runtime/python/python.exe"
+            youtubeCollectorModule = "runtime/python/Lib/site-packages/yt_dlp/__init__.py"
+            youtubeJavascriptRuntime = "runtime/python/tools/deno.exe"
+            locator = "AIVCP-Config/runtime-locator.json"
+            version = [string]$manifest.runtime.pythonVersion
+        }
         installedAt = (Get-Date).ToUniversalTime().ToString("o")
     }
     Write-AivcpJsonFile -Value $state -PathValue (Join-Path $stagingPath "install-state.json")

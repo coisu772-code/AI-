@@ -69,6 +69,12 @@ def main() -> int:
         environment[name] = str(outside_directory if name == "AIVCP_WORKSHOP_ISOLATION_ROOT" else outside_file)
         results[name] = invoke(command, arguments, cached_plugin, environment)
 
+    youtube_environment = baseline.copy()
+    youtube_command = json.loads(youtube_environment["AIVCP_YT_DLP_COMMAND_JSON"])
+    youtube_command[4] = "deno:" + str(outside_file)
+    youtube_environment["AIVCP_YT_DLP_COMMAND_JSON"] = json.dumps(youtube_command, separators=(",", ":"))
+    results["AIVCP_YT_DLP_COMMAND_JSON"] = invoke(command, arguments, cached_plugin, youtube_environment)
+
     stale_environment = baseline.copy()
     stale_environment["AIVCP_EXPECTED_PRODUCT_VERSION"] = "0.7.0-stale-binding"
     results["AIVCP_EXPECTED_PRODUCT_VERSION"] = invoke(command, arguments, cached_plugin, stale_environment)

@@ -210,10 +210,34 @@ def validate(manifest_path: Path, asset_root: Path) -> dict[str, object]:
             runtime_manifest_name = runtime_asset.get("archiveRoot", "") + "/RUNTIME-MANIFEST.json"
             runtime_manifest = json.loads(archive.read(runtime_manifest_name))
             inventory = runtime_manifest.get("technicalLicenseInventory", {})
-            if inventory.get("packageCount") != 12 or inventory.get("licenseEntryCount") != 58 or inventory.get("reviewRequired") != 0:
+            runtime_schema = runtime_manifest.get("schemaVersion")
+            expected_inventory = {"1.0.0": (12, 58), "1.1.0": (23, 72)}.get(runtime_schema)
+            if expected_inventory is None or inventory.get("packageCount") != expected_inventory[0] or inventory.get("licenseEntryCount") != expected_inventory[1] or inventory.get("reviewRequired") != 0:
                 errors.append(f"Python runtime technical license inventory mismatch: {inventory}")
             if inventory.get("legalAdviceOrSignoff") is not False:
                 errors.append("Python runtime inventory must not claim legal advice or signoff")
+            if runtime_schema == "1.1.0":
+                collector = runtime_manifest.get("youtubeCollector", {})
+                bundled_tools = {tool.get("toolId"): tool for tool in runtime_manifest.get("bundledTools", []) if isinstance(tool, dict)}
+                deno = bundled_tools.get("deno", {})
+                if (
+                    collector.get("collectorId") != "yt-dlp"
+                    or collector.get("version") != "2026.7.4"
+                    or collector.get("ejsVersion") != "0.8.0"
+                    or collector.get("requiresSystemPath") is not False
+                    or deno.get("version") != "2.9.4"
+                    or deno.get("relativePath") != "tools/deno.exe"
+                ):
+                    errors.append("portable YouTube collector or JavaScript runtime manifest is invalid")
+                else:
+                    deno_name = runtime_asset.get("archiveRoot", "") + "/" + deno["relativePath"]
+                    license_name = runtime_asset.get("archiveRoot", "") + "/" + deno.get("license", {}).get("path", "")
+                    deno_payload = archive.read(deno_name) if deno_name in archive.namelist() else b""
+                    if len(deno_payload) != deno.get("sizeBytes") or hashlib.sha256(deno_payload).hexdigest() != deno.get("sha256"):
+                        errors.append("bundled Deno executable is missing or hash-mismatched")
+                    license_payload = archive.read(license_name) if license_name in archive.namelist() else b""
+                    if hashlib.sha256(license_payload).hexdigest() != deno.get("license", {}).get("sha256"):
+                        errors.append("bundled Deno license is missing or hash-mismatched")
     if manifest.get("runtime", {}).get("requiresPreinstalledPython") or manifest.get("runtime", {}).get("requiresPreinstalledUv"):
         errors.append("clean installation must not require preinstalled Python or uv")
     workshop_records = records_by_id.get("workshop", {})

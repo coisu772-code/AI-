@@ -104,6 +104,33 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
             self.assertEqual(9, len(copied))
             self.assertTrue(all(path.is_file() for path in copied))
 
+    def test_portable_youtube_runtime_is_pinned_and_installer_bound(self) -> None:
+        contract = json.loads((ROOT / "plugins/ai-video-channel-production/assets/portable-youtube-runtime.json").read_text(encoding="utf-8"))
+        requirements = (ROOT / "installer/runtime-requirements.txt").read_text(encoding="utf-8")
+        builder = (TOOLS / "build_unified_release.py").read_text(encoding="utf-8")
+        common = (ROOT / "installer/Common.ps1").read_text(encoding="utf-8")
+        health = (ROOT / "installer/Test-AIVideoChannelProductionHealth.ps1").read_text(encoding="utf-8")
+        server = (ROOT / "plugins/ai-video-channel-production/mcp/server.py").read_text(encoding="utf-8")
+
+        self.assertEqual("2026.7.4", contract["collector"]["version"])
+        self.assertEqual("0.8.0", contract["collector"]["ejsVersion"])
+        self.assertEqual("2.9.4", contract["javascriptRuntime"]["version"])
+        self.assertFalse(contract["requiresSystemPath"])
+        for requirement in (
+            "yt-dlp[default]==2026.7.4",
+            "yt-dlp-ejs==0.8.0",
+            "requests==2.34.2",
+            "websockets==17.0.1",
+        ):
+            self.assertIn(requirement, requirements)
+        self.assertIn("DENO_ARCHIVE_SHA", builder)
+        self.assertIn("locked Deno executable size or SHA-256 mismatch", builder)
+        self.assertIn("AIVCP_YT_DLP_COMMAND_JSON", common)
+        self.assertIn("--js-runtimes", common)
+        self.assertIn("--ffmpeg-location", common)
+        self.assertIn("youtubeCollectorChecked", health)
+        self.assertIn("youtube_runtime_matches", server)
+
     def test_frozen_upstream_records_are_exact(self) -> None:
         assets = {asset["assetId"]: asset for asset in self.manifest()["assets"]}
         self.assertEqual((WORKSHOP_NAME, WORKSHOP_SIZE, WORKSHOP_SHA), (assets["workshop"]["fileName"], assets["workshop"]["sizeBytes"], assets["workshop"]["sha256"]))
@@ -243,6 +270,7 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
         self.assertIn('AIVCP_FFPROBE_PATH = $ffprobePath', common)
         self.assertIn('AIVCP_PUBLISHER_CHANNEL_LIST_EXE = $publisherChannelListPath', common)
         self.assertIn('AIVCP_PUBLISHER_V2_CLI = $publisherV2Path', common)
+        self.assertIn('AIVCP_YT_DLP_COMMAND_JSON = $youtubeCollectorCommandJson', common)
         self.assertIn('$workshopExecutables.Count -ne 1', common)
         self.assertIn('$workshopRelativePath = Join-Path "apps\\workshop"', common)
         self.assertIn('"apps\\publisher\\channel-list.exe"', common)
