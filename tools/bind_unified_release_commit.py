@@ -28,19 +28,27 @@ def main() -> int:
     root = args.asset_root.resolve()
     manifest_path = root / "unified-release-v0.10.0-rc.1.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    bound_assets = 0
     changed = 0
     for asset in manifest["assets"]:
         source = asset.get("source", {})
-        if source.get("commit") == "LOCAL_COMMIT_TO_BE_RECORDED":
-            source["commit"] = args.source_commit
-            changed += 1
+        if asset.get("assetId") in {"unified-installer", "core"}:
+            current = source.get("commit")
+            if current != "LOCAL_COMMIT_TO_BE_RECORDED" and not isinstance(current, str):
+                raise SystemExit(f"invalid source commit binding for {asset.get('assetId')}")
+            if current != "LOCAL_COMMIT_TO_BE_RECORDED" and not re.fullmatch(r"[0-9a-f]{40}", current):
+                raise SystemExit(f"invalid source commit binding for {asset.get('assetId')}")
+            bound_assets += 1
+            if current != args.source_commit:
+                source["commit"] = args.source_commit
+                changed += 1
         if args.metadata_commit and asset["assetId"] == "core":
             source["metadataCommit"] = args.metadata_commit
     gates = manifest["publicationGates"]
     if "replace-local-commit-placeholders" in gates:
         gates[gates.index("replace-local-commit-placeholders")] = "tag-to-source-commit-verification"
-    if changed not in {0, 2}:
-        raise SystemExit(f"unexpected number of source placeholders: {changed}")
+    if bound_assets != 2 or changed not in {0, 2}:
+        raise SystemExit(f"unexpected source binding state: assets={bound_assets}, changed={changed}")
     rendered = json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     manifest_path.write_text(rendered, encoding="utf-8", newline="\n")
     names = [asset["fileName"] for asset in manifest["assets"]]

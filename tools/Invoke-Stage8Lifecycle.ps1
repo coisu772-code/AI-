@@ -11,7 +11,10 @@ $ErrorActionPreference = "Stop"
 $root = [System.IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $assets = [System.IO.Path]::GetFullPath($AssetRoot)
 $evidence = [System.IO.Path]::GetFullPath($EvidenceRoot)
-$manifest = Join-Path $assets "unified-release-v0.8.0-rc.2.json"
+$pluginManifest = Get-Content -LiteralPath (Join-Path $root "plugins\ai-video-channel-production\.codex-plugin\plugin.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+$productVersion = [string]$pluginManifest.version
+$manifestName = "unified-release-v$productVersion.json"
+$manifest = Join-Path $assets $manifestName
 if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) { throw "Unified manifest is missing: $manifest" }
 New-Item -ItemType Directory -Path $evidence -Force | Out-Null
 $runId = [guid]::NewGuid().ToString("N").Substring(0, 8)
@@ -187,13 +190,13 @@ try {
     $baseUrl = "http://127.0.0.1:$port"
     $ready = $false
     for ($attempt = 0; $attempt -lt 30; $attempt++) {
-        try { Invoke-WebRequest -Uri "$baseUrl/unified-release-v0.8.0-rc.2.json" -UseBasicParsing -TimeoutSec 2 | Out-Null; $ready = $true; break } catch { Start-Sleep -Milliseconds 200 }
+        try { Invoke-WebRequest -Uri "$baseUrl/$manifestName" -UseBasicParsing -TimeoutSec 2 | Out-Null; $ready = $true; break } catch { Start-Sleep -Milliseconds 200 }
     }
     if (-not $ready) { throw "Fake online release source did not start." }
     $onlineSource = Join-Path $evidence "online-source"
     New-Item -ItemType Directory -Path $onlineSource -Force | Out-Null
     if (@(Get-ChildItem -LiteralPath $onlineSource -Force).Count -ne 0) { throw "Single-file online test source must start without a manifest or component assets." }
-    & (Join-Path $root "installer\Install-AIVideoChannelProduction.ps1") -ManifestUrl "$baseUrl/unified-release-v0.8.0-rc.2.json" -AllowInsecureTestTransport -AssetRoot $onlineSource -DownloadBaseUrl $baseUrl -InstallMode Online -InstallRoot $onlineInstall -DataRoot $onlineData -SkipCodexRegistration
+    & (Join-Path $root "installer\Install-AIVideoChannelProduction.ps1") -ManifestUrl "$baseUrl/$manifestName" -AllowInsecureTestTransport -AssetRoot $onlineSource -DownloadBaseUrl $baseUrl -InstallMode Online -InstallRoot $onlineInstall -DataRoot $onlineData -SkipCodexRegistration
     if (-not $?) { throw "Fake online unified installation failed." }
     $server.Kill(); $server.WaitForExit(); $server = $null
 
