@@ -206,6 +206,22 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
             errors, _ = safe_zip_entries(archive, "root", False)
             self.assertTrue(any("unsafe ZIP entry" in error for error in errors))
 
+    def test_runtime_third_party_test_keys_are_not_credentials_but_product_keys_are(self) -> None:
+        marker = "-----BEGIN PRIVATE KEY-----\ntest-vector\n-----END PRIVATE KEY-----"
+        with tempfile.TemporaryDirectory(prefix="aivcp-runtime-secret-scan-") as temporary:
+            base = Path(temporary)
+            allowed = base / "aivcp-python-runtime-test.zip"
+            with zipfile.ZipFile(allowed, "w") as handle:
+                handle.writestr("runtime/Lib/site-packages/example/self_test.py", marker)
+            allowed_errors, _ = safe_zip_entries(allowed, "runtime", False)
+            self.assertFalse(any("credential signature" in error for error in allowed_errors))
+
+            rejected = base / "aivcp-python-runtime-product.zip"
+            with zipfile.ZipFile(rejected, "w") as handle:
+                handle.writestr("runtime/start.ps1", marker)
+            rejected_errors, _ = safe_zip_entries(rejected, "runtime", False)
+            self.assertTrue(any("credential signature" in error for error in rejected_errors))
+
     def test_installer_contains_transactional_and_no_cli_degradation_paths(self) -> None:
         installer = (ROOT / "installer/Install-AIVideoChannelProduction.ps1").read_text(encoding="utf-8")
         common = (ROOT / "installer/Common.ps1").read_text(encoding="utf-8")

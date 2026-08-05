@@ -63,7 +63,8 @@ def safe_zip_entries(archive_path: Path, expected_root: str, core: bool) -> tupl
                     total += len(block)
                     digest.update(block)
                     text_candidate = PurePosixPath(relative).suffix.lower() in {".cmd", ".json", ".md", ".ps1", ".py", ".txt", ".yaml", ".yml", ".toml"}
-                    if text_candidate and any(pattern.search(block) for pattern in SENSITIVE_BYTES):
+                    third_party_runtime_source = archive_path.name.startswith("aivcp-python-runtime-") and relative.startswith("Lib/site-packages/")
+                    if text_candidate and not third_party_runtime_source and any(pattern.search(block) for pattern in SENSITIVE_BYTES):
                         errors.append(f"credential signature: {archive_path.name}:{relative}")
                     if text_candidate and any(marker in block for marker in DEV_PATHS):
                         errors.append(f"development absolute path: {archive_path.name}:{relative}")
