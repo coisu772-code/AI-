@@ -47,7 +47,14 @@ function Invoke-GitHubJson {
     )
     $parameters = @{ Method = $Method; Uri = $Uri; Headers = $Headers }
     if ($null -ne $Body) {
-        $parameters.Body = ($Body | ConvertTo-Json -Depth 8 -Compress)
+        Add-Type -AssemblyName System.Web.Extensions
+        $serializableBody = [System.Collections.Generic.Dictionary[string,object]]::new()
+        foreach ($key in $Body.Keys) {
+            $serializableBody.Add([string]$key, $Body[$key])
+        }
+        $serializer = [System.Web.Script.Serialization.JavaScriptSerializer]::new()
+        $serializer.MaxJsonLength = [int]::MaxValue
+        $parameters.Body = $serializer.Serialize($serializableBody)
         $parameters.ContentType = "application/json; charset=utf-8"
     }
     return Invoke-RestMethod @parameters

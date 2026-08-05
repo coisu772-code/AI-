@@ -127,6 +127,8 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
         self.assertIn("$tagCommit -ne $boundSourceCommit", script)
         self.assertIn("git credential fill", script)
         self.assertIn("This publisher never starts an interactive browser login", script)
+        self.assertIn("Dictionary[string,object]", script)
+        self.assertIn("JavaScriptSerializer", script)
         self.assertIn("ls-remote origin", script)
         self.assertIn("remote[0].digest", script)
         self.assertNotIn("gh auth login", script)
