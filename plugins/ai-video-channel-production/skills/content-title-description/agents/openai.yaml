@@ -1,0 +1,7 @@
+interface:
+  display_name: "标题与简介"
+  short_description: "依据最终母稿生成事实一致、适配目标市场的标题和YouTube简介"
+  default_prompt: "Use `$content-title-description` to generate and validate the final title and YouTube description."
+
+policy:
+  allow_implicit_invocation: false

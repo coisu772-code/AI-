@@ -79,6 +79,13 @@ class Stage4ContentLoopTests(unittest.TestCase):
         )
         capabilities = service.call("content_capabilities")
         self.assertEqual("available", capabilities["extensionInterfaces"]["analysis-package-v1"]["status"])
+        extensions = {item["capability"]: item for item in capabilities["extensions"]}
+        self.assertEqual("available", extensions["title-generation"]["status"])
+        self.assertEqual("content-title-description", extensions["title-generation"]["skillId"])
+        self.assertEqual(["manuscript-package"], extensions["title-generation"]["inputContractTypes"])
+        self.assertEqual("available", extensions["description-generation"]["status"])
+        self.assertEqual("content-title-description", extensions["description-generation"]["skillId"])
+        self.assertEqual("planned-unavailable", extensions["thumbnail-generation"]["status"])
         self.assertFalse(capabilities["boundaries"]["workshop"])
         self.assertFalse(capabilities["boundaries"]["upload"])
         self.assertFalse(capabilities["boundaries"]["longTermLearningWrite"])

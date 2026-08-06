@@ -63,7 +63,7 @@ FINAL_QUALITY_KEYS = {
     "antiCopyBoundary",
     "timingIntegrity",
 }
-DOWNSTREAM_CONSUMERS = {"topic-center", "manuscript-center", "content-rewrite", "production-text"}
+DOWNSTREAM_CONSUMERS = {"topic-center", "manuscript-center", "content-rewrite", "content-review-edit"}
 
 
 def _read_json(path: Path, code: str) -> dict[str, Any]:
@@ -170,7 +170,7 @@ class VideoCopyDeconstruction:
                 "content-deconstruction-analysis-v1" if generic else "video-deconstruction-analysis-v1",
                 "analysis-package-v1",
             ],
-            "consumers": ["content-rewrite", "production-text"] if generic else ["topic-center", "manuscript-center"],
+            "consumers": ["content-rewrite", "content-review-edit"] if generic else ["topic-center", "manuscript-center"],
             "boundaries": {
                 "requiresCanonicalContentTxt": True,
                 "readsRawSubtitleFiles": False,
@@ -841,7 +841,7 @@ class VideoCopyDeconstruction:
             "topicCenter": topic_view,
             "manuscriptCenter": manuscript_view,
             "rewrite": {**topic_view, "transferableMethods": method_ids["content-rewrite"] or topic_view["transferableMethods"]},
-            "productionText": {**manuscript_view, "transferableMethods": method_ids["production-text"] or manuscript_view["transferableMethods"]},
+            "productionText": {**manuscript_view, "transferableMethods": method_ids["content-review-edit"] or manuscript_view["transferableMethods"]},
         }
 
     def finalize(
@@ -965,7 +965,7 @@ class VideoCopyDeconstruction:
                 "failedOrSkipped": len(failures),
                 "accountRequirementsApplied": bool(plan.get("accountRequirement")),
                 "fiveEvidenceBuckets": list(BUCKET_KEYS),
-                "handoffReady": ["content-rewrite", "production-text"] if generic else ["topic-center", "manuscript-center"],
+                "handoffReady": ["content-rewrite", "content-review-edit"] if generic else ["topic-center", "manuscript-center"],
                 "next": "continue to content-rewrite" if generic else "legacy analysis package frozen",
             },
         }

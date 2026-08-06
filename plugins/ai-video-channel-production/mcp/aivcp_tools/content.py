@@ -154,11 +154,12 @@ def _extension_capabilities() -> list[dict[str, Any]]:
     items = []
     for capability in EXTENSION_CAPABILITY_NAMES:
         packaging = capability in {"title-generation", "description-generation", "thumbnail-generation"}
+        packaging_available = capability in {"title-generation", "description-generation"}
         item = {
             "capability": capability,
-            "status": "planned-unavailable" if packaging else "available",
+            "status": "available" if (not packaging or packaging_available) else "planned-unavailable",
             "interfaceVersion": "1.0.0",
-            "inputContractTypes": ["source-package"],
+            "inputContractTypes": ["manuscript-package"] if packaging else ["source-package"],
             "outputContractType": (
                 "title-asset-v1" if capability == "title-generation"
                 else "description-asset-v1" if capability == "description-generation"
@@ -171,15 +172,18 @@ def _extension_capabilities() -> list[dict[str, Any]]:
             item.update({"skillId": "content-deconstruct", "skillVersion": "1.0.0"})
         elif capability in {"direct-rewrite", "synthesis-rewrite"}:
             item.update({"skillId": "content-rewrite", "skillVersion": "1.0.0"})
+        elif packaging_available:
+            item.update(
+                {
+                    "skillId": "content-title-description",
+                    "skillVersion": "1.0.0",
+                }
+            )
         else:
             item.update(
                 {
-                    "skillId": {
-                        "title-generation": "content-title",
-                        "description-generation": "content-description",
-                        "thumbnail-generation": "content-thumbnail",
-                    }[capability],
-                    "reason": "已预留稳定扩展位；Skill、契约和测试完成前不得冒充可用。",
+                    "skillId": "content-thumbnail",
+                    "reason": "封面仍为稳定扩展位；Skill、契约和测试完成前不得冒充可用。",
                 }
             )
         items.append(item)
@@ -283,7 +287,7 @@ class ContentLoop:
                 "analysis-package-v1": {
                     "status": "available",
                     "providers": ["channel-distillation", "video-copy-deconstruction", "content-deconstruct"],
-                    "consumers": ["direct-rewrite", "synthesis-rewrite", "production-text"],
+                    "consumers": ["direct-rewrite", "synthesis-rewrite", "content-review-edit"],
                 },
                 "writing-style-contract-v1": {
                     "status": "available",
@@ -292,6 +296,7 @@ class ContentLoop:
                 },
                 "image-provider-v1": {"status": "available", "modes": ["real", "prompt_only"]},
             },
+            "extensions": _extension_capabilities(),
             "sourceGate": {
                 "accepted": ["CONTENT_READY"],
                 "conditional": "PARTIAL requires an explicit per-source acceptance",

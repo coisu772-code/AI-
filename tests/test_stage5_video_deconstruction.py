@@ -559,7 +559,7 @@ class VideoDeconstructionTests(unittest.TestCase):
         self.assertTrue(canonical["complete"])
         analysis = deconstruction_analysis(source_id, "generic-text")
         analysis["analysisBuckets"]["transferableMethods"][0]["downstreamConsumers"] = ["content-rewrite"]
-        analysis["analysisBuckets"]["transferableMethods"][1]["downstreamConsumers"] = ["production-text"]
+        analysis["analysisBuckets"]["transferableMethods"][1]["downstreamConsumers"] = ["content-review-edit"]
         self.service.call(
             "content_deconstruction_checkpoint",
             {

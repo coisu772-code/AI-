@@ -7,3 +7,7 @@
 *.ps1 text eol=lf
 *.cmd text eol=lf
 contracts/youtube-constraints/catalog-2026.08.04.1.json -text whitespace=cr-at-eol
+plugins/ai-video-channel-production/skills/content-deconstruct/references/prompt-v2.2.txt -text
+plugins/ai-video-channel-production/skills/content-rewrite/references/prompt-v5.2.txt -text
+plugins/ai-video-channel-production/skills/content-review-edit/references/prompt-v4.1.txt -text
+plugins/ai-video-channel-production/skills/content-title-description/references/prompt-v2.1.txt -text

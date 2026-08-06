@@ -17,7 +17,8 @@ $requiredSkills = @(
     "content-source",
     "content-deconstruct",
     "content-rewrite",
-    "production-text",
+    "content-review-edit",
+    "content-title-description",
     "publishing-assets"
     "production-handoff"
     "publish-video"
@@ -146,7 +147,8 @@ $routerText = Get-Content -LiteralPath (Join-Path $skillsRoot "channel-productio
 $sourceText = Get-Content -LiteralPath (Join-Path $skillsRoot "content-source\SKILL.md") -Raw -Encoding UTF8
 $deconstructionText = Get-Content -LiteralPath (Join-Path $skillsRoot "content-deconstruct\SKILL.md") -Raw -Encoding UTF8
 $rewriteText = Get-Content -LiteralPath (Join-Path $skillsRoot "content-rewrite\SKILL.md") -Raw -Encoding UTF8
-$productionText = Get-Content -LiteralPath (Join-Path $skillsRoot "production-text\SKILL.md") -Raw -Encoding UTF8
+$reviewEditText = Get-Content -LiteralPath (Join-Path $skillsRoot "content-review-edit\SKILL.md") -Raw -Encoding UTF8
+$titleDescriptionText = Get-Content -LiteralPath (Join-Path $skillsRoot "content-title-description\SKILL.md") -Raw -Encoding UTF8
 $publishingAssetsText = Get-Content -LiteralPath (Join-Path $skillsRoot "publishing-assets\SKILL.md") -Raw -Encoding UTF8
 $productionSkillText = Get-Content -LiteralPath (Join-Path $skillsRoot "production-handoff\SKILL.md") -Raw -Encoding UTF8
 $publishSkillText = Get-Content -LiteralPath (Join-Path $skillsRoot "publish-video\SKILL.md") -Raw -Encoding UTF8
@@ -156,7 +158,7 @@ $dataCenterHealthScript = Join-Path $skillsRoot "data-center\scripts\check_data_
 if (-not (Test-Path -LiteralPath $dataCenterHealthScript -PathType Leaf)) {
     throw "Installation health check failed: data-center health script is missing."
 }
-$declaredToolText = $routerText + "`n" + $sourceText + "`n" + $deconstructionText + "`n" + $rewriteText + "`n" + $productionText + "`n" + $publishingAssetsText + "`n" + $productionSkillText + "`n" + $publishSkillText + "`n" + $dataCenterSkillText + "`n" + $dataCenterProtocolText
+$declaredToolText = $routerText + "`n" + $sourceText + "`n" + $deconstructionText + "`n" + $rewriteText + "`n" + $reviewEditText + "`n" + $titleDescriptionText + "`n" + $publishingAssetsText + "`n" + $productionSkillText + "`n" + $publishSkillText + "`n" + $dataCenterSkillText + "`n" + $dataCenterProtocolText
 foreach ($toolName in $requiredContentTools) {
     if (-not $declaredToolText.Contains($toolName)) {
         throw "Installation health check failed: Skills do not declare $toolName."

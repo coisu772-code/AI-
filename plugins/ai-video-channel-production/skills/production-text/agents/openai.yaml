@@ -1,7 +1,0 @@
-interface:
-  display_name: "制作文本"
-  short_description: "将已锁定方案写成可直接用于配音、字幕、分镜和制作的正式文本"
-  default_prompt: "Use `$production-text` to produce and validate the final production-ready script."
-
-policy:
-  allow_implicit_invocation: false

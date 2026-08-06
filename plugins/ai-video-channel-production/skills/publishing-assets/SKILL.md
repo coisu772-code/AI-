@@ -1,21 +1,20 @@
 ---
 name: publishing-assets
-description: 在标题、简介和封面三个独立 Skills 都已交付并确认后，只负责校验它们与同一 Manuscript Package v1 的版本、事实和哈希绑定，汇总为 Publishing Asset Package v1。用户说“汇总发布素材”“检查标题简介封面是否齐全”“生成发布素材包”时使用；不自行生成标题、简介、Hashtags 或封面，任一扩展尚未开发或缺少结果时明确返回 PLANNED_UNAVAILABLE。
+description: 在标题与简介资产和封面资产都已交付并确认后，校验它们与同一 Manuscript Package v1 的版本、事实和哈希绑定，并汇总为 Publishing Asset Package v1。用户说“汇总发布素材”“检查标题简介封面是否齐全”或“生成发布素材包”时使用；不自行生成资产，封面 Skill 尚未开发时明确返回 PLANNED_UNAVAILABLE。
 ---
 
 # 发布素材汇总
 
-本 Skill 是汇总器，不是标题、简介或封面生成器。三个资产必须由未来独立 Skills 提供：
+本 Skill 是汇总器，不是内容生成器：
 
-- `content-title` → `title-asset-v1`；
-- `content-description` → `description-asset-v1`；
-- `content-thumbnail` → `thumbnail-asset-v1`。
+- `$content-title-description` 同时提供 `content-title` → `title-asset-v1` 和 `content-description` → `description-asset-v1`；
+- 未来 `content-thumbnail` 提供 `thumbnail-asset-v1`。
 
 ## 进入
 
 1. 调用 `content_capabilities` 和 `content_project_get`，只接收 `SCRIPT_READY`、质量门通过且哈希有效的 Manuscript Package v1。
-2. 读取 `assets/content-extension-slots.json`。任一槽位仍为 `PLANNED_UNAVAILABLE` 时，显示缺失的 Skill 和稳定接口名称，然后停止；不得临时生成对应资产。
-3. 三个 Skill 已可用时，分别读取已确认的资产包，并验证它们绑定同一项目、频道、目标语言、母稿版本与 SHA-256。
+2. 读取 `assets/content-extension-slots.json`。标题和简介必须为 `AVAILABLE` 并绑定同一 `content-title-description`；封面仍为 `PLANNED_UNAVAILABLE` 时显示缺失项并停止，不得生成占位图。
+3. 所有资产可用时，读取已确认资产包，验证项目、频道、目标语言、母稿版本与 SHA-256。
 
 ## 汇总质量门
 
@@ -27,9 +26,9 @@ description: 在标题、简介和封面三个独立 Skills 都已交付并确�
 
 ## 冻结
 
-1. 展示唯一标题、简介与 Hashtags、唯一封面、三个资产包版本、母稿版本和目标频道引用。
+1. 展示唯一标题、简介与 Hashtags、唯一封面、资产包版本、母稿版本和目标频道引用。
 2. 审核模式等待联合确认；已有明确自动确认授权时仍须先通过全部硬门。
-3. 调用 `content_publishing_finalize`，只提交三个独立资产包的已确认结果和来源锁，不新增或改写内容。
+3. 调用 `content_publishing_finalize`，只提交已确认结果和来源锁，不新增或改写内容。
 4. 调用 `content_integrity_check`；只有包完整时才称为 `PUBLISHING_ASSETS_READY`。
 5. 调用只读 `content_handoff_check` 检查是否具备制作条件；不在本 Skill 启动工坊。
 
@@ -37,4 +36,4 @@ description: 在标题、简介和封面三个独立 Skills 都已交付并确�
 
 - 不生成、改写或重选标题、简介、Hashtags、封面和正式母稿。
 - 不调用工坊、Google／YouTube 授权、上传、发布回执、Analytics 或长期频道学习。
-- 当前三个未来 Skill 尚未正式实现时，正常结果就是 `PLANNED_UNAVAILABLE`，不得用旧流程回退。
+- 当前只有 `content-thumbnail` 未实现，正常结果是 `PLANNED_UNAVAILABLE`，不得用旧流程回退。

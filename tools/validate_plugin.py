@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 import sys
 from pathlib import Path
@@ -22,7 +23,8 @@ EXPECTED_SKILLS = {
     "content-source",
     "content-deconstruct",
     "content-rewrite",
-    "production-text",
+    "content-review-edit",
+    "content-title-description",
     "publishing-assets",
     "production-handoff",
     "publish-video",
@@ -232,11 +234,8 @@ def validate_plugin() -> list[str]:
         "$content-source",
         "$content-deconstruct",
         "$content-rewrite",
-        "$production-text",
-        "direct-rewrite",
-        "synthesis-rewrite",
-        "content-title",
-        "content-description",
+        "$content-review-edit",
+        "$content-title-description",
         "content-thumbnail",
         "PLANNED_UNAVAILABLE",
     ):
@@ -282,25 +281,42 @@ def validate_plugin() -> list[str]:
         "content_topic_checkpoint",
         "content_topic_finalize",
         "content_integrity_check",
-        "$production-text",
+        "$content-review-edit",
+        "rewrite-draft-vNNN",
     ):
         if marker not in rewrite_text:
             errors.append(f"content-rewrite is missing required marker: {marker}")
 
-    manuscript_text = skill_texts.get("production-text", "")
+    manuscript_text = skill_texts.get("content-review-edit", "")
     for marker in (
         "目标语言正式文本",
         "唯一事实源",
         "lineId",
         "content_manuscript_finalize",
         "SCRIPT_READY",
+        "$content-title-description",
+        "P0",
+        "P1",
+    ):
+        if marker not in manuscript_text:
+            errors.append(f"content-review-edit is missing required marker: {marker}")
+
+    packaging_text = skill_texts.get("content-title-description", "")
+    for marker in (
+        "prompt-v2.1.txt",
+        "title-description-contract.md",
+        "title-asset-v1",
+        "description-asset-v1",
         "content-title",
         "content-description",
         "content-thumbnail",
         "PLANNED_UNAVAILABLE",
+        "SCRIPT_READY",
+        "8–12",
+        "$publishing-assets",
     ):
-        if marker not in manuscript_text:
-            errors.append(f"production-text is missing required marker: {marker}")
+        if marker not in packaging_text:
+            errors.append(f"content-title-description is missing required marker: {marker}")
 
     extension_slots_path = PLUGIN_ROOT / "assets" / "content-extension-slots.json"
     try:
@@ -308,13 +324,56 @@ def validate_plugin() -> list[str]:
         slot_ids = {item.get("skillId") for item in extension_slots.get("slots", [])}
         if slot_ids != {"content-title", "content-description", "content-thumbnail"}:
             errors.append("content extension registry must reserve exactly title, description, and thumbnail Skills")
-        if any(item.get("status") != "PLANNED_UNAVAILABLE" for item in extension_slots.get("slots", [])):
-            errors.append("future content extension slots must remain PLANNED_UNAVAILABLE until implemented")
+        slot_by_id = {item.get("skillId"): item for item in extension_slots.get("slots", [])}
+        for slot_id in ("content-title", "content-description"):
+            slot = slot_by_id.get(slot_id, {})
+            if slot.get("status") != "AVAILABLE" or slot.get("discovered") is not True:
+                errors.append(f"{slot_id} must be available after the combined packaging Skill is installed")
+            if slot.get("providedBySkillId") != "content-title-description":
+                errors.append(f"{slot_id} must be provided by content-title-description")
+        thumbnail_slot = slot_by_id.get("content-thumbnail", {})
+        if thumbnail_slot.get("status") != "PLANNED_UNAVAILABLE" or thumbnail_slot.get("discovered") is not False:
+            errors.append("content-thumbnail must remain PLANNED_UNAVAILABLE")
     except Exception as exc:  # noqa: BLE001
         errors.append(f"content extension registry is invalid: {exc}")
 
+    prompt_manifest_path = PLUGIN_ROOT / "assets" / "content-prompt-bundles.json"
+    try:
+        prompt_manifest = load_json(prompt_manifest_path)
+        expected_sequence = [
+            "content-deconstruct",
+            "content-rewrite",
+            "content-review-edit",
+            "content-title-description",
+        ]
+        if prompt_manifest.get("sequence") != expected_sequence:
+            errors.append("content prompt bundle sequence is invalid")
+        bundles = prompt_manifest.get("bundles", [])
+        if [item.get("skillId") for item in bundles] != expected_sequence:
+            errors.append("content prompt bundle Skills do not match the four-stage sequence")
+        for item in bundles:
+            relative = item.get("bundledPath")
+            if not isinstance(relative, str):
+                errors.append("content prompt bundle path is missing")
+                continue
+            prompt_path = PLUGIN_ROOT / relative
+            if not prompt_path.is_file():
+                errors.append(f"bundled prompt is missing: {relative}")
+                continue
+            payload = prompt_path.read_bytes()
+            if len(payload) != item.get("sizeBytes"):
+                errors.append(f"bundled prompt size mismatch: {relative}")
+            if hashlib.sha256(payload).hexdigest() != item.get("sha256"):
+                errors.append(f"bundled prompt SHA-256 mismatch: {relative}")
+            skill_id = item.get("skillId")
+            if prompt_path.name not in skill_texts.get(skill_id, ""):
+                errors.append(f"{skill_id} does not require its bundled prompt reference")
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"content prompt bundle manifest is invalid: {exc}")
+
     publishing_text = skill_texts.get("publishing-assets", "")
     for marker in (
+        "content-title-description",
         "content-title",
         "content-description",
         "content-thumbnail",

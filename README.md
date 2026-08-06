@@ -4,9 +4,9 @@
 
 ## 当前内容主流程
 
-新内容统一走四个 Skills：`content-source`（视频链接／上传文本／资料库／按需联网资料）→ `content-deconstruct`（完整拆解）→ `content-rewrite`（单源高贴合或资料融合二选一）→ `production-text`（可直接用于配音、字幕、分镜和制作的正式文本）。旧频道蒸馏、旧视频拆文、8 方向仿写、独立选题和旧文稿 Skills 已退出新任务入口。
+新内容统一走四个创作 Skills：`content-deconstruct`（完整拆书、逐章分析、迁移方向）→ `content-rewrite`（单源高贴合或资料融合的完整仿写初稿）→ `content-review-edit`（编辑审核、直接修改、复查并冻结正式文本）→ `content-title-description`（标题与 YouTube 简介）。`content-source` 只负责把视频链接、上传文本、资料库或按需联网资料整理成规范输入，不计入四个创作阶段。旧频道蒸馏、旧视频拆文、8 方向仿写、独立选题和旧文稿 Skills 已退出新任务入口。
 
-标题、简介和封面预留为 `content-title`、`content-description`、`content-thumbnail` 三个独立扩展位；目前状态为 `PLANNED_UNAVAILABLE`。`publishing-assets` 只在未来三个资产包都已实现并确认后负责汇总，不会临时冒充生成器。
+标题与简介现由一个 `content-title-description` Skill 同时提供，对外仍保存为 `title-asset-v1` 和 `description-asset-v1` 两个稳定资产。封面 `content-thumbnail` 继续保留扩展位，目前状态为 `PLANNED_UNAVAILABLE`；`publishing-assets` 会等待真实封面完成后再联合汇总，不会生成占位图。
 
 ## Windows 一键安装
 

@@ -1,7 +1,7 @@
 interface:
-  display_name: "文案拆解"
-  short_description: "完整拆解视频字幕或用户文本的结构、节奏、表达和可迁移方法"
-  default_prompt: "Use `$content-deconstruct` to fully deconstruct this canonical video transcript or text."
+  display_name: "拆书与迁移方向"
+  short_description: "完整拆解叙事素材并生成不少于六个原创迁移方向和仿写交接卡"
+  default_prompt: "Use `$content-deconstruct` to fully deconstruct the supplied narrative and prepare the rewrite handoff."
 
 policy:
   allow_implicit_invocation: false
