@@ -26,10 +26,10 @@ def current_manifest_path() -> Path:
 
 def validate_release_manifest(manifest_path: Path | None = None) -> list[str]:
     plugin = load_json(ROOT / "plugins" / "ai-video-channel-production" / ".codex-plugin" / "plugin.json")
-    if plugin.get("version") == "0.10.1-rc.1" and manifest_path is None:
-        selected = ROOT / "release-manifests" / "unified-release-v0.10.1-rc.1.json"
+    if plugin.get("version") == "0.10.2-rc.1" and manifest_path is None:
+        selected = ROOT / "release-manifests" / "unified-release-v0.10.2-rc.1.json"
         if not selected.is_file():
-            return ["unified-release-v0.10.1-rc.1.json is missing"]
+            return ["unified-release-v0.10.2-rc.1.json is missing"]
         manifest = load_json(selected)
         schema = load_json(ROOT / "release-manifests" / "unified-release-manifest.schema.json")
         errors = []
@@ -45,15 +45,15 @@ def validate_release_manifest(manifest_path: Path | None = None) -> list[str]:
         if publisher.get("license", {}).get("reviewStatus") != "technical-inventory-validated-release-owner-approval-required":
             errors.append("publisher technical inventory status or external release-owner gate is missing")
         source = publisher.get("source", {})
-        if source.get("commit") != "e6350fd290e2e75782334d712ba01ad0411a1efd":
+        if source.get("commit") != "70f9a8d13143050e045b1bfd61005742724d0fa6":
             errors.append("publisher source commit is not locked to the final candidate")
         component_attestation = source.get("componentManifest", {})
         if (
-            component_attestation.get("fileName") != "publisher-component-reuse-attestation-v0.8.0-rc.2.json"
-            or component_attestation.get("sha256") != "fac82b06df0516fc137bc56620a3d1aedf7bc7d260cd442278403f3e7e644816"
+            component_attestation.get("fileName") != "publisher-component-manifest-v0.8.1-rc.1.json"
+            or component_attestation.get("sha256") != "9fb16b78bdb27776b14b840643662033566ff6afc796061cc74d7d8769050a04"
         ):
             errors.append("publisher component reuse attestation is not locked")
-        if source.get("constraintsCatalog", {}).get("sha256") != "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13":
+        if source.get("constraintsCatalog", {}).get("sha256") != "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a":
             errors.append("publisher constraints catalog is not locked")
         if "release-license-owner-approval" not in manifest.get("publicationGates", []):
             errors.append("technical license validation must retain external release-owner approval")

@@ -571,7 +571,7 @@ class Stage2ToolTestCase(unittest.TestCase):
         self.assertEqual(resolved["productionProfile"]["contentHash"], completed["productionProfile"]["contentHash"])
         self.assertEqual(restarted.call("channel_integrity_check")["status"], "PASS")
 
-    def test_unknown_voice_and_stage2_auto_upload_are_blocked(self) -> None:
+    def test_unknown_voice_and_unconfirmed_auto_upload_are_blocked(self) -> None:
         started = self.service.call(
             "channel_onboarding_start",
             {
@@ -606,7 +606,45 @@ class Stage2ToolTestCase(unittest.TestCase):
                     "defaults": automatic,
                 },
             )
-        self.assertEqual(upload_error.exception.code, "AUTO_UPLOAD_NOT_AVAILABLE_STAGE2")
+        self.assertEqual(upload_error.exception.code, "AUTO_UPLOAD_AUTHORIZATION_REQUIRED")
+
+    def test_explicit_auto_upload_is_allowed_only_for_ready_publisher_channel(self) -> None:
+        ready_channel = synthetic_channel()
+        ready_channel["authorizationStatus"] = "ACTIVE"
+        ready_channel["uploadPolicy"] = "AUTO"
+        service = LocalToolService(
+            ServiceConfig(
+                data_root=self.root / "auto-data",
+                voice_catalog_path=self.service.config.voice_catalog_path,
+            ),
+            publisher_provider=StaticPublisherProvider([ready_channel]),
+        )
+        started = service.call(
+            "channel_onboarding_start",
+            {
+                "taskId": "task_auto_ready",
+                "channelSerial": "01",
+                "targetRegion": "Japan",
+                "outputLanguage": "ja-JP",
+            },
+        )
+        automatic = defaults()
+        automatic["uploadPolicy"] = "AUTO"
+        completed = service.call(
+            "channel_onboarding_complete",
+            {
+                "taskId": "task_auto_ready",
+                "channelProfileId": started["channel"]["channelProfileId"],
+                "bindingProof": started["taskBinding"]["bindingProof"],
+                "defaults": automatic,
+                "autoUploadAuthorization": {
+                    "confirmed": True,
+                    "scope": "channel_default",
+                    "version": "1.0.0",
+                },
+            },
+        )
+        self.assertEqual("AUTO", completed["productionProfile"]["defaults"]["uploadPolicy"])
 
     def test_mcp_protocol_returns_structured_sanitized_tools(self) -> None:
         server = McpServer(self.service)

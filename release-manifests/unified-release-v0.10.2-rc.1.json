@@ -1,0 +1,344 @@
+{
+  "assets": [
+    {
+      "archiveRoot": "AI-Video-Channel-Production-Unified-Installer-v0.10.2-rc.1",
+      "assetId": "unified-installer",
+      "compatibleProductVersions": [
+        "0.10.2-rc.1"
+      ],
+      "fileName": "AI-Video-Channel-Production-Unified-Installer-v0.10.2-rc.1.zip",
+      "install": false,
+      "installSubpath": "",
+      "license": {
+        "expression": "LicenseRef-AI-Video-Channel-Production-1.0",
+        "reviewStatus": "product-license-applies",
+        "source": "LICENSE.md"
+      },
+      "sha256": "78c8cead94186cb399dd392903ba7f91bc04b52cdaca0885d708df50d84a9f58",
+      "sizeBytes": 14554,
+      "source": {
+        "commit": "LOCAL_COMMIT_TO_BE_RECORDED",
+        "repository": "https://github.com/coisu772-code/AI-/"
+      },
+      "version": "0.10.2-rc.1"
+    },
+    {
+      "archiveRoot": "ai-video-channel-production-core",
+      "assetId": "core",
+      "compatibleProductVersions": [
+        "0.10.2-rc.1"
+      ],
+      "fileName": "ai-video-channel-production-core-v0.10.2-rc.1-windows.zip",
+      "install": true,
+      "installSubpath": "",
+      "license": {
+        "expression": "LicenseRef-AI-Video-Channel-Production-1.0",
+        "reviewStatus": "product-license-applies",
+        "source": "LICENSE.md"
+      },
+      "sha256": "fb41d314743229525b7b2ae79bfee2a4ba47497ab9058a039a2002a3194b7765",
+      "sizeBytes": 510512,
+      "source": {
+        "commit": "LOCAL_COMMIT_TO_BE_RECORDED",
+        "repository": "https://github.com/coisu772-code/AI-/"
+      },
+      "version": "0.10.2-rc.1"
+    },
+    {
+      "archiveRoot": "aivcp-python-runtime-3.12.13",
+      "assetId": "python-runtime",
+      "compatibleProductVersions": [
+        "0.10.2-rc.1"
+      ],
+      "fileName": "aivcp-python-runtime-3.12.13-windows-x64.zip",
+      "install": true,
+      "installSubpath": "runtime/python",
+      "license": {
+        "expression": "PSF-2.0 AND bundled-third-party-licenses AND MIT",
+        "reviewStatus": "technical-inventory-validated-release-owner-approval-required",
+        "source": "LICENSE.txt plus 72 license entries covering 23 packages and the bundled Deno runtime"
+      },
+      "sha256": "c0287164afd7b2c764de2f740e4bdaf07293982d69bc86f507850e7dfdab3ea6",
+      "sizeBytes": 72882128,
+      "source": {
+        "build": "20260610",
+        "bundledTools": [
+          {
+            "license": {
+              "expression": "MIT",
+              "path": "tools/licenses/deno-LICENSE.md",
+              "sha256": "f62497fffecc0852960c8d3e6934b9db86d16396e9b604072e923892cae3a588"
+            },
+            "relativePath": "tools/deno.exe",
+            "sha256": "4a2757fe99afc2c62c46500c8221cfa0189ac4bfb7064141875ad9c0f04b60ef",
+            "sizeBytes": 97175328,
+            "source": {
+              "archiveSha256": "68ed08b05c56cf887e9aa509947dc3f468f7e12f47a13e5c1abd51d46d1453ef",
+              "url": "https://github.com/denoland/deno/releases/download/v2.9.4/deno-x86_64-pc-windows-msvc.zip"
+            },
+            "toolId": "deno",
+            "version": "2.9.4"
+          }
+        ],
+        "technicalLicenseInventory": {
+          "legalAdviceOrSignoff": false,
+          "licenseEntryCount": 72,
+          "missingDeclaredLicense": [],
+          "missingLicenseFile": [],
+          "packageCount": 23,
+          "reviewRequired": 0,
+          "status": "TECHNICALLY_VALIDATED_LEGAL_APPROVAL_REQUIRED"
+        },
+        "url": "https://github.com/astral-sh/python-build-standalone"
+      },
+      "version": "3.12.13"
+    },
+    {
+      "archiveRoot": "Z-Manga-Workshop-2.3.1-rc.1-for-AIVCP-0.10.1-rc.1-windows-x64-portable",
+      "assetId": "workshop",
+      "compatibleProductVersions": [
+        "0.10.2-rc.1"
+      ],
+      "fileName": "Z-Manga-Workshop-2.3.1-rc.1-for-AIVCP-0.10.1-rc.1-windows-x64-portable.zip",
+      "install": true,
+      "installSubpath": "apps/workshop",
+      "license": {
+        "expression": "LicenseRef-AIVCP-Workshop AND GPL-3.0-only",
+        "reviewStatus": "technical-inventory-validated-release-owner-approval-required",
+        "source": "licenses/application/LICENSE.md, licenses/ffmpeg/COPYING.GPLv3 and FFMPEG-PROVENANCE.txt inside archive"
+      },
+      "sha256": "6d7a5100821c590a99fc9e96d742503282da2526f5582f7585437abf7a0b109f",
+      "sizeBytes": 94959814,
+      "source": {
+        "acceptanceStatus": "LOCAL_MERGED_ACCEPTANCE_PASS",
+        "commit": "01ef170a797da4a9b7210135babd58d6a0ab3277"
+      },
+      "version": "2.3.1-rc.1"
+    },
+    {
+      "archiveRoot": "youtube-publisher-center-v0.8.1-rc.1-windows-amd64",
+      "assetId": "publisher-center",
+      "compatibleProductVersions": [
+        "0.10.2-rc.1"
+      ],
+      "fileName": "youtube-publisher-center-v0.8.1-rc.1-windows-amd64.zip",
+      "install": true,
+      "installSubpath": "apps/publisher",
+      "license": {
+        "expression": "LicenseRef-AI-Video-Channel-Production-1.0 AND bundled-third-party-licenses",
+        "reviewStatus": "technical-inventory-validated-release-owner-approval-required",
+        "source": "LICENSE.md, THIRD-PARTY-NOTICES.json/.md and 101 third-party license texts inside archive"
+      },
+      "sha256": "335135f7d48d142e127b1dd10823b6366dec57cadb16c8a1c639e1b6b4377989",
+      "sizeBytes": 32266174,
+      "source": {
+        "acceptanceStatus": "LOCAL_FORMAL_HANDOFF_AND_OFFLINE_SAFETY_PASS",
+        "commit": "70f9a8d13143050e045b1bfd61005742724d0fa6",
+        "componentManifest": {
+          "fileName": "publisher-component-manifest-v0.8.1-rc.1.json",
+          "sha256": "9fb16b78bdb27776b14b840643662033566ff6afc796061cc74d7d8769050a04"
+        },
+        "constraintsCatalog": {
+          "normalization": "CRLF_AND_CR_TO_LF_BEFORE_SHA256",
+          "sha256": "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a",
+          "version": "2026.08.04.1"
+        },
+        "fileEntries": 110,
+        "licenseReviewRequired": 0,
+        "snapshotSha256": "4b58ec8dba46584f887b32185bf5b20f434231d5e05eadff60632b71c3d48925"
+      },
+      "version": "0.8.1-rc.1"
+    }
+  ],
+  "downloadBaseUrl": "https://github.com/coisu772-code/AI-/releases/download/v0.10.2-rc.1",
+  "generatedAt": "2026-08-06T00:00:00Z",
+  "hashAlgorithm": "SHA-256",
+  "logicalComponents": [
+    {
+      "componentId": "ffmpeg-runtime",
+      "files": [
+        {
+          "relativeInstallPath": "apps/workshop/tools/ffmpeg/bin/ffmpeg.exe",
+          "sha256": "228d7a8556258de907fdb55f36850078ebc7680b84ec30d84ea02e99bec1d1eb",
+          "sizeBytes": 101457920
+        },
+        {
+          "relativeInstallPath": "apps/workshop/tools/ffmpeg/bin/ffprobe.exe",
+          "sha256": "0fde260f5abd35c9cafd96f594cc76365a780c1b73a90e35b6a3409ea1db1bf0",
+          "sizeBytes": 101251072
+        }
+      ],
+      "healthCheck": {
+        "command": "apps/workshop/tools/ffmpeg/bin/ffmpeg.exe -version",
+        "expected": "ffmpeg version 8.1.1"
+      },
+      "license": {
+        "expression": "GPL-3.0-only",
+        "source": "apps/workshop/licenses/ffmpeg/COPYING.GPLv3 and FFMPEG-PROVENANCE.txt"
+      },
+      "providedByAsset": "workshop",
+      "version": "8.1.1"
+    }
+  ],
+  "optionalRuntimePackages": [
+    {
+      "archive": {
+        "fileName": "Z-Manga-Studio-kokoro-runtime-cpu.zip",
+        "sha256": "2dfeea06b277dabf963825b33cea74e2dae8f6444c159e1803ecd08fe4be4960"
+      },
+      "license": {
+        "expression": "Apache-2.0 AND bundled-third-party-licenses",
+        "reviewStatus": "technical-inventory-validated-release-owner-approval-required",
+        "source": "LICENSE-Kokoro-FastAPI.txt and THIRD_PARTY_NOTICES.txt inside the assembled runtime archive"
+      },
+      "manifest": {
+        "fileName": "Z-Manga-Studio-kokoro-runtime-cpu.json",
+        "sha256": "c5b024ba7991518d5400d849a6778b3d75f14808a31b8679dd7c2ef8591d5dca",
+        "sizeBytes": 673
+      },
+      "parts": [
+        {
+          "fileName": "Z-Manga-Studio-kokoro-runtime-cpu.zip.001",
+          "sha256": "2dfeea06b277dabf963825b33cea74e2dae8f6444c159e1803ecd08fe4be4960",
+          "sizeBytes": 1368460413
+        }
+      ],
+      "runtimeId": "kokoro-fastapi",
+      "runtimeVersion": "0.5.0",
+      "source": {
+        "packager": "scripts/package-kokoro-runtime.ps1",
+        "releaseManifest": {
+          "fileName": "unified-release-v0.10.0-rc.1.json",
+          "sha256": "a145f756030e4b8c630031906352d42b3ab5212aba353708d1a045730bd2af5d"
+        },
+        "releaseTag": "v0.10.0-rc.1",
+        "repository": "coisu772-code/AI-",
+        "reuseStatus": "PUBLISHED_RUNTIME_REUSED_AFTER_REMOTE_DIGEST_REVALIDATION",
+        "workshopCommit": "343c064a7d73cb5aa68a09d973d93a8fca57c4bb"
+      },
+      "variant": "cpu"
+    },
+    {
+      "archive": {
+        "fileName": "Z-Manga-Studio-kokoro-runtime-nvidia.zip",
+        "sha256": "1559bcbdbd8f6f9d4e14cb2f91f37fb981bcd2ac7c57548655b28c02e5ecacce"
+      },
+      "license": {
+        "expression": "Apache-2.0 AND bundled-third-party-licenses",
+        "reviewStatus": "technical-inventory-validated-release-owner-approval-required",
+        "source": "LICENSE-Kokoro-FastAPI.txt and THIRD_PARTY_NOTICES.txt inside the assembled runtime archive"
+      },
+      "manifest": {
+        "fileName": "Z-Manga-Studio-kokoro-runtime-nvidia.json",
+        "sha256": "943732e0133e3bf09ca3fd0e901531fdeed388c93b15144128dc7db82c0769fb",
+        "sizeBytes": 950
+      },
+      "parts": [
+        {
+          "fileName": "Z-Manga-Studio-kokoro-runtime-nvidia.zip.001",
+          "sha256": "0a346c653338bb574d35ecd8fe04b448021f4de30b13ea2955feb8cd0d36983e",
+          "sizeBytes": 1887436800
+        },
+        {
+          "fileName": "Z-Manga-Studio-kokoro-runtime-nvidia.zip.002",
+          "sha256": "3ddd1401d52d1d29cebfb6ccd9f9774f7a83c293969715b1b7de0ec911516aed",
+          "sizeBytes": 1845458688
+        }
+      ],
+      "runtimeId": "kokoro-fastapi",
+      "runtimeVersion": "0.5.0",
+      "source": {
+        "packager": "scripts/package-kokoro-runtime.ps1",
+        "releaseManifest": {
+          "fileName": "unified-release-v0.10.0-rc.1.json",
+          "sha256": "a145f756030e4b8c630031906352d42b3ab5212aba353708d1a045730bd2af5d"
+        },
+        "releaseTag": "v0.10.0-rc.1",
+        "repository": "coisu772-code/AI-",
+        "reuseStatus": "PUBLISHED_RUNTIME_REUSED_AFTER_REMOTE_DIGEST_REVALIDATION",
+        "workshopCommit": "343c064a7d73cb5aa68a09d973d93a8fca57c4bb"
+      },
+      "variant": "nvidia"
+    },
+    {
+      "archive": {
+        "fileName": "Z-Manga-Studio-kokoro-runtime-nvidia-blackwell.zip",
+        "sha256": "264510296d7685bffad2f021bcedfb69f461d7f2c2e6442b3b721d8770a907bd"
+      },
+      "license": {
+        "expression": "Apache-2.0 AND bundled-third-party-licenses",
+        "reviewStatus": "technical-inventory-validated-release-owner-approval-required",
+        "source": "LICENSE-Kokoro-FastAPI.txt and THIRD_PARTY_NOTICES.txt inside the assembled runtime archive"
+      },
+      "manifest": {
+        "fileName": "Z-Manga-Studio-kokoro-runtime-nvidia-blackwell.json",
+        "sha256": "bc026ba2f5e9add195902c532d03498777a70bd19d560c68a4434bdbc0f86196",
+        "sizeBytes": 1267
+      },
+      "parts": [
+        {
+          "fileName": "Z-Manga-Studio-kokoro-runtime-nvidia-blackwell.zip.001",
+          "sha256": "9e9ea87a786385221b6652222f9fe73af1e153d3694233a65c3b7c113fb2e7e6",
+          "sizeBytes": 1887436800
+        },
+        {
+          "fileName": "Z-Manga-Studio-kokoro-runtime-nvidia-blackwell.zip.002",
+          "sha256": "6f97c738de7c03678d7cd0b6eefcc6c171562c4802e6a4d12d911e36b7e024ea",
+          "sizeBytes": 1887436800
+        },
+        {
+          "fileName": "Z-Manga-Studio-kokoro-runtime-nvidia-blackwell.zip.003",
+          "sha256": "7d53be25a5330d6996c4691021044a769a7ab2c93865114bafdf91a80bc0b4bd",
+          "sizeBytes": 519180045
+        }
+      ],
+      "runtimeId": "kokoro-fastapi",
+      "runtimeVersion": "0.5.0",
+      "source": {
+        "packager": "scripts/package-kokoro-runtime.ps1",
+        "releaseManifest": {
+          "fileName": "unified-release-v0.10.0-rc.1.json",
+          "sha256": "a145f756030e4b8c630031906352d42b3ab5212aba353708d1a045730bd2af5d"
+        },
+        "releaseTag": "v0.10.0-rc.1",
+        "repository": "coisu772-code/AI-",
+        "reuseStatus": "PUBLISHED_RUNTIME_REUSED_AFTER_REMOTE_DIGEST_REVALIDATION",
+        "workshopCommit": "343c064a7d73cb5aa68a09d973d93a8fca57c4bb"
+      },
+      "variant": "nvidia-blackwell"
+    }
+  ],
+  "productId": "ai-video-channel-production",
+  "productName": "AI 视频频道生产系统",
+  "productVersion": "0.10.2-rc.1",
+  "publicationGates": [
+    "replace-local-commit-placeholders",
+    "release-license-owner-approval",
+    "clean-windows-acceptance",
+    "github-release-approval",
+    "google-oauth-approval",
+    "private-upload-approval",
+    "studio-data-approval",
+    "long-term-learning-write-approval"
+  ],
+  "releaseStatus": "candidate",
+  "runtime": {
+    "javascriptRuntimeVersion": "2.9.4",
+    "pythonBuild": "20260610",
+    "pythonVersion": "3.12.13",
+    "requiresPreinstalledJavascriptRuntime": false,
+    "requiresPreinstalledPython": false,
+    "requiresPreinstalledUv": false,
+    "requiresPreinstalledYoutubeCollector": false,
+    "youtubeCollectorCommandVersion": "2026.07.04",
+    "youtubeCollectorVersion": "2026.7.4"
+  },
+  "safetyBoundaries": {
+    "credentialsIncluded": false,
+    "longTermLearningWriteExecuted": false,
+    "oauthExecuted": false,
+    "realUploadExecuted": false,
+    "userDataIncluded": false
+  },
+  "schemaVersion": "2.0.0"
+}

@@ -148,15 +148,15 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
         assets = {asset["assetId"]: asset for asset in self.manifest()["assets"]}
         self.assertEqual((WORKSHOP_NAME, WORKSHOP_SIZE, WORKSHOP_SHA), (assets["workshop"]["fileName"], assets["workshop"]["sizeBytes"], assets["workshop"]["sha256"]))
         self.assertEqual((PUBLISHER_NAME, PUBLISHER_SIZE, PUBLISHER_SHA), (assets["publisher-center"]["fileName"], assets["publisher-center"]["sizeBytes"], assets["publisher-center"]["sha256"]))
-        self.assertEqual("PUBLISHED_COMPONENT_REUSED_AFTER_HASH_REVALIDATION", assets["publisher-center"]["source"]["acceptanceStatus"])
+        self.assertEqual("LOCAL_FORMAL_HANDOFF_AND_OFFLINE_SAFETY_PASS", assets["publisher-center"]["source"]["acceptanceStatus"])
         self.assertEqual(PUBLISHER_SOURCE_COMMIT, assets["publisher-center"]["source"]["commit"])
         self.assertEqual(PUBLISHER_COMPONENT_MANIFEST_SHA, assets["publisher-center"]["source"]["componentManifest"]["sha256"])
         self.assertEqual(PUBLISHER_CONSTRAINTS_SHA, assets["publisher-center"]["source"]["constraintsCatalog"]["sha256"])
 
     def test_stage6_catalog_bytes_match_the_final_publisher(self) -> None:
         catalog = ROOT / "contracts/youtube-constraints/catalog-2026.08.04.1.json"
-        self.assertEqual(PUBLISHER_CONSTRAINTS_SHA, hashlib.sha256(catalog.read_bytes()).hexdigest())
-        self.assertIn(b"\r\n", catalog.read_bytes())
+        payload = catalog.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+        self.assertEqual(PUBLISHER_CONSTRAINTS_SHA, hashlib.sha256(payload).hexdigest())
 
     def test_publish_execution_requires_current_approval_and_exact_tag_binding(self) -> None:
         script = (TOOLS / "Publish-UnifiedRelease.ps1").read_text(encoding="utf-8")

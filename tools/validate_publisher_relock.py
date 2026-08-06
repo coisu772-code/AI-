@@ -10,15 +10,15 @@ import zipfile
 from pathlib import Path
 
 
-PUBLISHER_NAME = "youtube-publisher-center-v0.8.0-rc.2-windows-amd64.zip"
-PUBLISHER_SIZE = 32585503
-PUBLISHER_SHA256 = "8d2644c11310fd5ee31f6e39250f75a000ccf038cd8c35a9eed8f0f23388c48d"
-PUBLISHER_ROOT = "youtube-publisher-center-v0.8.0-rc.2-windows-amd64"
-PUBLISHER_VALIDATOR_SIZE = 17460224
-PUBLISHER_VALIDATOR_SHA256 = "cff92f93b8e13b0496d8fbebfa6f87048e0841cf344a08f18fa6e347ed6597ec"
+PUBLISHER_NAME = "youtube-publisher-center-v0.8.1-rc.1-windows-amd64.zip"
+PUBLISHER_SIZE = 32266174
+PUBLISHER_SHA256 = "335135f7d48d142e127b1dd10823b6366dec57cadb16c8a1c639e1b6b4377989"
+PUBLISHER_ROOT = "youtube-publisher-center-v0.8.1-rc.1-windows-amd64"
+PUBLISHER_VALIDATOR_SIZE = 16709120
+PUBLISHER_VALIDATOR_SHA256 = "3540df1d04732150f311289db3048db151ccae2f94224d551e2b364415708473"
 CATALOG_VERSION = "2026.08.04.1"
-CATALOG_SHA256 = "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13"
-STALE_CATALOG_SHA256 = "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a"
+CATALOG_SHA256 = "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a"
+STALE_CATALOG_SHA256 = "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13"
 
 
 def sha256(path: Path) -> str:
@@ -51,7 +51,7 @@ def validate(publisher_zip: Path, stage8_output: Path) -> dict[str, object]:
     if publisher_zip.name != PUBLISHER_NAME or publisher_zip.stat().st_size != PUBLISHER_SIZE or sha256(publisher_zip) != PUBLISHER_SHA256:
         raise RuntimeError("publisher ZIP is not the final locked candidate")
     stage8_output = stage8_output.resolve(strict=True)
-    stage6_root = stage8_output / "publish"
+    stage6_root = stage8_output / "publish" if (stage8_output / "publish" / "summary.json").is_file() else stage8_output
     summary = json.loads((stage6_root / "summary.json").read_text(encoding="utf-8"))
     with tempfile.TemporaryDirectory(prefix="aivcp-publisher-relock-") as temporary:
         executable = Path(temporary) / "publish-package-v2.exe"
@@ -70,8 +70,10 @@ def validate(publisher_zip: Path, stage8_output: Path) -> dict[str, object]:
             raise RuntimeError(f"publisher capabilities failed: {capabilities}")
         if result.get("constraints_catalog_version") != CATALOG_VERSION or result.get("constraints_catalog_sha256") != CATALOG_SHA256:
             raise RuntimeError(f"publisher constraints identity mismatch: {result}")
-        if result.get("network_execution_default") is not False:
+        if result.get("network_execution") is not False:
             raise RuntimeError("publisher capabilities did not preserve the offline default")
+        if result.get("component_version") != "0.8.1-rc.1" or result.get("formal_publisher_handoff") is not True:
+            raise RuntimeError("publisher formal handoff capability is missing")
 
         exact_results: dict[str, object] = {}
         first_package: Path | None = None

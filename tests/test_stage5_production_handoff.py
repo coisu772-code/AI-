@@ -156,6 +156,65 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         self.assertTrue(assembled_again["idempotent"])
         self.assertEqual(manifest["packageHash"], assembled_again["manifest"]["packageHash"])
 
+    def test_full_production_profile_is_normalized_to_source_reference(self) -> None:
+        context = self.context()
+        manuscript_path, publishing_path = self._upstream_paths(context)
+        production_profile = context.content.service.store.get_channel(context.content.channel_id)["productionProfile"]
+        assembled = context.content.service.production.assemble_package(
+            manuscript_path=manuscript_path,
+            publishing_path=publishing_path,
+            production_config=context.production_config,
+            production_preset=production_profile,
+            workshop_compatibility={
+                "interfaceVersion": "2.1",
+                "workshopVersion": "0.5.0-stage5",
+                "adapter": "novel-manga-workshop-cli",
+            },
+            synthetic=True,
+        )
+        source_lock = json.loads(
+            (Path(assembled["packagePath"]) / "source_lock.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            {
+                "targetContractType": "production-profile",
+                "targetId": production_profile["id"],
+                "targetVersion": production_profile["version"],
+                "targetSchemaVersion": production_profile["schemaVersion"],
+                "targetHash": production_profile["contentHash"],
+            },
+            source_lock["productionPreset"],
+        )
+
+    def test_actual_workshop_default_target_uses_declared_isolation_root(self) -> None:
+        context = self.context()
+        package_root = Path(context.package["packagePath"])
+        isolation_root = self.root / "declared-workshop-isolation"
+        isolation_root.mkdir()
+
+        class RecordingBridge:
+            def __init__(self, root: Path) -> None:
+                self.isolation_root = root
+                self.target: Path | None = None
+
+            def import_package(self, _package: Path, target: Path, *, expected_project_id: str):
+                self.target = target
+                return {
+                    "projectId": expected_project_id,
+                    "roundTripValidated": True,
+                    "publishingTriggered": False,
+                }
+
+        bridge = RecordingBridge(isolation_root)
+        center = ProductionCenter(self.root / "separate-production-data", workshop_bridge=bridge)
+        imported = center.import_package(package_root)
+        assert bridge.target is not None
+        self.assertEqual(
+            ("workshop-projects", imported["projectId"], context.package["manifest"]["packageVersion"]),
+            bridge.target.parts[-3:],
+        )
+        self.assertTrue(os.path.samefile(isolation_root, bridge.target.parents[2]))
+
     def test_auto_render_pause_restart_resume_video_ready_and_read_only_progress(self) -> None:
         context = self.context("ja-JP", delivery_mode="auto_render", selection_mode="none")
         args = mutation_arguments(context)

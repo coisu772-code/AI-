@@ -1,5 +1,14 @@
 # 更新记录
 
+## 0.10.2-rc.1 - 本地候选
+
+- 修复工坊项目默认目标落在隔离根之外而触发 `WORKSHOP_TARGET_NOT_ISOLATED` 的问题。
+- 把完整生产预设合同转换为工坊可校验的标准来源引用，修复 `PRODUCTION_PACKAGE_V21_SOURCE_LOCK_INVALID: productionPreset`。
+- 频道首次预设明确确认动态分镜范围和上传策略；不再把“自动成片”静默冻结成 `videoGeneration.enabled=false`。
+- 发布包默认正式交接到 YouTube 发布中心主数据库；Codex 交接保持离线，OAuth 与真实上传仍只由桌面发布中心按安全门执行。
+- 统一约束目录的换行归一化哈希，消除 Windows/Linux 或不同解压工具导致的跨电脑误判。
+- 新增正式交接、实时状态和真实回执查询测试；未执行 OAuth 或真实视频上传。
+
 ## 0.10.1-rc.1 - GitHub prerelease
 
 - 内置固定版本的 `yt-dlp`、`yt-dlp-ejs` 与 Deno JavaScript 运行时，其他电脑无需预装 Python、下载器或浏览器扩展即可读取可公开访问的 YouTube 视频资料与字幕。
