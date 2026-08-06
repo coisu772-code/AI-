@@ -1,7 +1,0 @@
-interface:
-  display_name: "文稿中心"
-  short_description: "Create traceable target-language manuscript and audit packages"
-  default_prompt: "使用 $manuscript-production 从已确认选题生成并联合确认正式文稿包。"
-
-policy:
-  allow_implicit_invocation: false

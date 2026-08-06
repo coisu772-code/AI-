@@ -19,17 +19,32 @@ CURRENT_PRODUCT_VERSION = "0.8.0-rc.2"
 EXPECTED_SKILLS = {
     "channel-production",
     "channel-onboarding",
-    "source-library",
-    "channel-distillation",
-    "video-copy-deconstruction",
-    "original-imitation-writing",
-    "topic-selection",
-    "manuscript-production",
+    "content-source",
+    "content-deconstruct",
+    "content-rewrite",
+    "production-text",
     "publishing-assets",
     "production-handoff",
     "publish-video",
     "data-center",
     "update-ai-video-system",
+}
+EXPECTED_SOURCE_TOOLS = {
+    "source_library_capabilities",
+    "source_add_prepare",
+    "source_add_confirm",
+    "source_job_get",
+    "source_job_resume",
+    "source_integrity_check",
+}
+EXPECTED_CONTENT_DECONSTRUCTION_TOOLS = {
+    "content_deconstruction_capabilities",
+    "content_deconstruction_prepare",
+    "content_deconstruction_read_source",
+    "content_deconstruction_checkpoint",
+    "content_deconstruction_finalize",
+    "content_deconstruction_get",
+    "content_deconstruction_integrity_check",
 }
 EXPECTED_CONTENT_TOOLS = {
     "content_capabilities",
@@ -194,12 +209,6 @@ def validate_plugin() -> list[str]:
         errors.append("channel-production must be the implicit total entry")
     if policies.get("channel-onboarding") is not False:
         errors.append("channel-onboarding must remain explicit/orchestrated")
-    if policies.get("source-library") is not False:
-        errors.append("source-library must remain explicit/orchestrated")
-    if policies.get("channel-distillation") is not False:
-        errors.append("channel-distillation must remain explicit/orchestrated")
-    if policies.get("original-imitation-writing") is not False:
-        errors.append("original-imitation-writing must remain explicit/orchestrated")
     if policies.get("publish-video") is not True:
         errors.append("publish-video must allow natural-language Stage6 invocation")
     if policies.get("data-center") is not True:
@@ -219,121 +228,105 @@ def validate_plugin() -> list[str]:
             errors.append(f"update-ai-video-system is missing required marker: {marker}")
 
     router_text = skill_texts.get("channel-production", "")
-    missing_router_tools = sorted(tool for tool in EXPECTED_CONTENT_TOOLS if tool not in router_text)
-    if missing_router_tools:
-        errors.append(f"channel-production is missing stage 4 tool routes: {missing_router_tools}")
-    missing_production_routes = sorted(tool for tool in ("production_capabilities",) if tool not in router_text)
-    if missing_production_routes or "$production-handoff" not in router_text or "VIDEO_READY" not in router_text:
+    for marker in (
+        "$content-source",
+        "$content-deconstruct",
+        "$content-rewrite",
+        "$production-text",
+        "direct-rewrite",
+        "synthesis-rewrite",
+        "content-title",
+        "content-description",
+        "content-thumbnail",
+        "PLANNED_UNAVAILABLE",
+    ):
+        if marker not in router_text:
+            errors.append(f"channel-production is missing simplified content route marker: {marker}")
+    if "$production-handoff" not in router_text or "VIDEO_READY" not in router_text:
         errors.append("channel-production is missing the Stage5 production route")
-    if "$publish-video" not in router_text or any(tool not in router_text for tool in EXPECTED_PUBLISH_TOOLS):
+    if "$publish-video" not in router_text:
         errors.append("channel-production is missing the Stage6 publisher route")
-    if "$data-center" not in router_text or any(tool not in router_text for tool in EXPECTED_DATA_TOOLS):
+    if "$data-center" not in router_text:
         errors.append("channel-production is missing the Stage7 data-center route")
 
-    topic_text = skill_texts.get("topic-selection", "")
+    source_text = skill_texts.get("content-source", "")
     for marker in (
+        *sorted(EXPECTED_SOURCE_TOOLS),
         "CONTENT_READY",
         "PARTIAL",
-        "fact",
-        "inference",
-        "unknown",
-        "provided-outline",
-        "channel-library",
-        "analysis-package-v1",
-        "unavailable",
-        "content_topic_checkpoint",
-        "content_topic_finalize",
-    ):
-        if marker not in topic_text:
-            errors.append(f"topic-selection is missing required marker: {marker}")
-
-    distillation_text = skill_texts.get("channel-distillation", "")
-    for marker in (
-        "channel_distillation_capabilities",
-        "channel_distillation_prepare",
-        "channel_distillation_checkpoint",
-        "channel_distillation_finalize",
-        "channel_distillation_get",
-        "channel_distillation_integrity_check",
-        "analysis-package-v1.json",
         "content.txt",
-        "timing-map.json",
-        "7/7 succeeded",
+        "$content-deconstruct",
+    ):
+        if marker not in source_text:
+            errors.append(f"content-source is missing required marker: {marker}")
+
+    deconstruction_text = skill_texts.get("content-deconstruct", "")
+    for marker in (
+        *sorted(EXPECTED_CONTENT_DECONSTRUCTION_TOOLS),
         "originalFacts",
         "analysisConclusions",
         "transferableMethods",
         "prohibitedCopy",
         "unknowns",
-    ):
-        if marker not in distillation_text:
-            errors.append(f"channel-distillation is missing required marker: {marker}")
-
-    deconstruction_text = skill_texts.get("video-copy-deconstruction", "")
-    for marker in (
-        *sorted(EXPECTED_VIDEO_ANALYSIS_TOOLS),
-        "content.txt",
-        "timing-map.json",
-        "originalFacts",
-        "analysisConclusions",
-        "transferableMethods",
-        "prohibitedCopy",
-        "unknowns",
-        "topic-center",
-        "manuscript-center",
-        "averagingUsed=false",
-        "segmentSplicingUsed=false",
+        "$content-rewrite",
     ):
         if marker not in deconstruction_text:
-            errors.append(f"video-copy-deconstruction is missing required marker: {marker}")
+            errors.append(f"content-deconstruct is missing required marker: {marker}")
 
-    imitation_text = skill_texts.get("original-imitation-writing", "")
+    rewrite_text = skill_texts.get("content-rewrite", "")
     for marker in (
-        *sorted(EXPECTED_ORIGINAL_IMITATION_TOOLS),
-        "writing-style-contract-v1",
-        "originalFacts",
-        "analysisConclusions",
-        "transferableMethods",
-        "prohibitedCopy",
-        "unknowns",
-        "8 个",
-        "TOP3",
-        "q1",
-        "q10",
-        "originalSentencesCopied=false",
-        "properNamesCopied=false",
-        "completeEventOrderCopied=false",
-        "singleWorkMainlineCopied=false",
-        "segmentSplicingUsed=false",
-        "oneCausalEngineRebuilt=true",
-        "topic-center",
-        "manuscript-center",
+        "direct-rewrite",
+        "synthesis-rewrite",
+        "sourceTransformationMap",
+        "content_project_start",
+        "content_topic_checkpoint",
+        "content_topic_finalize",
+        "content_integrity_check",
+        "$production-text",
     ):
-        if marker not in imitation_text:
-            errors.append(f"original-imitation-writing is missing required marker: {marker}")
+        if marker not in rewrite_text:
+            errors.append(f"content-rewrite is missing required marker: {marker}")
 
-    manuscript_text = skill_texts.get("manuscript-production", "")
+    manuscript_text = skill_texts.get("production-text", "")
     for marker in (
-        "目标语言正式母稿",
-        "唯一内容事实源",
+        "目标语言正式文本",
+        "唯一事实源",
         "lineId",
         "content_manuscript_finalize",
-        "长期学习写回",
+        "SCRIPT_READY",
+        "content-title",
+        "content-description",
+        "content-thumbnail",
+        "PLANNED_UNAVAILABLE",
     ):
         if marker not in manuscript_text:
-            errors.append(f"manuscript-production is missing required marker: {marker}")
+            errors.append(f"production-text is missing required marker: {marker}")
+
+    extension_slots_path = PLUGIN_ROOT / "assets" / "content-extension-slots.json"
+    try:
+        extension_slots = load_json(extension_slots_path)
+        slot_ids = {item.get("skillId") for item in extension_slots.get("slots", [])}
+        if slot_ids != {"content-title", "content-description", "content-thumbnail"}:
+            errors.append("content extension registry must reserve exactly title, description, and thumbnail Skills")
+        if any(item.get("status") != "PLANNED_UNAVAILABLE" for item in extension_slots.get("slots", [])):
+            errors.append("future content extension slots must remain PLANNED_UNAVAILABLE until implemented")
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"content extension registry is invalid: {exc}")
 
     publishing_text = skill_texts.get("publishing-assets", "")
     for marker in (
-        "8～12",
+        "content-title",
+        "content-description",
+        "content-thumbnail",
+        "title-asset-v1",
+        "description-asset-v1",
+        "thumbnail-asset-v1",
+        "PLANNED_UNAVAILABLE",
         "16:9",
         "SHA-256",
-        "prompt_only",
-        "thumbnailProvider",
-        "image-provider-v1",
-        "恰好 5 个",
         "content_publishing_finalize",
         "content_handoff_check",
-        "不调用制作中心",
+        "不在本 Skill 启动工坊",
     ):
         if marker not in publishing_text:
             errors.append(f"publishing-assets is missing required marker: {marker}")

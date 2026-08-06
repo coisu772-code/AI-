@@ -2,6 +2,12 @@
 
 当前候选版本是 `v0.8.0-rc.2`。这是本地待验收候选，不表示已经发布到 GitHub，也不表示 YouTube 真实上传已经验收。
 
+## 当前内容主流程
+
+新内容统一走四个 Skills：`content-source`（视频链接／上传文本／资料库／按需联网资料）→ `content-deconstruct`（完整拆解）→ `content-rewrite`（单源高贴合或资料融合二选一）→ `production-text`（可直接用于配音、字幕、分镜和制作的正式文本）。旧频道蒸馏、旧视频拆文、8 方向仿写、独立选题和旧文稿 Skills 已退出新任务入口。
+
+标题、简介和封面预留为 `content-title`、`content-description`、`content-thumbnail` 三个独立扩展位；目前状态为 `PLANNED_UNAVAILABLE`。`publishing-assets` 只在未来三个资产包都已实现并确认后负责汇总，不会临时冒充生成器。
+
 ## Windows 一键安装
 
 [下载 Windows 统一安装器（v0.8.0-rc.2）](https://github.com/coisu772-code/AI-/releases/download/v0.8.0-rc.2/AI-Video-Channel-Production-Unified-Installer-v0.8.0-rc.2.zip)

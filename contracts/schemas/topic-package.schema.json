@@ -108,6 +108,37 @@
     {
       "if": {
         "properties": {
+          "sourceMode": {
+            "enum": [
+              "direct-rewrite",
+              "synthesis-rewrite"
+            ]
+          }
+        },
+        "required": [
+          "sourceMode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "route": {
+            "const": "extension"
+          },
+          "candidates": {
+            "minItems": 1,
+            "maxItems": 1,
+            "items": {
+              "required": [
+                "sourceTransformationMap"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
           "status": {
             "enum": [
               "TOPIC_SELECTED",
@@ -247,6 +278,8 @@
         "market-original",
         "single-reference",
         "multi-reference",
+        "direct-rewrite",
+        "synthesis-rewrite",
         "provided-outline",
         "imitation"
       ]
@@ -303,13 +336,27 @@
       "items": {
         "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/extensionCapability"
       },
-      "allOf": [
-        { "contains": { "properties": { "capability": { "const": "trend-scan" } }, "required": ["capability"] } },
-        { "contains": { "properties": { "capability": { "const": "single-work-analysis" } }, "required": ["capability"] } },
-        { "contains": { "properties": { "capability": { "const": "multi-work-analysis" } }, "required": ["capability"] } },
-        { "contains": { "properties": { "capability": { "const": "video-analysis" } }, "required": ["capability"] } },
-        { "contains": { "properties": { "capability": { "const": "book-analysis" } }, "required": ["capability"] } },
-        { "contains": { "properties": { "capability": { "const": "style-imitation" } }, "required": ["capability"] } }
+      "anyOf": [
+        {
+          "allOf": [
+            { "contains": { "properties": { "capability": { "const": "trend-scan" } }, "required": ["capability"] } },
+            { "contains": { "properties": { "capability": { "const": "single-work-analysis" } }, "required": ["capability"] } },
+            { "contains": { "properties": { "capability": { "const": "multi-work-analysis" } }, "required": ["capability"] } },
+            { "contains": { "properties": { "capability": { "const": "video-analysis" } }, "required": ["capability"] } },
+            { "contains": { "properties": { "capability": { "const": "book-analysis" } }, "required": ["capability"] } },
+            { "contains": { "properties": { "capability": { "const": "style-imitation" } }, "required": ["capability"] } }
+          ]
+        },
+        {
+          "allOf": [
+            { "contains": { "properties": { "capability": { "const": "content-deconstruction" } }, "required": ["capability"] } },
+            { "contains": { "properties": { "capability": { "const": "direct-rewrite" } }, "required": ["capability"] } },
+            { "contains": { "properties": { "capability": { "const": "synthesis-rewrite" } }, "required": ["capability"] } },
+            { "contains": { "properties": { "capability": { "const": "title-generation" } }, "required": ["capability"] } },
+            { "contains": { "properties": { "capability": { "const": "description-generation" } }, "required": ["capability"] } },
+            { "contains": { "properties": { "capability": { "const": "thumbnail-generation" } }, "required": ["capability"] } }
+          ]
+        }
       ]
     },
     "learningContext": {
@@ -802,6 +849,49 @@
             "minLength": 3,
             "maxLength": 128
           }
+        },
+        "sourceTransformationMap": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sourcePackageId",
+              "role",
+              "retainedFunction",
+              "newImplementation",
+              "newCausalLink",
+              "protectedBoundary"
+            ],
+            "properties": {
+              "sourcePackageId": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 128
+              },
+              "role": {
+                "type": "string",
+                "minLength": 1
+              },
+              "retainedFunction": {
+                "type": "string",
+                "minLength": 1
+              },
+              "newImplementation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "newCausalLink": {
+                "type": "string",
+                "minLength": 1
+              },
+              "protectedBoundary": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
         }
       }
     },
@@ -875,7 +965,9 @@
             "user-choice",
             "auto-best",
             "provided-outline-only",
-            "confirmed-imitation-direction"
+            "confirmed-imitation-direction",
+            "direct-rewrite-request",
+            "synthesis-rewrite-request"
           ]
         }
       }

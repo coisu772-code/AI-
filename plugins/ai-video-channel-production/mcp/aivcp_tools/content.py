@@ -13,7 +13,7 @@ from typing import Any
 from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
 
-from .contracts import canonical_hash, utc_now, with_hash
+from .contracts import canonical_hash, resolve_contracts_root, utc_now, with_hash
 from .errors import ToolError
 
 
@@ -37,8 +37,18 @@ SOURCE_MODES = {
     "trend",
     "book-deconstruction",
     "imitation",
+    "direct-rewrite",
+    "synthesis-rewrite",
 }
-EXTENSION_MODES = {"trend", "single-reference", "multi-reference", "book-deconstruction", "imitation"}
+EXTENSION_MODES = {
+    "trend",
+    "single-reference",
+    "multi-reference",
+    "book-deconstruction",
+    "imitation",
+    "direct-rewrite",
+    "synthesis-rewrite",
+}
 QUALITY_CHECKS = {
     "locked-facts",
     "story-progress",
@@ -50,12 +60,12 @@ QUALITY_CHECKS = {
     "audience-reward",
 }
 EXTENSION_CAPABILITY_NAMES = (
-    "trend-scan",
-    "single-work-analysis",
-    "multi-work-analysis",
-    "video-analysis",
-    "book-analysis",
-    "style-imitation",
+    "content-deconstruction",
+    "direct-rewrite",
+    "synthesis-rewrite",
+    "title-generation",
+    "description-generation",
+    "thumbnail-generation",
 )
 
 
@@ -143,20 +153,35 @@ def _approval(gate: str, confirmation: dict[str, Any], created: str) -> dict[str
 def _extension_capabilities() -> list[dict[str, Any]]:
     items = []
     for capability in EXTENSION_CAPABILITY_NAMES:
-        style = capability == "style-imitation"
+        packaging = capability in {"title-generation", "description-generation", "thumbnail-generation"}
         item = {
             "capability": capability,
-            "status": "available" if capability in {"video-analysis", "style-imitation"} else "unavailable",
+            "status": "planned-unavailable" if packaging else "available",
             "interfaceVersion": "1.0.0",
             "inputContractTypes": ["source-package"],
-            "outputContractType": "writing-style-contract-v1" if style else "analysis-package-v1",
+            "outputContractType": (
+                "title-asset-v1" if capability == "title-generation"
+                else "description-asset-v1" if capability == "description-generation"
+                else "thumbnail-asset-v1" if capability == "thumbnail-generation"
+                else "analysis-package-v1" if capability == "content-deconstruction"
+                else "topic-package"
+            ),
         }
-        if capability == "video-analysis":
-            item.update({"skillId": "video-copy-deconstruction", "skillVersion": "1.0.0"})
-        elif capability == "style-imitation":
-            item.update({"skillId": "original-imitation-writing", "skillVersion": "1.0.0"})
+        if capability == "content-deconstruction":
+            item.update({"skillId": "content-deconstruct", "skillVersion": "1.0.0"})
+        elif capability in {"direct-rewrite", "synthesis-rewrite"}:
+            item.update({"skillId": "content-rewrite", "skillVersion": "1.0.0"})
         else:
-            item["reason"] = "对应的可插拔 Skill 尚未安装；不会伪造输出。"
+            item.update(
+                {
+                    "skillId": {
+                        "title-generation": "content-title",
+                        "description-generation": "content-description",
+                        "thumbnail-generation": "content-thumbnail",
+                    }[capability],
+                    "reason": "已预留稳定扩展位；Skill、契约和测试完成前不得冒充可用。",
+                }
+            )
         items.append(item)
     return items
 
@@ -197,6 +222,7 @@ class ContentLoop:
         plugin_root: Path | None = None,
         analyses: Any = None,
         video_analyses: Any = None,
+        content_analyses: Any = None,
         style_provider: Any = None,
     ) -> None:
         self.store = store
@@ -204,12 +230,13 @@ class ContentLoop:
         self.plugin_root = plugin_root
         self.analyses = analyses
         self.video_analyses = video_analyses
+        self.content_analyses = content_analyses
         self.style_provider = style_provider
 
     def _validate_contract_schema(self, contract: dict[str, Any], schema_name: str) -> None:
         if not self.plugin_root:
             return
-        contracts_root = self.plugin_root.resolve().parents[1] / "contracts"
+        contracts_root = resolve_contracts_root(self.plugin_root)
         schema_root = contracts_root / "schemas"
         schema_path = schema_root / schema_name
         if not schema_path.is_file():
@@ -249,12 +276,14 @@ class ContentLoop:
                 "single-reference": {"available": True, "requires": "video-copy-deconstruction Analysis Package v1"},
                 "multi-reference": {"available": True, "requires": "video-copy-deconstruction Analysis Package v1"},
                 "imitation": {"available": True, "requires": "original-imitation-writing Writing Style Contract v1"},
+                "direct-rewrite": {"available": True, "requires": "content-deconstruct Analysis Package v1"},
+                "synthesis-rewrite": {"available": True, "requires": "content-deconstruct Analysis Package v1"},
             },
             "extensionInterfaces": {
                 "analysis-package-v1": {
                     "status": "available",
-                    "providers": ["channel-distillation", "video-copy-deconstruction"],
-                    "consumers": ["channel-library", "single-reference", "multi-reference", "topic-center", "manuscript-center"],
+                    "providers": ["channel-distillation", "video-copy-deconstruction", "content-deconstruct"],
+                    "consumers": ["direct-rewrite", "synthesis-rewrite", "production-text"],
                 },
                 "writing-style-contract-v1": {
                     "status": "available",
@@ -320,7 +349,12 @@ class ContentLoop:
         project_id = _safe_identifier(project_id, "projectId")
         if source_mode not in SOURCE_MODES:
             raise ToolError("CONTENT_ROUTE_INVALID", "不支持该选题路线。")
-        enabled_analysis_route = source_mode in {"single-reference", "multi-reference"} and bool(analysis_packages)
+        enabled_analysis_route = source_mode in {
+            "single-reference",
+            "multi-reference",
+            "direct-rewrite",
+            "synthesis-rewrite",
+        } and bool(analysis_packages)
         enabled_style_route = source_mode == "imitation" and bool(writing_style_contracts)
         if source_mode in EXTENSION_MODES and not (enabled_analysis_route or enabled_style_route):
             interface = "writing-style-contract-v1" if source_mode == "imitation" else "analysis-package-v1"
@@ -458,11 +492,12 @@ class ContentLoop:
                     distillation_id=identifier,
                 )
             elif isinstance(requested.get("deconstructionId"), str):
-                if self.video_analyses is None:
-                    raise ToolError("ANALYSIS_PROVIDER_UNAVAILABLE", "视频文案拆解提供器尚未接入内容中心。")
+                provider = self.content_analyses if source_mode in {"direct-rewrite", "synthesis-rewrite"} else self.video_analyses
+                if provider is None:
+                    raise ToolError("ANALYSIS_PROVIDER_UNAVAILABLE", "文案拆解提供器尚未接入内容中心。")
                 identifier_key = "deconstructionId"
                 identifier = requested[identifier_key]
-                contract = self.video_analyses.analysis_package(
+                contract = provider.analysis_package(
                     channel_profile_id=channel_profile_id,
                     deconstruction_id=identifier,
                 )
@@ -491,6 +526,12 @@ class ContentLoop:
             expected_modes = {"single"} if source_mode == "single-reference" else {"parallel", "compare"}
             if analysis_locks[0].get("mode") not in expected_modes:
                 raise ToolError("VIDEO_ANALYSIS_MODE_MISMATCH", "视频拆解模式与单／多视频参考路线不一致。")
+        if source_mode in {"direct-rewrite", "synthesis-rewrite"}:
+            if len(analysis_locks) != 1 or analysis_locks[0]["analysisKind"] != "content-deconstruction":
+                raise ToolError("CONTENT_DECONSTRUCTION_PACKAGE_REQUIRED", "文案仿写必须绑定一份 Content Deconstruction Package v1。")
+            expected_modes = {"single"} if source_mode == "direct-rewrite" else {"parallel", "compare"}
+            if analysis_locks[0].get("mode") not in expected_modes:
+                raise ToolError("CONTENT_DECONSTRUCTION_MODE_MISMATCH", "拆解模式与单源／融合仿写模式不一致。")
 
         brief = {
             "schemaVersion": CONTENT_LOOP_VERSION,
@@ -719,6 +760,30 @@ class ContentLoop:
             for key in ("titleInformationDirection", "thumbnailVisualTask", "videoPresentationDirection")
         ):
             raise ToolError("PACKAGING_BRIEF_INVALID", "候选必须保存完整的后续包装任务，但不得冒充正式资产。")
+        if state["sourceMode"] in {"direct-rewrite", "synthesis-rewrite"}:
+            transformation_map = candidate.get("sourceTransformationMap")
+            expected_source_ids = {item["sourcePackageId"] for item in state["sourceLocks"]}
+            if not isinstance(transformation_map, list) or not transformation_map:
+                raise ToolError("SOURCE_TRANSFORMATION_MAP_REQUIRED", "文案仿写必须记录每个来源的功能迁移与原创实现。")
+            required_keys = {
+                "sourcePackageId",
+                "role",
+                "retainedFunction",
+                "newImplementation",
+                "newCausalLink",
+                "protectedBoundary",
+            }
+            actual_source_ids: list[str] = []
+            for entry in transformation_map:
+                if (
+                    not isinstance(entry, dict)
+                    or set(entry) != required_keys
+                    or any(not isinstance(entry[key], str) or not entry[key].strip() for key in required_keys)
+                ):
+                    raise ToolError("SOURCE_TRANSFORMATION_MAP_INVALID", "来源迁移表字段必须完整且为非空文本。")
+                actual_source_ids.append(entry["sourcePackageId"])
+            if len(actual_source_ids) != len(set(actual_source_ids)) or set(actual_source_ids) != expected_source_ids:
+                raise ToolError("SOURCE_TRANSFORMATION_MAP_INCOMPLETE", "来源迁移表必须与全部冻结来源一一对应。")
         return json.loads(json.dumps(candidate, ensure_ascii=False))
 
     def checkpoint_topic(
@@ -738,7 +803,8 @@ class ContentLoop:
         expected = checkpoint["completedUnits"] + 1
         if candidate_number != expected:
             raise ToolError("TOPIC_CHECKPOINT_SEQUENCE", "每次只能追加下一个缺失候选，completedUnits 只能增加 1。", details={"expected": expected})
-        maximum = 10 if state["sourceMode"] == "channel-library" else 1 if state["sourceMode"] in {"provided-outline", "imitation"} else 6
+        single_candidate_modes = {"provided-outline", "imitation", "direct-rewrite", "synthesis-rewrite"}
+        maximum = 10 if state["sourceMode"] == "channel-library" else 1 if state["sourceMode"] in single_candidate_modes else 6
         if candidate_number > maximum:
             raise ToolError("TOPIC_CANDIDATE_LIMIT", "候选数量超过当前路线允许上限。")
         candidate = self._validate_candidate(candidate, state)
@@ -774,7 +840,7 @@ class ContentLoop:
         }
         _atomic_json(topic_root / "topic-candidates-v001.partial.json", partial)
         self._save_state(state)
-        required_total = 10 if state["sourceMode"] == "channel-library" else 1 if state["sourceMode"] in {"provided-outline", "imitation"} else None
+        required_total = 10 if state["sourceMode"] == "channel-library" else 1 if state["sourceMode"] in single_candidate_modes else None
         return {
             "checkpoint": checkpoint,
             "progress": f"topic {candidate_number}/{required_total or '3-6'}",
@@ -805,7 +871,8 @@ class ContentLoop:
         project_id = _safe_identifier(project_id, "projectId")
         state = self._load_state(channel_profile_id, project_id)
         candidates = self._load_candidates(state)
-        required = 10 if state["sourceMode"] == "channel-library" else 1 if state["sourceMode"] in {"provided-outline", "imitation"} else None
+        single_candidate_modes = {"provided-outline", "imitation", "direct-rewrite", "synthesis-rewrite"}
+        required = 10 if state["sourceMode"] == "channel-library" else 1 if state["sourceMode"] in single_candidate_modes else None
         if required is not None and len(candidates) != required:
             raise ToolError("TOPIC_CANDIDATES_INCOMPLETE", "当前路线的完整候选尚未全部落盘。", details={"required": required, "actual": len(candidates)})
         if required is None and not 3 <= len(candidates) <= 6:
@@ -862,6 +929,11 @@ class ContentLoop:
                 "strengths": item["strengths"],
                 "risks": item["risks"],
                 "evidenceClaimIds": [claim["claimId"] for claim in item["evidenceClaims"]],
+                **(
+                    {"sourceTransformationMap": item["sourceTransformationMap"]}
+                    if "sourceTransformationMap" in item
+                    else {}
+                ),
             }
             for item in candidates
         ]
@@ -906,6 +978,8 @@ class ContentLoop:
             "single-reference": "extension",
             "multi-reference": "extension",
             "imitation": "extension",
+            "direct-rewrite": "extension",
+            "synthesis-rewrite": "extension",
         }[state["sourceMode"]]
         approval = _approval("G3_TOPIC", confirmation, created)
         backup_ids = ranking[1:3] if len(ranking) > 1 else []
@@ -944,7 +1018,14 @@ class ContentLoop:
                 "selection": {
                     "primaryCandidateId": selected_candidate_id,
                     "backupCandidateIds": backup_ids,
-                    "policy": "provided-outline-only" if state["sourceMode"] == "provided-outline" else "confirmed-imitation-direction" if state["sourceMode"] == "imitation" else "auto-best" if confirmation.get("mode") == "auto" else "user-choice",
+                    "policy": (
+                        "provided-outline-only" if state["sourceMode"] == "provided-outline"
+                        else "confirmed-imitation-direction" if state["sourceMode"] == "imitation"
+                        else "direct-rewrite-request" if state["sourceMode"] == "direct-rewrite"
+                        else "synthesis-rewrite-request" if state["sourceMode"] == "synthesis-rewrite"
+                        else "auto-best" if confirmation.get("mode") == "auto"
+                        else "user-choice"
+                    ),
                 },
                 "selectedCandidateId": selected_candidate_id,
                 "selectionConfirmation": approval,

@@ -98,6 +98,14 @@ class LocalToolService:
             channel_distillations=self.analysis,
             plugin_root=config.plugin_root,
         )
+        self.content_deconstruction = VideoCopyDeconstruction(
+            self.store,
+            self.sources,
+            plugin_root=config.plugin_root,
+            analysis_kind="content-deconstruction",
+            root_folder="content-deconstructions",
+            accepted_source_types={"youtube-video", "local-file", "pasted-text", "novel-web"},
+        )
         self.original_imitation = OriginalImitationWriting(
             self.store,
             self.sources,
@@ -111,6 +119,7 @@ class LocalToolService:
             plugin_root=config.plugin_root,
             analyses=self.analysis,
             video_analyses=self.video_analysis,
+            content_analyses=self.content_deconstruction,
             style_provider=self.original_imitation,
         )
         bridge = None
@@ -151,6 +160,7 @@ class LocalToolService:
                 "contentLoop": CONTENT_LOOP_VERSION,
                 "contentAnalysis": CONTENT_ANALYSIS_VERSION,
                 "videoCopyDeconstruction": VIDEO_DECONSTRUCTION_VERSION,
+                "contentDeconstruction": VIDEO_DECONSTRUCTION_VERSION,
                 "originalImitationWriting": ORIGINAL_IMITATION_VERSION,
                 "productionCenter": PRODUCTION_CENTER_VERSION,
                 "channelProfileContract": "1.0.0",
@@ -187,6 +197,9 @@ class LocalToolService:
                 "contentProduction": True,
                 "channelDistillation": True,
                 "videoCopyDeconstruction": True,
+                "contentDeconstruction": True,
+                "directRewrite": True,
+                "synthesisRewrite": True,
                 "originalImitationWriting": True,
                 "canonicalContentAnalysis": True,
                 "contentPackageHandoffCheck": True,
@@ -560,6 +573,57 @@ class LocalToolService:
             )
         elif name == "video_deconstruction_integrity_check":
             result = self.video_analysis.integrity_check(
+                channel_profile_id=args.get("channelProfileId"),
+                deconstruction_id=args.get("deconstructionId"),
+            )
+        elif name == "content_deconstruction_capabilities":
+            result = self.content_deconstruction.capabilities()
+        elif name == "content_deconstruction_prepare":
+            result = self.content_deconstruction.prepare(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                deconstruction_id=args.get("deconstructionId"),
+                mode=args.get("mode"),
+                videos=args.get("sources"),
+            )
+        elif name == "content_deconstruction_read_source":
+            result = self.content_deconstruction.read_source(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                deconstruction_id=args.get("deconstructionId"),
+                source_package_id=args.get("sourcePackageId"),
+                start_paragraph=args.get("startParagraph", 1),
+                max_paragraphs=args.get("maxParagraphs", 60),
+            )
+        elif name == "content_deconstruction_checkpoint":
+            result = self.content_deconstruction.checkpoint(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                deconstruction_id=args.get("deconstructionId"),
+                source_package_id=args.get("sourcePackageId"),
+                status=args.get("status"),
+                analysis=args.get("analysis"),
+                failure=args.get("failure"),
+            )
+        elif name == "content_deconstruction_finalize":
+            result = self.content_deconstruction.finalize(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                deconstruction_id=args.get("deconstructionId"),
+                quality_gate=args.get("qualityGate"),
+                comparison=args.get("comparison"),
+            )
+        elif name == "content_deconstruction_get":
+            result = self.content_deconstruction.get(
+                channel_profile_id=args.get("channelProfileId"),
+                deconstruction_id=args.get("deconstructionId"),
+            )
+        elif name == "content_deconstruction_integrity_check":
+            result = self.content_deconstruction.integrity_check(
                 channel_profile_id=args.get("channelProfileId"),
                 deconstruction_id=args.get("deconstructionId"),
             )
@@ -1160,6 +1224,71 @@ def tool_definitions() -> list[dict[str, Any]]:
         (
             "video_deconstruction_integrity_check",
             "只读校验视频资料锁、账号专属要求、逐视频拆解和 Analysis Package 哈希。",
+            {"channelProfileId": {"type": "string"}, "deconstructionId": {"type": "string"}},
+            ["channelProfileId", "deconstructionId"],
+        ),
+        (
+            "content_deconstruction_capabilities",
+            "只读列出统一文案拆解支持的视频字幕、用户文本、小说正文、拆解维度和下游边界。",
+            {},
+            [],
+        ),
+        (
+            "content_deconstruction_prepare",
+            "冻结一个或多个视频／文本 Source Package，建立单源、并列或比较拆解计划。",
+            {
+                **binding_properties,
+                "deconstructionId": {"type": "string"},
+                "mode": {"type": "string", "enum": sorted(["single", "parallel", "compare"])},
+                "sources": {"type": "array", "minItems": 1, "maxItems": 8},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "deconstructionId", "mode", "sources"],
+        ),
+        (
+            "content_deconstruction_read_source",
+            "按段读取本次计划中的唯一规范 content.txt 与可选时间映射，不读取原始字幕副本。",
+            {
+                **binding_properties,
+                "deconstructionId": {"type": "string"},
+                "sourcePackageId": {"type": "string"},
+                "startParagraph": {"type": "integer", "minimum": 1},
+                "maxParagraphs": {"type": "integer", "minimum": 1, "maximum": 100},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "deconstructionId", "sourcePackageId"],
+        ),
+        (
+            "content_deconstruction_checkpoint",
+            "逐来源冻结五类证据、全文功能区段、结构节奏表达、原创边界和质量门。",
+            {
+                **binding_properties,
+                "deconstructionId": {"type": "string"},
+                "sourcePackageId": {"type": "string"},
+                "status": {"type": "string", "enum": ["SUCCEEDED", "FAILED", "SKIPPED"]},
+                "analysis": {"type": "object"},
+                "failure": {"type": "object"},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "deconstructionId", "sourcePackageId", "status"],
+        ),
+        (
+            "content_deconstruction_finalize",
+            "冻结可交给单源高贴合或多资料融合仿写的 Content Deconstruction Package v1。",
+            {
+                **binding_properties,
+                "deconstructionId": {"type": "string"},
+                "qualityGate": {"type": "object"},
+                "comparison": {"type": "object"},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "deconstructionId", "qualityGate"],
+        ),
+        (
+            "content_deconstruction_get",
+            "只读查看统一文案拆解进度和冻结输出，不改变任何来源状态。",
+            {"channelProfileId": {"type": "string"}, "deconstructionId": {"type": "string"}},
+            ["channelProfileId", "deconstructionId"],
+        ),
+        (
+            "content_deconstruction_integrity_check",
+            "只读校验来源锁、逐来源拆解、全文覆盖和 Content Deconstruction Package 哈希。",
             {"channelProfileId": {"type": "string"}, "deconstructionId": {"type": "string"}},
             ["channelProfileId", "deconstructionId"],
         ),

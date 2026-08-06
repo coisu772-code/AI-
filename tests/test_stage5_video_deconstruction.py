@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from aivcp_tools.errors import ToolError  # noqa: E402
 from aivcp_tools.service import LocalToolService, ServiceConfig, tool_definitions  # noqa: E402
-from stage4_support import create_service  # noqa: E402
+from stage4_support import MARKETS, PipelineContext, candidate, create_service, finalize_manuscript  # noqa: E402
 from test_stage5_channel_distillation import (  # noqa: E402
     account_requirements,
     aggregate_profile,
@@ -307,6 +307,12 @@ class VideoDeconstructionTests(unittest.TestCase):
                 "platformId": "decompose02",
                 "channelId": "UCDECONSTRUCTION",
             },
+            {
+                "kind": "novel-web",
+                "locator": "https://example.test/textstory01",
+                "platformId": "textstory01",
+                "title": "Synthetic Uploaded Text Equivalent",
+            },
         ]
         prepared = self.service.call(
             "source_add_prepare",
@@ -509,6 +515,294 @@ class VideoDeconstructionTests(unittest.TestCase):
         lock = project["state"]["analysisLocks"][0]
         self.assertEqual("deconstruction-single-001", lock["deconstructionId"])
         self.assertEqual("video-copy-deconstruction", lock["analysisKind"])
+
+    def test_unified_content_deconstruction_accepts_text_and_direct_rewrite_route(self) -> None:
+        names = {item["name"] for item in tool_definitions()}
+        expected = {
+            "content_deconstruction_capabilities",
+            "content_deconstruction_prepare",
+            "content_deconstruction_read_source",
+            "content_deconstruction_checkpoint",
+            "content_deconstruction_finalize",
+            "content_deconstruction_get",
+            "content_deconstruction_integrity_check",
+        }
+        self.assertTrue(expected.issubset(names))
+        capabilities = self.service.call("content_deconstruction_capabilities")
+        self.assertEqual("available", capabilities["interfaces"]["content-deconstruction"])
+        self.assertIn("local-file", capabilities["platforms"])
+        self.assertIn("novel-web", capabilities["platforms"])
+
+        source_id = self.ids["textstory01"]
+        self.service.call(
+            "content_deconstruction_prepare",
+            {
+                "taskId": self.task_id,
+                "channelProfileId": self.channel_id,
+                "bindingProof": self.proof,
+                "deconstructionId": "content-text-single-001",
+                "mode": "single",
+                "sources": [{"sourcePackageId": source_id, "role": "primary-structure"}],
+            },
+        )
+        canonical = self.service.call(
+            "content_deconstruction_read_source",
+            {
+                "taskId": self.task_id,
+                "channelProfileId": self.channel_id,
+                "bindingProof": self.proof,
+                "deconstructionId": "content-text-single-001",
+                "sourcePackageId": source_id,
+                "maxParagraphs": 10,
+            },
+        )
+        self.assertTrue(canonical["complete"])
+        analysis = deconstruction_analysis(source_id, "generic-text")
+        analysis["analysisBuckets"]["transferableMethods"][0]["downstreamConsumers"] = ["content-rewrite"]
+        analysis["analysisBuckets"]["transferableMethods"][1]["downstreamConsumers"] = ["production-text"]
+        self.service.call(
+            "content_deconstruction_checkpoint",
+            {
+                "taskId": self.task_id,
+                "channelProfileId": self.channel_id,
+                "bindingProof": self.proof,
+                "deconstructionId": "content-text-single-001",
+                "sourcePackageId": source_id,
+                "status": "SUCCEEDED",
+                "analysis": analysis,
+            },
+        )
+        finalized = self.service.call(
+            "content_deconstruction_finalize",
+            {
+                "taskId": self.task_id,
+                "channelProfileId": self.channel_id,
+                "bindingProof": self.proof,
+                "deconstructionId": "content-text-single-001",
+                "qualityGate": final_quality_gate(),
+            },
+        )
+        self.assertEqual("1/1 succeeded", finalized["completionCard"]["contentDeconstruction"])
+        package = self.service.content_deconstruction.analysis_package(
+            channel_profile_id=self.channel_id,
+            deconstruction_id="content-text-single-001",
+        )
+        self.assertEqual("content-deconstruction", package["analysisKind"])
+        self.assertEqual(1, len(package["sourceAnalyses"]))
+        self.assertTrue(package["downstreamViews"]["rewrite"]["transferableMethods"])
+        self.assertTrue(package["downstreamViews"]["productionText"]["transferableMethods"])
+        self.assertEqual(
+            "PASS",
+            self.service.call(
+                "content_deconstruction_integrity_check",
+                {"channelProfileId": self.channel_id, "deconstructionId": "content-text-single-001"},
+            )["status"],
+        )
+
+        project = self.service.call(
+            "content_project_start",
+            {
+                "taskId": self.task_id,
+                "channelProfileId": self.channel_id,
+                "bindingProof": self.proof,
+                "projectId": "direct-rewrite-from-text",
+                "sourceMode": "direct-rewrite",
+                "sourcePackages": [{"sourcePackageId": source_id}],
+                "analysisPackages": [{"deconstructionId": "content-text-single-001"}],
+            },
+        )
+        self.assertEqual("direct-rewrite", project["state"]["sourceMode"])
+        self.assertEqual("content-deconstruction", project["state"]["analysisLocks"][0]["analysisKind"])
+        ctx = PipelineContext(
+            self.service,
+            self.root,
+            self.task_id,
+            self.channel_id,
+            self.proof,
+            "direct-rewrite-from-text",
+            {"source_package_id": source_id},
+            MARKETS["zh-CN"],
+        )
+        rewrite_candidate = candidate(ctx, 1)
+        rewrite_candidate["sourceTransformationMap"] = [
+            {
+                "sourcePackageId": source_id,
+                "role": "structure-and-pacing-reference",
+                "retainedFunction": "保留开场兑现、证据推进和阶段回报的功能顺序。",
+                "newImplementation": "重建人物、社区场景、具体证据、行动成本、高潮和结局后果。",
+                "newCausalLink": "主角整理维修记录，促使邻居回流，并由公共协议核验推动共管结局。",
+                "protectedBoundary": "不复制原句、专名、具体人物关系或完整事件顺序。",
+            }
+        ]
+        self.service.call(
+            "content_topic_checkpoint",
+            {
+                "taskId": self.task_id,
+                "channelProfileId": self.channel_id,
+                "bindingProof": self.proof,
+                "projectId": ctx.project_id,
+                "candidateNumber": 1,
+                "candidate": rewrite_candidate,
+            },
+        )
+        topic = self.service.call(
+            "content_topic_finalize",
+            {
+                "taskId": self.task_id,
+                "channelProfileId": self.channel_id,
+                "bindingProof": self.proof,
+                "projectId": ctx.project_id,
+                "ranking": ["candidate-01"],
+                "selectedCandidateId": "candidate-01",
+                "selectionReasons": {"candidate-01": "用户请求的唯一单源高贴合仿写方案。"},
+                "confirmation": {
+                    "confirmed": True,
+                    "mode": "review",
+                    "confirmedBy": "synthetic-fixture-user",
+                    "confirmedAt": "2026-08-07T00:00:00Z",
+                },
+            },
+        )
+        self.assertEqual("TOPIC_SELECTED", topic["package"]["status"])
+        self.assertEqual("direct-rewrite-request", topic["package"]["selection"]["policy"])
+        self.assertEqual(source_id, topic["package"]["candidates"][0]["sourceTransformationMap"][0]["sourcePackageId"])
+        manuscript = finalize_manuscript(ctx)
+        self.assertEqual("SCRIPT_READY", manuscript["package"]["status"])
+
+        second_source_id = self.ids["decompose01"]
+        synthesis_deconstruction_id = "content-synthesis-compare-001"
+        self.service.call(
+            "content_deconstruction_prepare",
+            {
+                "taskId": self.task_id,
+                "channelProfileId": self.channel_id,
+                "bindingProof": self.proof,
+                "deconstructionId": synthesis_deconstruction_id,
+                "mode": "compare",
+                "sources": [
+                    {"sourcePackageId": source_id, "role": "structure-reference"},
+                    {"sourcePackageId": second_source_id, "role": "reward-reference"},
+                ],
+            },
+        )
+        for index, current_source_id in enumerate((source_id, second_source_id), 1):
+            current_analysis = deconstruction_analysis(current_source_id, f"synthesis-{index}")
+            for method in current_analysis["analysisBuckets"]["transferableMethods"]:
+                method["downstreamConsumers"] = ["content-rewrite"]
+            self.service.call(
+                "content_deconstruction_checkpoint",
+                {
+                    "taskId": self.task_id,
+                    "channelProfileId": self.channel_id,
+                    "bindingProof": self.proof,
+                    "deconstructionId": synthesis_deconstruction_id,
+                    "sourcePackageId": current_source_id,
+                    "status": "SUCCEEDED",
+                    "analysis": current_analysis,
+                },
+            )
+        self.service.call(
+            "content_deconstruction_finalize",
+            {
+                "taskId": self.task_id,
+                "channelProfileId": self.channel_id,
+                "bindingProof": self.proof,
+                "deconstructionId": synthesis_deconstruction_id,
+                "comparison": {
+                    "sharedFunctions": [
+                        {
+                            "statement": "两个来源都以可验证信息改变关系和结局。",
+                            "evidenceSourcePackageIds": [source_id, second_source_id],
+                        }
+                    ],
+                    "videoDifferences": [
+                        {"sourcePackageId": source_id, "difference": "提供文本结构与节奏功能。"},
+                        {"sourcePackageId": second_source_id, "difference": "提供阶段回报功能。"},
+                    ],
+                    "nonTransferableDifferences": ["人物、专名、原句和完整事件顺序"],
+                    "eachVideoKeptIndependent": True,
+                    "averagingUsed": False,
+                    "segmentSplicingUsed": False,
+                },
+                "qualityGate": final_quality_gate(),
+            },
+        )
+        synthesis_project_id = "synthesis-rewrite-from-library"
+        self.service.call(
+            "content_project_start",
+            {
+                "taskId": self.task_id,
+                "channelProfileId": self.channel_id,
+                "bindingProof": self.proof,
+                "projectId": synthesis_project_id,
+                "sourceMode": "synthesis-rewrite",
+                "sourcePackages": [
+                    {"sourcePackageId": source_id},
+                    {"sourcePackageId": second_source_id},
+                ],
+                "analysisPackages": [{"deconstructionId": synthesis_deconstruction_id}],
+            },
+        )
+        synthesis_ctx = PipelineContext(
+            self.service,
+            self.root,
+            self.task_id,
+            self.channel_id,
+            self.proof,
+            synthesis_project_id,
+            {"source_package_id": source_id},
+            MARKETS["zh-CN"],
+        )
+        synthesis_candidate = candidate(synthesis_ctx, 1)
+        synthesis_candidate["sourceTransformationMap"] = [
+            {
+                "sourcePackageId": source_id,
+                "role": "structure-reference",
+                "retainedFunction": "使用承诺、行动、证据和结局的功能链。",
+                "newImplementation": "为新主角和社区修理铺重建全部事件。",
+                "newCausalLink": "维修记录促使居民行动并触发协议核验。",
+                "protectedBoundary": "不复制文本来源的原句、专名或事件顺序。",
+            },
+            {
+                "sourcePackageId": second_source_id,
+                "role": "reward-reference",
+                "retainedFunction": "采用新证据带来阶段认知回报的功能。",
+                "newImplementation": "把回报改造成公共服务协议的可信核验。",
+                "newCausalLink": "邻居故事汇聚为可验证记录并改变管理决定。",
+                "protectedBoundary": "不复制视频来源的人物、表达或具体桥段。",
+            },
+        ]
+        self.service.call(
+            "content_topic_checkpoint",
+            {
+                "taskId": self.task_id,
+                "channelProfileId": self.channel_id,
+                "bindingProof": self.proof,
+                "projectId": synthesis_project_id,
+                "candidateNumber": 1,
+                "candidate": synthesis_candidate,
+            },
+        )
+        synthesis_topic = self.service.call(
+            "content_topic_finalize",
+            {
+                "taskId": self.task_id,
+                "channelProfileId": self.channel_id,
+                "bindingProof": self.proof,
+                "projectId": synthesis_project_id,
+                "ranking": ["candidate-01"],
+                "selectedCandidateId": "candidate-01",
+                "selectionReasons": {"candidate-01": "用户请求的唯一资料融合仿写方案。"},
+                "confirmation": {
+                    "confirmed": True,
+                    "mode": "review",
+                    "confirmedBy": "synthetic-fixture-user",
+                    "confirmedAt": "2026-08-07T00:10:00Z",
+                },
+            },
+        )
+        self.assertEqual("synthesis-rewrite-request", synthesis_topic["package"]["selection"]["policy"])
+        self.assertEqual(2, len(synthesis_topic["package"]["candidates"][0]["sourceTransformationMap"]))
 
     def test_compare_keeps_video_analyses_independent_and_multi_route_consumes_package(self) -> None:
         self.service.call(

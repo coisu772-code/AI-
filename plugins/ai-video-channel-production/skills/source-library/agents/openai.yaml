@@ -1,7 +1,0 @@
-interface:
-  display_name: "频道资料库"
-  short_description: "为当前频道统一添加、更新、去重、检索并恢复视频、小说与本地资料"
-  default_prompt: "Use $source-library to add these materials to the currently bound channel library without analyzing them."
-
-policy:
-  allow_implicit_invocation: false

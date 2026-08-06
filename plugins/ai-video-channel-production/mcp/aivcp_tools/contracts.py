@@ -2,10 +2,25 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from .errors import ToolError
+
+
+def resolve_contracts_root(plugin_root: Path) -> Path:
+    """Resolve contracts in both a source checkout and Codex's plugin cache."""
+    source_candidate = plugin_root.resolve().parents[1] / "contracts"
+    if source_candidate.is_dir():
+        return source_candidate
+    install_root = os.environ.get("AIVCP_INSTALL_ROOT", "").strip()
+    if install_root:
+        installed_candidate = Path(install_root).resolve() / "current" / "contracts"
+        if installed_candidate.is_dir():
+            return installed_candidate
+    return source_candidate
 
 
 def utc_now() -> str:

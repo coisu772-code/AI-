@@ -1,0 +1,7 @@
+interface:
+  display_name: "文案仿写"
+  short_description: "按单一来源高贴合或多来源融合模式，生成一个完整原创方案"
+  default_prompt: "Use `$content-rewrite` to create one complete rewrite using the requested mode."
+
+policy:
+  allow_implicit_invocation: false

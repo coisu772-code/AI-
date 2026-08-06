@@ -1,0 +1,7 @@
+interface:
+  display_name: "文案拆解"
+  short_description: "完整拆解视频字幕或用户文本的结构、节奏、表达和可迁移方法"
+  default_prompt: "Use `$content-deconstruct` to fully deconstruct this canonical video transcript or text."
+
+policy:
+  allow_implicit_invocation: false

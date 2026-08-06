@@ -1,7 +1,7 @@
 {
   "name": "ai-video-channel-production",
   "version": "0.8.0-rc.2",
-  "description": "AI 视频频道生产系统的可安装 RC：频道建库、资料、内容、制作、本地发布准备、数据复盘与安全生命周期。",
+  "description": "AI 视频频道生产系统：视频或文本取材、统一拆解、双模式仿写、制作文本、工坊、发布准备与数据复盘。",
   "author": {
     "name": "coisu772-code",
     "url": "https://github.com/coisu772-code"
@@ -19,17 +19,17 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "AI 视频频道生产系统",
-    "shortDescription": "频道建库、内容生产、制作、发布与数据流程的统一入口。",
-    "longDescription": "以 Codex Skills 驱动频道生产工作流，并通过安全本地工具和版本化契约连接频道资料库、新漫剧工坊与 YouTube 发布中心。0.8.0 RC 增加隔离安装、升级、自动回滚、修复、卸载保留数据、备份恢复和三市场离线验收；Analytics 默认未授权，不接触 Token、不发起 OAuth，真实上传、真实 video ID、发布回执、私有 Analytics 数据和长期学习写回仍需外部明确批准。",
+    "shortDescription": "链接或文本一键取材、拆解、仿写并输出可制作文本。",
+    "longDescription": "以四个简化 Codex Skills 贯通视频字幕或用户文本取材、完整文案拆解、单源高贴合或多资料融合仿写，以及可直接配音、字幕、分镜和工坊制作的正式文本。标题、简介和封面预留三个独立扩展位；频道建库、制作、发布准备、数据复盘、更新、数据隔离与审批安全门继续保留。",
     "developerName": "coisu772-code",
     "category": "Creative",
     "capabilities": [
       "Interactive"
     ],
     "defaultPrompt": [
-      "启动 AI 视频频道生产系统，检查当前频道、资料、内容项目与数据中心状态。",
-      "根据当前频道资料生成并确认一个完整选题，再继续目标语言正式文稿。",
-      "从已确认文稿准备发布素材，安全移交工坊，并在成片后准备本地发布包或检查频道数据报告与待确认建议。"
+      "启动 AI 视频频道生产系统，接收一个视频链接或文本并完成取材与拆解。",
+      "根据拆解结果使用单源高贴合模式仿写，并直接输出可制作文本。",
+      "结合资料库、用户上传资料或公开联网资料完成融合仿写并生成正式文本。"
     ],
     "brandColor": "#6D4AFF"
   }

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "1.0.0",
+  "registryId": "content-extension-slots-v1",
+  "inputContractType": "manuscript-package",
+  "slots": [
+    {
+      "skillId": "content-title",
+      "status": "PLANNED_UNAVAILABLE",
+      "outputContractType": "title-asset-v1",
+      "discovered": false
+    },
+    {
+      "skillId": "content-description",
+      "status": "PLANNED_UNAVAILABLE",
+      "outputContractType": "description-asset-v1",
+      "discovered": false
+    },
+    {
+      "skillId": "content-thumbnail",
+      "status": "PLANNED_UNAVAILABLE",
+      "outputContractType": "thumbnail-asset-v1",
+      "discovered": false
+    }
+  ],
+  "aggregatorSkillId": "publishing-assets",
+  "activationRule": "A slot becomes discoverable only after its Skill, contract validation, tests, and installer manifest are complete."
+}

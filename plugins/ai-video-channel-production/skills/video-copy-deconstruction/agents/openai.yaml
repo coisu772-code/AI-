@@ -1,7 +1,0 @@
-interface:
-  display_name: "视频文案拆解"
-  short_description: "基于统一正文拆解视频结构、节奏、表达功能、观众回报与原创边界"
-  default_prompt: "Use $video-copy-deconstruction to deconstruct canonical video copy into evidence-bound reusable methods."
-
-policy:
-  allow_implicit_invocation: false

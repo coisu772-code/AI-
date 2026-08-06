@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import struct
 import sys
 import tempfile
@@ -12,9 +13,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
+sys.path.insert(0, str(ROOT / "plugins" / "ai-video-channel-production" / "mcp"))
 
 from validate_contracts import CONTRACTS_ROOT, content_hash, load_json, validate_contracts  # noqa: E402
 from validate_release_manifest import validate_release_manifest  # noqa: E402
+from aivcp_tools.contracts import resolve_contracts_root  # noqa: E402
 
 
 class ContractValidationTests(unittest.TestCase):
@@ -54,6 +57,23 @@ class ContractValidationTests(unittest.TestCase):
 
     def test_release_manifest(self) -> None:
         self.assertEqual([], validate_release_manifest())
+
+    def test_contract_root_falls_back_from_codex_cache_to_installed_product(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cached_plugin = root / "cache" / "marketplace" / "plugin" / "version"
+            cached_plugin.mkdir(parents=True)
+            installed_contracts = root / "product" / "current" / "contracts"
+            installed_contracts.mkdir(parents=True)
+            previous = os.environ.get("AIVCP_INSTALL_ROOT")
+            os.environ["AIVCP_INSTALL_ROOT"] = str(root / "product")
+            try:
+                self.assertEqual(installed_contracts.resolve(), resolve_contracts_root(cached_plugin))
+            finally:
+                if previous is None:
+                    os.environ.pop("AIVCP_INSTALL_ROOT", None)
+                else:
+                    os.environ["AIVCP_INSTALL_ROOT"] = previous
 
     def test_upstream_hash_mismatch_is_rejected(self) -> None:
         source_dir = CONTRACTS_ROOT / "examples" / "valid"
