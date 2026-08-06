@@ -34,4 +34,17 @@ Save a versioned JSON document and a copy-ready text file containing:
 
 The bundled v2.1 prompt defines a story introduction, not a YouTube description. Use its core-material extraction and hook strategy only for the first two description lines. Then add a concise promise, story scope and viewing payoff. Do not copy a full opening scene into metadata and do not reveal a protected ending.
 
-Both assets must bind the same active Manuscript Package. A manuscript revision invalidates both assets. `publishing-assets` must reject missing confirmation, mismatched hashes or claims unsupported by the final script.
+## Thumbnail Asset v1
+
+After selecting exactly one title, generate five materially different 16:9 thumbnail candidates with the image and target-language short copy created together by `imagegen`. Save:
+
+- `contractType: thumbnail-asset-v1`;
+- project, channel, language, manuscript and confirmed-title identity;
+- candidate image paths, dimensions, sizes, SHA-256 values and visual-quality checks;
+- the selected candidate and confirmation record;
+- prompt bundle version and SHA-256;
+- status `THUMBNAIL_READY`.
+
+Inspect every generated image with `view_image`. Reject or regenerate text errors, illegible mobile composition, unsupported story claims, malformed people, wrong aspect ratio and placeholder output. A title or manuscript revision invalidates the thumbnail asset.
+
+All three assets must bind the same active Manuscript Package. `publishing-assets` must reject missing confirmation, mismatched hashes, unsupported claims or a non-image thumbnail.

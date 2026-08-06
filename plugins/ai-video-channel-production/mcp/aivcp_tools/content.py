@@ -154,7 +154,7 @@ def _extension_capabilities() -> list[dict[str, Any]]:
     items = []
     for capability in EXTENSION_CAPABILITY_NAMES:
         packaging = capability in {"title-generation", "description-generation", "thumbnail-generation"}
-        packaging_available = capability in {"title-generation", "description-generation"}
+        packaging_available = capability in {"title-generation", "description-generation", "thumbnail-generation"}
         item = {
             "capability": capability,
             "status": "available" if (not packaging or packaging_available) else "planned-unavailable",
@@ -180,12 +180,7 @@ def _extension_capabilities() -> list[dict[str, Any]]:
                 }
             )
         else:
-            item.update(
-                {
-                    "skillId": "content-thumbnail",
-                    "reason": "封面仍为稳定扩展位；Skill、契约和测试完成前不得冒充可用。",
-                }
-            )
+            raise AssertionError(f"unhandled extension capability: {capability}")
         items.append(item)
     return items
 

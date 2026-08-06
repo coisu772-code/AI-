@@ -19,11 +19,12 @@
     },
     {
       "skillId": "content-thumbnail",
-      "status": "PLANNED_UNAVAILABLE",
+      "providedBySkillId": "content-title-description",
+      "status": "AVAILABLE",
       "outputContractType": "thumbnail-asset-v1",
-      "discovered": false
+      "discovered": true
     }
   ],
   "aggregatorSkillId": "publishing-assets",
-  "activationRule": "Title and description are provided together by content-title-description. Thumbnail remains unavailable until its Skill, contract validation, tests, and installer manifest are complete."
+  "activationRule": "Title, description, and thumbnail are provided together by content-title-description; content-thumbnail is an asset slot, not a separate Skill."
 }

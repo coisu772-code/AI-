@@ -237,7 +237,7 @@ def validate_plugin() -> list[str]:
         "$content-review-edit",
         "$content-title-description",
         "content-thumbnail",
-        "PLANNED_UNAVAILABLE",
+        "Title/Description/Thumbnail Assets",
     ):
         if marker not in router_text:
             errors.append(f"channel-production is missing simplified content route marker: {marker}")
@@ -310,9 +310,14 @@ def validate_plugin() -> list[str]:
         "content-title",
         "content-description",
         "content-thumbnail",
-        "PLANNED_UNAVAILABLE",
+        "thumbnail-asset-v1",
         "SCRIPT_READY",
         "8–12",
+        "imagegen",
+        "view_image",
+        "16:9",
+        "五个",
+        "SHA-256",
         "$publishing-assets",
     ):
         if marker not in packaging_text:
@@ -325,15 +330,12 @@ def validate_plugin() -> list[str]:
         if slot_ids != {"content-title", "content-description", "content-thumbnail"}:
             errors.append("content extension registry must reserve exactly title, description, and thumbnail Skills")
         slot_by_id = {item.get("skillId"): item for item in extension_slots.get("slots", [])}
-        for slot_id in ("content-title", "content-description"):
+        for slot_id in ("content-title", "content-description", "content-thumbnail"):
             slot = slot_by_id.get(slot_id, {})
             if slot.get("status") != "AVAILABLE" or slot.get("discovered") is not True:
                 errors.append(f"{slot_id} must be available after the combined packaging Skill is installed")
             if slot.get("providedBySkillId") != "content-title-description":
                 errors.append(f"{slot_id} must be provided by content-title-description")
-        thumbnail_slot = slot_by_id.get("content-thumbnail", {})
-        if thumbnail_slot.get("status") != "PLANNED_UNAVAILABLE" or thumbnail_slot.get("discovered") is not False:
-            errors.append("content-thumbnail must remain PLANNED_UNAVAILABLE")
     except Exception as exc:  # noqa: BLE001
         errors.append(f"content extension registry is invalid: {exc}")
 
@@ -380,7 +382,6 @@ def validate_plugin() -> list[str]:
         "title-asset-v1",
         "description-asset-v1",
         "thumbnail-asset-v1",
-        "PLANNED_UNAVAILABLE",
         "16:9",
         "SHA-256",
         "content_publishing_finalize",

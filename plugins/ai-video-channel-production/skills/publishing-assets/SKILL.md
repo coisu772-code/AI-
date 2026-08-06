@@ -1,19 +1,18 @@
 ---
 name: publishing-assets
-description: 在标题与简介资产和封面资产都已交付并确认后，校验它们与同一 Manuscript Package v1 的版本、事实和哈希绑定，并汇总为 Publishing Asset Package v1。用户说“汇总发布素材”“检查标题简介封面是否齐全”或“生成发布素材包”时使用；不自行生成资产，封面 Skill 尚未开发时明确返回 PLANNED_UNAVAILABLE。
+description: 在标题、简介和封面资产都由 content-title-description 交付并确认后，校验它们与同一 Manuscript Package v1 的版本、事实和哈希绑定，并汇总为 Publishing Asset Package v1。用户说“汇总发布素材”“检查标题简介封面是否齐全”或“生成发布素材包”时使用；本 Skill 只汇总，不自行生成或补写资产。
 ---
 
 # 发布素材汇总
 
 本 Skill 是汇总器，不是内容生成器：
 
-- `$content-title-description` 同时提供 `content-title` → `title-asset-v1` 和 `content-description` → `description-asset-v1`；
-- 未来 `content-thumbnail` 提供 `thumbnail-asset-v1`。
+- `$content-title-description` 同时提供 `content-title` → `title-asset-v1`、`content-description` → `description-asset-v1` 和 `content-thumbnail` → `thumbnail-asset-v1`。
 
 ## 进入
 
 1. 调用 `content_capabilities` 和 `content_project_get`，只接收 `SCRIPT_READY`、质量门通过且哈希有效的 Manuscript Package v1。
-2. 读取 `assets/content-extension-slots.json`。标题和简介必须为 `AVAILABLE` 并绑定同一 `content-title-description`；封面仍为 `PLANNED_UNAVAILABLE` 时显示缺失项并停止，不得生成占位图。
+2. 读取 `assets/content-extension-slots.json`。标题、简介和封面都必须为 `AVAILABLE`，并绑定同一 `content-title-description`。
 3. 所有资产可用时，读取已确认资产包，验证项目、频道、目标语言、母稿版本与 SHA-256。
 
 ## 汇总质量门
@@ -36,4 +35,4 @@ description: 在标题与简介资产和封面资产都已交付并确认后，�
 
 - 不生成、改写或重选标题、简介、Hashtags、封面和正式母稿。
 - 不调用工坊、Google／YouTube 授权、上传、发布回执、Analytics 或长期频道学习。
-- 当前只有 `content-thumbnail` 未实现，正常结果是 `PLANNED_UNAVAILABLE`，不得用旧流程回退。
+- 任一资产缺失时返回具体缺失项，不得使用旧流程、提示词文本或占位图回退。

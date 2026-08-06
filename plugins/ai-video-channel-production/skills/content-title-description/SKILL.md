@@ -1,11 +1,11 @@
 ---
 name: content-title-description
-description: 根据已通过编辑审核并冻结的最终正文，生成与事实一致、适配日本、美国、中国或其他目标市场的作品书名或 YouTube 视频标题，以及可直接粘贴到 YouTube 的视频简介。用户说“生成标题和简介”“给这个成稿起标题”“写YouTube简介”或要求完成四阶段内容流程时使用；不根据早期大纲编造最终正文不存在的承诺。
+description: 根据已通过编辑审核并冻结的最终正文，使用同一份标题提示词生成事实一致的作品书名或 YouTube 标题、可直接粘贴的简介，并在唯一标题确认后直接生成和选定正式16:9封面。用户说“生成标题和简介”“生成封面”“标题简介封面一起做”或要求完成四阶段内容流程时使用；不再路由到独立封面 Skill。
 ---
 
-# 标题与简介
+# 标题、简介与封面
 
-这是四阶段内容主链的第四步。执行前必须完整阅读 [references/prompt-v2.1.txt](references/prompt-v2.1.txt) 和 [references/title-description-contract.md](references/title-description-contract.md)。原提示词中的“导言”是开场钩子，不等于 YouTube 简介；本 Skill 使用其事实提取、标题策略和导言钩子规则，再按补充契约生成完整简介。
+这是四阶段内容主链的第四步。执行前必须完整阅读 [references/prompt-v2.1.txt](references/prompt-v2.1.txt) 和 [references/title-description-contract.md](references/title-description-contract.md)。原提示词中的“导言”是开场钩子，不等于 YouTube 简介；本 Skill 使用其事实提取、标题策略、封面短文案和导言规则，再按补充契约生成简介与正式封面。
 
 ## 进入
 
@@ -27,17 +27,27 @@ description: 根据已通过编辑审核并冻结的最终正文，生成与事�
 - 使用自然目标语言；不得编造正文不存在的身份、关系、系统、数字、背叛、死亡、结果或热点。
 - 默认附 8–12 个与正文事实一致的 Hashtags；用户明确不要时可省略。
 
+## 正式封面
+
+1. 只在唯一标题已经确认或自动选定后开始，不为每个标题候选分别生成图片。
+2. 使用同一份标题提示词提取的最强视觉场景、核心冲突和封面短文案，形成五个构图实质不同的方案。
+3. 逐个调用内置 `imagegen` 图片生成能力。每次请求都同时生成完整画面和准确的目标语言短文案，输出 16:9 YouTube 缩略图；不得先生成无字底图再用本机排字。
+4. 逐张使用 `view_image` 检查人物、事实、构图、文字准确性、移动端可读性和题材匹配。错字、乱码、漏字、多字或画面失败时，只重做对应候选。
+5. 对五张合格候选执行 CTR 视觉质量评分，自动选择最高分候选；审核模式展示五张和推荐项，用户确认后锁定唯一正式封面。
+6. 保存真实图片文件、宽高、大小和 SHA-256。不得用提示词文本、重复封面或占位图冒充正式封面。
+
 ## 保存与交接
 
 按补充契约保存并绑定同一 Manuscript Package：
 
 - `title-asset-v1`：候选、评分、事实依据、唯一确认标题和 SHA-256；
 - `description-asset-v1`：简介正文、Hashtags、事实依据、目标语言和 SHA-256。
+- `thumbnail-asset-v1`：五个候选、质量检查、唯一确认图片、16:9 尺寸和 SHA-256。
 
-两个资产都由本 Skill `content-title-description` 提供。`content-title` 与 `content-description` 是稳定资产槽位，不是另外两个 Skill。封面仍由未来 `content-thumbnail` 提供，当前状态为 `PLANNED_UNAVAILABLE`。完成后可交给 `$publishing-assets` 等待封面并汇总。
+三个资产都由本 Skill `content-title-description` 提供。`content-title`、`content-description` 与 `content-thumbnail` 只是稳定资产槽位，不是另外三个 Skill。全部通过后立即交给 `$publishing-assets` 汇总，不再等待“以后开发封面”。
 
 ## 边界
 
 - 不修改正式母稿，不为吸引点击扭曲正文事实。
-- 除非用户明确要求，不额外生成书名、封面短文案或正文导言。
-- 不生成封面图片，不启动工坊、上传、Analytics 或长期频道学习。
+- 除非用户明确要求，不额外生成书名或正文导言；封面短文案是正式封面生成的内部输入。
+- 不启动工坊、上传、Analytics 或长期频道学习。
