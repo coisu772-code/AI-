@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "1.0.0",
+  "productVersion": "0.11.0-rc.3",
+  "status": "PASS",
+  "publishedAt": "2026-08-07T17:27:37Z",
+  "release": {
+    "id": 366907451,
+    "url": "https://github.com/coisu772-code/AI-/releases/tag/v0.11.0-rc.3",
+    "tag": "v0.11.0-rc.3",
+    "draft": false,
+    "prerelease": true,
+    "latest": false,
+    "remoteMainCommitShaAtPublication": "f6d4ec6e5a7f4185ae58997f7bbcb9b87475cece",
+    "annotatedTagObjectSha": "33ab326b43739fcc734dffadabcec57a949c26c5",
+    "tagResolvedCommitSha": "f6d4ec6e5a7f4185ae58997f7bbcb9b87475cece"
+  },
+  "contentChange": {
+    "commit": "dced1c83b0bc8a6f547bcc6380a3ff6292e148b0",
+    "description": "tiered content adaptation directions"
+  },
+  "releaseSource": {
+    "commit": "f6d4ec6e5a7f4185ae58997f7bbcb9b87475cece"
+  },
+  "workshopSource": {
+    "commit": "56df24dc34ecbf03dc341edf42dd976a24c8a502",
+    "componentVersion": "2.4.0-rc.1",
+    "bundledInUnifiedRelease": true
+  },
+  "publisherSource": {
+    "commit": "00adafe9fa6b358991616793d545e0ef0def9ee9",
+    "componentVersion": "0.9.0-rc.2",
+    "bundledInUnifiedRelease": true
+  },
+  "assets": {
+    "uploadedTotal": 7,
+    "corePackages": 5,
+    "metadata": 2,
+    "uploadedBytes": 259003207,
+    "reusedOptionalRuntimeAttachments": 9,
+    "reusedOptionalRuntimeTag": "v0.10.0-rc.1",
+    "manifestSha256": "474708c0f4763c7a463254a15554c4213901d16a8b31c04a18f3bc7223c7b6d1",
+    "checksumsSha256": "583945de12d913359d08994d6ec540aec329aea3d68a796510feeaca94b192c0",
+    "allManifestSizesMatched": true,
+    "allGitHubDigestSha256Matched": true,
+    "allReusedRuntimeDigestsMatched": true
+  },
+  "acceptance": {
+    "systemUnitTests": {
+      "total": 213,
+      "passed": 213,
+      "skipped": 0,
+      "failed": 0,
+      "errors": 0
+    },
+    "skillCount": 12,
+    "contentSkillQuickValidationPassed": 2,
+    "pluginValidationPassed": true,
+    "marketplaceValidationPassed": true,
+    "contractExamplesPassed": 10,
+    "repositorySafetyFilesChecked": 394,
+    "deterministicBuildsMatched": true,
+    "isolatedFreshInstallPassed": true,
+    "installedSkillCount": 12,
+    "installedToolCount": 47,
+    "isolatedHealthCheckPassed": true,
+    "isolatedUninstallPassed": true,
+    "uninstallPreservedTestUserData": true,
+    "realUpgradeTransactionRepeated": false,
+    "upgradeAndRollbackMechanicsCoveredByAutomatedTests": true
+  },
+  "authentication": {
+    "existingGitCredentialReused": true,
+    "interactiveBrowserLoginStarted": false,
+    "ghCliRequired": false
+  },
+  "privacy": {
+    "oauthTokenIncluded": false,
+    "credentialIncluded": false,
+    "userProjectIncluded": false,
+    "runtimeDataIncluded": false,
+    "googleYoutubeOAuthExecuted": false,
+    "realVideoUploadExecuted": false,
+    "userDataMigrationExecuted": false,
+    "longTermLearningWriteExecuted": false,
+    "remoteDeletionExecuted": false,
+    "existingReleaseOverwritten": false
+  },
+  "residualRisks": [
+    "Cold installation was slow under Windows real-time scanning on the acceptance machine; one attempt rolled back automatically and a second complete fresh-install transaction passed.",
+    "A separate real 0.11.0-rc.2 to 0.11.0-rc.3 upgrade transaction was not repeated because installer and component mechanics were unchanged; automated upgrade and rollback coverage passed."
+  ]
+}

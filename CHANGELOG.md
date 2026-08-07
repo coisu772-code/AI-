@@ -1,6 +1,6 @@
 # 更新记录
 
-## 0.11.0-rc.3 - 本地候选（待确认发布）
+## 0.11.0-rc.3 - GitHub prerelease
 
 - `content-deconstruct` 改为通用三档迁移：高贴合迁移、中度重构、大胆创新各 5 个，共 15 个方向，并执行组内与跨组七维去重。
 - 每个方向新增 `mustPreserve`、`allowedToChange`、`mustRebuild` 与 `protectedExpressionBoundary`，同时执行原文核心体验保留门和非换皮原创门。
