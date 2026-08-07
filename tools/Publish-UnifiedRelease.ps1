@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$AssetRoot,
-    [string]$Tag = "v0.11.0-rc.1",
+    [string]$Tag = "v0.11.0-rc.2",
     [switch]$Execute,
     [string]$ApprovalFile
 )
@@ -9,7 +9,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $assetFull = [System.IO.Path]::GetFullPath($AssetRoot)
-$manifestPath = Join-Path $assetFull "unified-release-v0.11.0-rc.1.json"
+$manifestPath = Join-Path $assetFull "unified-release-v0.11.0-rc.2.json"
 $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
 
 function Get-ExistingGitHubCredential {
@@ -189,7 +189,7 @@ if ($LASTEXITCODE -ne 0 -or @($remoteTagRecords | Where-Object { ([string]$_).Sp
 $releaseFiles = New-Object System.Collections.Generic.List[string]
 foreach ($asset in @($manifest.assets)) { $releaseFiles.Add((Join-Path $assetFull ([string]$asset.fileName))) }
 $releaseFiles.AddRange($optionalReleaseFiles)
-foreach ($metadataName in @("unified-release-v0.11.0-rc.1.json", "SHA256SUMS.txt")) {
+foreach ($metadataName in @("unified-release-v0.11.0-rc.2.json", "SHA256SUMS.txt")) {
     $metadataPath = Join-Path $assetFull $metadataName
     if (Test-Path -LiteralPath $metadataPath -PathType Leaf) { $releaseFiles.Add($metadataPath) }
 }
@@ -219,7 +219,7 @@ try {
     }
     $release = Get-GitHubReleaseByTag -Repository $repository -ReleaseTag $Tag -Headers $headers
     if ($null -eq $release) {
-        $notesPath = Join-Path $repositoryRoot "docs\release-notes-v0.11.0-rc.1.md"
+        $notesPath = Join-Path $repositoryRoot "docs\release-notes-v0.11.0-rc.2.md"
         $release = Invoke-GitHubJson -Method Post -Uri "https://api.github.com/repos/$repository/releases" -Headers $headers -Body @{
             tag_name = $Tag
             target_commitish = $boundSourceCommit

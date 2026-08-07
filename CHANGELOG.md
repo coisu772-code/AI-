@@ -1,5 +1,13 @@
 # 更新记录
 
+## 0.11.0-rc.2 - GitHub prerelease
+
+- 完整保留 `0.11.0-rc.1` 的外语质量保险门、中文优先双语确认卡、上传前最终中文验收卡与 Publish Package v2.1.0。
+- YouTube 发布中心升级为 `0.9.0-rc.2`，内置 Windows 便携时区数据库；在新电脑或隔离安装环境中也能正确识别 `Asia/Tokyo` 等 IANA 时区。
+- 发布中心继续强制 MANUAL、SCHEDULED、AUTO 全部停在 `FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED`，确认最终中文验收不会解除 OAuth、频道授权、配额等其他安全门。
+- 新漫剧工坊仍为 `2.4.0-rc.1`，按本系统 `rc.2` 重新封装完整便携包，并复验 FFmpeg、Python、Node.js、Wenku8 与 Sharp。
+- 不包含 Token、API Key、Cookie、OAuth 凭据、频道、项目或运行数据；升级不迁移、不删除、不覆盖用户数据。
+
 ## 0.11.0-rc.1 - GitHub prerelease
 
 - 内容流程改为四阶段创作 Skills，并新增独立外语质量保险门；非中文正式稿缺少目标语言质量证据时不得进入发布。

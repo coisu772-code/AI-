@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.11.0-rc.1"
+VERSION = "0.11.0-rc.2"
 PYTHON_VERSION = "3.12.13"
 PYTHON_BUILD = "20260610"
 FIXED_TIME = (2026, 8, 7, 0, 0, 0)
@@ -31,20 +31,20 @@ BOOTSTRAP_FILES = (
     "installer/install.cmd",
 )
 WORKSHOP_VERSION = "2.4.0-rc.1"
-WORKSHOP_NAME = "Z-Manga-Workshop-2.4.0-rc.1-for-AIVCP-0.11.0-rc.1-windows-x64-portable.zip"
-WORKSHOP_SHA = "712d1c6322454b0de1150bcaebbd56a95e162858710478c281b4305099011eb4"
+WORKSHOP_NAME = "Z-Manga-Workshop-2.4.0-rc.1-for-AIVCP-0.11.0-rc.2-windows-x64-portable.zip"
+WORKSHOP_SHA = "380bcf146852113217d184d69b35c93dfc330eb23c0e6b6fc58ff11fb4ec354f"
 WORKSHOP_SIZE = 152815544
-WORKSHOP_ROOT = "Z-Manga-Workshop-2.4.0-rc.1-for-AIVCP-0.11.0-rc.1-windows-x64-portable"
+WORKSHOP_ROOT = "Z-Manga-Workshop-2.4.0-rc.1-for-AIVCP-0.11.0-rc.2-windows-x64-portable"
 WORKSHOP_SOURCE_COMMIT = "56df24dc34ecbf03dc341edf42dd976a24c8a502"
-PUBLISHER_VERSION = "0.9.0-rc.1"
-PUBLISHER_NAME = "youtube-publisher-center-v0.9.0-rc.1-windows-amd64.zip"
-PUBLISHER_SHA = "8249cac26e838647fdd8b4e107922fa494ca8914e12748b53de52168fbdeb5c5"
-PUBLISHER_SIZE = 32586344
-PUBLISHER_ROOT = "youtube-publisher-center-v0.9.0-rc.1-windows-amd64"
-PUBLISHER_SOURCE_COMMIT = "49a43fe51d3414f39ed448ae34300612da225dba"
-PUBLISHER_SOURCE_SNAPSHOT_SHA = "ba6e768cfec954d6f56363587f0ec754a18e016a78035d633e92b3ecf4b74d8c"
-PUBLISHER_COMPONENT_MANIFEST_NAME = "publisher-component-manifest-v0.9.0-rc.1.json"
-PUBLISHER_COMPONENT_MANIFEST_SHA = "c97fbb01b8ba4ed35e230d461bab2ae0e7d260d0b79b51828edb5ae7f2aa14e6"
+PUBLISHER_VERSION = "0.9.0-rc.2"
+PUBLISHER_NAME = "youtube-publisher-center-v0.9.0-rc.2-windows-amd64.zip"
+PUBLISHER_SHA = "ef85eb6edaee360f6d404695e53b0cce0f12a8b9de53fd161beb239f89a4e810"
+PUBLISHER_SIZE = 32682677
+PUBLISHER_ROOT = "youtube-publisher-center-v0.9.0-rc.2-windows-amd64"
+PUBLISHER_SOURCE_COMMIT = "00adafe9fa6b358991616793d545e0ef0def9ee9"
+PUBLISHER_SOURCE_SNAPSHOT_SHA = "fc7afcd4ca1b053d36363c22f11130383c35e4422eab270b06ed1fb736c50c98"
+PUBLISHER_COMPONENT_MANIFEST_NAME = "publisher-component-manifest-v0.9.0-rc.2.json"
+PUBLISHER_COMPONENT_MANIFEST_SHA = "f72626579dc4fd4cd3e8a52a75266209469d99cdf37b2f9b815f25c9ada36748"
 PUBLISHER_CONSTRAINTS_SHA = "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a"
 KOKORO_VARIANTS = ("cpu", "nvidia", "nvidia-blackwell")
 KOKORO_REUSE_VERSION = "0.10.0-rc.1"

@@ -211,9 +211,9 @@ def validate(manifest_path: Path, asset_root: Path) -> dict[str, object]:
         errors.append("release-owner license approval gate is missing")
     publisher_source = publisher.get("source", {})
     expected_publisher_source = {
-        "commit": "49a43fe51d3414f39ed448ae34300612da225dba",
-        "snapshotSha256": "ba6e768cfec954d6f56363587f0ec754a18e016a78035d633e92b3ecf4b74d8c",
-        "componentManifestSha256": "c97fbb01b8ba4ed35e230d461bab2ae0e7d260d0b79b51828edb5ae7f2aa14e6",
+        "commit": "00adafe9fa6b358991616793d545e0ef0def9ee9",
+        "snapshotSha256": "fc7afcd4ca1b053d36363c22f11130383c35e4422eab270b06ed1fb736c50c98",
+        "componentManifestSha256": "f72626579dc4fd4cd3e8a52a75266209469d99cdf37b2f9b815f25c9ada36748",
         "constraintsSha256": "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a",
     }
     if publisher_source.get("commit") != expected_publisher_source["commit"]:
