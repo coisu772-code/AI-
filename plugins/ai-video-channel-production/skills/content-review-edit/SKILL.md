@@ -5,7 +5,7 @@ description: 审查 content-rewrite 生成的仿写初稿或用户提供的完�
 
 # 编辑审核与修改
 
-这是四阶段内容主链的第三步。执行前必须完整阅读 [references/prompt-v4.1.txt](references/prompt-v4.1.txt)。该提示词是本阶段的完整审稿标准；项目规则、用户本次明确要求和已冻结故事事实优先。
+这是四阶段内容主链的第三步。执行前必须完整阅读 [references/prompt-v4.1.txt](references/prompt-v4.1.txt) 和 [用户审核文档规范](../channel-production/references/user-review-documents.md)。该提示词是本阶段的完整审稿标准；项目规则、用户本次明确要求和已冻结故事事实优先。
 
 ## 进入
 
@@ -26,9 +26,12 @@ description: 审查 content-rewrite 生成的仿写初稿或用户提供的完�
 ## 复查与冻结
 
 1. 完成修改后，按提示词重新检查事实一致性、因果、人物、节奏、情绪、语言和授权边界；修复审稿引入的新问题。
-2. 非中文目标语言生成严格逐行中文审核映射；中文稿直接复用，不二次创作。
-3. 调用 `content_manuscript_finalize` 冻结 Manuscript Package v1，再调用 `content_integrity_check`。
-4. 只有质量门通过、哈希有效并返回 `SCRIPT_READY` 时，才称为可用于配音、字幕、分镜和工坊的唯一事实源。
+2. 先调用 `content_review_document_save` 保存完整 `editorial-review`，生成 `05_编辑审核报告.md`；报告至少包含问题位置、级别、证据、影响和修改建议。
+3. 再调用 `content_review_document_save` 保存完整 `revision-log`，生成 `06_修改记录与前后对照.md`；必须列明修改前、修改后、修改原因、影响范围和是否改变锁定事实。
+4. 非中文目标语言生成严格逐行中文审核映射；中文稿直接复用，不二次创作。
+5. 调用 `content_manuscript_finalize` 冻结 Manuscript Package v1。工具同时生成 `07_正式稿_目标语言.txt` 和 `08_正式稿_中文版.txt`；中文版仅供用户审核，不进入配音、字幕或分镜。
+6. 调用 `content_review_documents_get`，展示 04–08 文档路径、版本与 SHA-256，再调用 `content_integrity_check`。
+7. 只有质量门通过、文档哈希有效并返回 `SCRIPT_READY` 时，才称为可用于配音、字幕、分镜和工坊的唯一事实源。
 
 用户要求继续完整流程时，将最终 Manuscript Package 交给 `$content-title-description`。
 

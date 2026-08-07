@@ -19,6 +19,7 @@ from .publish_package_v2 import (
     validate_publish_package_v2,
 )
 from .publisher_v2_bridge import PublisherV2Bridge
+from .review_documents import REVIEW_DOCUMENT_SCHEMA_VERSION
 from .security import redact
 from .source_library import SOURCE_LIBRARY_VERSION, SourceLibrary
 from .store import ARCHIVE_FORMAT_VERSION, CHANNEL_SCHEMA_VERSION, SYSTEM_SCHEMA_VERSION, ChannelStore
@@ -142,6 +143,11 @@ class LocalToolService:
             and publisher_v2_path.name.lower() == "publish-package-v2.exe"
         )
         publisher_capabilities = self.publisher.capabilities()
+        configured_workshop_root = (self.config.workshop_isolation_root or (self.config.data_root / "workshop-isolation")).resolve()
+        resolved_data_root = self.config.data_root.resolve()
+        large_assets_under_data_root = (
+            configured_workshop_root == resolved_data_root or resolved_data_root in configured_workshop_root.parents
+        )
         return {
             "service": "ai-video-channel-local-tools",
             "serviceVersion": SERVICE_VERSION,
@@ -178,6 +184,16 @@ class LocalToolService:
                 "videoPerformanceReport": "1.0.0",
                 "channelStrategyReport": "1.0.0",
                 "recommendationCard": "1.0.0",
+                "userReviewDocumentIndex": REVIEW_DOCUMENT_SCHEMA_VERSION,
+            },
+            "storage": {
+                "userDataRoot": str(self.config.data_root),
+                "channelsRoot": str(self.config.data_root / "channels"),
+                "productionRoot": str(self.config.data_root / "production"),
+                "workshopIsolationRoot": str(configured_workshop_root),
+                "backupsRoot": str(self.config.data_root / "backups"),
+                "largeAssetsStoredUnderUserDataRoot": large_assets_under_data_root,
+                "programUpdatesPreserveUserDataRoot": True,
             },
             "capabilities": {
                 "publisherChannelList": publisher_capabilities.get("available", False),
@@ -203,6 +219,7 @@ class LocalToolService:
                 "originalImitationWriting": True,
                 "canonicalContentAnalysis": True,
                 "contentPackageHandoffCheck": True,
+                "userReadableReviewDocuments": True,
                 "productionPackage": True,
                 "productionTask": True,
                 "productionResultPackage": True,
@@ -616,6 +633,8 @@ class LocalToolService:
                 deconstruction_id=args.get("deconstructionId"),
                 quality_gate=args.get("qualityGate"),
                 comparison=args.get("comparison"),
+                deconstruction_report=args.get("deconstructionReportMarkdown"),
+                transfer_directions=args.get("transferDirectionsMarkdown"),
             )
         elif name == "content_deconstruction_get":
             result = self.content_deconstruction.get(
@@ -731,6 +750,20 @@ class LocalToolService:
                 selection_reasons=args.get("selectionReasons"),
                 confirmation=args.get("confirmation"),
             )
+        elif name == "content_review_document_save":
+            result = self.content.save_review_document(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                project_id=args.get("projectId"),
+                document_type=args.get("documentType"),
+                content=args.get("content"),
+            )
+        elif name == "content_review_documents_get":
+            result = self.content.get_review_documents(
+                channel_profile_id=args.get("channelProfileId"),
+                project_id=args.get("projectId"),
+            )
         elif name == "content_manuscript_finalize":
             result = self.content.finalize_manuscript(
                 task_id=args.get("taskId"),
@@ -753,13 +786,17 @@ class LocalToolService:
                 project_id=args.get("projectId"),
                 title=args.get("title"),
                 title_chinese=args.get("titleChinese"),
+                title_candidates=args.get("titleCandidates"),
                 description_body=args.get("descriptionBody"),
+                description_chinese=args.get("descriptionChinese"),
                 hashtags=args.get("hashtags"),
+                hashtag_translations=args.get("hashtagTranslations"),
                 thumbnail_provider=args.get("thumbnailProvider"),
                 thumbnail_strategy=args.get("thumbnailStrategy"),
                 thumbnail_candidates=args.get("thumbnailCandidates"),
                 selected_thumbnail_id=args.get("selectedThumbnailId"),
                 thumbnail=args.get("thumbnail"),
+                thumbnail_text_chinese=args.get("thumbnailTextChinese"),
                 ctr_review=args.get("ctrReview"),
                 confirmation=args.get("confirmation"),
             )
@@ -1212,8 +1249,10 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "deconstructionId": {"type": "string"},
                 "qualityGate": {"type": "object"},
                 "comparison": {"type": "object"},
+                "deconstructionReportMarkdown": {"type": "string", "minLength": 200},
+                "transferDirectionsMarkdown": {"type": "string", "minLength": 120},
             },
-            ["taskId", "channelProfileId", "bindingProof", "deconstructionId", "qualityGate"],
+            ["taskId", "channelProfileId", "bindingProof", "deconstructionId", "qualityGate", "deconstructionReportMarkdown", "transferDirectionsMarkdown"],
         ),
         (
             "video_deconstruction_get",
@@ -1413,6 +1452,26 @@ def tool_definitions() -> list[dict[str, Any]]:
             ["taskId", "channelProfileId", "bindingProof", "projectId", "ranking", "selectedCandidateId", "selectionReasons", "confirmation"],
         ),
         (
+            "content_review_document_save",
+            "把完整仿写初稿、编辑审核报告或修改前后对照立即保存为用户可直接查看的版本化文档。",
+            {
+                **binding_properties,
+                "projectId": {"type": "string"},
+                "documentType": {
+                    "type": "string",
+                    "enum": ["rewrite-draft-target", "editorial-review", "revision-log"],
+                },
+                "content": {"type": "string", "minLength": 40},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "projectId", "documentType", "content"],
+        ),
+        (
+            "content_review_documents_get",
+            "只读列出项目的用户审核文档、当前版本、路径和 SHA-256，不改变项目进度。",
+            {"channelProfileId": {"type": "string"}, "projectId": {"type": "string"}},
+            ["channelProfileId", "projectId"],
+        ),
+        (
             "content_manuscript_finalize",
             "校验目标语言原生母稿、逐行中文审核映射、角色音色和合并质量门后冻结 Manuscript Package v1。",
             {**binding_properties, "projectId": {"type": "string"}, "storyBible": {"type": "object"}, "characters": {"type": "array"}, "targetScript": {"type": "array"}, "chineseAuditScript": {"type": ["array", "null"]}, "qualityGate": {"type": "object"}, "confirmation": {"type": "object"}, "authoringMode": {"type": "string"}},
@@ -1421,8 +1480,8 @@ def tool_definitions() -> list[dict[str, Any]]:
         (
             "content_publishing_finalize",
             "只读取确认母稿，校验唯一标题、简介、8–12 个 Hashtags、封面与 CTR 联评后冻结 Publishing Asset Package v1。",
-            {**binding_properties, "projectId": {"type": "string"}, "title": {"type": "string"}, "titleChinese": {"type": "string"}, "descriptionBody": {"type": "string"}, "hashtags": {"type": "array"}, "thumbnailProvider": {"type": "object"}, "thumbnailStrategy": {"type": "object"}, "thumbnailCandidates": {"type": "array", "minItems": 5, "maxItems": 5}, "selectedThumbnailId": {"type": "string"}, "thumbnail": {"type": "object"}, "ctrReview": {"type": "object"}, "confirmation": {"type": "object"}},
-            ["taskId", "channelProfileId", "bindingProof", "projectId", "title", "titleChinese", "descriptionBody", "hashtags", "thumbnailProvider", "thumbnailStrategy", "thumbnailCandidates", "selectedThumbnailId", "thumbnail", "ctrReview", "confirmation"],
+            {**binding_properties, "projectId": {"type": "string"}, "title": {"type": "string"}, "titleChinese": {"type": "string"}, "titleCandidates": {"type": "array", "minItems": 6, "maxItems": 6}, "descriptionBody": {"type": "string"}, "descriptionChinese": {"type": "string"}, "hashtags": {"type": "array"}, "hashtagTranslations": {"type": "array"}, "thumbnailProvider": {"type": "object"}, "thumbnailStrategy": {"type": "object"}, "thumbnailCandidates": {"type": "array", "minItems": 5, "maxItems": 5}, "selectedThumbnailId": {"type": "string"}, "thumbnail": {"type": "object"}, "thumbnailTextChinese": {"type": "string"}, "ctrReview": {"type": "object"}, "confirmation": {"type": "object"}},
+            ["taskId", "channelProfileId", "bindingProof", "projectId", "title", "titleChinese", "titleCandidates", "descriptionBody", "descriptionChinese", "hashtags", "hashtagTranslations", "thumbnailProvider", "thumbnailStrategy", "thumbnailCandidates", "selectedThumbnailId", "thumbnail", "thumbnailTextChinese", "ctrReview", "confirmation"],
         ),
         (
             "content_project_get",

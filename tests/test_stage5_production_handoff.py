@@ -131,6 +131,13 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         self.assertEqual("2.1", manifest["schemaVersion"])
         self.assertEqual(9, len(manifest["files"]))
         self.assertFalse(any("chinese" in item["path"] for item in manifest["files"]))
+        review_root = Path(context.package["userReviewDocuments"]["directory"])
+        production_overview = review_root / "11_完整生产资料总览.md"
+        self.assertTrue(production_overview.is_file())
+        overview_text = production_overview.read_text(encoding="utf-8")
+        self.assertIn("script_lines.json", overview_text)
+        self.assertIn("角色形象提示词", overview_text)
+        self.assertIn(manifest["packageHash"], overview_text)
         manuscript_path, _ = self._upstream_paths(context)
         manuscript = json.loads(manuscript_path.read_text(encoding="utf-8"))
         package_lines = json.loads((package_root / "script_lines.json").read_text(encoding="utf-8"))["lines"]

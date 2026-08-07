@@ -370,7 +370,7 @@ class Stage2ToolTestCase(unittest.TestCase):
         )
         other_root = self.root / "other-data"
         other = LocalToolService(ServiceConfig(data_root=other_root), publisher_provider=StaticPublisherProvider())
-        other.store.imports_root.mkdir(parents=True)
+        other.store.imports_root.mkdir(parents=True, exist_ok=True)
         import_path = other.store.imports_root / "fixture.avchannel"
         shutil.copy2(exported["archivePath"], import_path)
         imported = other.call(

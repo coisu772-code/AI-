@@ -53,6 +53,8 @@ EXPECTED_CONTENT_TOOLS = {
     "content_project_start",
     "content_topic_checkpoint",
     "content_topic_finalize",
+    "content_review_document_save",
+    "content_review_documents_get",
     "content_manuscript_finalize",
     "content_publishing_finalize",
     "content_project_get",
@@ -280,9 +282,10 @@ def validate_plugin() -> list[str]:
         "content_project_start",
         "content_topic_checkpoint",
         "content_topic_finalize",
+        "content_review_document_save",
         "content_integrity_check",
         "$content-review-edit",
-        "rewrite-draft-vNNN",
+        "04_仿写初稿_目标语言.txt",
     ):
         if marker not in rewrite_text:
             errors.append(f"content-rewrite is missing required marker: {marker}")
@@ -293,6 +296,11 @@ def validate_plugin() -> list[str]:
         "唯一事实源",
         "lineId",
         "content_manuscript_finalize",
+        "content_review_documents_get",
+        "05_编辑审核报告.md",
+        "06_修改记录与前后对照.md",
+        "07_正式稿_目标语言.txt",
+        "08_正式稿_中文版.txt",
         "SCRIPT_READY",
         "$content-title-description",
         "P0",
@@ -313,6 +321,8 @@ def validate_plugin() -> list[str]:
         "thumbnail-asset-v1",
         "SCRIPT_READY",
         "8–12",
+        "中文翻译",
+        "中文含义",
         "imagegen",
         "view_image",
         "16:9",
@@ -385,6 +395,8 @@ def validate_plugin() -> list[str]:
         "16:9",
         "SHA-256",
         "content_publishing_finalize",
+        "09_标题简介标签_双语审核.md",
+        "10_封面候选与选择结果.md",
         "content_handoff_check",
         "不在本 Skill 启动工坊",
     ):
@@ -396,6 +408,7 @@ def validate_plugin() -> list[str]:
         "Production Task v1",
         "P0–P11",
         "production_package_assemble",
+        "11_完整生产资料总览.md",
         "production_task_start",
         "production_task_get",
         "production_task_run",
@@ -434,8 +447,8 @@ def validate_plugin() -> list[str]:
     ):
         if marker not in data_text:
             errors.append(f"data-center is missing required marker: {marker}")
-    if len(EXPECTED_CONTENT_TOOLS | EXPECTED_PRODUCTION_TOOLS | EXPECTED_PUBLISH_TOOLS | EXPECTED_DATA_TOOLS) != 32:
-        errors.append("health tool subset must contain exactly 32 tools")
+    if len(EXPECTED_CONTENT_TOOLS | EXPECTED_PRODUCTION_TOOLS | EXPECTED_PUBLISH_TOOLS | EXPECTED_DATA_TOOLS) != 34:
+        errors.append("health tool subset must contain exactly 34 tools")
     service_text = (PLUGIN_ROOT / "mcp" / "aivcp_tools" / "service.py").read_text(encoding="utf-8")
     missing_tools = sorted(
         tool

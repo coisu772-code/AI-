@@ -580,9 +580,15 @@ class VideoDeconstructionTests(unittest.TestCase):
                 "bindingProof": self.proof,
                 "deconstructionId": "content-text-single-001",
                 "qualityGate": final_quality_gate(),
+                "deconstructionReportMarkdown": "# 完整拆解报告\n\n" + ("本报告逐段记录素材事实、全局结构、人物功能、因果推进、情绪变化、钩子、节奏、表达方式、优缺点与商业吸引机制。" * 8),
+                "transferDirectionsMarkdown": "# 迁移方向选择\n\n" + "\n".join(f"## 方向 {index}\n重建人物、关系、世界参数、事件因果、高潮与结局，保留经证据支持的叙事功能。" for index in range(1, 7)),
             },
         )
         self.assertEqual("1/1 succeeded", finalized["completionCard"]["contentDeconstruction"])
+        deconstruction_review_root = Path(finalized["outputs"]["userReviewDocuments"]["directory"])
+        self.assertTrue((deconstruction_review_root / "01_原始素材说明.md").is_file())
+        self.assertTrue((deconstruction_review_root / "02_完整拆解报告.md").is_file())
+        self.assertTrue((deconstruction_review_root / "03_迁移方向选择.md").is_file())
         package = self.service.content_deconstruction.analysis_package(
             channel_profile_id=self.channel_id,
             deconstruction_id="content-text-single-001",
@@ -613,6 +619,10 @@ class VideoDeconstructionTests(unittest.TestCase):
         )
         self.assertEqual("direct-rewrite", project["state"]["sourceMode"])
         self.assertEqual("content-deconstruction", project["state"]["analysisLocks"][0]["analysisKind"])
+        project_review_root = Path(project["state"]["userReviewDocuments"]["directory"])
+        self.assertTrue((project_review_root / "01_原始素材说明.md").is_file())
+        self.assertTrue((project_review_root / "02_完整拆解报告.md").is_file())
+        self.assertTrue((project_review_root / "03_迁移方向选择.md").is_file())
         ctx = PipelineContext(
             self.service,
             self.root,
@@ -668,6 +678,10 @@ class VideoDeconstructionTests(unittest.TestCase):
         self.assertEqual(source_id, topic["package"]["candidates"][0]["sourceTransformationMap"][0]["sourcePackageId"])
         manuscript = finalize_manuscript(ctx)
         self.assertEqual("SCRIPT_READY", manuscript["package"]["status"])
+        manuscript_documents = {item["documentId"] for item in manuscript["userReviewDocuments"]["documents"]}
+        self.assertTrue(
+            {"source-summary", "deconstruction-report", "transfer-directions", "rewrite-draft-target", "editorial-review", "revision-log", "final-script-target", "final-script-zh"}.issubset(manuscript_documents)
+        )
 
         second_source_id = self.ids["decompose01"]
         synthesis_deconstruction_id = "content-synthesis-compare-001"
@@ -725,6 +739,8 @@ class VideoDeconstructionTests(unittest.TestCase):
                     "segmentSplicingUsed": False,
                 },
                 "qualityGate": final_quality_gate(),
+                "deconstructionReportMarkdown": "# 完整拆解报告\n\n" + ("本报告分别拆解两个来源，再比较结构、人物功能、因果、节奏、回报、表达和不可复制边界。" * 10),
+                "transferDirectionsMarkdown": "# 迁移方向选择\n\n" + "\n".join(f"## 方向 {index}\n以统一主线重组多来源功能，并重建人物关系、具体事件、高潮行动和完整结局。" for index in range(1, 7)),
             },
         )
         synthesis_project_id = "synthesis-rewrite-from-library"

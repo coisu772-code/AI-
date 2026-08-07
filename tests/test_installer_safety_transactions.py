@@ -17,6 +17,7 @@ COMMON = ROOT / "installer/Common.ps1"
 ROLLBACK = ROOT / "installer/Rollback-AIVideoChannelProduction.ps1"
 RESTORE = ROOT / "installer/Restore-AIVideoChannelProductionData.ps1"
 HEALTH = ROOT / "installer/Test-AIVideoChannelProductionHealth.ps1"
+START_INSTALLER = ROOT / "installer/Start-AIVideoChannelProductionInstall.ps1"
 PLUGIN = ROOT / "plugins/ai-video-channel-production"
 POWERSHELL = shutil.which("powershell") or "powershell"
 
@@ -30,6 +31,59 @@ def write_json(path: Path, value: object) -> bytes:
 
 @unittest.skipUnless(os.name == "nt" and shutil.which("powershell"), "Windows PowerShell integration requires Windows")
 class InstallerSafetyTransactionTests(unittest.TestCase):
+    def test_fresh_noninteractive_install_requires_explicit_data_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="aivcp-data-root-required-") as temporary:
+            completed = subprocess.run(
+                [
+                    POWERSHELL,
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(START_INSTALLER),
+                    "-NonInteractive",
+                    "-InstallRoot",
+                    str(Path(temporary) / "Program"),
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=15,
+            )
+            self.assertNotEqual(0, completed.returncode)
+            self.assertIn("requires -DataRoot", completed.stderr)
+
+    def test_existing_install_rejects_silent_data_root_rebind(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="aivcp-data-root-rebind-") as temporary:
+            base = Path(temporary)
+            install = base / "Program"
+            original_data = base / "Original Data"
+            requested_data = base / "Other Data"
+            write_json(install / "installation.json", {"userDataRoot": str(original_data)})
+            completed = subprocess.run(
+                [
+                    POWERSHELL,
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(START_INSTALLER),
+                    "-NonInteractive",
+                    "-InstallRoot",
+                    str(install),
+                    "-DataRoot",
+                    str(requested_data),
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=15,
+            )
+            self.assertNotEqual(0, completed.returncode)
+            self.assertIn("instead of silently rebinding", completed.stderr)
+
     def test_global_operation_mutex_rejects_concurrent_mutator(self) -> None:
         with tempfile.TemporaryDirectory(prefix="aivcp-lock-") as temporary:
             base = Path(temporary)

@@ -36,6 +36,8 @@ $requiredContentTools = @(
     "content_project_start",
     "content_topic_checkpoint",
     "content_topic_finalize",
+    "content_review_document_save",
+    "content_review_documents_get",
     "content_manuscript_finalize",
     "content_publishing_finalize",
     "content_project_get",

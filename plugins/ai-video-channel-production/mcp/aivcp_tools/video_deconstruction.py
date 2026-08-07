@@ -23,6 +23,7 @@ from .content_analysis import (
 )
 from .contracts import canonical_hash, resolve_contracts_root, utc_now, with_hash
 from .errors import ToolError
+from .review_documents import review_documents_view, save_review_document, validate_review_documents
 
 
 VIDEO_DECONSTRUCTION_VERSION = "1.0.0"
@@ -46,6 +47,34 @@ VIDEO_DECONSTRUCTION_DIMENSIONS = {
     "credibilityAndConstraints",
     "originalityBoundaries",
 }
+
+
+def _source_summary_markdown(plan: dict[str, Any]) -> str:
+    lines = [
+        "# 原始素材说明",
+        "",
+        f"- 拆解编号：`{plan['deconstructionId']}`",
+        f"- 拆解模式：`{plan['mode']}`",
+        f"- 素材数量：{len(plan['videos'])}",
+        "- 说明：本文件只记录已冻结来源身份和读取边界，不根据标题或封面补写未知正文。",
+        "",
+        "## 素材清单",
+        "",
+    ]
+    for index, item in enumerate(plan["videos"], 1):
+        lines.extend(
+            [
+                f"### {index}. {item.get('title') or item['sourcePackageId']}",
+                "",
+                f"- Source Package：`{item['sourcePackageId']}`",
+                f"- 角色：{item['role']}",
+                f"- 语言：{item.get('language') or '未知'}",
+                f"- 公开地址：{item.get('canonicalUrl') or '无／本地素材'}",
+                f"- 内容哈希：`{item['sourcePackage']['targetHash']}`",
+                "",
+            ]
+        )
+    return "\n".join(lines)
 CHECKPOINT_QUALITY_KEYS = {
     "fiveBucketsSeparated",
     "evidenceTraceable",
@@ -853,6 +882,8 @@ class VideoCopyDeconstruction:
         deconstruction_id: Any,
         quality_gate: Any,
         comparison: Any = None,
+        deconstruction_report: Any = None,
+        transfer_directions: Any = None,
     ) -> dict[str, Any]:
         self.store.assert_binding(
             task_id=task_id,
@@ -938,6 +969,39 @@ class VideoCopyDeconstruction:
         package_path = root / "analysis-package-v1.json"
         self._validate_contract_schema(package, "analysis-package-v1.schema.json")
         _atomic_json(package_path, package)
+        user_review_documents = None
+        if generic:
+            if not isinstance(deconstruction_report, str) or len(deconstruction_report.strip()) < 200:
+                raise ToolError("DECONSTRUCTION_REVIEW_DOCUMENT_REQUIRED", "必须保存可直接查看的完整拆解报告，不能只冻结内部 JSON。")
+            if not isinstance(transfer_directions, str) or len(transfer_directions.strip()) < 120:
+                raise ToolError("TRANSFER_DIRECTIONS_DOCUMENT_REQUIRED", "必须保存可直接查看的迁移方向文档。")
+            try:
+                save_review_document(
+                    root,
+                    document_id="source-summary",
+                    content=_source_summary_markdown(plan),
+                    language="zh-CN",
+                    updated_at=created,
+                )
+                save_review_document(
+                    root,
+                    document_id="deconstruction-report",
+                    content=deconstruction_report,
+                    language="zh-CN",
+                    updated_at=created,
+                    minimum_characters=200,
+                )
+                save_review_document(
+                    root,
+                    document_id="transfer-directions",
+                    content=transfer_directions,
+                    language="zh-CN",
+                    updated_at=created,
+                    minimum_characters=120,
+                )
+            except ValueError as exc:
+                raise ToolError("CONTENT_REVIEW_DOCUMENT_INVALID", str(exc)) from exc
+            user_review_documents = review_documents_view(root)
         outputs = {
             "analysisPackage": {
                 **_contract_ref(package),
@@ -953,6 +1017,8 @@ class VideoCopyDeconstruction:
             ],
             "downstreamConsumers": ["topic-center", "manuscript-center"],
         }
+        if user_review_documents is not None:
+            outputs["userReviewDocuments"] = user_review_documents
         _atomic_json(root / "outputs.json", outputs)
         state["outputs"] = outputs
         state["state"] = "FROZEN"
@@ -1034,6 +1100,15 @@ class VideoCopyDeconstruction:
                     errors.append({"distillationId": plan["distillationId"], "issue": "account-requirement-version"})
             except (AttributeError, ToolError) as exc:
                 errors.append({"distillationId": plan.get("distillationId"), "issue": getattr(exc, "code", "provider-unavailable")})
+        if self.analysis_kind == "content-deconstruction" and state.get("state") == "FROZEN":
+            review_check = validate_review_documents(
+                root,
+                ("source-summary", "deconstruction-report", "transfer-directions"),
+            )
+            errors.extend(
+                {"documentId": item.get("documentId"), "issue": f"review-document-{item.get('issue')}"}
+                for item in review_check["errors"]
+            )
         return {
             "status": "PASS" if not errors else "FAIL",
             "deconstructionId": deconstruction_id,

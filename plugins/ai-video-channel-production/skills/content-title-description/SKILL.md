@@ -5,7 +5,7 @@ description: 根据已通过编辑审核并冻结的最终正文，使用同一�
 
 # 标题、简介与封面
 
-这是四阶段内容主链的第四步。执行前必须完整阅读 [references/prompt-v2.1.txt](references/prompt-v2.1.txt) 和 [references/title-description-contract.md](references/title-description-contract.md)。原提示词中的“导言”是开场钩子，不等于 YouTube 简介；本 Skill 使用其事实提取、标题策略、封面短文案和导言规则，再按补充契约生成简介与正式封面。
+这是四阶段内容主链的第四步。执行前必须完整阅读 [references/prompt-v2.1.txt](references/prompt-v2.1.txt)、[references/title-description-contract.md](references/title-description-contract.md) 和 [用户审核文档规范](../channel-production/references/user-review-documents.md)。原提示词中的“导言”是开场钩子，不等于 YouTube 简介；本 Skill 使用其事实提取、标题策略、封面短文案和导言规则，再按补充契约生成简介与正式封面。
 
 ## 进入
 
@@ -15,7 +15,7 @@ description: 根据已通过编辑审核并冻结的最终正文，使用同一�
 
 ## 标题
 
-- 默认生成六个 YouTube 标题候选；用户要求书名时另生成作品书名，不能混为同一用途。
+- 默认生成六个目标语言 YouTube 标题候选；六个候选逐项提供中文翻译、正文事实依据、承诺兑现和观众适配评分。用户要求书名时另生成作品书名，不能混为同一用途。
 - 自动选择最合适的两至三种策略，控制剧透级别，按事实准确度、卖点、目标市场自然度、新颖度、点击潜力和候选差异评分。
 - 低于 75 分、事实越界、翻译腔或只换词的候选必须重做。
 - 审核模式让用户确认唯一标题；已有明确自动模式授权时，选最高分合格项并记录选择依据。
@@ -25,7 +25,8 @@ description: 根据已通过编辑审核并冻结的最终正文，使用同一�
 - 用标题承诺和导言钩子规则写前两行，但不把导言原样当成简介。
 - 接着说明核心冲突、观看回报和内容边界，避免把完整剧情大纲堆进简介。
 - 使用自然目标语言；不得编造正文不存在的身份、关系、系统、数字、背叛、死亡、结果或热点。
-- 默认附 8–12 个与正文事实一致的 Hashtags；用户明确不要时可省略。
+- 默认附 8–12 个与正文事实一致的目标语言 Hashtags，并逐项给出中文含义；用户明确不要时可省略。
+- 目标语言简介必须同时生成完整中文审核翻译；中文只用于查看，不写入 YouTube 正式字段。
 
 ## 正式封面
 
@@ -35,13 +36,14 @@ description: 根据已通过编辑审核并冻结的最终正文，使用同一�
 4. 逐张使用 `view_image` 检查人物、事实、构图、文字准确性、移动端可读性和题材匹配。错字、乱码、漏字、多字或画面失败时，只重做对应候选。
 5. 对五张合格候选执行 CTR 视觉质量评分，自动选择最高分候选；审核模式展示五张和推荐项，用户确认后锁定唯一正式封面。
 6. 保存真实图片文件、宽高、大小和 SHA-256。不得用提示词文本、重复封面或占位图冒充正式封面。
+7. 正式封面的目标语言短文案同时保存中文含义，供用户核对文字是否准确。
 
 ## 保存与交接
 
 按补充契约保存并绑定同一 Manuscript Package：
 
-- `title-asset-v1`：候选、评分、事实依据、唯一确认标题和 SHA-256；
-- `description-asset-v1`：简介正文、Hashtags、事实依据、目标语言和 SHA-256。
+- `title-asset-v1`：六个候选、中文翻译、评分、事实依据、唯一确认标题和 SHA-256；
+- `description-asset-v1`：目标语言简介正文、完整中文翻译、8–12 个 Hashtags 及逐项中文含义、事实依据、目标语言和 SHA-256。
 - `thumbnail-asset-v1`：五个候选、质量检查、唯一确认图片、16:9 尺寸和 SHA-256。
 
 三个资产都由本 Skill `content-title-description` 提供。`content-title`、`content-description` 与 `content-thumbnail` 只是稳定资产槽位，不是另外三个 Skill。全部通过后立即交给 `$publishing-assets` 汇总，不再等待“以后开发封面”。

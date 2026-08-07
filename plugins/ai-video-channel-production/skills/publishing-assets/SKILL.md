@@ -17,8 +17,8 @@ description: 在标题、简介和封面资产都由 content-title-description �
 
 ## 汇总质量门
 
-- 标题只能有一个正式选择，事实承诺必须被正式文本兑现；
-- 简介和 Hashtags 必须来自 `description-asset-v1`，不得在本 Skill 补写；
+- 标题只能有一个正式选择；六个候选均须有中文翻译，且事实承诺必须被正式文本兑现；
+- 简介和 Hashtags 必须来自 `description-asset-v1`，目标语言简介须有完整中文翻译，每个 Hashtag 须有中文含义；不得在本 Skill 补写；
 - 封面必须来自 `thumbnail-asset-v1`，为真实可读的 16:9 文件并带大小与 SHA-256；
 - 任一资产未确认、版本错配、坏哈希、事实越界或仍是提示词／占位图时停止；
 - 参考频道身份不得冒充目标发布频道，不读取 Token、OAuth 或浏览器登录态。
@@ -27,9 +27,11 @@ description: 在标题、简介和封面资产都由 content-title-description �
 
 1. 展示唯一标题、简介与 Hashtags、唯一封面、资产包版本、母稿版本和目标频道引用。
 2. 审核模式等待联合确认；已有明确自动确认授权时仍须先通过全部硬门。
-3. 调用 `content_publishing_finalize`，只提交已确认结果和来源锁，不新增或改写内容。
-4. 调用 `content_integrity_check`；只有包完整时才称为 `PUBLISHING_ASSETS_READY`。
-5. 调用只读 `content_handoff_check` 检查是否具备制作条件；不在本 Skill 启动工坊。
+3. 调用 `content_publishing_finalize`，提交六个标题候选与中文翻译、唯一标题、简介双语对照、Hashtags 中文对照、五张封面结果及正式封面短文案中文含义；不新增或改写内容。
+4. 工具生成 `09_标题简介标签_双语审核.md` 和 `10_封面候选与选择结果.md`。调用 `content_review_documents_get`，向用户显示这两份文档以及 07–08 正式稿的路径、版本和 SHA-256。
+5. `publishing.json` 和正式发布包仍只包含目标语言发布字段，中文审核译文不得进入 YouTube 上传字段。
+6. 调用 `content_integrity_check`；只有包和审核文档完整时才称为 `PUBLISHING_ASSETS_READY`。
+7. 调用只读 `content_handoff_check` 检查是否具备制作条件；不在本 Skill 启动工坊。
 
 ## 边界
 

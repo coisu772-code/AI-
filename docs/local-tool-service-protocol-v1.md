@@ -147,13 +147,15 @@ MCP 使用逐行 JSON-RPC 2.0，支持 `initialize`、`ping`、`tools/list` 和 
 - `content_project_start`
 - `content_topic_checkpoint`
 - `content_topic_finalize`
+- `content_review_document_save`
+- `content_review_documents_get`
 - `content_manuscript_finalize`
 - `content_publishing_finalize`
 - `content_project_get`
 - `content_integrity_check`
 - `content_handoff_check`
 
-阶段4工具只生成和校验 Topic、Manuscript 与 Publishing Asset 三类版本化内容包。`content_handoff_check` 是只读资格检查；它不会调用制作中心、工坊、发布中心、OAuth、上传或 Analytics。趋势、单作品、多作品、拆书和仿写扩展未安装时返回 `CONTENT_EXTENSION_UNAVAILABLE`，不根据标题或元数据伪造分析。
+阶段4工具生成和校验 Topic、Manuscript 与 Publishing Asset 三类版本化机器契约，并在用户数据根下同步保存 `01`–`10` 用户可读审核文档；制作包组装后增加 `11_完整生产资料总览.md`。审核文档有稳定当前文件、历史版本、语言、大小和 SHA-256，中文版不得进入配音、字幕、分镜或 YouTube 正式字段。`content_handoff_check` 是只读资格检查；它不会调用制作中心、工坊、发布中心、OAuth、上传或 Analytics。趋势、单作品、多作品、拆书和仿写扩展未安装时返回 `CONTENT_EXTENSION_UNAVAILABLE`，不根据标题或元数据伪造分析。
 
 阶段5在同一 `1.0.0` 本地工具协议中追加 11 个工具：
 

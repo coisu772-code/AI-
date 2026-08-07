@@ -25,6 +25,7 @@ BOOTSTRAP_FILES = (
     "installer/Common.ps1",
     "installer/CodexCli.ps1",
     "installer/Install-AIVideoChannelProduction.ps1",
+    "installer/Start-AIVideoChannelProductionInstall.ps1",
     "installer/install.cmd",
 )
 WORKSHOP_NAME = "Z-Manga-Workshop-2.1.0-stage5-for-AIVCP-0.8.0-rc.1-windows-x64-portable.zip"

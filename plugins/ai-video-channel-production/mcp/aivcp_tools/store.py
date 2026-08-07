@@ -23,6 +23,15 @@ ARCHIVE_FORMAT_VERSION = "1.0.0"
 MAX_ARCHIVE_FILES = 200_000
 MAX_ARCHIVE_UNCOMPRESSED_BYTES = 512 * 1024 * 1024 * 1024
 MAX_ARCHIVE_MANIFEST_BYTES = 10 * 1024 * 1024
+USER_DATA_DIRECTORIES = (
+    "channels",
+    "backups",
+    "exports",
+    "imports",
+    "production",
+    "analytics",
+    "workshop-isolation",
+)
 CHANNEL_DIRECTORIES = (
     "presets",
     "sources/reference-channels",
@@ -280,7 +289,8 @@ class ChannelStore:
 
     def _initialize_system(self) -> None:
         self.data_root.mkdir(parents=True, exist_ok=True)
-        self.channels_root.mkdir(exist_ok=True)
+        for relative in USER_DATA_DIRECTORIES:
+            (self.data_root / relative).mkdir(exist_ok=True)
         is_new = not self.system_db.exists()
         backup_path: Path | None = None
         if not is_new:

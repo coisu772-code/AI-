@@ -5,6 +5,8 @@ description: 作为 AI 视频频道生产系统唯一默认总入口，识别频
 
 # AI 视频频道生产系统总入口
 
+进入内容主链前读取 [用户审核文档规范](references/user-review-documents.md)。用户可读审核文档、机器生产包和 YouTube 发布包必须分层保存，不能相互替代。
+
 ## 默认内容流程
 
 `content-source` 是视频链接、上传文本、资料库和按需联网资料的输入适配器，不计入四个创作 Skill。正式内容主链为：
@@ -41,7 +43,8 @@ description: 作为 AI 视频频道生产系统唯一默认总入口，识别频
 2. 一个任务只绑定一个 `channelProfileId`，不得把参考视频频道当成发布频道。
 3. 只分短篇和长篇；长篇按检查点恢复，只补缺失章节，不用摘要代替正文。
 4. 正式内容主链使用 Source Package → Content Deconstruction Package → Topic Package／Rewrite Draft → Manuscript Package → Title/Description/Thumbnail Assets。
-5. 所有成功状态以持久化文件、Schema、确认记录和 SHA-256 为准。
+5. 每个创作阶段结束即生成对应的 `01`–`11` 用户审核文档，向用户显示可点击路径；不得等整个流程结束才保存。
+6. 所有成功状态以持久化文件、Schema、确认记录和 SHA-256 为准。
 
 ## 安全边界
 

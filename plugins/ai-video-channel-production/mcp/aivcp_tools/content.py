@@ -15,6 +15,14 @@ from referencing import Registry, Resource
 
 from .contracts import canonical_hash, resolve_contracts_root, utc_now, with_hash
 from .errors import ToolError
+from .review_documents import (
+    DOCUMENT_SPECS,
+    REVIEW_DOCUMENT_SCHEMA_VERSION,
+    copy_review_documents,
+    review_documents_view,
+    save_review_document,
+    validate_review_documents,
+)
 
 
 CONTENT_LOOP_VERSION = "1.0.0"
@@ -210,6 +218,99 @@ def _png_dimensions(path: Path) -> tuple[int, int]:
     return struct.unpack(">II", header[16:24])
 
 
+def _markdown_cell(value: Any) -> str:
+    return str(value).replace("|", "\\|").replace("\r", " ").replace("\n", "<br>")
+
+
+def _packaging_review_markdown(
+    *,
+    title_candidates: list[dict[str, Any]],
+    selected_title_id: str,
+    description_body: str,
+    description_chinese: str,
+    hashtag_translations: list[dict[str, str]],
+) -> str:
+    lines = [
+        "# 标题、简介与 Hashtags 双语审核",
+        "",
+        "## 标题候选",
+        "",
+        "| 选择 | 目标语言标题 | 中文翻译 | 评分 | 事实依据 | 承诺兑现 | 原句复制 |",
+        "|---|---|---|---:|---|---|---|",
+    ]
+    for item in title_candidates:
+        lines.append(
+            "| {selected} | {target} | {chinese} | {score} | {basis} | {promise} | {copied} |".format(
+                selected="正式采用" if item["titleId"] == selected_title_id else "候选",
+                target=_markdown_cell(item["text"]),
+                chinese=_markdown_cell(item["zhTranslation"]),
+                score=item["audienceFit"],
+                basis=_markdown_cell(item["factBasis"]),
+                promise="通过" if item["promiseFulfilled"] else "失败",
+                copied="否" if not item["sampleWordingCopied"] else "是",
+            )
+        )
+    lines.extend(
+        [
+            "",
+            "## YouTube 简介（目标语言）",
+            "",
+            description_body.rstrip(),
+            "",
+            "## YouTube 简介（中文翻译，仅供审核）",
+            "",
+            description_chinese.rstrip(),
+            "",
+            "## Hashtags 双语对照",
+            "",
+            "| 正式 Hashtag | 中文含义 |",
+            "|---|---|",
+        ]
+    )
+    lines.extend(f"| {_markdown_cell(item['hashtag'])} | {_markdown_cell(item['chinese'])} |" for item in hashtag_translations)
+    lines.extend(["", "> 中文翻译只供用户审核，不进入 YouTube 发布字段。", ""])
+    return "\n".join(lines)
+
+
+def _thumbnail_review_markdown(
+    *,
+    strategy: dict[str, Any],
+    candidates: list[dict[str, Any]],
+    selected_thumbnail_id: str,
+    thumbnail_text_chinese: str,
+    ctr_review: dict[str, Any],
+) -> str:
+    lines = [
+        "# 封面候选与选择结果",
+        "",
+        f"- 目标语言封面短文案：{strategy['targetLanguageText']}",
+        f"- 中文含义：{thumbnail_text_chinese}",
+        f"- 核心主体：{strategy['subject']}",
+        f"- 核心冲突：{strategy['conflict']}",
+        f"- 正式选择：`{selected_thumbnail_id}`",
+        f"- CTR 联评：{ctr_review['status']}／{ctr_review['score']}",
+        f"- 选择结论：{ctr_review['conclusion']}",
+        "",
+        "## 五张候选",
+        "",
+        "| 选择 | 候选 | 差异 | 评分 | 文字 | 事实 | 移动端 |",
+        "|---|---|---|---:|---|---|---|",
+    ]
+    for item in candidates:
+        lines.append(
+            "| {selected} | {candidate} | {difference} | {score} | {text} | {facts} | {mobile} |".format(
+                selected="正式采用" if item["candidateId"] == selected_thumbnail_id else "候选",
+                candidate=_markdown_cell(item["candidateId"]),
+                difference=_markdown_cell(item["visualDifference"]),
+                score=item["score"],
+                text="通过" if item["textAccurate"] else "失败",
+                facts="通过" if item["factsConsistent"] else "失败",
+                mobile="通过" if item["mobileReadable"] else "失败",
+            )
+        )
+    return "\n".join(lines) + "\n"
+
+
 class ContentLoop:
     """Freeze AI-authored content into deterministic, traceable stage-4 packages."""
 
@@ -295,6 +396,13 @@ class ContentLoop:
             "sourceGate": {
                 "accepted": ["CONTENT_READY"],
                 "conditional": "PARTIAL requires an explicit per-source acceptance",
+            },
+            "userReviewDocuments": {
+                "available": True,
+                "schemaVersion": REVIEW_DOCUMENT_SCHEMA_VERSION,
+                "directoryName": "用户审核文档",
+                "documentIds": list(DOCUMENT_SPECS),
+                "productionSeparationEnforced": True,
             },
             "boundaries": {
                 "workshop": False,
@@ -479,6 +587,7 @@ class ContentLoop:
         elif style_locks:
             raise ToolError("WRITING_STYLE_ROUTE_MISMATCH", "Writing Style Contract 只能用于 imitation 路线。")
         analysis_locks: list[dict[str, Any]] = []
+        analysis_review_roots: list[Path] = []
         for requested in analysis_packages or []:
             if not isinstance(requested, dict):
                 raise ToolError("ANALYSIS_REFERENCE_INVALID", "分析引用必须是对象。")
@@ -501,6 +610,19 @@ class ContentLoop:
                     channel_profile_id=channel_profile_id,
                     deconstruction_id=identifier,
                 )
+                if provider is self.content_analyses:
+                    detail = provider.get(
+                        channel_profile_id=channel_profile_id,
+                        deconstruction_id=identifier,
+                    )
+                    review = detail.get("outputs", {}).get("userReviewDocuments", {})
+                    context_root = review.get("contextRoot") if isinstance(review, dict) else None
+                    if not isinstance(context_root, str) or not context_root:
+                        raise ToolError(
+                            "CONTENT_REVIEW_DOCUMENTS_REQUIRED",
+                            "拆解包缺少可直接查看的拆解报告和迁移方向文档。",
+                        )
+                    analysis_review_roots.append(Path(context_root))
             else:
                 raise ToolError("ANALYSIS_REFERENCE_INVALID", "分析引用必须包含 distillationId 或 deconstructionId。")
             if contract.get("targetChannelProfileId") != channel_profile_id:
@@ -598,6 +720,19 @@ class ContentLoop:
                 "next": "生成完整候选并逐项写入检查点",
             },
         }
+        if source_mode in {"direct-rewrite", "synthesis-rewrite"}:
+            if len(analysis_review_roots) != 1:
+                raise ToolError("CONTENT_REVIEW_DOCUMENTS_REQUIRED", "仿写项目必须绑定一套拆解审核文档。")
+            try:
+                copy_review_documents(
+                    analysis_review_roots[0],
+                    root,
+                    ("source-summary", "deconstruction-report", "transfer-directions"),
+                    updated_at=created,
+                )
+            except ValueError as exc:
+                raise ToolError("CONTENT_REVIEW_DOCUMENTS_REQUIRED", str(exc)) from exc
+            state["userReviewDocuments"] = review_documents_view(root)
         self._save_state(state)
         return {"state": state, "idempotent": False, "confirmationCard": state["confirmationCard"]}
 
@@ -1105,6 +1240,89 @@ class ContentLoop:
             raise ToolError("SCRIPT_EPISODE_MISSING", f"{field} 没有覆盖全部分集。")
         return normalized
 
+    def save_review_document(
+        self,
+        *,
+        task_id: Any,
+        channel_profile_id: Any,
+        binding_proof: Any,
+        project_id: Any,
+        document_type: Any,
+        content: Any,
+    ) -> dict[str, Any]:
+        self.store.assert_binding(task_id=task_id, channel_profile_id=channel_profile_id, binding_proof=binding_proof)
+        project_id = _safe_identifier(project_id, "projectId")
+        state = self._load_state(channel_profile_id, project_id)
+        allowed = {
+            "rewrite-draft-target": ("target", 40),
+            "editorial-review": ("zh-CN", 80),
+            "revision-log": ("zh-CN", 80),
+        }
+        if document_type not in allowed:
+            raise ToolError("CONTENT_REVIEW_DOCUMENT_TYPE_INVALID", "该文档类型不允许由创作阶段直接写入。")
+        if not state["activePackages"].get("topic"):
+            raise ToolError("TOPIC_PACKAGE_REQUIRED", "必须先冻结 Topic Package 才能保存仿写或审核文档。")
+        if state["activePackages"].get("manuscript"):
+            raise ToolError("CONTENT_REVIEW_DOCUMENTS_FROZEN", "正式稿已冻结；不能回写早期初稿或审核文档。")
+        existing_document_ids = {
+            item["documentId"]
+            for item in review_documents_view(self._project_root(channel_profile_id, project_id))["documents"]
+        }
+        if document_type == "rewrite-draft-target" and existing_document_ids.intersection(
+            {"editorial-review", "revision-log"}
+        ):
+            raise ToolError("REWRITE_DRAFT_REVIEW_ALREADY_STARTED", "审核已经开始；不能再替换其来源初稿。")
+        if document_type == "editorial-review" and "revision-log" in existing_document_ids:
+            raise ToolError("EDITORIAL_REVIEW_REVISION_ALREADY_RECORDED", "修改对照已经生成；不能再替换其审核来源。")
+        if document_type in {"editorial-review", "revision-log"}:
+            draft_check = validate_review_documents(
+                self._project_root(channel_profile_id, project_id),
+                ("rewrite-draft-target",),
+            )
+            if draft_check["status"] != "PASS":
+                raise ToolError("REWRITE_DRAFT_DOCUMENT_REQUIRED", "必须先保存完整仿写初稿，再记录审核或修改对照。")
+        if document_type == "revision-log":
+            editorial_check = validate_review_documents(
+                self._project_root(channel_profile_id, project_id),
+                ("editorial-review",),
+            )
+            if editorial_check["status"] != "PASS":
+                raise ToolError("EDITORIAL_REVIEW_DOCUMENT_REQUIRED", "必须先保存完整编辑审核报告，再记录修改前后对照。")
+        language_marker, minimum = allowed[document_type]
+        language = state["targetLanguage"] if language_marker == "target" else language_marker
+        try:
+            document = save_review_document(
+                self._project_root(channel_profile_id, project_id),
+                document_id=document_type,
+                content=content,
+                language=language,
+                updated_at=utc_now(),
+                minimum_characters=minimum,
+            )
+        except ValueError as exc:
+            raise ToolError("CONTENT_REVIEW_DOCUMENT_INVALID", str(exc)) from exc
+        state["userReviewDocuments"] = review_documents_view(self._project_root(channel_profile_id, project_id))
+        if document_type == "rewrite-draft-target":
+            state["state"] = "REWRITE_DRAFT_READY"
+        elif {item["documentId"] for item in state["userReviewDocuments"]["documents"]}.issuperset(
+            {"editorial-review", "revision-log"}
+        ):
+            state["state"] = "EDIT_REVIEW_READY"
+        self._save_state(state)
+        return {
+            "document": document,
+            "userReviewDocuments": state["userReviewDocuments"],
+            "next": "content-review-edit" if document_type == "rewrite-draft-target" else "content_manuscript_finalize",
+        }
+
+    def get_review_documents(self, *, channel_profile_id: Any, project_id: Any) -> dict[str, Any]:
+        project_id = _safe_identifier(project_id, "projectId")
+        self._load_state(channel_profile_id, project_id)
+        return {
+            **review_documents_view(self._project_root(channel_profile_id, project_id)),
+            "progressReadOnly": True,
+        }
+
     def finalize_manuscript(
         self,
         *,
@@ -1127,6 +1345,19 @@ class ContentLoop:
         if not topic_ref:
             raise ToolError("TOPIC_PACKAGE_REQUIRED", "必须先确认并冻结 Topic Package v1。")
         topic = _read_contract(Path(topic_ref["path"]), "topic-package")
+        project_root = self._project_root(channel_profile_id, project_id)
+        required_pre_manuscript_documents = ["rewrite-draft-target", "editorial-review", "revision-log"]
+        if state["sourceMode"] in {"direct-rewrite", "synthesis-rewrite"}:
+            required_pre_manuscript_documents = [
+                "source-summary", "deconstruction-report", "transfer-directions", *required_pre_manuscript_documents
+            ]
+        pre_manuscript_documents = validate_review_documents(project_root, required_pre_manuscript_documents)
+        if pre_manuscript_documents["status"] != "PASS":
+            raise ToolError(
+                "CONTENT_REVIEW_DOCUMENTS_REQUIRED",
+                "拆解、仿写、审核或修改对照文档缺失、损坏，不能冻结正式稿。",
+                details={"errors": pre_manuscript_documents["errors"]},
+            )
         if authoring_mode != "target-language-native":
             raise ToolError("MANUSCRIPT_AUTHORING_MODE_INVALID", "目标语言原生稿必须是唯一生产母稿。")
         if not isinstance(story_bible, dict) or story_bible.get("sourceStoryFactsHash", story_bible.get("lockedStoryFactsHash")) != topic["storyFactsHash"]:
@@ -1352,14 +1583,37 @@ class ContentLoop:
         self._validate_contract_schema(contract, "manuscript-package.schema.json")
         _atomic_json(root / "manifest.json", contract)
         _atomic_json(root / "source-lock.json", {"topicPackage": _contract_ref(topic), "storyFactsHash": topic["storyFactsHash"]})
+        try:
+            save_review_document(
+                project_root,
+                document_id="final-script-target",
+                content=target_txt,
+                language=target_language,
+                updated_at=created,
+            )
+            save_review_document(
+                project_root,
+                document_id="final-script-zh",
+                content=audit_txt,
+                language="zh-CN",
+                updated_at=created,
+            )
+        except ValueError as exc:
+            raise ToolError("CONTENT_REVIEW_DOCUMENT_INVALID", str(exc)) from exc
         previous = state["activePackages"]["manuscript"]
         if previous:
             state["invalidations"].append({"at": created, "reason": "new-manuscript-version", "invalidated": ["publishing"]})
             state["activePackages"]["publishing"] = None
         state["activePackages"]["manuscript"] = {"id": manuscript_id, "version": version, "hash": contract["contentHash"], "path": str(root / "manifest.json")}
+        state["userReviewDocuments"] = review_documents_view(project_root)
         state["state"] = "SCRIPT_READY"
         self._save_state(state)
-        return {"package": contract, "packagePath": str(root), "confirmationCard": {"gate": "G4", "confirmed": True}}
+        return {
+            "package": contract,
+            "packagePath": str(root),
+            "userReviewDocuments": state["userReviewDocuments"],
+            "confirmationCard": {"gate": "G4", "confirmed": True},
+        }
 
     def finalize_publishing(
         self,
@@ -1370,13 +1624,17 @@ class ContentLoop:
         project_id: Any,
         title: Any,
         title_chinese: Any,
+        title_candidates: Any,
         description_body: Any,
+        description_chinese: Any,
         hashtags: Any,
+        hashtag_translations: Any,
         thumbnail_provider: Any,
         thumbnail_strategy: Any,
         thumbnail_candidates: Any,
         selected_thumbnail_id: Any,
         thumbnail: Any,
+        thumbnail_text_chinese: Any,
         ctr_review: Any,
         confirmation: Any,
     ) -> dict[str, Any]:
@@ -1394,14 +1652,59 @@ class ContentLoop:
                 raise ToolError("PUBLISHING_TEXT_INVALID", f"{field} 为空或超过长度限制。")
         if not isinstance(title_chinese, str) or not title_chinese.strip():
             raise ToolError("PUBLISHING_TEXT_INVALID", "标题必须附中文翻译供审核。")
+        title_candidate_fields = {
+            "titleId", "text", "zhTranslation", "audienceFit", "factBasis", "promiseFulfilled", "sampleWordingCopied"
+        }
+        if not isinstance(title_candidates, list) or len(title_candidates) != 6:
+            raise ToolError("TITLE_CANDIDATES_REQUIRED", "必须保存六个目标语言标题候选及其中文翻译。")
+        clean_title_candidates: list[dict[str, Any]] = []
+        title_ids: set[str] = set()
+        for item in title_candidates:
+            if not isinstance(item, dict) or set(item) != title_candidate_fields:
+                raise ToolError("TITLE_CANDIDATES_INVALID", "标题候选字段不完整或包含未知字段。")
+            title_id = _safe_identifier(item["titleId"], "titleId")
+            if title_id in title_ids:
+                raise ToolError("TITLE_CANDIDATES_INVALID", "标题候选 ID 不能重复。")
+            if (
+                not isinstance(item["text"], str) or not item["text"].strip() or len(item["text"]) > 100
+                or not isinstance(item["zhTranslation"], str) or not item["zhTranslation"].strip() or len(item["zhTranslation"]) > 200
+                or not isinstance(item["audienceFit"], (int, float)) or isinstance(item["audienceFit"], bool) or not 0 <= item["audienceFit"] <= 10
+                or not isinstance(item["factBasis"], str) or not item["factBasis"].strip()
+                or item["promiseFulfilled"] is not True or item["sampleWordingCopied"] is not False
+            ):
+                raise ToolError("TITLE_CANDIDATES_INVALID", "标题候选未通过事实、翻译、评分或原创边界检查。")
+            title_ids.add(title_id)
+            clean_title_candidates.append(json.loads(json.dumps(item, ensure_ascii=False)))
+        selected_title = next(
+            (item for item in clean_title_candidates if item["text"] == title and item["zhTranslation"] == title_chinese),
+            None,
+        )
+        if selected_title is None:
+            raise ToolError("TITLE_SELECTION_INVALID", "唯一正式标题及中文翻译必须来自六个已审核候选。")
+        selected_title_id = selected_title["titleId"]
+        if not isinstance(description_chinese, str) or not description_chinese.strip() or len(description_chinese) > 5000:
+            raise ToolError("PUBLISHING_TEXT_INVALID", "YouTube 简介必须附完整中文翻译供审核。")
         if not isinstance(hashtags, list) or not 8 <= len(hashtags) <= 12 or len(set(hashtags)) != len(hashtags):
             raise ToolError("HASHTAG_COUNT_INVALID", "Hashtags 必须是 8–12 个互不重复的目标语言标签。")
         if any(not isinstance(item, str) or not re.fullmatch(r"#[^#\s]{1,99}", item) for item in hashtags):
             raise ToolError("HASHTAG_FORMAT_INVALID", "Hashtag 必须以 # 开头且不包含空白。")
+        if not isinstance(hashtag_translations, list) or len(hashtag_translations) != len(hashtags):
+            raise ToolError("HASHTAG_TRANSLATIONS_REQUIRED", "每个正式 Hashtag 都必须有中文含义供审核。")
+        clean_hashtag_translations: list[dict[str, str]] = []
+        for expected_hashtag, item in zip(hashtags, hashtag_translations, strict=True):
+            if (
+                not isinstance(item, dict) or set(item) != {"hashtag", "chinese"}
+                or item.get("hashtag") != expected_hashtag
+                or not isinstance(item.get("chinese"), str) or not item["chinese"].strip()
+            ):
+                raise ToolError("HASHTAG_TRANSLATIONS_INVALID", "Hashtags 中文对照必须与正式标签逐项同序对应。")
+            clean_hashtag_translations.append({"hashtag": expected_hashtag, "chinese": item["chinese"].strip()})
         if not isinstance(thumbnail_provider, dict) or not thumbnail_provider:
             raise ToolError("THUMBNAIL_PROVIDER_REQUIRED", "必须冻结图片供应商接口状态与版本。")
         if not isinstance(thumbnail_strategy, dict) or not thumbnail_strategy:
             raise ToolError("THUMBNAIL_STRATEGY_REQUIRED", "必须先冻结 16:9 封面策略。")
+        if not isinstance(thumbnail_text_chinese, str) or not thumbnail_text_chinese.strip():
+            raise ToolError("THUMBNAIL_TEXT_TRANSLATION_REQUIRED", "封面目标语言短文案必须附中文含义供审核。")
         if not isinstance(thumbnail_candidates, list) or len(thumbnail_candidates) != 5:
             raise ToolError("THUMBNAIL_CANDIDATES_REQUIRED", "必须保留恰好 5 个构图实质不同的封面候选与内部评分。")
         candidate_ids = [item.get("candidateId") for item in thumbnail_candidates if isinstance(item, dict)]
@@ -1415,6 +1718,20 @@ class ContentLoop:
             raise ToolError("PUBLISHING_CONFIRMATION_REQUIRED", "G5 未联合确认，不能冻结 Publishing Asset Package v1。")
         if not isinstance(thumbnail, dict) or thumbnail.get("mode") not in {"real", "prompt_only"}:
             raise ToolError("THUMBNAIL_INVALID", "封面必须明确标记 real 或 prompt_only。")
+
+        project_root = self._project_root(channel_profile_id, project_id)
+        required_review_documents = [
+            "rewrite-draft-target", "editorial-review", "revision-log", "final-script-target", "final-script-zh"
+        ]
+        if state["sourceMode"] in {"direct-rewrite", "synthesis-rewrite"}:
+            required_review_documents = ["source-summary", "deconstruction-report", "transfer-directions", *required_review_documents]
+        review_check = validate_review_documents(project_root, required_review_documents)
+        if review_check["status"] != "PASS":
+            raise ToolError(
+                "CONTENT_REVIEW_DOCUMENTS_REQUIRED",
+                "正式稿审核文档缺失或损坏，不能生成发布素材。",
+                details={"errors": review_check["errors"]},
+            )
 
         version = _next_version((state["activePackages"]["publishing"] or {}).get("version"))
         publishing_id = f"publishing_{project_id}_v{version.replace('.', '_')}"
@@ -1473,7 +1790,6 @@ class ContentLoop:
             "assessedAt": created,
             "blockers": [] if thumbnail_mode == "real" else ["real-thumbnail-required"],
         }
-        title_id = "title-selected-001"
         contract = with_hash(
             {
                 "schemaVersion": PACKAGE_SCHEMA_VERSION,
@@ -1497,20 +1813,10 @@ class ContentLoop:
                 "title": title,
                 "titleZhTranslation": title_chinese,
                 "titleSelection": {
-                    "selectedTitleId": title_id,
+                    "selectedTitleId": selected_title_id,
                     "factConsistencyPassed": True,
                     "similarityGatePassed": True,
-                    "candidates": [
-                        {
-                            "titleId": title_id,
-                            "text": title,
-                            "zhTranslation": title_chinese,
-                            "audienceFit": ctr_review.get("score", 0),
-                            "factBasis": ctr_review.get("conclusion", "标题承诺由正式母稿事实支持。"),
-                            "promiseFulfilled": True,
-                            "sampleWordingCopied": False,
-                        }
-                    ],
+                    "candidates": clean_title_candidates,
                 },
                 "descriptionBody": description_body,
                 "hashtags": hashtags,
@@ -1551,7 +1857,39 @@ class ContentLoop:
         _atomic_json(root / "ctr-review.json", ctr_review)
         _atomic_bytes(root / "description-hashtags.txt", (description_body.rstrip() + "\n\n" + " ".join(hashtags) + "\n").encode("utf-8"))
         _atomic_json(root / "source-lock.json", {"manuscriptPackage": _contract_ref(manuscript)})
+        try:
+            save_review_document(
+                project_root,
+                document_id="packaging-bilingual",
+                content=_packaging_review_markdown(
+                    title_candidates=clean_title_candidates,
+                    selected_title_id=selected_title_id,
+                    description_body=description_body,
+                    description_chinese=description_chinese,
+                    hashtag_translations=clean_hashtag_translations,
+                ),
+                language="zh-CN",
+                updated_at=created,
+                minimum_characters=80,
+            )
+            save_review_document(
+                project_root,
+                document_id="thumbnail-review",
+                content=_thumbnail_review_markdown(
+                    strategy=thumbnail_strategy,
+                    candidates=contract_thumbnail_candidates,
+                    selected_thumbnail_id=selected_thumbnail_id,
+                    thumbnail_text_chinese=thumbnail_text_chinese,
+                    ctr_review=ctr_review,
+                ),
+                language="zh-CN",
+                updated_at=created,
+                minimum_characters=80,
+            )
+        except ValueError as exc:
+            raise ToolError("CONTENT_REVIEW_DOCUMENT_INVALID", str(exc)) from exc
         state["activePackages"]["publishing"] = {"id": publishing_id, "version": version, "hash": contract["contentHash"], "path": str(root / "manifest.json")}
+        state["userReviewDocuments"] = review_documents_view(project_root)
         state["state"] = status
         self._save_state(state)
         return {
@@ -1559,6 +1897,7 @@ class ContentLoop:
             "packagePath": str(root),
             "confirmationCard": {"gate": "G5", "confirmed": True, "thumbnailMode": thumbnail_mode},
             "productionHandoffEligible": thumbnail_mode == "real",
+            "userReviewDocuments": state["userReviewDocuments"],
         }
 
     def get_project(self, *, channel_profile_id: Any, project_id: Any) -> dict[str, Any]:
@@ -1566,6 +1905,7 @@ class ContentLoop:
         state = self._load_state(channel_profile_id, project_id)
         return {
             "state": state,
+            "userReviewDocuments": review_documents_view(self._project_root(channel_profile_id, project_id)),
             "progressReadOnly": True,
             "boundaries": self.capabilities()["boundaries"],
         }
@@ -1633,10 +1973,30 @@ class ContentLoop:
                         errors.append({"package": "publishing", "issue": "thumbnail-aspect-ratio"})
                 except ToolError as exc:
                     errors.append({"package": "publishing", "issue": exc.code})
+        required_review_documents: list[str] = []
+        if state.get("sourceMode") in {"direct-rewrite", "synthesis-rewrite"} and state["activePackages"].get("topic"):
+            required_review_documents.extend(("source-summary", "deconstruction-report", "transfer-directions"))
+        if state["activePackages"].get("manuscript"):
+            required_review_documents.extend(
+                ("rewrite-draft-target", "editorial-review", "revision-log", "final-script-target", "final-script-zh")
+            )
+        if state["activePackages"].get("publishing"):
+            required_review_documents.extend(("packaging-bilingual", "thumbnail-review"))
+        review_check = None
+        if required_review_documents:
+            review_check = validate_review_documents(
+                self._project_root(channel_profile_id, project_id),
+                required_review_documents,
+            )
+            errors.extend(
+                {"package": "user-review-documents", "issue": item.get("issue"), "documentId": item.get("documentId")}
+                for item in review_check["errors"]
+            )
         return {
             "status": "PASS" if not errors else "FAIL",
             "projectId": project_id,
             "checkedPackages": sorted(contracts),
+            "userReviewDocuments": review_check,
             "errors": errors,
             "boundaries": self.capabilities()["boundaries"],
         }
