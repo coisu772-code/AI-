@@ -15,13 +15,14 @@ description: 从 VIDEO_READY Production Result Package v1 与已确认 Publishin
 4. 调用 `assemble_publish_package_v2`，始终传递 `networkExecution=false`。让工具按发布意图幂等组装 `<publish_intent_id>.creating`，并只在全部校验成功后原子形成 `.ready`。
 5. 调用 `validate_publish_package_v2` 独立重验 v2 文件、绑定、路径、哈希、媒体、字幕、元数据、频道、计划和额度。不要导入 `.creating`、含符号链接、未声明文件或任何验证失败的包。
 6. 调用 `import_publish_package_v2` 让发布中心在隔离 inbox／数据库中执行 `.ready → .importing → .imported/.failed`。始终保持 `networkExecution=false`；不得触发 OAuth、YouTube API 或正式桌面程序。
-7. 显示项目、发布意图、频道序号、策略、隐私、计划、视频参数、标题、简介、Hashtags、封面、字幕、验证结论、当前本地状态和下一动作。
+7. 读取工具返回的 `final_chinese_review_card_path`，向用户显示可点击的 `FINAL_CHINESE_REVIEW_CARD.md`。这张 G6 卡必须先集中显示中文故事、标题、简介、标签含义、封面文案、配音、频道、隐私状态和上传策略，再显示目标语言正式标题、简介、Hashtags 与封面文案。
+8. 未取得 G6 最终中文验收确认前，任何会上传的视频都必须停在 `WAITING_REVIEW / FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED`；不得因既有 AUTO 授权跳过本次内容验收。
 
 ## 执行三种策略
 
 - `DO_NOT_UPLOAD`：只保存并导入本地任务，停在 `PACKAGE_READY`；绝不调用 YouTube。
-- `REQUIRE_REVIEW`：验证通过后显示完整人工确认卡并生成不可变 Upload Intent v1，停在 `WAITING_REVIEW`。真实上传、OAuth 或授权仍必须由用户明确确认。
-- `AUTO`：验证工作区授权、频道 AUTO 授权、当前发布意图 AUTO 授权及其时间／版本。缺一项即失败；全部齐全也只可到 `READY_TO_UPLOAD`。本阶段必须返回 `EXTERNAL_APPROVAL_REQUIRED`，不得执行网络上传。
+- `REQUIRE_REVIEW`：验证通过后显示最终中文验收卡并生成不可变 Upload Intent v1，停在 `WAITING_REVIEW`。真实上传、OAuth 或授权仍必须由用户明确确认。
+- `AUTO`：继续验证工作区、频道和当前发布意图授权及其时间／版本，但本次 G6 最终中文验收未确认前仍停在 `WAITING_REVIEW`；不能直接跳到 `READY_TO_UPLOAD`。
 
 计划时间已过、时区无效、槽位冲突、每日额度已满或并发已满时停在 `WAITING_REVIEW`，不要擅自改时间、隐私或频道。
 

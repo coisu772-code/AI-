@@ -20,6 +20,7 @@ from .publish_package_v2 import (
 )
 from .publisher_v2_bridge import PublisherV2Bridge
 from .review_documents import REVIEW_DOCUMENT_SCHEMA_VERSION
+from .confirmation_cards import normalize_confirmation_cards
 from .security import redact
 from .source_library import SOURCE_LIBRARY_VERSION, SourceLibrary
 from .store import ARCHIVE_FORMAT_VERSION, CHANNEL_SCHEMA_VERSION, SYSTEM_SCHEMA_VERSION, ChannelStore
@@ -775,6 +776,7 @@ class LocalToolService:
                 target_script=args.get("targetScript"),
                 chinese_audit_script=args.get("chineseAuditScript"),
                 quality_gate=args.get("qualityGate"),
+                foreign_language_quality_gate=args.get("foreignLanguageQualityGate"),
                 confirmation=args.get("confirmation"),
                 authoring_mode=args.get("authoringMode", "target-language-native"),
             )
@@ -789,6 +791,7 @@ class LocalToolService:
                 title_candidates=args.get("titleCandidates"),
                 description_body=args.get("descriptionBody"),
                 description_chinese=args.get("descriptionChinese"),
+                story_summary_chinese=args.get("storySummaryChinese"),
                 hashtags=args.get("hashtags"),
                 hashtag_translations=args.get("hashtagTranslations"),
                 thumbnail_provider=args.get("thumbnailProvider"),
@@ -968,7 +971,7 @@ class LocalToolService:
             result = self.data_center.progress(args)
         else:
             raise ToolError("TOOL_NOT_FOUND", "本地工具服务没有该工具。", details={"tool": name})
-        return redact(result)
+        return redact(normalize_confirmation_cards(result))
 
     def _publisher_constraints_catalog(self) -> Path:
         if self.config.plugin_root is None:
@@ -1473,15 +1476,15 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "content_manuscript_finalize",
-            "校验目标语言原生母稿、逐行中文审核映射、角色音色和合并质量门后冻结 Manuscript Package v1。",
-            {**binding_properties, "projectId": {"type": "string"}, "storyBible": {"type": "object"}, "characters": {"type": "array"}, "targetScript": {"type": "array"}, "chineseAuditScript": {"type": ["array", "null"]}, "qualityGate": {"type": "object"}, "confirmation": {"type": "object"}, "authoringMode": {"type": "string"}},
-            ["taskId", "channelProfileId", "bindingProof", "projectId", "storyBible", "characters", "targetScript", "qualityGate", "confirmation"],
+            "校验目标语言原生母稿、逐行中文审核映射、角色音色、合并质量门和独立外语质量保险门后冻结 Manuscript Package v1。",
+            {**binding_properties, "projectId": {"type": "string"}, "storyBible": {"type": "object"}, "characters": {"type": "array"}, "targetScript": {"type": "array"}, "chineseAuditScript": {"type": ["array", "null"]}, "qualityGate": {"type": "object"}, "foreignLanguageQualityGate": {"type": "object"}, "confirmation": {"type": "object"}, "authoringMode": {"type": "string"}},
+            ["taskId", "channelProfileId", "bindingProof", "projectId", "storyBible", "characters", "targetScript", "qualityGate", "foreignLanguageQualityGate", "confirmation"],
         ),
         (
             "content_publishing_finalize",
             "只读取确认母稿，校验唯一标题、简介、8–12 个 Hashtags、封面与 CTR 联评后冻结 Publishing Asset Package v1。",
-            {**binding_properties, "projectId": {"type": "string"}, "title": {"type": "string"}, "titleChinese": {"type": "string"}, "titleCandidates": {"type": "array", "minItems": 6, "maxItems": 6}, "descriptionBody": {"type": "string"}, "descriptionChinese": {"type": "string"}, "hashtags": {"type": "array"}, "hashtagTranslations": {"type": "array"}, "thumbnailProvider": {"type": "object"}, "thumbnailStrategy": {"type": "object"}, "thumbnailCandidates": {"type": "array", "minItems": 5, "maxItems": 5}, "selectedThumbnailId": {"type": "string"}, "thumbnail": {"type": "object"}, "thumbnailTextChinese": {"type": "string"}, "ctrReview": {"type": "object"}, "confirmation": {"type": "object"}},
-            ["taskId", "channelProfileId", "bindingProof", "projectId", "title", "titleChinese", "titleCandidates", "descriptionBody", "descriptionChinese", "hashtags", "hashtagTranslations", "thumbnailProvider", "thumbnailStrategy", "thumbnailCandidates", "selectedThumbnailId", "thumbnail", "thumbnailTextChinese", "ctrReview", "confirmation"],
+            {**binding_properties, "projectId": {"type": "string"}, "title": {"type": "string"}, "titleChinese": {"type": "string"}, "titleCandidates": {"type": "array", "minItems": 6, "maxItems": 6}, "descriptionBody": {"type": "string"}, "descriptionChinese": {"type": "string"}, "storySummaryChinese": {"type": "string"}, "hashtags": {"type": "array"}, "hashtagTranslations": {"type": "array"}, "thumbnailProvider": {"type": "object"}, "thumbnailStrategy": {"type": "object"}, "thumbnailCandidates": {"type": "array", "minItems": 5, "maxItems": 5}, "selectedThumbnailId": {"type": "string"}, "thumbnail": {"type": "object"}, "thumbnailTextChinese": {"type": "string"}, "ctrReview": {"type": "object"}, "confirmation": {"type": "object"}},
+            ["taskId", "channelProfileId", "bindingProof", "projectId", "title", "titleChinese", "titleCandidates", "descriptionBody", "descriptionChinese", "storySummaryChinese", "hashtags", "hashtagTranslations", "thumbnailProvider", "thumbnailStrategy", "thumbnailCandidates", "selectedThumbnailId", "thumbnail", "thumbnailTextChinese", "ctrReview", "confirmation"],
         ),
         (
             "content_project_get",

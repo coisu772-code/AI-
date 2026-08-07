@@ -179,14 +179,20 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
         self.assertTrue(ready.name.endswith(".ready"))
         self.assertFalse(any(path.name.endswith(".creating") for path in ready.parent.iterdir()))
         self.assertEqual("WAITING_REVIEW", first["status"])
-        self.assertEqual(["HUMAN_CONFIRMATION_REQUIRED"], first["blockers"])
+        self.assertEqual(["FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED"], first["blockers"])
         self.assertFalse(first["network_execution"])
         self.assertIsNone(first["youtube_video_id"])
         self.assertIsNone(first["publication_receipt"])
         self.assertEqual(
-            {"manifest.json", "metadata.json", "upload_task.json", "validation.json", "production_binding.json", "upload_status.json", "final.mp4", "thumbnail.png", "subtitles.srt"},
+            {"manifest.json", "FINAL_CHINESE_REVIEW_CARD.md", "final_chinese_review_card.json", "metadata.json", "upload_task.json", "validation.json", "production_binding.json", "upload_status.json", "final.mp4", "thumbnail.png", "subtitles.srt"},
             {path.name for path in ready.iterdir()},
         )
+        card = _read(ready / "final_chinese_review_card.json")
+        self.assertEqual("CHINESE_FIRST_WITH_TARGET_LANGUAGE", card["displayMode"])
+        self.assertEqual("G6_FINAL_CHINESE_UPLOAD_REVIEW", card["gate"])
+        self.assertIn("storySummaryZh", card["chinesePrimary"])
+        self.assertIn("title", card["targetLanguageComparison"])
+        self.assertTrue((ready / "FINAL_CHINESE_REVIEW_CARD.md").is_file())
         result, publishing, channel = self._source_copy()
         duplicate = assemble_publish_package_v2(
             production_result_root=result,
@@ -238,14 +244,14 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
         self.assertEqual("PACKAGE_READY", do_not["status"])
         auto_missing = self._assemble(policy="AUTO", name="auto-missing")
         self.assertEqual("WAITING_REVIEW", auto_missing["status"])
-        self.assertEqual(3, len(auto_missing["blockers"]))
+        self.assertEqual(4, len(auto_missing["blockers"]))
         grants = {
             key: {"granted": True, "version": "1.0", "confirmed_at": "2026-08-04T03:00:00Z"}
             for key in ("workspace", "channel", "intent")
         }
         auto_ready = self._assemble(policy="AUTO", name="auto-ready", authorization=grants)
-        self.assertEqual("READY_TO_UPLOAD", auto_ready["status"])
-        self.assertEqual(["EXTERNAL_APPROVAL_REQUIRED"], auto_ready["blockers"])
+        self.assertEqual("WAITING_REVIEW", auto_ready["status"])
+        self.assertEqual(["FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED"], auto_ready["blockers"])
         self.assertTrue(auto_ready["external_approval_required"])
         self.assertIsNone(auto_ready["youtube_video_id"])
 

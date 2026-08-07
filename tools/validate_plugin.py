@@ -422,7 +422,7 @@ def validate_plugin() -> list[str]:
         if marker not in production_text:
             errors.append(f"production-handoff is missing required marker: {marker}")
     publish_text = skill_texts.get("publish-video", "")
-    for marker in (*sorted(EXPECTED_PUBLISH_TOOLS), "networkExecution=false", "EXTERNAL_APPROVAL_REQUIRED", "youtubeVideoId"):
+    for marker in (*sorted(EXPECTED_PUBLISH_TOOLS), "networkExecution=false", "FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED", "youtubeVideoId"):
         if marker not in publish_text:
             errors.append(f"publish-video is missing required marker: {marker}")
     data_text = skill_texts.get("data-center", "")

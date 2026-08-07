@@ -14,6 +14,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
 
 from .contracts import canonical_hash, resolve_contracts_root, utc_now, with_hash
+from .confirmation_cards import chinese_first_confirmation_card
 from .errors import ToolError
 from .review_documents import (
     DOCUMENT_SPECS,
@@ -66,6 +67,16 @@ QUALITY_CHECKS = {
     "terminology-consistency",
     "tts-semantic-lines",
     "audience-reward",
+}
+FOREIGN_LANGUAGE_QUALITY_CHECKS = {
+    "grammar-and-syntax",
+    "regional-naturalness",
+    "naming-and-terminology",
+    "idiom-and-collocation",
+    "translationese-avoidance",
+    "cultural-address",
+    "tts-readability",
+    "chinese-review-consistency",
 }
 EXTENSION_CAPABILITY_NAMES = (
     "content-deconstruction",
@@ -220,6 +231,108 @@ def _png_dimensions(path: Path) -> tuple[int, int]:
 
 def _markdown_cell(value: Any) -> str:
     return str(value).replace("|", "\\|").replace("\r", " ").replace("\n", "<br>")
+
+
+def _foreign_language_quality_contract(
+    gate: Any,
+    *,
+    target_language: str,
+    episode_count: int,
+    target_script_hash: str,
+) -> dict[str, Any]:
+    if target_language.lower().startswith("zh"):
+        if not isinstance(gate, dict) or gate.get("notApplicable") is not True:
+            raise ToolError(
+                "FOREIGN_LANGUAGE_QUALITY_GATE_INVALID",
+                "中文母稿也必须明确记录外语质量保险门为不适用。",
+            )
+        reason = gate.get("reasonZh")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ToolError("FOREIGN_LANGUAGE_QUALITY_GATE_INVALID", "外语质量门不适用原因不能为空。")
+        core = {
+            "version": "1.0.0",
+            "targetScriptHash": target_script_hash,
+            "targetLanguage": target_language,
+            "status": "NOT_APPLICABLE",
+            "reviewMode": "not-applicable-target-is-chinese",
+            "independentFromAuthoring": False,
+            "revisionRounds": 0,
+            "episodeResults": [],
+            "summaryZh": reason.strip(),
+        }
+        return {**core, "contentHash": _json_hash(core)}
+
+    if not isinstance(gate, dict) or gate.get("passed") is not True:
+        raise ToolError("FOREIGN_LANGUAGE_QUALITY_GATE_FAILED", "独立外语质量保险门未通过，不能冻结正式稿。")
+    if gate.get("reviewMode") != "independent-second-pass" or gate.get("independentFromAuthoring") is not True:
+        raise ToolError(
+            "FOREIGN_LANGUAGE_REVIEW_NOT_INDEPENDENT",
+            "外语质量保险必须在创作完成后使用独立二次审校上下文执行。",
+        )
+    authoring_pass_id = gate.get("authoringPassId")
+    review_pass_id = gate.get("reviewPassId")
+    if (
+        not isinstance(authoring_pass_id, str)
+        or not authoring_pass_id.strip()
+        or not isinstance(review_pass_id, str)
+        or not review_pass_id.strip()
+        or authoring_pass_id == review_pass_id
+    ):
+        raise ToolError("FOREIGN_LANGUAGE_REVIEW_NOT_INDEPENDENT", "创作批次与外语审校批次必须分别标识且不能相同。")
+    episodes = gate.get("episodes")
+    if not isinstance(episodes, list) or len(episodes) != episode_count:
+        raise ToolError("FOREIGN_LANGUAGE_QUALITY_GATE_INVALID", "每集必须有且只有一份独立外语质量审校记录。")
+    normalized_episodes: list[dict[str, Any]] = []
+    revision_rounds = 0
+    for number, episode in enumerate(episodes, 1):
+        checks = episode.get("checks") if isinstance(episode, dict) else None
+        findings = episode.get("findingsZh") if isinstance(episode, dict) else None
+        revision_count = episode.get("revisionCount") if isinstance(episode, dict) else None
+        if (
+            not isinstance(episode, dict)
+            or episode.get("episode") != number
+            or episode.get("passed") is not True
+            or not isinstance(checks, dict)
+            or set(checks) != FOREIGN_LANGUAGE_QUALITY_CHECKS
+            or not all(checks.values())
+            or not isinstance(findings, str)
+            or not findings.strip()
+            or not isinstance(revision_count, int)
+            or isinstance(revision_count, bool)
+            or not 0 <= revision_count <= 3
+        ):
+            raise ToolError(
+                "FOREIGN_LANGUAGE_QUALITY_GATE_INVALID",
+                "外语审校硬项、中文结论或定向修订轮数不完整。",
+                details={"episode": number},
+            )
+        revision_rounds = max(revision_rounds, revision_count)
+        normalized_episodes.append(
+            {
+                "episodeNumber": number,
+                "status": "PASSED",
+                "revisionCount": revision_count,
+                "checks": {key: True for key in sorted(FOREIGN_LANGUAGE_QUALITY_CHECKS)},
+                "findingsZh": findings.strip(),
+            }
+        )
+    summary = gate.get("summaryZh")
+    if not isinstance(summary, str) or not summary.strip():
+        raise ToolError("FOREIGN_LANGUAGE_QUALITY_GATE_INVALID", "外语质量门必须提供中文审校总结。")
+    core = {
+        "version": "1.0.0",
+        "targetScriptHash": target_script_hash,
+        "targetLanguage": target_language,
+        "status": "PASSED",
+        "reviewMode": "independent-second-pass",
+        "independentFromAuthoring": True,
+        "authoringPassId": authoring_pass_id.strip(),
+        "reviewPassId": review_pass_id.strip(),
+        "revisionRounds": revision_rounds,
+        "episodeResults": normalized_episodes,
+        "summaryZh": summary.strip(),
+    }
+    return {**core, "contentHash": _json_hash(core)}
 
 
 def _packaging_review_markdown(
@@ -1335,6 +1448,7 @@ class ContentLoop:
         target_script: Any,
         chinese_audit_script: Any,
         quality_gate: Any,
+        foreign_language_quality_gate: Any,
         confirmation: Any,
         authoring_mode: Any = "target-language-native",
     ) -> dict[str, Any]:
@@ -1417,6 +1531,13 @@ class ContentLoop:
                 if any(target[key] != audit[key] for key in mapping_keys):
                     raise ToolError("SCRIPT_MAPPING_MISMATCH", "行 ID、集、顺序、说话人、类型或情绪映射错误。", details={"lineId": target["lineId"]})
             audit_mode = "LINE_BY_LINE_BACKTRANSLATION"
+        target_script_hash = _json_hash(target_lines)
+        foreign_quality_contract = _foreign_language_quality_contract(
+            foreign_language_quality_gate,
+            target_language=target_language,
+            episode_count=episode_count,
+            target_script_hash=target_script_hash,
+        )
         if not isinstance(quality_gate, dict) or quality_gate.get("passed") is not True:
             raise ToolError("MANUSCRIPT_QUALITY_GATE_FAILED", "合并质量门未通过，不能冻结正式文稿。")
         episodes = quality_gate.get("episodes")
@@ -1490,7 +1611,6 @@ class ContentLoop:
         }
         _atomic_json(root / "line-mapping-validation.json", mapping)
         created = utc_now()
-        target_script_hash = _json_hash(target_lines)
         quality_episode_results = []
         quality_revision_rounds = 0
         quality_key_map = {
@@ -1521,6 +1641,7 @@ class ContentLoop:
         }
         quality_contract = {**quality_core, "contentHash": _json_hash(quality_core)}
         _atomic_json(root / "target-script-quality-gate.json", quality_contract)
+        _atomic_json(root / "foreign-language-quality-gate.json", foreign_quality_contract)
         target_script_contract = {
             "version": "1.0.0",
             "contentHash": target_script_hash,
@@ -1572,6 +1693,8 @@ class ContentLoop:
                 "lineMapping": mapping,
                 "qualityGate": quality_contract,
                 "qualityGateHash": quality_contract["contentHash"],
+                "foreignLanguageQualityGate": foreign_quality_contract,
+                "foreignLanguageQualityGateHash": foreign_quality_contract["contentHash"],
                 "selectiveInvalidation": {
                     "policy": "affected-episodes-only",
                     "invalidatedEpisodeNumbers": [],
@@ -1612,7 +1735,40 @@ class ContentLoop:
             "package": contract,
             "packagePath": str(root),
             "userReviewDocuments": state["userReviewDocuments"],
-            "confirmationCard": {"gate": "G4", "confirmed": True},
+            "confirmationCard": chinese_first_confirmation_card(
+                gate="G4_MANUSCRIPT",
+                target_language=target_language,
+                chinese_primary={
+                    "summaryZh": "正式稿、中文审核稿和外语质量保险门均已通过并冻结。",
+                    "formalChineseDocument": next(
+                        (
+                            item["relativePath"]
+                            for item in state["userReviewDocuments"]["documents"]
+                            if item["documentId"] == "final-script-zh"
+                        ),
+                        None,
+                    ),
+                    "foreignLanguageQualityStatus": foreign_quality_contract["status"],
+                    "foreignLanguageQualitySummaryZh": foreign_quality_contract["summaryZh"],
+                    "decisionRequiredZh": "已确认，无需再次操作。",
+                },
+                target_language_comparison={
+                    "formalTargetDocument": next(
+                        (
+                            item["relativePath"]
+                            for item in state["userReviewDocuments"]["documents"]
+                            if item["documentId"] == "final-script-target"
+                        ),
+                        None,
+                    ),
+                    "targetScriptHash": target_script_hash,
+                },
+                confirmed=True,
+                technical={
+                    "qualityGateHash": quality_contract["contentHash"],
+                    "foreignLanguageQualityGateHash": foreign_quality_contract["contentHash"],
+                },
+            ),
         }
 
     def finalize_publishing(
@@ -1627,6 +1783,7 @@ class ContentLoop:
         title_candidates: Any,
         description_body: Any,
         description_chinese: Any,
+        story_summary_chinese: Any,
         hashtags: Any,
         hashtag_translations: Any,
         thumbnail_provider: Any,
@@ -1647,6 +1804,15 @@ class ContentLoop:
         manuscript = _read_contract(Path(manuscript_ref["path"]), "manuscript-package")
         if manuscript.get("status") != "SCRIPT_READY" or manuscript.get("confirmation", {}).get("status") != "APPROVED":
             raise ToolError("MANUSCRIPT_NOT_CONFIRMED", "正式母稿未联合确认。")
+        foreign_quality = manuscript.get("foreignLanguageQualityGate")
+        expected_foreign_status = "NOT_APPLICABLE" if manuscript["targetLanguage"].lower().startswith("zh") else "PASSED"
+        if (
+            not isinstance(foreign_quality, dict)
+            or foreign_quality.get("status") != expected_foreign_status
+            or foreign_quality.get("targetScriptHash") != manuscript.get("targetScript", {}).get("contentHash")
+            or manuscript.get("foreignLanguageQualityGateHash") != foreign_quality.get("contentHash")
+        ):
+            raise ToolError("FOREIGN_LANGUAGE_QUALITY_GATE_REQUIRED", "正式稿缺少有效且绑定当前母稿的外语质量保险门。")
         for field, value, maximum in (("title", title, 100), ("descriptionBody", description_body, 5000)):
             if not isinstance(value, str) or not value.strip() or len(value) > maximum:
                 raise ToolError("PUBLISHING_TEXT_INVALID", f"{field} 为空或超过长度限制。")
@@ -1684,6 +1850,8 @@ class ContentLoop:
         selected_title_id = selected_title["titleId"]
         if not isinstance(description_chinese, str) or not description_chinese.strip() or len(description_chinese) > 5000:
             raise ToolError("PUBLISHING_TEXT_INVALID", "YouTube 简介必须附完整中文翻译供审核。")
+        if not isinstance(story_summary_chinese, str) or len(story_summary_chinese.strip()) < 20 or len(story_summary_chinese) > 5000:
+            raise ToolError("STORY_SUMMARY_CHINESE_REQUIRED", "上传前中文验收卡必须包含完整、可理解的中文故事摘要。")
         if not isinstance(hashtags, list) or not 8 <= len(hashtags) <= 12 or len(set(hashtags)) != len(hashtags):
             raise ToolError("HASHTAG_COUNT_INVALID", "Hashtags 必须是 8–12 个互不重复的目标语言标签。")
         if any(not isinstance(item, str) or not re.fullmatch(r"#[^#\s]{1,99}", item) for item in hashtags):
@@ -1790,6 +1958,29 @@ class ContentLoop:
             "assessedAt": created,
             "blockers": [] if thumbnail_mode == "real" else ["real-thumbnail-required"],
         }
+        characters_by_id = {item["characterId"]: item for item in manuscript.get("characters", [])}
+        voice_summary = [
+            {
+                "speakerId": item["speakerId"],
+                "targetLanguageName": characters_by_id.get(item["speakerId"], {}).get("targetLanguageName", item["speakerId"]),
+                "role": characters_by_id.get(item["speakerId"], {}).get("role", ""),
+                "engine": item["engine"],
+                "voiceId": item["voiceId"],
+                "voiceName": item["voiceName"],
+            }
+            for item in manuscript.get("voices", [])
+        ]
+        chinese_review = {
+            "schemaVersion": "1.0.0",
+            "displayMode": "CHINESE_FIRST_WITH_TARGET_LANGUAGE",
+            "uploadUseAllowed": False,
+            "storySummaryZh": story_summary_chinese.strip(),
+            "titleZh": title_chinese.strip(),
+            "descriptionZh": description_chinese.strip(),
+            "hashtagTranslations": clean_hashtag_translations,
+            "thumbnailTextZh": thumbnail_text_chinese.strip(),
+            "voiceSummary": voice_summary,
+        }
         contract = with_hash(
             {
                 "schemaVersion": PACKAGE_SCHEMA_VERSION,
@@ -1809,6 +2000,7 @@ class ContentLoop:
                     "manuscriptPackage": _contract_ref(manuscript),
                     "targetScriptHash": manuscript["targetScript"]["contentHash"],
                     "qualityGateHash": manuscript["qualityGateHash"],
+                    "foreignLanguageQualityGateHash": manuscript["foreignLanguageQualityGateHash"],
                 },
                 "title": title,
                 "titleZhTranslation": title_chinese,
@@ -1836,6 +2028,7 @@ class ContentLoop:
                 },
                 "uploadPolicy": production["defaults"]["uploadPolicy"],
                 "privacyStatus": "private",
+                "chineseReview": chinese_review,
                 "confirmation": _approval("G5_PUBLISHING_ASSETS", confirmation, created),
                 "productionHandoff": production_handoff,
             }
@@ -1895,7 +2088,26 @@ class ContentLoop:
         return {
             "package": contract,
             "packagePath": str(root),
-            "confirmationCard": {"gate": "G5", "confirmed": True, "thumbnailMode": thumbnail_mode},
+            "confirmationCard": chinese_first_confirmation_card(
+                gate="G5_PUBLISHING_ASSETS",
+                target_language=manuscript["targetLanguage"],
+                chinese_primary={
+                    "storySummaryZh": chinese_review["storySummaryZh"],
+                    "titleZh": chinese_review["titleZh"],
+                    "descriptionZh": chinese_review["descriptionZh"],
+                    "hashtagsZh": [item["chinese"] for item in clean_hashtag_translations],
+                    "thumbnailTextZh": chinese_review["thumbnailTextZh"],
+                    "decisionRequiredZh": "发布素材已确认；制作完成后仍须查看上传前最终中文验收卡。",
+                },
+                target_language_comparison={
+                    "title": title,
+                    "description": description_body,
+                    "hashtags": hashtags,
+                    "thumbnailText": thumbnail_strategy["targetLanguageText"],
+                },
+                confirmed=True,
+                technical={"thumbnailMode": thumbnail_mode, "selectedThumbnailId": selected_thumbnail_id},
+            ),
             "productionHandoffEligible": thumbnail_mode == "real",
             "userReviewDocuments": state["userReviewDocuments"],
         }

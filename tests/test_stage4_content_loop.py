@@ -75,6 +75,9 @@ class Stage4ContentLoopTests(unittest.TestCase):
             "content_handoff_check",
         }
         self.assertTrue(expected.issubset(names))
+        definitions = {item["name"]: item for item in tool_definitions()}
+        self.assertIn("foreignLanguageQualityGate", definitions["content_manuscript_finalize"]["inputSchema"]["required"])
+        self.assertIn("storySummaryChinese", definitions["content_publishing_finalize"]["inputSchema"]["required"])
         service, _, _, _ = create_service(
             self.root / "surface", "en-US", plugin_root=PLUGIN_ROOT,
             local_tool_service=LocalToolService, service_config=ServiceConfig,
@@ -183,6 +186,14 @@ class Stage4ContentLoopTests(unittest.TestCase):
                 self.assertEqual("SCRIPT_READY", result["manuscript"]["package"]["status"])
                 self.assertEqual("PUBLISHING_ASSETS_READY", result["publishing"]["package"]["status"])
                 self.assertEqual(language, result["manuscript"]["package"]["targetLanguage"])
+                expected_foreign_status = "NOT_APPLICABLE" if language.startswith("zh") else "PASSED"
+                self.assertEqual(expected_foreign_status, result["manuscript"]["package"]["foreignLanguageQualityGate"]["status"])
+                self.assertTrue((Path(result["manuscript"]["packagePath"]) / "foreign-language-quality-gate.json").is_file())
+                for stage in ("topic", "manuscript", "publishing"):
+                    card = result[stage]["confirmationCard"]
+                    self.assertEqual("CHINESE_FIRST_WITH_TARGET_LANGUAGE", card["displayMode"])
+                    self.assertIn("chinesePrimary", card)
+                    self.assertIn("targetLanguageComparison", card)
                 self.assertEqual(5, len(result["publishing"]["package"]["thumbnailCandidates"]))
                 review_root = Path(result["publishing"]["userReviewDocuments"]["directory"])
                 expected_review_files = {
@@ -217,6 +228,42 @@ class Stage4ContentLoopTests(unittest.TestCase):
                     ["production-package", "workshop", "publisher-authorization", "upload", "analytics", "long-term-learning-write"],
                     result["handoff"]["notExecuted"],
                 )
+
+    def test_non_chinese_manuscript_requires_independent_foreign_language_gate(self) -> None:
+        ctx = self.context("ja-JP")
+        finalize_topic(ctx)
+        payload = manuscript_payload(ctx)
+        for document_type, payload_key in (
+            ("rewrite-draft-target", "rewriteDraftText"),
+            ("editorial-review", "editorialReviewMarkdown"),
+            ("revision-log", "revisionLogMarkdown"),
+        ):
+            ctx.service.call(
+                "content_review_document_save",
+                {
+                    "taskId": ctx.task_id,
+                    "channelProfileId": ctx.channel_id,
+                    "bindingProof": ctx.proof,
+                    "projectId": ctx.project_id,
+                    "documentType": document_type,
+                    "content": payload.pop(payload_key),
+                },
+            )
+        payload["foreignLanguageQualityGate"]["independentFromAuthoring"] = False
+        self.assert_tool_error(
+            "FOREIGN_LANGUAGE_REVIEW_NOT_INDEPENDENT",
+            lambda: ctx.service.call(
+                "content_manuscript_finalize",
+                {
+                    "taskId": ctx.task_id,
+                    "channelProfileId": ctx.channel_id,
+                    "bindingProof": ctx.proof,
+                    "projectId": ctx.project_id,
+                    **payload,
+                    "authoringMode": "target-language-native",
+                },
+            ),
+        )
 
     def test_user_review_document_tamper_blocks_integrity_and_handoff(self) -> None:
         ctx = self.context("en-US")

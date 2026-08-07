@@ -471,12 +471,29 @@ class ProductionCenter:
             raise ToolError("PRODUCTION_UPSTREAM_BINDING_MISMATCH", "发布素材包上游哈希无效。")
         target_script = manuscript.get("targetScript", {})
         quality_gate = manuscript.get("qualityGate", {})
+        foreign_quality_gate = manuscript.get("foreignLanguageQualityGate", {})
         if not target_script.get("isSoleProductionSource") or target_script.get("role") != "target-language-production-master":
             raise ToolError("PRODUCTION_TARGET_SCRIPT_NOT_SOLE_SOURCE", "目标语言正式母稿不是唯一生产源。")
         if quality_gate.get("status") != "PASSED" or quality_gate.get("targetScriptHash") != target_script.get("contentHash"):
             raise ToolError("PRODUCTION_QUALITY_GATE_INVALID", "质量门未通过或未绑定当前正式母稿。")
         if publishing.get("manuscriptBinding", {}).get("qualityGateHash") != manuscript.get("qualityGateHash"):
             raise ToolError("PRODUCTION_QUALITY_GATE_INVALID", "发布素材包绑定了不同质量门。")
+        expected_foreign_status = "NOT_APPLICABLE" if manuscript.get("targetLanguage", "").lower().startswith("zh") else "PASSED"
+        if (
+            foreign_quality_gate.get("status") != expected_foreign_status
+            or foreign_quality_gate.get("targetScriptHash") != target_script.get("contentHash")
+            or manuscript.get("foreignLanguageQualityGateHash") != foreign_quality_gate.get("contentHash")
+            or publishing.get("manuscriptBinding", {}).get("foreignLanguageQualityGateHash")
+            != manuscript.get("foreignLanguageQualityGateHash")
+            or (
+                expected_foreign_status == "PASSED"
+                and (
+                    foreign_quality_gate.get("reviewMode") != "independent-second-pass"
+                    or foreign_quality_gate.get("independentFromAuthoring") is not True
+                )
+            )
+        ):
+            raise ToolError("PRODUCTION_FOREIGN_LANGUAGE_QUALITY_GATE_INVALID", "外语质量保险门缺失、未通过或没有绑定当前正式母稿。")
         target_asset = target_script.get("asset")
         if isinstance(target_asset, dict):
             _validate_descriptor(manuscript_root, target_asset, code="PRODUCTION_TARGET_SCRIPT_ASSET_INVALID")

@@ -11,7 +11,7 @@ description: 将已确认的 Manuscript Package v1 与 Publishing Asset Package 
 
 1. 调用 `production_capabilities`。确认 Production Package `2.1`、Production Task `1.0.0`、FFmpeg、ffprobe 和所选工坊兼容接口可用。不得把无外部探测的合成 runner 描述成真实模型或收费服务调用。
 2. 调用 `content_handoff_check`。只接收 `SCRIPT_READY`、`PUBLISHING_ASSETS_READY`、哈希完整、质量门有效且锁定真实 16:9 封面的项目。
-3. 向用户显示一张简短制作卡：项目、地区、语言、标题、集数、锁定音色、制作方式、视频范围、失败策略和能力状态。审核模式等待确认；已有自动制作授权且所有硬门通过时可自动继续。
+3. 向用户显示一张中文优先、目标语言对照的简短制作卡：项目、地区、语言、中文标题与目标语言标题、集数、锁定音色、制作方式、视频范围、失败策略和能力状态。审核模式等待确认；已有自动制作授权且所有硬门通过时可自动继续。
 4. 调用 `production_package_assemble`。生产配置必须明确：
    - `deliveryMode`：`auto_render` 或 `jianying_refine`；
    - `videoGeneration.selectionMode`：`none`、`project_first_n_storyboards`、`episode_first_n_storyboards` 或 `all_storyboards`；

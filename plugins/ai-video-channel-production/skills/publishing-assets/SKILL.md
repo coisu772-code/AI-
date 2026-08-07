@@ -27,11 +27,13 @@ description: 在标题、简介和封面资产都由 content-title-description �
 
 1. 展示唯一标题、简介与 Hashtags、唯一封面、资产包版本、母稿版本和目标频道引用。
 2. 审核模式等待联合确认；已有明确自动确认授权时仍须先通过全部硬门。
-3. 调用 `content_publishing_finalize`，提交六个标题候选与中文翻译、唯一标题、简介双语对照、Hashtags 中文对照、五张封面结果及正式封面短文案中文含义；不新增或改写内容。
+3. 调用 `content_publishing_finalize`，提交六个标题候选与中文翻译、唯一标题、简介双语对照、中文故事摘要 `storySummaryChinese`、Hashtags 中文对照、五张封面结果及正式封面短文案中文含义；不新增或改写内容。
 4. 工具生成 `09_标题简介标签_双语审核.md` 和 `10_封面候选与选择结果.md`。调用 `content_review_documents_get`，向用户显示这两份文档以及 07–08 正式稿的路径、版本和 SHA-256。
 5. `publishing.json` 和正式发布包仍只包含目标语言发布字段，中文审核译文不得进入 YouTube 上传字段。
 6. 调用 `content_integrity_check`；只有包和审核文档完整时才称为 `PUBLISHING_ASSETS_READY`。
 7. 调用只读 `content_handoff_check` 检查是否具备制作条件；不在本 Skill 启动工坊。
+
+G5 联合确认卡必须按中文故事、中文标题、中文简介、中文标签含义和中文封面文案在前，目标语言正式字段在后的顺序展示；频道、隐私状态与上传策略仍留待成片后的 G6 最终中文验收卡集中确认。
 
 ## 边界
 

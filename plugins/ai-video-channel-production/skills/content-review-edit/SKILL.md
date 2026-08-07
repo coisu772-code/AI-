@@ -29,9 +29,10 @@ description: 审查 content-rewrite 生成的仿写初稿或用户提供的完�
 2. 先调用 `content_review_document_save` 保存完整 `editorial-review`，生成 `05_编辑审核报告.md`；报告至少包含问题位置、级别、证据、影响和修改建议。
 3. 再调用 `content_review_document_save` 保存完整 `revision-log`，生成 `06_修改记录与前后对照.md`；必须列明修改前、修改后、修改原因、影响范围和是否改变锁定事实。
 4. 非中文目标语言生成严格逐行中文审核映射；中文稿直接复用，不二次创作。
-5. 调用 `content_manuscript_finalize` 冻结 Manuscript Package v1。工具同时生成 `07_正式稿_目标语言.txt` 和 `08_正式稿_中文版.txt`；中文版仅供用户审核，不进入配音、字幕或分镜。
-6. 调用 `content_review_documents_get`，展示 04–08 文档路径、版本与 SHA-256，再调用 `content_integrity_check`。
-7. 只有质量门通过、文档哈希有效并返回 `SCRIPT_READY` 时，才称为可用于配音、字幕、分镜和工坊的唯一事实源。
+5. 非中文目标语言必须在创作稿完成后另开独立二次审校批次，执行外语质量保险门。创作批次 ID 与审校批次 ID 不得相同；每集必须以中文记录语法、地区自然度、姓名与术语、习语搭配、翻译腔、文化称谓、TTS 可读性和中文回译一致性八项结论，失败项定向修订不超过三轮。中文目标稿明确登记 `NOT_APPLICABLE`，不得伪造外语审校。
+6. 调用 `content_manuscript_finalize` 时同时提交 `qualityGate` 与 `foreignLanguageQualityGate`，冻结 Manuscript Package v1。工具同时生成 `07_正式稿_目标语言.txt`、`08_正式稿_中文版.txt` 和机器可核验的 `foreign-language-quality-gate.json`；中文版仅供用户审核，不进入配音、字幕或分镜。
+7. G4 确认卡先展示中文正式稿路径、中文质量结论和外语保险门结论，再展示目标语言正式稿路径与哈希；调用 `content_review_documents_get` 展示 04–08 文档路径、版本与 SHA-256，再调用 `content_integrity_check`。
+8. 只有两道质量门均通过、文档哈希有效并返回 `SCRIPT_READY` 时，才称为可用于配音、字幕、分镜和工坊的唯一事实源。
 
 用户要求继续完整流程时，将最终 Manuscript Package 交给 `$content-title-description`。
 
