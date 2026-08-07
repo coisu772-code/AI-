@@ -642,8 +642,11 @@ class ChannelStore:
     ) -> dict[str, Any]:
         self.assert_binding(task_id=task_id, channel_profile_id=channel_profile_id, binding_proof=binding_proof)
         defaults = validate_defaults(defaults)
-        if execution_mode not in {"review", "auto"}:
-            raise ToolError("INVALID_ARGUMENT", "executionMode 必须是 review 或 auto。")
+        if execution_mode != "review":
+            raise ToolError(
+                "PERSISTENT_AUTO_MODE_NOT_ALLOWED",
+                "频道预设固定为审核模式；自动完成授权只能绑定当前任务，不能写入频道资料库。",
+            )
         with self._system_connection() as connection:
             row = connection.execute("SELECT * FROM channels WHERE channel_profile_id=?", (channel_profile_id,)).fetchone()
         if row is None:

@@ -5,6 +5,8 @@ description: 通过本地安全工具读取 YouTube 发布中心的真实频道�
 
 # 频道建库与绑定
 
+先读取 [逐阶段确认契约](../channel-production/references/manual-stage-confirmations.md)。频道预设只保存内容与制作参数，固定使用 `executionMode=review`；不得把当前任务或历史任务的自动授权持久化为频道默认值。
+
 ## 先检查能力
 
 1. 调用 `system_capabilities`。
@@ -28,7 +30,7 @@ description: 通过本地安全工具读取 YouTube 发布中心的真实频道�
 2. 音色目录不可用时，引导运行安装修复并停止建库写入。
 3. 第二张确认卡只确认默认配音、`auto_by_topic` 篇幅范围、`auto_by_topic` 集数范围和制作方式。
 4. 把视频生成、上传策略等可选字段保留为安全默认值；首次建库不要求自动上传授权。
-5. 用户确认后调用 `channel_onboarding_complete`。成功结果必须同时满足 `READY`、存在 Channel Profile、存在 Production Profile 和完整性检查通过。
+5. 用户确认后调用 `channel_onboarding_complete`，固定传 `executionMode=review`。成功结果必须同时满足 `READY`、存在 Channel Profile、存在 Production Profile 和完整性检查通过。
 6. 创建失败时显示结构化错误和可恢复动作，不把半成品报告为成功。
 
 ## 重新绑定与日常使用

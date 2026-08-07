@@ -331,12 +331,17 @@ class LocalToolService:
                     "AUTO_UPLOAD_NOT_AVAILABLE_STAGE2",
                     "首次建库不能自动授权真实上传；阶段2只允许 DO_NOT_UPLOAD 或 REQUIRE_REVIEW。",
                 )
+            if args.get("executionMode", "review") != "review":
+                raise ToolError(
+                    "PERSISTENT_AUTO_MODE_NOT_ALLOWED",
+                    "频道预设固定为审核模式；自动完成授权只能由用户在当前任务明确授予，不能持久化到频道。",
+                )
             result = self.store.complete_library(
                 task_id=args.get("taskId"),
                 channel_profile_id=args.get("channelProfileId"),
                 binding_proof=args.get("bindingProof"),
                 defaults=requested_defaults,
-                execution_mode=args.get("executionMode", "review"),
+                execution_mode="review",
             )
         elif name == "channel_list":
             result = {"channels": self.store.list_channels()}
@@ -730,6 +735,8 @@ class LocalToolService:
                 learning_snapshot=args.get("learningSnapshot"),
                 one_time_modifications=args.get("oneTimeModifications"),
                 long_term_learning=args.get("longTermLearning"),
+                resume_existing_project=args.get("resumeExistingProject", False),
+                resume_confirmation_ref=args.get("resumeConfirmationRef"),
             )
         elif name == "content_topic_checkpoint":
             result = self.content.checkpoint_topic(
@@ -1008,11 +1015,11 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "channel_onboarding_complete",
-            "确认阶段 B 四项生产默认值并原子创建独立频道资料库。",
+            "确认阶段 B 四项生产默认值并以固定审核模式原子创建独立频道资料库。",
             {
                 **binding_properties,
                 "defaults": {"type": "object"},
-                "executionMode": {"type": "string", "enum": ["review", "auto"]},
+                "executionMode": {"type": "string", "enum": ["review"]},
             },
             ["taskId", "channelProfileId", "bindingProof", "defaults"],
         ),
@@ -1439,6 +1446,8 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "learningSnapshot": {"type": "object"},
                 "oneTimeModifications": {"type": "array", "items": {"type": "string"}},
                 "longTermLearning": {},
+                "resumeExistingProject": {"type": "boolean"},
+                "resumeConfirmationRef": {"type": "string"},
             },
             ["taskId", "channelProfileId", "bindingProof", "projectId", "sourceMode"],
         ),

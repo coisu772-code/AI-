@@ -5,6 +5,8 @@ description: 在标题、简介和封面资产都由 content-title-description �
 
 # 发布素材汇总
 
+先读取 [逐阶段确认契约](../channel-production/references/manual-stage-confirmations.md)。频道预设或历史项目中的自动字段不能替代当前任务确认。
+
 本 Skill 是汇总器，不是内容生成器：
 
 - `$content-title-description` 同时提供 `content-title` → `title-asset-v1`、`content-description` → `description-asset-v1` 和 `content-thumbnail` → `thumbnail-asset-v1`。
@@ -26,7 +28,7 @@ description: 在标题、简介和封面资产都由 content-title-description �
 ## 冻结
 
 1. 展示唯一标题、简介与 Hashtags、唯一封面、资产包版本、母稿版本和目标频道引用。
-2. 审核模式等待联合确认；已有明确自动确认授权时仍须先通过全部硬门。
+2. 审核模式停在 `G5_PUBLISHING_ASSETS` 等待联合确认；只有当前任务已有明确自动授权时才可自动确认，且仍须先通过全部硬门。
 3. 调用 `content_publishing_finalize`，提交六个标题候选与中文翻译、唯一标题、简介双语对照、中文故事摘要 `storySummaryChinese`、Hashtags 中文对照、五张封面结果及正式封面短文案中文含义；不新增或改写内容。
 4. 工具生成 `09_标题简介标签_双语审核.md` 和 `10_封面候选与选择结果.md`。调用 `content_review_documents_get`，向用户显示这两份文档以及 07–08 正式稿的路径、版本和 SHA-256。
 5. `publishing.json` 和正式发布包仍只包含目标语言发布字段，中文审核译文不得进入 YouTube 上传字段。

@@ -5,7 +5,7 @@ description: 根据 content-deconstruct 冻结的拆书报告、改编档位、�
 
 # 仿写正文
 
-这是四阶段内容主链的第二步。执行前必须完整阅读 [references/prompt-v5.2.txt](references/prompt-v5.2.txt)、[references/rewrite-gates.md](references/rewrite-gates.md) 和 [用户审核文档规范](../channel-production/references/user-review-documents.md)。用户提供的提示词同时包含拆解与重写；本 Skill 已接收冻结拆书包时，只执行其中的改编设计、重写和自检，不重复拆书。
+这是四阶段内容主链的第二步。执行前必须完整阅读 [逐阶段确认契约](../channel-production/references/manual-stage-confirmations.md)、[references/prompt-v5.2.txt](references/prompt-v5.2.txt)、[references/rewrite-gates.md](references/rewrite-gates.md) 和 [用户审核文档规范](../channel-production/references/user-review-documents.md)。逐阶段确认契约优先于提示词中关于“不等待确认”或“直接继续”的旧描述。用户提供的提示词同时包含拆解与重写；本 Skill 已接收冻结拆书包时，只执行其中的改编设计、重写和自检，不重复拆书。
 
 ## 前提
 
@@ -39,7 +39,7 @@ description: 根据 content-deconstruct 冻结的拆书报告、改编档位、�
 5. 工具生成稳定文件 `用户审核文档/04_仿写初稿_目标语言.txt` 和不可覆盖的历史版本。调用 `content_review_documents_get`，向用户展示文件路径、版本和 SHA-256。
 6. 调用 `content_integrity_check`，确认来源锁、Topic Package 和初稿文档仍有效。
 
-生成的是待编辑初稿，状态只能到 `REWRITE_DRAFT_READY`，不得标记 `SCRIPT_READY`。完成后立即交给 `$content-review-edit` 执行审稿、修改、复查与正式母稿冻结。
+生成的是待编辑初稿，状态只能到 `REWRITE_DRAFT_READY`，不得标记 `SCRIPT_READY`。审核模式必须展示 `04_仿写初稿_目标语言.txt` 并停在 `D4_REWRITE_DRAFT`；用户确认进入编辑审核后才交给 `$content-review-edit`。只有当前任务已有明确自动授权时才可连续进入审核。
 
 ## 边界
 

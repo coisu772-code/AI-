@@ -5,7 +5,7 @@ description: 审查 content-rewrite 生成的仿写初稿或用户提供的完�
 
 # 编辑审核与修改
 
-这是四阶段内容主链的第三步。执行前必须完整阅读 [references/prompt-v4.1.txt](references/prompt-v4.1.txt) 和 [用户审核文档规范](../channel-production/references/user-review-documents.md)。该提示词是本阶段的完整审稿标准；项目规则、用户本次明确要求和已冻结故事事实优先。
+这是四阶段内容主链的第三步。执行前必须完整阅读 [逐阶段确认契约](../channel-production/references/manual-stage-confirmations.md)、[references/prompt-v4.1.txt](references/prompt-v4.1.txt) 和 [用户审核文档规范](../channel-production/references/user-review-documents.md)。逐阶段确认契约优先于提示词中关于“不等待确认”或“直接修改后继续”的旧描述；项目规则、用户本次明确要求和已冻结故事事实优先。
 
 ## 进入
 
@@ -34,7 +34,7 @@ description: 审查 content-rewrite 生成的仿写初稿或用户提供的完�
 7. G4 确认卡先展示中文正式稿路径、中文质量结论和外语保险门结论，再展示目标语言正式稿路径与哈希；调用 `content_review_documents_get` 展示 04–08 文档路径、版本与 SHA-256，再调用 `content_integrity_check`。
 8. 只有两道质量门均通过、文档哈希有效并返回 `SCRIPT_READY` 时，才称为可用于配音、字幕、分镜和工坊的唯一事实源。
 
-用户要求继续完整流程时，将最终 Manuscript Package 交给 `$content-title-description`。
+审核模式完成后展示 05–08 文档并停在 `D5_FINAL_MANUSCRIPT`；用户确认正式稿后才交给 `$content-title-description`。只有当前任务已有明确自动授权时才可连续进入包装。
 
 ## 边界
 

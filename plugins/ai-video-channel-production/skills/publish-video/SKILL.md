@@ -5,7 +5,7 @@ description: 从 VIDEO_READY Production Result Package v1 与已确认 Publishin
 
 # 发布中心
 
-只处理发布包与发布资格。先区分“本地包就绪”“等待人工确认”“具备上传资格”和“真实远端状态”，不要把 `.ready`、导入成功或 `READY_TO_UPLOAD` 说成已经上传。
+先读取 [逐阶段确认契约](../channel-production/references/manual-stage-confirmations.md)。只处理发布包与发布资格。先区分“本地包就绪”“等待人工确认”“具备上传资格”和“真实远端状态”，不要把 `.ready`、导入成功或 `READY_TO_UPLOAD` 说成已经上传。
 
 ## 准备上传成片
 
@@ -16,7 +16,7 @@ description: 从 VIDEO_READY Production Result Package v1 与已确认 Publishin
 5. 调用 `validate_publish_package_v2` 独立重验 v2 文件、绑定、路径、哈希、媒体、字幕、元数据、频道、计划和额度。不要导入 `.creating`、含符号链接、未声明文件或任何验证失败的包。
 6. 调用 `import_publish_package_v2` 让发布中心在隔离 inbox／数据库中执行 `.ready → .importing → .imported/.failed`。始终保持 `networkExecution=false`；不得触发 OAuth、YouTube API 或正式桌面程序。
 7. 读取工具返回的 `final_chinese_review_card_path`，向用户显示可点击的 `FINAL_CHINESE_REVIEW_CARD.md`。这张 G6 卡必须先集中显示中文故事、标题、简介、标签含义、封面文案、配音、频道、隐私状态和上传策略，再显示目标语言正式标题、简介、Hashtags 与封面文案。
-8. 未取得 G6 最终中文验收确认前，任何会上传的视频都必须停在 `WAITING_REVIEW / FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED`；不得因既有 AUTO 授权跳过本次内容验收。
+8. 未取得当前任务的 G6 最终中文验收确认前，任何会上传的视频都必须停在 `WAITING_REVIEW / FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED`；不得因频道预设、旧项目或既有 AUTO 授权跳过本次内容验收。
 
 ## 执行三种策略
 

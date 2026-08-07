@@ -1,11 +1,11 @@
 ---
 name: content-title-description
-description: 根据已通过编辑审核并冻结的最终正文，使用同一份标题提示词生成事实一致的作品书名或 YouTube 标题、可直接粘贴的简介，并在唯一标题确认后直接生成和选定正式16:9封面。用户说“生成标题和简介”“生成封面”“标题简介封面一起做”或要求完成四阶段内容流程时使用；不再路由到独立封面 Skill。
+description: 根据已通过编辑审核并冻结的最终正文，使用同一份标题提示词依次生成事实一致的作品书名或 YouTube 标题、可直接粘贴的简介与 Hashtags，并在唯一标题和简介分别确认后生成正式16:9封面。用户说“生成标题和简介”“生成封面”“标题简介封面一起做”或要求完成四阶段内容流程时使用；审核模式按标题、简介、封面三个子阶段分别等待确认，不再路由到独立封面 Skill。
 ---
 
 # 标题、简介与封面
 
-这是四阶段内容主链的第四步。执行前必须完整阅读 [references/prompt-v2.1.txt](references/prompt-v2.1.txt)、[references/title-description-contract.md](references/title-description-contract.md) 和 [用户审核文档规范](../channel-production/references/user-review-documents.md)。原提示词中的“导言”是开场钩子，不等于 YouTube 简介；本 Skill 使用其事实提取、标题策略、封面短文案和导言规则，再按补充契约生成简介与正式封面。
+这是四阶段内容主链的第四步。执行前必须完整阅读 [逐阶段确认契约](../channel-production/references/manual-stage-confirmations.md)、[references/prompt-v2.1.txt](references/prompt-v2.1.txt)、[references/title-description-contract.md](references/title-description-contract.md) 和 [用户审核文档规范](../channel-production/references/user-review-documents.md)。逐阶段确认契约优先于提示词中关于“直接继续”或“无需等待”的旧描述。原提示词中的“导言”是开场钩子，不等于 YouTube 简介；本 Skill 使用其事实提取、标题策略、封面短文案和导言规则，再按补充契约生成简介与正式封面。
 
 ## 进入
 
@@ -19,6 +19,7 @@ description: 根据已通过编辑审核并冻结的最终正文，使用同一�
 - 自动选择最合适的两至三种策略，控制剧透级别，按事实准确度、卖点、目标市场自然度、新颖度、点击潜力和候选差异评分。
 - 低于 75 分、事实越界、翻译腔或只换词的候选必须重做。
 - 审核模式让用户确认唯一标题；已有明确自动模式授权时，选最高分合格项并记录选择依据。
+- 审核模式生成标题候选后停在 `P1_TITLE`；未确认唯一标题，不得生成简介或封面。
 
 ## YouTube 简介
 
@@ -27,6 +28,7 @@ description: 根据已通过编辑审核并冻结的最终正文，使用同一�
 - 使用自然目标语言；不得编造正文不存在的身份、关系、系统、数字、背叛、死亡、结果或热点。
 - 默认附 8–12 个与正文事实一致的目标语言 Hashtags，并逐项给出中文含义；用户明确不要时可省略。
 - 目标语言简介必须同时生成完整中文审核翻译；中文只用于查看，不写入 YouTube 正式字段。
+- 审核模式生成简介与 Hashtags 后停在 `P2_DESCRIPTION`；未确认正式文本，不得生成封面。
 
 ## 正式封面
 
@@ -34,7 +36,7 @@ description: 根据已通过编辑审核并冻结的最终正文，使用同一�
 2. 使用同一份标题提示词提取的最强视觉场景、核心冲突和封面短文案，形成五个构图实质不同的方案。
 3. 逐个调用内置 `imagegen` 图片生成能力。每次请求都同时生成完整画面和准确的目标语言短文案，输出 16:9 YouTube 缩略图；不得先生成无字底图再用本机排字。
 4. 逐张使用 `view_image` 检查人物、事实、构图、文字准确性、移动端可读性和题材匹配。错字、乱码、漏字、多字或画面失败时，只重做对应候选。
-5. 对五张合格候选执行 CTR 视觉质量评分，自动选择最高分候选；审核模式展示五张和推荐项，用户确认后锁定唯一正式封面。
+5. 对五张合格候选执行 CTR 视觉质量评分并形成推荐；审核模式停在 `P3_THUMBNAIL`，展示五张和推荐项，用户确认后锁定唯一正式封面。已有当前任务自动授权时才自动选择最高分合格候选。
 6. 保存真实图片文件、宽高、大小和 SHA-256。不得用提示词文本、重复封面或占位图冒充正式封面。
 7. 正式封面的目标语言短文案同时保存中文含义，供用户核对文字是否准确。
 
@@ -48,7 +50,7 @@ description: 根据已通过编辑审核并冻结的最终正文，使用同一�
 - `description-asset-v1`：目标语言简介正文、完整中文翻译、8–12 个 Hashtags 及逐项中文含义、事实依据、目标语言和 SHA-256。
 - `thumbnail-asset-v1`：五个候选、质量检查、唯一确认图片、16:9 尺寸和 SHA-256。
 
-三个资产都由本 Skill `content-title-description` 提供。`content-title`、`content-description` 与 `content-thumbnail` 只是稳定资产槽位，不是另外三个 Skill。全部通过后立即交给 `$publishing-assets` 汇总，不再等待“以后开发封面”。
+三个资产都由本 Skill `content-title-description` 提供。`content-title`、`content-description` 与 `content-thumbnail` 只是稳定资产槽位，不是另外三个 Skill。审核模式依次通过 P1、P2、P3 后才交给 `$publishing-assets` 汇总；不得把三个子阶段合并成一次默认自动执行。
 
 ## 边界
 

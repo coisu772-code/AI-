@@ -5,13 +5,13 @@ description: 将已确认的 Manuscript Package v1 与 Publishing Asset Package 
 
 # 制作中心
 
-只生成媒体资产并完成技术验收。保持目标语言正式母稿、角色音色、视觉锚点和发布素材只读；任何内容修改都返回对应上游中心建立新版本。
+先读取 [逐阶段确认契约](../channel-production/references/manual-stage-confirmations.md)。只生成媒体资产并完成技术验收。保持目标语言正式母稿、角色音色、视觉锚点和发布素材只读；任何内容修改都返回对应上游中心建立新版本。
 
 ## 开始制作
 
 1. 调用 `production_capabilities`。确认 Production Package `2.1`、Production Task `1.0.0`、FFmpeg、ffprobe 和所选工坊兼容接口可用。不得把无外部探测的合成 runner 描述成真实模型或收费服务调用。
 2. 调用 `content_handoff_check`。只接收 `SCRIPT_READY`、`PUBLISHING_ASSETS_READY`、哈希完整、质量门有效且锁定真实 16:9 封面的项目。
-3. 向用户显示一张中文优先、目标语言对照的简短制作卡：项目、地区、语言、中文标题与目标语言标题、集数、锁定音色、制作方式、视频范围、失败策略和能力状态。审核模式等待确认；已有自动制作授权且所有硬门通过时可自动继续。
+3. 向用户显示一张中文优先、目标语言对照的简短制作卡：项目、地区、语言、中文标题与目标语言标题、集数、锁定音色、制作方式、视频范围、失败策略和能力状态。审核模式停在 `G5B_PRODUCTION` 等待确认；只有当前任务已有明确自动授权且所有硬门通过时可自动继续，频道预设的旧自动字段无效。
 4. 调用 `production_package_assemble`。生产配置必须明确：
    - `deliveryMode`：`auto_render` 或 `jianying_refine`；
    - `videoGeneration.selectionMode`：`none`、`project_first_n_storyboards`、`episode_first_n_storyboards` 或 `all_storyboards`；

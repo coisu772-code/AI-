@@ -152,8 +152,16 @@ def _contract_ref(contract: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _approval(gate: str, confirmation: dict[str, Any], created: str) -> dict[str, Any]:
+def _approval(
+    gate: str,
+    confirmation: dict[str, Any],
+    created: str,
+    *,
+    task_id: str,
+) -> dict[str, Any]:
     mode = confirmation.get("mode", "review")
+    if mode not in {"review", "auto"}:
+        raise ToolError("CONFIRMATION_MODE_INVALID", "确认模式只能是 review 或 auto。")
     result = {
         "gate": gate,
         "status": "APPROVED",
@@ -163,8 +171,13 @@ def _approval(gate: str, confirmation: dict[str, Any], created: str) -> dict[str
     }
     if mode == "auto":
         authorization = confirmation.get("authorizationRef")
-        if not isinstance(authorization, str) or len(authorization) < 3:
-            raise ToolError("AUTO_CONFIRMATION_INVALID", "自动确认必须绑定已有用户授权引用。")
+        expected = f"task:{task_id}:auto-remaining-workflow"
+        if authorization != expected:
+            raise ToolError(
+                "AUTO_CONFIRMATION_INVALID",
+                "自动确认必须绑定当前任务中用户明确授予的剩余流程授权；频道预设、旧项目或其他任务授权无效。",
+                details={"expectedAuthorizationRef": expected},
+            )
         result["authorizationRef"] = authorization
     return result
 
@@ -563,6 +576,8 @@ class ContentLoop:
         learning_snapshot: Any = None,
         one_time_modifications: Any = None,
         long_term_learning: Any = None,
+        resume_existing_project: Any = False,
+        resume_confirmation_ref: Any = None,
     ) -> dict[str, Any]:
         self.store.assert_binding(
             task_id=task_id, channel_profile_id=channel_profile_id, binding_proof=binding_proof
@@ -590,8 +605,23 @@ class ContentLoop:
                 "阶段4只读取频道学习快照；长期规则必须等待独立 G7 用户确认。",
             )
         if learning_snapshot is not None:
-            if not isinstance(learning_snapshot, dict) or learning_snapshot.get("mode") != "read_only":
-                raise ToolError("LEARNING_SNAPSHOT_INVALID", "频道学习只允许读取明确标记为 read_only 的快照。")
+            expected_learning_ref = f"task:{task_id}:load-channel-learning"
+            if (
+                not isinstance(learning_snapshot, dict)
+                or learning_snapshot.get("mode") != "read_only"
+                or learning_snapshot.get("confirmedForTaskId") != task_id
+                or learning_snapshot.get("confirmationRef") != expected_learning_ref
+            ):
+                raise ToolError(
+                    "LEARNING_SNAPSHOT_CONFIRMATION_REQUIRED",
+                    "新项目默认不加载历史学习；必须绑定当前任务中用户明确选择的只读学习快照。",
+                    details={"expectedConfirmationRef": expected_learning_ref},
+                )
+            learning_snapshot = {
+                key: value
+                for key, value in learning_snapshot.items()
+                if key not in {"confirmedForTaskId", "confirmationRef"}
+            }
         if one_time_modifications is None:
             one_time_modifications = []
         if not isinstance(one_time_modifications, list) or any(not isinstance(item, str) for item in one_time_modifications):
@@ -794,6 +824,20 @@ class ContentLoop:
             existing = self._load_state(channel_profile_id, project_id)
             if existing.get("requestHash") != request_hash:
                 raise ToolError("CONTENT_PROJECT_EXISTS", "同一 projectId 已绑定不同内容简报；不会覆盖旧项目。")
+            if existing.get("createdByTaskId") != task_id:
+                expected_resume_ref = f"task:{task_id}:resume:{project_id}"
+                if resume_existing_project is not True or resume_confirmation_ref != expected_resume_ref:
+                    raise ToolError(
+                        "EXPLICIT_PROJECT_RESUME_REQUIRED",
+                        "新任务不会自动续接旧项目；请在当前任务明确点名项目并确认恢复。",
+                        details={"expectedResumeConfirmationRef": expected_resume_ref},
+                    )
+                existing["lastResume"] = {
+                    "taskId": task_id,
+                    "confirmationRef": resume_confirmation_ref,
+                    "resumedAt": utc_now(),
+                }
+                self._save_state(existing)
             return {"state": existing, "idempotent": True, "confirmationCard": existing["confirmationCard"]}
 
         root = self._project_root(channel_profile_id, project_id)
@@ -806,6 +850,7 @@ class ContentLoop:
             "schemaVersion": CONTENT_LOOP_VERSION,
             "projectId": project_id,
             "channelProfileId": channel_profile_id,
+            "createdByTaskId": task_id,
             "sourceMode": source_mode,
             "targetRegion": channel["targetRegion"],
             "targetLanguage": channel["outputLanguage"],
@@ -1229,7 +1274,7 @@ class ContentLoop:
             "direct-rewrite": "extension",
             "synthesis-rewrite": "extension",
         }[state["sourceMode"]]
-        approval = _approval("G3_TOPIC", confirmation, created)
+        approval = _approval("G3_TOPIC", confirmation, created, task_id=task_id)
         backup_ids = ranking[1:3] if len(ranking) > 1 else []
         contract = with_hash(
             {
@@ -1700,7 +1745,7 @@ class ContentLoop:
                     "invalidatedEpisodeNumbers": [],
                     "upstreamStoryChangeRequiresNewTopicVersion": True,
                 },
-                "confirmation": _approval("G4_MANUSCRIPT", confirmation, created),
+                "confirmation": _approval("G4_MANUSCRIPT", confirmation, created, task_id=task_id),
             }
         )
         self._validate_contract_schema(contract, "manuscript-package.schema.json")
@@ -2029,7 +2074,7 @@ class ContentLoop:
                 "uploadPolicy": production["defaults"]["uploadPolicy"],
                 "privacyStatus": "private",
                 "chineseReview": chinese_review,
-                "confirmation": _approval("G5_PUBLISHING_ASSETS", confirmation, created),
+                "confirmation": _approval("G5_PUBLISHING_ASSETS", confirmation, created, task_id=task_id),
                 "productionHandoff": production_handoff,
             }
         )

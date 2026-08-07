@@ -5,7 +5,7 @@ description: 接收用户提供的视频链接、YouTube 链接、本地文件�
 
 # 内容来源
 
-把用户给出的链接或文本直接转换为可追溯的 Source Package。用户已经明确要求“下载、拆解、仿写或使用这个资料”时，该请求就是本次来源取得授权；范围与原请求完全一致时，不再增加一次“确认入库”对话门。
+先读取 [逐阶段确认契约](../channel-production/references/manual-stage-confirmations.md)。把用户给出的链接或文本直接转换为可追溯的 Source Package。用户已经明确要求“下载、拆解、仿写或使用这个资料”时，该请求就是本次来源取得授权；范围与原请求完全一致时，不再增加一次“确认入库”对话门，但它不构成后续阶段自动授权。
 
 ## 输入路由
 
@@ -29,7 +29,7 @@ description: 接收用户提供的视频链接、YouTube 链接、本地文件�
 - `PARTIAL`：显示缺失范围；用户明确接受后才允许拆解。
 - `BLOCKED`：请求用户补充字幕、文字稿、音频、视频或本地文件；不得根据标题、封面、简介或评论编造正文。
 
-用户原请求同时包含“取得后拆解”时，来源完成后直接调用 `$content-deconstruct`，不要求用户再说一次继续。字段约定见 [references/source-handoff.md](references/source-handoff.md)。
+用户原请求同时包含“取得后拆解”时，来源完成后可直接调用 `$content-deconstruct`，不要求用户再说一次继续；拆解完成后仍必须执行 `D2_DECONSTRUCTION` 确认门。字段约定见 [references/source-handoff.md](references/source-handoff.md)。
 
 ## 边界
 
