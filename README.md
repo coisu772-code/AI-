@@ -1,10 +1,10 @@
 # AI 视频频道生产系统 RC
 
-当前预发布版本是 `v0.11.0-rc.2`。本版加入外语质量保险门、中文优先双语确认卡、上传前最终中文验收卡、Publish Package v2.1.0，并修复 YouTube 发布中心便携程序在未预装系统时区数据库的电脑上无法识别 IANA 时区的问题。系统不会代替用户执行 Google/YouTube OAuth 或真实视频上传。
+当前预发布版本是 `v0.11.0-rc.3`。本版在 `v0.11.0-rc.2` 的发布、安全和便携运行链上，新增通用三档内容迁移方向、15 方向去重、原文核心体验保留门与非换皮原创门。系统不会代替用户执行 Google/YouTube OAuth 或真实视频上传。
 
 ## 当前内容主流程
 
-新内容统一走四个创作 Skills：`content-deconstruct`（完整拆书、逐章分析、迁移方向）→ `content-rewrite`（单源高贴合或资料融合的完整仿写初稿）→ `content-review-edit`（编辑审核、直接修改、复查并冻结正式文本）→ `content-title-description`（标题、YouTube 简介与正式封面）。`content-source` 只负责把视频链接、上传文本、资料库或按需联网资料整理成规范输入，不计入四个创作阶段。旧频道蒸馏、旧视频拆文、8 方向仿写、独立选题和旧文稿 Skills 已退出新任务入口。
+新内容统一走四个创作 Skills：`content-deconstruct`（完整拆书、逐章分析，以及高贴合迁移／中度重构／大胆创新三档各 5 个方向）→ `content-rewrite`（按用户确认档位和保留契约生成完整仿写初稿）→ `content-review-edit`（编辑审核、直接修改、复查并冻结正式文本）→ `content-title-description`（标题、YouTube 简介与正式封面）。`content-source` 只负责把视频链接、上传文本、资料库或按需联网资料整理成规范输入，不计入四个创作阶段。旧版尚未确认的方向卡需重新生成；已经进入正文的旧项目保持原锁，不自动改写。
 
 标题、简介和封面现由一个 `content-title-description` Skill 同时提供，对外保存为 `title-asset-v1`、`description-asset-v1` 和 `thumbnail-asset-v1`。封面先由同一标题提示词确定短文案与视觉方向，再调用内置图片生成能力产出五张16:9候选并选定正式图；不再保留独立封面 Skill 或未来等待点。
 
@@ -12,9 +12,9 @@
 
 ## Windows 一键安装
 
-[下载 Windows 统一安装器（v0.11.0-rc.2）](https://github.com/coisu772-code/AI-/releases/download/v0.11.0-rc.2/AI-Video-Channel-Production-Unified-Installer-v0.11.0-rc.2.zip)
+[下载 Windows 统一安装器（v0.11.0-rc.3）](https://github.com/coisu772-code/AI-/releases/download/v0.11.0-rc.3/AI-Video-Channel-Production-Unified-Installer-v0.11.0-rc.3.zip)
 
-普通联网用户只需下载这一个 ZIP，解压并双击 `install.cmd`。入口只从锁定的 `v0.11.0-rc.2` Release URL 获取总清单，不使用 `latest`；随后逐项校验大小和 SHA-256，再事务式安装全部组件。新漫剧工坊需要 Kokoro 时，会按 CPU、NVIDIA 或 NVIDIA Blackwell 选择对应的公开分卷运行包，先校验清单、大小和 SHA-256，再在工坊程序目录内安装；本次继续复用 `v0.10.0-rc.1` 中内容未变化且已校验的公开 Kokoro 运行包，不重复上传 10GB 以上相同资产，也不会写入频道、项目、凭据或运行数据目录。
+普通联网用户只需下载这一个 ZIP，解压并双击 `install.cmd`。入口只从锁定的 `v0.11.0-rc.3` Release URL 获取总清单，不使用 `latest`；随后逐项校验大小和 SHA-256，再事务式安装全部组件。新漫剧工坊需要 Kokoro 时，会按 CPU、NVIDIA 或 NVIDIA Blackwell 选择对应的公开分卷运行包，先校验清单、大小和 SHA-256，再在工坊程序目录内安装；本次继续复用 `v0.10.0-rc.1` 中内容未变化且已校验的公开 Kokoro 运行包，不重复上传 10GB 以上相同资产，也不会写入频道、项目、凭据或运行数据目录。
 
 先决条件：Windows 10/11 x64、PowerShell 5.1 或更高版本、统一系统约 1 GB 可用空间，以及 Codex 桌面版或支持 `plugin` 命令的 Codex CLI。无需预装 Python、uv 或 FFmpeg。Kokoro 是可选本地语音运行时，按所选硬件还需要约 2–6 GB 额外空间。
 
