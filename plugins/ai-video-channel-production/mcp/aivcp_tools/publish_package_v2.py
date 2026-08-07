@@ -20,7 +20,7 @@ from .contracts import canonical_hash
 
 PROTOCOL = "youtube-publish-package-v2"
 SCHEMA_VERSION = "2.0"
-PACKAGE_VERSION = "2.0.0"
+PACKAGE_VERSION = "2.1.0"
 LOCAL_STATES = {"PACKAGE_READY", "WAITING_REVIEW", "READY_TO_UPLOAD"}
 REMOTE_STATES = {
     "UPLOADING",
@@ -36,6 +36,8 @@ POLICIES = {"DO_NOT_UPLOAD", "REQUIRE_REVIEW", "AUTO"}
 PRIVACY = {"private", "unlisted", "public", "scheduled"}
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 HASHTAG_PATTERN = re.compile(r"^#[^#\s]{1,99}$")
+PRIVACY_ZH = {"private": "私享", "unlisted": "不公开", "public": "公开", "scheduled": "定时公开"}
+UPLOAD_POLICY_ZH = {"DO_NOT_UPLOAD": "只生成发布包，不上传", "REQUIRE_REVIEW": "人工确认后上传", "AUTO": "已授权自动上传（仍须本次最终中文验收）"}
 
 
 class PublishPackageError(RuntimeError):
@@ -104,6 +106,149 @@ def _write_json(path: Path, value: dict[str, Any]) -> None:
         json.dumps(value, ensure_ascii=False, allow_nan=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+
+def _validate_chinese_review(publishing: dict[str, Any]) -> dict[str, Any]:
+    review = publishing.get("chineseReview")
+    if not isinstance(review, dict):
+        raise PublishPackageError("PUBLISH_CHINESE_REVIEW_REQUIRED", "Publishing asset package is missing the Chinese review data")
+    if review.get("displayMode") != "CHINESE_FIRST_WITH_TARGET_LANGUAGE" or review.get("uploadUseAllowed") is not False:
+        raise PublishPackageError("PUBLISH_CHINESE_REVIEW_INVALID", "Chinese review data has an invalid display or production-use boundary")
+    for field in ("storySummaryZh", "titleZh", "descriptionZh", "thumbnailTextZh"):
+        value = review.get(field)
+        if not isinstance(value, str) or not value.strip():
+            raise PublishPackageError("PUBLISH_CHINESE_REVIEW_INVALID", f"Chinese review field is missing: {field}")
+    if review.get("titleZh") != publishing.get("titleZhTranslation"):
+        raise PublishPackageError("PUBLISH_CHINESE_REVIEW_INVALID", "Chinese review title does not match the frozen title translation")
+    translations = review.get("hashtagTranslations")
+    hashtags = publishing.get("hashtags")
+    if (
+        not isinstance(translations, list)
+        or not isinstance(hashtags, list)
+        or len(translations) != len(hashtags)
+        or any(
+            not isinstance(item, dict)
+            or item.get("hashtag") != hashtag
+            or not isinstance(item.get("chinese"), str)
+            or not item["chinese"].strip()
+            for item, hashtag in zip(translations, hashtags, strict=True)
+        )
+    ):
+        raise PublishPackageError("PUBLISH_CHINESE_REVIEW_INVALID", "Chinese hashtag translations do not match the frozen hashtags")
+    voices = review.get("voiceSummary")
+    if not isinstance(voices, list) or not voices:
+        raise PublishPackageError("PUBLISH_CHINESE_REVIEW_INVALID", "Chinese review voice summary is missing")
+    return review
+
+
+def _final_chinese_review_card(
+    *,
+    intent_id: str,
+    result: dict[str, Any],
+    publishing: dict[str, Any],
+    channel_profile: dict[str, Any],
+    final_video: Path,
+    final_thumbnail: Path,
+) -> dict[str, Any]:
+    review = _validate_chinese_review(publishing)
+    policy = publishing["uploadPolicy"]
+    privacy = publishing["privacyStatus"]
+    return {
+        "schemaVersion": "1.0.0",
+        "displayMode": "CHINESE_FIRST_WITH_TARGET_LANGUAGE",
+        "displayLanguage": "zh-CN",
+        "gate": "G6_FINAL_CHINESE_UPLOAD_REVIEW",
+        "publishIntentId": intent_id,
+        "projectId": result["projectId"],
+        "chinesePrimary": {
+            "titleZh": review["titleZh"],
+            "storySummaryZh": review["storySummaryZh"],
+            "descriptionZh": review["descriptionZh"],
+            "hashtagsZh": [item["chinese"] for item in review["hashtagTranslations"]],
+            "thumbnailTextZh": review["thumbnailTextZh"],
+            "voices": review["voiceSummary"],
+            "channel": {
+                "channelProfileId": channel_profile["channel_profile_id"],
+                "publisherProfileId": channel_profile["publisher_profile_id"],
+                "channelSerial": channel_profile["channel_serial"],
+                "youtubeChannelId": channel_profile["expected_channel_id"],
+            },
+            "privacyStatusZh": PRIVACY_ZH[privacy],
+            "uploadPolicyZh": UPLOAD_POLICY_ZH[policy],
+            "decisionRequiredZh": "请集中核对故事、包装、配音、频道、隐私状态和上传策略；明确确认后才允许进入真实上传。",
+        },
+        "targetLanguageComparison": {
+            "labelZh": "目标语言对照",
+            "language": publishing["targetLanguage"],
+            "sameAsChinese": publishing["targetLanguage"].lower().startswith("zh"),
+            "title": publishing["title"],
+            "description": publishing["descriptionBody"],
+            "hashtags": publishing["hashtags"],
+            "thumbnailText": publishing["thumbnailStrategy"]["targetLanguageText"],
+        },
+        "finalAssets": {
+            "video": {"path": final_video.name, "sha256": _sha256_file(final_video), "sizeBytes": final_video.stat().st_size},
+            "thumbnail": {"path": final_thumbnail.name, "sha256": _sha256_file(final_thumbnail), "sizeBytes": final_thumbnail.stat().st_size},
+        },
+        "confirmation": {
+            "required": policy != "DO_NOT_UPLOAD",
+            "status": "NOT_REQUESTED" if policy == "DO_NOT_UPLOAD" else "AWAITING_USER_CONFIRMATION",
+            "confirmed": False,
+        },
+        "uploadUseOfChineseTranslations": False,
+        "networkExecution": False,
+    }
+
+
+def _render_final_chinese_review_markdown(card: dict[str, Any]) -> str:
+    zh = card["chinesePrimary"]
+    target = card["targetLanguageComparison"]
+    lines = [
+        "# 上传前最终中文验收卡",
+        "",
+        "> 本卡中文内容用于审核，不会替换正式目标语言发布字段。确认前不会执行真实上传。",
+        "",
+        "## 一、中文集中验收",
+        "",
+        f"- 故事：{zh['storySummaryZh']}",
+        f"- 标题：{zh['titleZh']}",
+        f"- 简介：{zh['descriptionZh']}",
+        f"- 标签：{'；'.join(zh['hashtagsZh'])}",
+        f"- 封面文案：{zh['thumbnailTextZh']}",
+        f"- 频道：序号 {zh['channel']['channelSerial']}／{zh['channel']['youtubeChannelId']}",
+        f"- 隐私状态：{zh['privacyStatusZh']}",
+        f"- 上传策略：{zh['uploadPolicyZh']}",
+        "",
+        "### 配音",
+        "",
+        "| 角色/说话人 | 角色功能 | 引擎 | 音色 | 音色 ID |",
+        "|---|---|---|---|---|",
+    ]
+    for voice in zh["voices"]:
+        lines.append(
+            f"| {voice['targetLanguageName']} ({voice['speakerId']}) | {voice['role']} | {voice['engine']} | {voice['voiceName']} | {voice['voiceId']} |"
+        )
+    lines.extend(
+        [
+            "",
+            f"## 二、目标语言对照（{target['language']}）",
+            "",
+            f"- 标题：{target['title']}",
+            f"- 封面文案：{target['thumbnailText']}",
+            f"- Hashtags：{' '.join(target['hashtags'])}",
+            "",
+            "### 正式简介",
+            "",
+            target["description"],
+            "",
+            "## 三、确认结论",
+            "",
+            f"- 当前状态：{card['confirmation']['status']}",
+            f"- 操作要求：{zh['decisionRequiredZh']}",
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _safe_relative_path(value: Any, *, field: str) -> str:
@@ -533,8 +678,8 @@ def _determine_status(upload_task: dict[str, Any], *, now: datetime) -> tuple[st
     if policy == "DO_NOT_UPLOAD":
         return "PACKAGE_READY", [], False
     if policy == "REQUIRE_REVIEW":
-        return "WAITING_REVIEW", ["HUMAN_CONFIRMATION_REQUIRED"], True
-    blockers: list[str] = []
+        return "WAITING_REVIEW", ["FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED"], True
+    blockers: list[str] = ["FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED"]
     if upload_task.get("schedule_conflict") is True:
         blockers.append("SCHEDULE_CONFLICT")
     if upload_task["privacy_status"] == "scheduled":
@@ -558,8 +703,6 @@ def _determine_status(upload_task: dict[str, Any], *, now: datetime) -> tuple[st
         blockers.append("DAILY_LIMIT_REACHED")
     if limits["active_uploads"] >= limits["concurrency_limit"]:
         blockers.append("CONCURRENCY_LIMIT_REACHED")
-    if blockers:
-        return "WAITING_REVIEW", blockers, False
     authorization = upload_task["authorization"]
     for key, code in (
         ("workspace", "WORKSPACE_AUTO_AUTHORIZATION_MISSING"),
@@ -568,9 +711,7 @@ def _determine_status(upload_task: dict[str, Any], *, now: datetime) -> tuple[st
     ):
         if not _grant_valid(authorization.get(key), now):
             blockers.append(code)
-    if blockers:
-        return "WAITING_REVIEW", blockers, False
-    return "READY_TO_UPLOAD", ["EXTERNAL_APPROVAL_REQUIRED"], True
+    return "WAITING_REVIEW", blockers, True
 
 
 def _validate_channel_profile(channel_profile: dict[str, Any], publishing: dict[str, Any]) -> None:
@@ -760,6 +901,20 @@ def assemble_publish_package_v2(
     }
     _write_json(creating / "upload_task.json", upload_task)
 
+    final_review_card = _final_chinese_review_card(
+        intent_id=intent_id,
+        result=result,
+        publishing=publishing,
+        channel_profile=channel_profile,
+        final_video=final_video,
+        final_thumbnail=final_thumbnail,
+    )
+    _write_json(creating / "final_chinese_review_card.json", final_review_card)
+    (creating / "FINAL_CHINESE_REVIEW_CARD.md").write_text(
+        _render_final_chinese_review_markdown(final_review_card),
+        encoding="utf-8",
+    )
+
     source_report_sha = _validate_sha(result.get("validationReportHash"), field="production_result.validationReportHash")
     validation = {
         "schema_version": SCHEMA_VERSION,
@@ -847,6 +1002,8 @@ def assemble_publish_package_v2(
     _write_json(creating / "upload_status.json", upload_status)
 
     role_map = {
+        "FINAL_CHINESE_REVIEW_CARD.md": "human_review_card",
+        "final_chinese_review_card.json": "human_review_card_data",
         "metadata.json": "metadata",
         "upload_task.json": "upload_task",
         "validation.json": "validation",
@@ -857,6 +1014,8 @@ def assemble_publish_package_v2(
         final_subtitle.name: "subtitle",
     }
     media_types = {
+        "FINAL_CHINESE_REVIEW_CARD.md": "text/markdown",
+        "final_chinese_review_card.json": "application/json",
         "metadata.json": "application/json",
         "upload_task.json": "application/json",
         "validation.json": "application/json",
@@ -928,8 +1087,8 @@ def validate_publish_package_v2(
 
     declared: set[str] = set()
     files = manifest.get("files")
-    if not isinstance(files, list) or len(files) != 8:
-        raise PublishPackageError("PUBLISH_MANIFEST_INVALID", "v2 manifest must declare exactly eight files besides itself")
+    if not isinstance(files, list) or len(files) != 10:
+        raise PublishPackageError("PUBLISH_MANIFEST_INVALID", "v2 manifest must declare exactly ten files besides itself")
     for index, item in enumerate(files):
         if not isinstance(item, dict):
             raise PublishPackageError("PUBLISH_MANIFEST_INVALID", "Manifest file records must be objects")
@@ -947,7 +1106,16 @@ def validate_publish_package_v2(
             "Package contains missing or undeclared files",
             details={"undeclared": sorted(actual - declared), "missing": sorted(declared - actual)},
         )
-    expected_fixed = {"metadata.json", "upload_task.json", "validation.json", "production_binding.json", "upload_status.json", "final.mp4"}
+    expected_fixed = {
+        "FINAL_CHINESE_REVIEW_CARD.md",
+        "final_chinese_review_card.json",
+        "metadata.json",
+        "upload_task.json",
+        "validation.json",
+        "production_binding.json",
+        "upload_status.json",
+        "final.mp4",
+    }
     if not expected_fixed.issubset(declared):
         raise PublishPackageError("PUBLISH_MANIFEST_INVALID", "Required v2 files are missing")
     thumbnails = [path for path in declared if re.fullmatch(r"thumbnail\.(?:png|jpg)", path)]
@@ -963,6 +1131,7 @@ def validate_publish_package_v2(
     validation = _load_json(package_root / "validation.json")
     binding = _load_json(package_root / "production_binding.json")
     upload_status = _load_json(package_root / "upload_status.json")
+    final_review_card = _load_json(package_root / "final_chinese_review_card.json")
     intent_id = manifest.get("publish_intent_id")
     project_id = manifest.get("project_id")
     for name, document in (
@@ -1045,6 +1214,48 @@ def validate_publish_package_v2(
         or upload_status.get("external_approval_required") is not expected_external
     ):
         raise PublishPackageError("PUBLISH_STATUS_MISMATCH", "upload_status does not match policy, authorization, schedule, and limits")
+    if (
+        final_review_card.get("schemaVersion") != "1.0.0"
+        or final_review_card.get("displayMode") != "CHINESE_FIRST_WITH_TARGET_LANGUAGE"
+        or final_review_card.get("gate") != "G6_FINAL_CHINESE_UPLOAD_REVIEW"
+        or final_review_card.get("publishIntentId") != intent_id
+        or final_review_card.get("projectId") != project_id
+        or final_review_card.get("confirmation", {}).get("confirmed") is not False
+        or final_review_card.get("networkExecution") is not False
+        or final_review_card.get("uploadUseOfChineseTranslations") is not False
+    ):
+        raise PublishPackageError("PUBLISH_FINAL_CHINESE_REVIEW_INVALID", "Final Chinese review card identity or safety boundary is invalid")
+    target_comparison = final_review_card.get("targetLanguageComparison") or {}
+    chinese_primary = final_review_card.get("chinesePrimary") or {}
+    if (
+        target_comparison.get("language") != metadata.get("target_language")
+        or target_comparison.get("title") != metadata.get("title")
+        or target_comparison.get("description") != metadata.get("description_body")
+        or target_comparison.get("hashtags") != metadata.get("hashtags")
+        or chinese_primary.get("channel", {}).get("channelSerial") != upload_task.get("channel_serial")
+        or chinese_primary.get("channel", {}).get("youtubeChannelId") != upload_task.get("expected_channel_id")
+        or chinese_primary.get("privacyStatusZh") != PRIVACY_ZH.get(upload_task.get("privacy_status"))
+        or chinese_primary.get("uploadPolicyZh") != UPLOAD_POLICY_ZH.get(upload_task.get("upload_policy"))
+    ):
+        raise PublishPackageError("PUBLISH_FINAL_CHINESE_REVIEW_INVALID", "Final Chinese review card does not match frozen upload data")
+    review_assets = final_review_card.get("finalAssets") or {}
+    if review_assets.get("video") != {
+        "path": "final.mp4",
+        "sha256": _sha256_file(package_root / "final.mp4"),
+        "sizeBytes": (package_root / "final.mp4").stat().st_size,
+    } or review_assets.get("thumbnail") != {
+        "path": thumbnails[0],
+        "sha256": _sha256_file(package_root / thumbnails[0]),
+        "sizeBytes": (package_root / thumbnails[0]).stat().st_size,
+    }:
+        raise PublishPackageError("PUBLISH_FINAL_CHINESE_REVIEW_INVALID", "Final Chinese review card asset binding is invalid")
+    expected_markdown = _render_final_chinese_review_markdown(final_review_card)
+    try:
+        actual_markdown = (package_root / "FINAL_CHINESE_REVIEW_CARD.md").read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise PublishPackageError("PUBLISH_FINAL_CHINESE_REVIEW_INVALID", "Final Chinese review card Markdown is unreadable") from exc
+    if actual_markdown != expected_markdown:
+        raise PublishPackageError("PUBLISH_FINAL_CHINESE_REVIEW_INVALID", "Final Chinese review card Markdown does not match its JSON source")
     return {
         "valid": True,
         "publish_intent_id": intent_id,
@@ -1056,6 +1267,8 @@ def validate_publish_package_v2(
         "video_sha256": binding["final_video"]["sha256"],
         "subtitle_sha256": binding["subtitle"]["sha256"],
         "thumbnail_sha256": _sha256_file(package_root / thumbnails[0]),
+        "final_chinese_review_card": final_review_card,
+        "final_chinese_review_card_path": str(package_root / "FINAL_CHINESE_REVIEW_CARD.md"),
         "constraints_catalog_sha256": catalog_hash,
         "ffprobe": probe,
         "network_execution": False,

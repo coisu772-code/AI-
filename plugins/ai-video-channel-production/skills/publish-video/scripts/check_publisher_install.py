@@ -85,7 +85,7 @@ def _check_static(plugin_root: Path) -> dict[str, Any]:
             raise HealthError(f"Skill protocol does not declare {tool_name}")
     for boundary in (
         "networkExecution=false",
-        "EXTERNAL_APPROVAL_REQUIRED",
+        "FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED",
         "PACKAGE_READY",
         "WAITING_REVIEW",
         "READY_TO_UPLOAD",

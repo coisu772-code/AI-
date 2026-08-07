@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.1.0",
+  "registryId": "content-extension-slots-v1",
+  "inputContractType": "manuscript-package",
+  "slots": [
+    {
+      "skillId": "content-title",
+      "providedBySkillId": "content-title-description",
+      "status": "AVAILABLE",
+      "outputContractType": "title-asset-v1",
+      "discovered": true
+    },
+    {
+      "skillId": "content-description",
+      "providedBySkillId": "content-title-description",
+      "status": "AVAILABLE",
+      "outputContractType": "description-asset-v1",
+      "discovered": true
+    },
+    {
+      "skillId": "content-thumbnail",
+      "providedBySkillId": "content-title-description",
+      "status": "AVAILABLE",
+      "outputContractType": "thumbnail-asset-v1",
+      "discovered": true
+    }
+  ],
+  "aggregatorSkillId": "publishing-assets",
+  "activationRule": "Title, description, and thumbnail are provided together by content-title-description; content-thumbnail is an asset slot, not a separate Skill."
+}

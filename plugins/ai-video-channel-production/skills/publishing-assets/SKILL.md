@@ -1,44 +1,42 @@
 ---
 name: publishing-assets
-description: 从已确认且哈希有效的 Manuscript Package v1 生成并联合确认唯一目标语言标题、简介、8～12 个 Hashtags、封面策略、候选与唯一正式封面、CTR 联评和 Publishing Asset Package v1。用户说“生成标题封面”“准备发布素材”“写简介标签”“重做封面”“确认发布卡”时使用；只准备资产，不进入工坊、授权或上传。
+description: 在标题、简介和封面资产都由 content-title-description 交付并确认后，校验它们与同一 Manuscript Package v1 的版本、事实和哈希绑定，并汇总为 Publishing Asset Package v1。用户说“汇总发布素材”“检查标题简介封面是否齐全”或“生成发布素材包”时使用；本 Skill 只汇总，不自行生成或补写资产。
 ---
 
-# 发布素材中心
+# 发布素材汇总
 
-只完成发布中心阶段 A 的包装资产。正式素材必须以已确认目标语言母稿为唯一故事事实源；不要调用工坊、组装成片上传包、授权频道或上传视频。
+本 Skill 是汇总器，不是内容生成器：
 
-## 进入与来源冻结
+- `$content-title-description` 同时提供 `content-title` → `title-asset-v1`、`content-description` → `description-asset-v1` 和 `content-thumbnail` → `thumbnail-asset-v1`。
 
-1. 调用 `content_capabilities`，确认 Publishing Asset Package v1、`image-provider-v1`、封面模式和验证规则可用。
-2. 调用 `content_project_get`。只接收 `SCRIPT_READY`、联合确认记录完整、质量门通过、逐行映射通过且哈希有效的 Manuscript Package v1。
-3. 冻结 Publishing Brief：项目与频道引用、地区、目标语言、正式母稿版本与哈希、故事事实、核心冲突、高潮、结局、观众承诺、标题方向、封面任务和只读频道学习快照。
-4. 目标发布频道可以保存为非敏感档案引用；参考频道绝不能冒充目标发布频道。本阶段不要求 OAuth 可用，也不读取 Token。
+## 进入
 
-## 标题与元数据
+1. 调用 `content_capabilities` 和 `content_project_get`，只接收 `SCRIPT_READY`、质量门通过且哈希有效的 Manuscript Package v1。
+2. 读取 `assets/content-extension-slots.json`。标题、简介和封面都必须为 `AVAILABLE`，并绑定同一 `content-title-description`。
+3. 所有资产可用时，读取已确认资产包，验证项目、频道、目标语言、母稿版本与 SHA-256。
 
-- 生成多个目标语言标题候选并附中文翻译，记录事实依据、承诺兑现、观众适配、点击理由和相似度风险。
-- 审核模式由用户确认唯一标题；自动模式只有事实、相似度和当前项目授权门通过后才可选定一个。正式包只能有一个标题。
-- 生成目标语言简介正文，前两行先交代反常冲突、好奇缺口与观看回报。
-- 生成 8～12 个 Hashtags，分为故事事实、题材／叙事机制与经证据支持的当前热词。正文未涉及的 IP、人名或事件不得蹭词；默认不生成后台 Tags。
+## 汇总质量门
 
-## 封面与 CTR 联评
+- 标题只能有一个正式选择；六个候选均须有中文翻译，且事实承诺必须被正式文本兑现；
+- 简介和 Hashtags 必须来自 `description-asset-v1`，目标语言简介须有完整中文翻译，每个 Hashtag 须有中文含义；不得在本 Skill 补写；
+- 封面必须来自 `thumbnail-asset-v1`，为真实可读的 16:9 文件并带大小与 SHA-256；
+- 任一资产未确认、版本错配、坏哈希、事实越界或仍是提示词／占位图时停止；
+- 参考频道身份不得冒充目标发布频道，不读取 Token、OAuth 或浏览器登录态。
 
-1. 先冻结 `thumbnailProvider`：真实 `providerId`、`interfaceVersion`、`integrationMode`（`built-in|plugin|user-provided|fixture`）和 `status`（`available|unavailable`）；不可用时同时保存清楚原因，不得假称供应商可用。
-2. 再锁定 16:9 封面策略：主体、关系、冲突、构图、表情、目标语言短文案、安全区和移动端可读性。
-3. 图片供应商可用时生成恰好 5 个构图实质不同的候选并逐张检查文字、事实、题材和点击潜力；不可用时仍保存恰好 5 个有明确差异的 `prompt_only` 候选，绝不能把提示词或占位图称为真实封面。
-4. 真实封面必须存在于包内、可读取、实际为 16:9，并记录文件大小与 SHA-256。测试 PNG fixture 只可在测试模式使用，`integrationMode` 必须为 `fixture`，并明确标注 synthetic fixture，不得冒充线上生成结果。
-5. 从合格候选中选择唯一正式封面，保存候选和未入选原因；执行唯一标题与唯一封面的 CTR 联评，核对最大钩子是否被视觉化、短文案是否准确互补、移动端是否易懂以及正文是否兑现承诺。
+## 冻结
 
-## 联合确认与冻结
+1. 展示唯一标题、简介与 Hashtags、唯一封面、资产包版本、母稿版本和目标频道引用。
+2. 审核模式等待联合确认；已有明确自动确认授权时仍须先通过全部硬门。
+3. 调用 `content_publishing_finalize`，提交六个标题候选与中文翻译、唯一标题、简介双语对照、中文故事摘要 `storySummaryChinese`、Hashtags 中文对照、五张封面结果及正式封面短文案中文含义；不新增或改写内容。
+4. 工具生成 `09_标题简介标签_双语审核.md` 和 `10_封面候选与选择结果.md`。调用 `content_review_documents_get`，向用户显示这两份文档以及 07–08 正式稿的路径、版本和 SHA-256。
+5. `publishing.json` 和正式发布包仍只包含目标语言发布字段，中文审核译文不得进入 YouTube 上传字段。
+6. 调用 `content_integrity_check`；只有包和审核文档完整时才称为 `PUBLISHING_ASSETS_READY`。
+7. 调用只读 `content_handoff_check` 检查是否具备制作条件；不在本 Skill 启动工坊。
 
-1. 一次展示唯一标题及中文翻译、唯一封面或明确 `prompt_only` 状态、简介、8～12 个 Hashtags、CTR 结论、正文依据、目标频道引用和全部来源版本。
-2. 审核模式等待用户明确确认；自动模式仅在事实、文字、图片和 CTR 硬门全部通过且项目已授权例行自动确认时锁定。
-3. 调用 `content_publishing_finalize`，提交发布简报、标题选择、简介与 Hashtags、`thumbnailProvider`、封面策略／恰好 5 个候选／选择、CTR 联评、变更记录、来源锁和确认记录。
-4. 只有工具返回确认状态且 `content_integrity_check` 通过时才称为 Publishing Asset Package v1 已冻结。`prompt_only` 可以作为明确的待补资产结果；若契约要求真实封面，则必须保持未就绪，不能伪报 `PUBLISHING_ASSETS_READY`。
-5. 需要检查能否进入生产时只调用只读 `content_handoff_check`。未确认、坏哈希、标签数量错误、封面比例错误或版本错配均不得移交；即使检查通过，本 Skill 也只报告“已具备后续条件”，不调用制作中心。
+G5 联合确认卡必须按中文故事、中文标题、中文简介、中文标签含义和中文封面文案在前，目标语言正式字段在后的顺序展示；频道、隐私状态与上传策略仍留待成片后的 G6 最终中文验收卡集中确认。
 
-## 修改与永久边界
+## 边界
 
-- 修改标题、简介、Hashtags 或封面只建立新的发布素材版本，不修改母稿版本或哈希。
-- 只读取频道学习快照；一次性修改只写项目变更记录，不调用长期学习写回。
-- 不调用新漫剧工坊、控制中心生产、Google／YouTube 授权、上传 API、发布回执或 Analytics。
+- 不生成、改写或重选标题、简介、Hashtags、封面和正式母稿。
+- 不调用工坊、Google／YouTube 授权、上传、发布回执、Analytics 或长期频道学习。
+- 任一资产缺失时返回具体缺失项，不得使用旧流程、提示词文本或占位图回退。

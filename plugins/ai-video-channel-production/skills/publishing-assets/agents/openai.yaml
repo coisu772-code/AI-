@@ -1,7 +1,7 @@
 interface:
   display_name: "发布素材中心"
-  short_description: "Create confirmed titles metadata thumbnails and CTR review"
-  default_prompt: "使用 $publishing-assets 从已确认母稿生成并联合确认发布素材包。"
+  short_description: "校验并汇总独立标题、简介和封面 Skill 的正式资产包"
+  default_prompt: "使用 $publishing-assets 校验并汇总三个独立包装资产包；不要自行生成资产。"
 
 policy:
   allow_implicit_invocation: false

@@ -1,0 +1,7 @@
+interface:
+  display_name: "仿写正文"
+  short_description: "按确认方向完成单源高贴合或多资料融合的完整原创仿写初稿"
+  default_prompt: "Use `$content-rewrite` to create the complete rewritten draft from the approved deconstruction handoff."
+
+policy:
+  allow_implicit_invocation: false

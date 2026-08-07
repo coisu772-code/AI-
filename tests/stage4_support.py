@@ -414,12 +414,71 @@ def manuscript_payload(ctx: PipelineContext) -> dict[str, Any]:
                 {"episode": 2, "passed": True, "revisionCount": 1, "checks": checks},
             ],
         },
+        "foreignLanguageQualityGate": (
+            {
+                "notApplicable": True,
+                "reasonZh": "目标语言为中文，因此独立外语质量保险门明确记录为不适用。",
+            }
+            if ctx.market["key"] == "cn"
+            else {
+                "passed": True,
+                "reviewMode": "independent-second-pass",
+                "independentFromAuthoring": True,
+                "authoringPassId": "synthetic-authoring-pass",
+                "reviewPassId": "synthetic-independent-language-review-pass",
+                "summaryZh": "独立二次审校已检查语法、地区自然度、术语、习语、翻译腔、称谓、TTS 可读性及中文审核一致性，全部通过。",
+                "episodes": [
+                    {
+                        "episode": episode,
+                        "passed": True,
+                        "revisionCount": episode - 1,
+                        "findingsZh": f"第 {episode} 集外语表达自然，术语与中文审核稿含义一致。",
+                        "checks": {
+                            "grammar-and-syntax": True,
+                            "regional-naturalness": True,
+                            "naming-and-terminology": True,
+                            "idiom-and-collocation": True,
+                            "translationese-avoidance": True,
+                            "cultural-address": True,
+                            "tts-readability": True,
+                            "chinese-review-consistency": True,
+                        },
+                    }
+                    for episode in (1, 2)
+                ],
+            }
+        ),
+        "rewriteDraftText": "\n".join(f"初稿 {line['lineId']} {line['speakerId']}：{line['text']}" for line in target_lines),
+        "editorialReviewMarkdown": (
+            "# 编辑审核报告\n\n本合成稿已逐集检查事实、结构、人物、因果、情绪、节奏、语言和目标市场适配。"
+            "未发现 P0 阻断项；P1 项为补强证据取得过程和结尾回报，已在正式稿中完成定向修复并复查通过。"
+        ),
+        "revisionLogMarkdown": (
+            "# 修改记录与前后对照\n\n## 修改 1\n位置：第二集。\n修改前：证据出现较快。\n"
+            "修改后：补充记录核验及居民参与。\n修改原因：修复因果跳跃。\n影响：结局回报由人物行动自然产生，未改变锁定结局。"
+        ),
         "confirmation": {"confirmed": True, "mode": "review", "confirmedBy": "synthetic-fixture-user", "confirmedAt": "2026-08-04T02:00:00Z"},
     }
 
 
 def finalize_manuscript(ctx: PipelineContext, *, mutate_audit: bool = False) -> dict[str, Any]:
     payload = manuscript_payload(ctx)
+    for document_type, payload_key in (
+        ("rewrite-draft-target", "rewriteDraftText"),
+        ("editorial-review", "editorialReviewMarkdown"),
+        ("revision-log", "revisionLogMarkdown"),
+    ):
+        ctx.service.call(
+            "content_review_document_save",
+            {
+                "taskId": ctx.task_id,
+                "channelProfileId": ctx.channel_id,
+                "bindingProof": ctx.proof,
+                "projectId": ctx.project_id,
+                "documentType": document_type,
+                "content": payload.pop(payload_key),
+            },
+        )
     if mutate_audit and payload["chineseAuditScript"]:
         payload["chineseAuditScript"][0]["speakerId"] = "wrong-speaker"
     return ctx.service.call(
@@ -449,11 +508,31 @@ def publishing_payload(ctx: PipelineContext, thumbnail_path: Path, *, hashtags: 
         }
         for index in range(1, 6)
     ]
+    official_hashtags = hashtags or ctx.market["hashtags"]
+    title_candidates = [
+        {
+            "titleId": f"title-{index:02d}",
+            "text": ctx.market["title"] if index == 1 else f"{ctx.market['title']} · {index}",
+            "zhTranslation": ctx.market["titleZh"] if index == 1 else f"{ctx.market['titleZh']}·候选{index}",
+            "audienceFit": 9.2 - index / 10,
+            "factBasis": "Synthetic candidate promise is supported by the frozen manuscript.",
+            "promiseFulfilled": True,
+            "sampleWordingCopied": False,
+        }
+        for index in range(1, 7)
+    ]
     return {
         "title": ctx.market["title"],
         "titleChinese": ctx.market["titleZh"],
+        "titleCandidates": title_candidates,
         "descriptionBody": ctx.market["description"],
-        "hashtags": hashtags or ctx.market["hashtags"],
+        "descriptionChinese": ctx.market["description"] if ctx.market["key"] == "cn" else "这是对应目标语言简介的完整中文审核翻译，仅供用户检查，不进入发布字段。故事围绕期限、证据与社区重新开始展开。",
+        "storySummaryChinese": "社区共同空间面临关闭，主角在期限内寻找历史记录并联合居民核验证据，最终让场所重新开放，也让被忽视的共同记忆重新被看见。",
+        "hashtags": official_hashtags,
+        "hashtagTranslations": [
+            {"hashtag": hashtag, "chinese": f"合成测试标签含义 {index}"}
+            for index, hashtag in enumerate(official_hashtags, 1)
+        ],
         "thumbnailProvider": {"providerId": "synthetic-png-fixture", "interfaceVersion": "1.0.0", "integrationMode": "fixture", "status": "available"},
         "thumbnailStrategy": {
             "subject": "one community protagonist",
@@ -467,6 +546,7 @@ def publishing_payload(ctx: PipelineContext, thumbnail_path: Path, *, hashtags: 
         "thumbnailCandidates": candidates,
         "selectedThumbnailId": "cover-01",
         "thumbnail": {"mode": "real", "sourcePath": str(thumbnail_path)},
+        "thumbnailTextChinese": ctx.market["coverText"] if ctx.market["key"] == "cn" else "封面短文案的中文审核含义",
         "ctrReview": {
             "status": "PASSED",
             "score": 9.0,

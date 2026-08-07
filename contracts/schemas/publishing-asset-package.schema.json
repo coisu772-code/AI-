@@ -192,6 +192,9 @@
         },
         "qualityGateHash": {
           "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+        },
+        "foreignLanguageQualityGateHash": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
         }
       }
     },
@@ -302,6 +305,61 @@
         "public",
         "scheduled"
       ]
+    },
+    "chineseReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "displayMode",
+        "uploadUseAllowed",
+        "storySummaryZh",
+        "titleZh",
+        "descriptionZh",
+        "hashtagTranslations",
+        "thumbnailTextZh",
+        "voiceSummary"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "1.0.0" },
+        "displayMode": { "const": "CHINESE_FIRST_WITH_TARGET_LANGUAGE" },
+        "uploadUseAllowed": { "const": false },
+        "storySummaryZh": { "type": "string", "minLength": 20, "maxLength": 5000 },
+        "titleZh": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "descriptionZh": { "type": "string", "minLength": 1, "maxLength": 5000 },
+        "hashtagTranslations": {
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["hashtag", "chinese"],
+            "properties": {
+              "hashtag": { "type": "string", "pattern": "^#[^#\\s]{1,99}$" },
+              "chinese": { "type": "string", "minLength": 1, "maxLength": 200 }
+            }
+          }
+        },
+        "thumbnailTextZh": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "voiceSummary": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["speakerId", "targetLanguageName", "role", "engine", "voiceId", "voiceName"],
+            "properties": {
+              "speakerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "targetLanguageName": { "type": "string", "minLength": 1, "maxLength": 200 },
+              "role": { "type": "string", "maxLength": 200 },
+              "engine": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "voiceId": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "voiceName": { "type": "string", "minLength": 1, "maxLength": 200 }
+            }
+          }
+        }
+      }
     },
     "confirmation": {
       "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/approvalRecord"

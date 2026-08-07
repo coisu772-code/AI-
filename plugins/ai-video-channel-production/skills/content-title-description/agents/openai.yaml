@@ -1,0 +1,7 @@
+interface:
+  display_name: "标题、简介与封面"
+  short_description: "依据最终母稿生成并验收标题、YouTube简介和正式16:9封面"
+  default_prompt: "Use `$content-title-description` to generate and validate the final title, YouTube description, and thumbnail."
+
+policy:
+  allow_implicit_invocation: false

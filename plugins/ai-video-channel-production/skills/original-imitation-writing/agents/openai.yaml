@@ -1,7 +1,0 @@
-interface:
-  display_name: "原创仿写文案"
-  short_description: "整合视频拆解与小说资料，生成8个原创方向并冻结写作契约"
-  default_prompt: "使用 $original-imitation-writing 从已拆解视频或规范化小说资料生成8个原创方向，完成可信度、原创性与频道适配审查，待我确认后交给选题中心和文稿中心。"
-
-policy:
-  allow_implicit_invocation: false

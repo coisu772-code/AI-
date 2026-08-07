@@ -14,6 +14,7 @@ from typing import Any
 
 from .contracts import canonical_hash, utc_now, with_hash
 from .errors import ToolError
+from .review_documents import review_documents_view, save_review_document
 from .security import contains_sensitive_material
 
 
@@ -333,6 +334,80 @@ def production_package_hash(manifest: dict[str, Any]) -> str:
     return _sha256_bytes(_canonical_bytes(_package_hash_input(manifest)))
 
 
+def _production_overview_markdown(
+    *,
+    manuscript: dict[str, Any],
+    publishing: dict[str, Any],
+    production_config: dict[str, Any],
+    production_preset: dict[str, Any],
+    package_path: Path,
+    package_hash: str,
+) -> str:
+    def cell(value: Any) -> str:
+        return str(value).replace("|", "\\|").replace("\r", " ").replace("\n", "<br>")
+
+    video = production_config["videoGeneration"]
+    lines = [
+        "# 完整生产资料总览",
+        "",
+        f"- 项目：`{manuscript['projectId']}`",
+        f"- 目标语言：`{manuscript['targetLanguage']}`",
+        f"- 分集：{manuscript['episodeCount']}",
+        f"- 配音行数：{manuscript['lineCount']}",
+        f"- 正式标题：{publishing['title']}",
+        f"- 中文标题：{publishing['titleZhTranslation']}",
+        f"- 制作方式：`{production_config['deliveryMode']}`",
+        f"- 视频生成范围：`{video['selectionMode']}`",
+        f"- 视频失败策略：`{video['fallbackPolicy']}`",
+        f"- Production Package：`{package_path}`",
+        f"- Package SHA-256：`{package_hash}`",
+        "",
+        "## 配音与角色",
+        "",
+        "| 角色 | 目标语言姓名 | 功能 | 音色引擎 | 音色 | 角色形象提示词 |",
+        "|---|---|---|---|---|---|",
+    ]
+    voices = {item["speakerId"]: item for item in manuscript.get("voices", [])}
+    for character in manuscript.get("characters", []):
+        voice = voices.get(character["characterId"], {})
+        lines.append(
+            "| {id} | {name} | {role} | {engine} | {voice} | {visual} |".format(
+                id=cell(character["characterId"]),
+                name=cell(character["targetLanguageName"]),
+                role=cell(character["role"]),
+                engine=cell(voice.get("engine", "未绑定")),
+                voice=cell(voice.get("voiceName", "未绑定")),
+                visual=cell(character.get("visualAnchorPromptZh", "不要求持续视觉一致性")),
+            )
+        )
+    lines.extend(
+        [
+            "",
+            "## 工坊正式输入",
+            "",
+            "- `script_lines.json`：唯一目标语言配音与字幕文本，包含 lineId、说话人、类型和情绪。",
+            "- `characters.json`：角色身份、关系、形象锚点和锁定音色。",
+            "- `episodes.json`：分集与正式文稿行映射。",
+            "- `production_config.json`：画幅、分辨率、并发、视频范围和失败策略。",
+            "- `publishing.json`：目标语言标题、简介、Hashtags、频道和上传策略。",
+            "- `confirmed_thumbnail.png`：唯一确认的 16:9 正式封面。",
+            "",
+            "## 发布信息",
+            "",
+            publishing["descriptionBody"].rstrip(),
+            "",
+            " ".join(publishing["hashtags"]),
+            "",
+            f"- 发布频道序号：`{publishing.get('targetChannel', {}).get('channelSerial', '未设置')}`",
+            f"- 上传策略：`{publishing.get('uploadPolicy', production_preset.get('uploadPolicy', 'REQUIRE_REVIEW'))}`",
+            "",
+            "> 中文审核稿只供用户检查，不进入工坊配音、字幕或分镜生产。",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
 class ProductionCenter:
     """Authoritative Stage-5 package, task, media validation, and result boundary."""
 
@@ -438,6 +513,7 @@ class ProductionCenter:
             raise ToolError("PRODUCTION_WORKSHOP_VERSION_UNSUPPORTED", "工坊兼容接口必须声明 2.1。")
         manuscript, manuscript_root = _read_contract(manuscript_path, "manuscript-package")
         publishing, publishing_root = _read_contract(publishing_path, "publishing-asset-package")
+        user_project_root = manuscript_root.parents[1]
         _assert_confirmation(manuscript, "SCRIPT_READY", "G4_MANUSCRIPT")
         _assert_confirmation(publishing, "PUBLISHING_ASSETS_READY", "G5_PUBLISHING_ASSETS")
         if manuscript.get("projectId") != publishing.get("projectId"):
@@ -454,12 +530,29 @@ class ProductionCenter:
             raise ToolError("PRODUCTION_UPSTREAM_BINDING_MISMATCH", "发布素材包上游哈希无效。")
         target_script = manuscript.get("targetScript", {})
         quality_gate = manuscript.get("qualityGate", {})
+        foreign_quality_gate = manuscript.get("foreignLanguageQualityGate", {})
         if not target_script.get("isSoleProductionSource") or target_script.get("role") != "target-language-production-master":
             raise ToolError("PRODUCTION_TARGET_SCRIPT_NOT_SOLE_SOURCE", "目标语言正式母稿不是唯一生产源。")
         if quality_gate.get("status") != "PASSED" or quality_gate.get("targetScriptHash") != target_script.get("contentHash"):
             raise ToolError("PRODUCTION_QUALITY_GATE_INVALID", "质量门未通过或未绑定当前正式母稿。")
         if publishing.get("manuscriptBinding", {}).get("qualityGateHash") != manuscript.get("qualityGateHash"):
             raise ToolError("PRODUCTION_QUALITY_GATE_INVALID", "发布素材包绑定了不同质量门。")
+        expected_foreign_status = "NOT_APPLICABLE" if manuscript.get("targetLanguage", "").lower().startswith("zh") else "PASSED"
+        if (
+            foreign_quality_gate.get("status") != expected_foreign_status
+            or foreign_quality_gate.get("targetScriptHash") != target_script.get("contentHash")
+            or manuscript.get("foreignLanguageQualityGateHash") != foreign_quality_gate.get("contentHash")
+            or publishing.get("manuscriptBinding", {}).get("foreignLanguageQualityGateHash")
+            != manuscript.get("foreignLanguageQualityGateHash")
+            or (
+                expected_foreign_status == "PASSED"
+                and (
+                    foreign_quality_gate.get("reviewMode") != "independent-second-pass"
+                    or foreign_quality_gate.get("independentFromAuthoring") is not True
+                )
+            )
+        ):
+            raise ToolError("PRODUCTION_FOREIGN_LANGUAGE_QUALITY_GATE_INVALID", "外语质量保险门缺失、未通过或没有绑定当前正式母稿。")
         target_asset = target_script.get("asset")
         if isinstance(target_asset, dict):
             _validate_descriptor(manuscript_root, target_asset, code="PRODUCTION_TARGET_SCRIPT_ASSET_INVALID")
@@ -490,12 +583,36 @@ class ProductionCenter:
         package_version, existing = self._next_package_version(project_id, identity_hash)
         if existing:
             manifest = self.validate_package(existing)
-            return {"packagePath": str(existing), "manifest": manifest, "idempotent": True}
+            try:
+                save_review_document(
+                    user_project_root,
+                    document_id="production-overview",
+                    content=_production_overview_markdown(
+                        manuscript=manuscript,
+                        publishing=publishing,
+                        production_config=config,
+                        production_preset=production_preset,
+                        package_path=existing,
+                        package_hash=manifest["packageHash"],
+                    ),
+                    language="zh-CN",
+                    updated_at=manifest["createdAt"],
+                    minimum_characters=120,
+                )
+            except ValueError as exc:
+                raise ToolError("PRODUCTION_REVIEW_DOCUMENT_INVALID", str(exc)) from exc
+            return {
+                "packagePath": str(existing),
+                "manifest": manifest,
+                "idempotent": True,
+                "userReviewDocuments": review_documents_view(user_project_root),
+            }
         production_package_id = f"production_{project_id}_v{package_version.replace('.', '_')}"
         package_root = self.root / "packages" / project_id / f"v{package_version}"
         if package_root.exists():
             raise ToolError("PRODUCTION_PACKAGE_PATH_CONFLICT", "生产包版本目录已存在但不在索引中。")
         package_root.mkdir(parents=True)
+        package_committed = False
         try:
             lines = deepcopy(target_script.get("lines", []))
             if not lines or len(lines) != manuscript.get("lineCount"):
@@ -602,9 +719,33 @@ class ProductionCenter:
                 }
             )
             _atomic_json(index_path, index)
-            return {"packagePath": str(package_root), "manifest": manifest, "idempotent": False}
+            package_committed = True
+            try:
+                save_review_document(
+                    user_project_root,
+                    document_id="production-overview",
+                    content=_production_overview_markdown(
+                        manuscript=manuscript,
+                        publishing=publishing,
+                        production_config=config,
+                        production_preset=production_preset,
+                        package_path=package_root,
+                        package_hash=manifest["packageHash"],
+                    ),
+                    language="zh-CN",
+                    updated_at=manifest["createdAt"],
+                    minimum_characters=120,
+                )
+            except ValueError as exc:
+                raise ToolError("PRODUCTION_REVIEW_DOCUMENT_INVALID", str(exc)) from exc
+            return {
+                "packagePath": str(package_root),
+                "manifest": manifest,
+                "idempotent": False,
+                "userReviewDocuments": review_documents_view(user_project_root),
+            }
         except Exception:
-            if package_root.exists():
+            if not package_committed and package_root.exists():
                 shutil.rmtree(package_root)
             raise
 

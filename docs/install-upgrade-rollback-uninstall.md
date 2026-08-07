@@ -12,7 +12,9 @@
 
 联网用户只下载统一安装器 ZIP，解压后双击 `install.cmd`。若同目录没有总清单，入口只从版本锁定的 `v0.10.2-rc.1` HTTPS Release URL 获取它，先校验 schema、产品和精确版本，再下载缺失资产；不使用 `latest`。完全离线时，把总清单和另外四个核心组件 ZIP 放在 `install.cmd` 同目录。仅在离线安装 Kokoro 时，才另行准备对应的 JSON 清单与全部分卷文件。本版本的三套 Kokoro 运行包内容未变化，继续从已校验的公开 `v0.10.0-rc.1` Release 获取。
 
-默认程序根是 `%LOCALAPPDATA%\AIVCP`，默认数据根是 `%LOCALAPPDATA%\AI Video Channel Production Data`。旧 `%LOCALAPPDATA%\AI Video Channel Production\data` 只作为既有用户数据保留，不自动迁移、删除或覆盖。程序根与数据根始终分离。
+`install.cmd` 会分别确认程序根和用户数据根。程序根默认是 `%LOCALAPPDATA%\AIVCP`；数据根保存频道资料库、来源、用户审核文档、音频、图片、视频、生产任务、导入导出与备份。安装器优先推荐可用空间最大的非系统固定盘，例如 `D:\AI Video Channel Production Data`；没有合适数据盘时才推荐当前用户的视频目录。直接按回车采用推荐值，也可以输入其他绝对路径。
+
+全新非交互安装必须显式提供 `-DataRoot`，不会使用隐式 C 盘默认值。已有安装会从 `installation.json` 读取并沿用原 `userDataRoot`；即使升级、修复、回滚或卸载，也不改变或清空该目录。若要迁移既有数据，先用频道导出／备份完成可校验副本，再在新数据根安装并恢复；安装器会拒绝把已有安装静默改绑到另一个目录。旧 `%LOCALAPPDATA%\AI Video Channel Production\data` 只作为既有用户数据保留，不自动迁移、删除或覆盖。程序根与数据根始终分离。
 
 安装器在任何解压前完成两层路径门：先检查已知最长 bundled runtime 目标，再逐个检查每个 ZIP 条目的临时 extraction、staging 和最终 `current` 路径。传统 Windows 路径预算锁定为 248 个字符；超限会明确要求使用更短的 `-InstallRoot`。解压使用短 `.s-xxxxxxxx\x\N` 中间目录，并在安全验证后剥离上游 archive root，从而给默认真实 profile 留出充足余量。
 

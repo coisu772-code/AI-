@@ -332,14 +332,21 @@
             "video-analysis",
             "book-analysis",
             "style-imitation",
-            "channel-distillation"
+            "channel-distillation",
+            "content-deconstruction",
+            "direct-rewrite",
+            "synthesis-rewrite",
+            "title-generation",
+            "description-generation",
+            "thumbnail-generation"
           ]
         },
         "status": {
           "type": "string",
           "enum": [
             "available",
-            "unavailable"
+            "unavailable",
+            "planned-unavailable"
           ]
         },
         "interfaceVersion": {
@@ -356,7 +363,8 @@
               "production-profile",
               "source-package",
               "topic-package",
-              "manuscript-package"
+              "manuscript-package",
+              "analysis-package-v1"
             ]
           }
         },
@@ -365,7 +373,11 @@
           "enum": [
             "analysis-package-v1",
             "writing-style-contract-v1",
-            "reference-channel-profile-v1"
+            "reference-channel-profile-v1",
+            "topic-package",
+            "title-asset-v1",
+            "description-asset-v1",
+            "thumbnail-asset-v1"
           ]
         },
         "skillId": {

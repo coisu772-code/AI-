@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "1.0.0",
+  "pipelineId": "narrative-four-skill-flow-v1",
+  "sequence": [
+    "content-deconstruct",
+    "content-rewrite",
+    "content-review-edit",
+    "content-title-description"
+  ],
+  "bundles": [
+    {
+      "stage": 1,
+      "skillId": "content-deconstruct",
+      "suppliedFileName": "通用叙事内容完整拆解与迁移方向分析提示词_GPT统一版_2.2_完善版.txt",
+      "bundledPath": "skills/content-deconstruct/references/prompt-v2.2.txt",
+      "sizeBytes": 28946,
+      "sha256": "d4ae26fa2b3f5d46216ebc37ed730428452f6698a365d2ec1a83f4a052686e45"
+    },
+    {
+      "stage": 2,
+      "skillId": "content-rewrite",
+      "suppliedFileName": "叙事内容深度拆解提示词_GPT通用版_5.2_素材模式完善版.txt",
+      "bundledPath": "skills/content-rewrite/references/prompt-v5.2.txt",
+      "sizeBytes": 54706,
+      "sha256": "54ff156593491e5fa41f2dcdaf1cc9a4d663f8419eb4d13172a61685ae67d613"
+    },
+    {
+      "stage": 3,
+      "skillId": "content-review-edit",
+      "suppliedFileName": "多类型叙事内容审稿与深度重写提示词_GPT版_v4.1.txt",
+      "bundledPath": "skills/content-review-edit/references/prompt-v4.1.txt",
+      "sizeBytes": 25523,
+      "sha256": "553ba520d180951c6401031712663f0d3a7c434ac72ff1438833119cbda52e5f"
+    },
+    {
+      "stage": 4,
+      "skillId": "content-title-description",
+      "suppliedFileName": "书名导言生成器_v2.1_多市场通用修复版.txt",
+      "bundledPath": "skills/content-title-description/references/prompt-v2.1.txt",
+      "sizeBytes": 18074,
+      "sha256": "8a66c78fee054bc6ad222f8150649f30fdfb8fc56a7fb891b2a26803e42247c4"
+    }
+  ]
+}

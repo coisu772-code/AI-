@@ -1,78 +1,58 @@
 ---
 name: channel-production
-description: 作为 AI 视频频道生产系统唯一默认总入口，识别系统管理、频道建库、资料、选题、文稿、发布素材、制作、上传准备或数据复盘意图，并只路由到当前安装版本真实具备的能力。用户说“启动系统”“开始频道生产”“建立或进入频道资料库”“添加资料”“给我选题”“按大纲写”“生成口播稿”“准备标题封面”“开始或继续制作”“修复失败素材”“准备上传成片”“查看上传状态与回执”“检查频道数据”“复盘视频”“生成7天报告”“查看建议”或询问各业务中心状态时使用；真实上传只由独立发布中心在既有授权门通过后执行，不模拟 OAuth、video ID、回执、私有 Analytics 数据或长期学习成功。
+description: 作为 AI 视频频道生产系统唯一默认总入口，识别频道管理、视频链接或文本导入、拆书、仿写、编辑审核与修改、标题简介封面、工坊制作、上传准备与数据复盘意图。用户说“启动系统”“发你一个视频链接”“拆书”“完全仿写”“审核并修改”“生成标题简介和封面”“开始制作”“准备发布”或“检查频道数据”时使用；内容生产只路由到当前四阶段提示词流程，不加载已退役旧流程。
 ---
 
 # AI 视频频道生产系统总入口
 
-## 启动与恢复
+进入内容主链前读取 [用户审核文档规范](references/user-review-documents.md)。用户可读审核文档、机器生产包和 YouTube 发布包必须分层保存，不能相互替代。
 
-1. 调用 `system_capabilities`、`content_capabilities` 和 `production_capabilities`，分别读取系统管理、内容与阶段 5 制作能力；只有用户有数据复盘意图时才额外调用 `data_center_capabilities`。
-2. 区分“可用”“需要用户处理”“当前安装 unavailable”，不要把插件加载或 MCP 启动等同于业务包通过。
-3. 新任务先读取频道列表并确认唯一 READY 频道；同一任务不得切换到另一个频道。
-4. 继续内容项目调用 `content_project_get`，按真实状态和检查点进入对应专用 Skill。进度查询只读，不修改任务、确认门或活动步骤。
-5. 不读取、要求或回显任何凭据。
+## 默认内容流程
 
-## 自然语言路由
-
-- 建立频道资料库、进入已有频道、生产默认值、本次覆盖、备份、恢复或迁移：调用 `$channel-onboarding`。
-- 添加、下载、导入、更新、检索、取消或恢复资料任务：调用 `$source-library`。资料库仍属于系统管理中心。
-- 用户提供 YouTube 频道并要求分析频道为什么受欢迎、学习频道后生产、建立频道画像或频道蒸馏：先调用 `$channel-distillation`。若视频尚无 `CONTENT_READY` 的统一正文，先回到 `$source-library` 补齐；不得用标题和封面臆造视频正文。
-- 用户要求拆解一条或多条 YouTube 视频文案、比较结构节奏、提炼可迁移写法，或把视频分析交给选题／文稿中心：调用 `$video-copy-deconstruction`。只读取资料库统一 `content.txt`，可选读取时间映射，不读取字幕文件。
-- 用户要求原创仿写、学习一个或多个视频／小说后创作、融合 YouTube 文案与小说资料，或生成 8 个原创方向：调用 `$original-imitation-writing`。必须先展示全部 8 个方向与 TOP3，等待用户明确选择，再把冻结 `writing-style-contract-v1` 交给选题与文稿中心。
-- 原创选题、按频道画像推荐、用户大纲直通、候选进度、评选或确认完整故事：调用 `$topic-selection`。
-- 目标语言正式母稿、逐行中文审核稿、文稿质量门、逐集恢复或联合确认：调用 `$manuscript-production`。
-- 唯一标题、简介、8～12 个 Hashtags、封面、CTR 联评或发布素材确认：调用 `$publishing-assets`。
-- 标准生产包、工坊移交、制作进度、暂停恢复、失败重试、自动成片、剪映草稿、成片回收或技术验收：调用 `$production-handoff`。
-- `VIDEO_READY` 后准备上传成片、重验／隔离导入发布包、查看上传状态与回执：调用 `$publish-video`。五个冻结工具为 `assemble_publish_package_v2`、`validate_publish_package_v2`、`import_publish_package_v2`、`get_publication_status`、`get_publication_receipt`。
-- 检查频道数据、复盘视频、生成 T+24／T+7／T+28 报告、查看建议或数据进度：调用 `$data-center`。七个工具为 `data_center_capabilities`、`data_video_register`、`data_collection_run`、`data_report_generate`、`data_recommendations_list`、`data_learning_decide`、`data_progress_get`。没有真实 Publication Receipt v1 时保持 `WAITING_FOR_PUBLICATION_RECEIPT`；Analytics 默认 `AUTH_REQUIRED`、`available=false`。
-- 频道蒸馏由 `$channel-distillation` 提供频道画像 Analysis Package；视频文案拆解由 `$video-copy-deconstruction` 提供逐视频 Analysis Package；原创仿写由 `$original-imitation-writing` 提供 Writing Style Contract v1。趋势与独立普通作品／书籍拆解仍检查各自扩展接口；未安装时明确显示 unavailable，不得用其他包冒充。
-- 工坊制作只允许走阶段 5 的 Production Package v2.1、Production Task v1 与隔离桥；不得调用旧 `.ready` 自动移交链。
-- 阶段6先离线组装、独立验证发布包 v2，再把正式项目本地移交 YouTube 发布中心；合成验收才使用隔离导入。Codex 桥始终 `networkExecution=false`，但发布中心在全局同意、频道 AUTO、有效 OAuth 与发布意图授权全部通过后可以执行真实上传。`VIDEO_READY`、`.ready`、导入成功和 `READY_TO_UPLOAD` 均不等于已上传，必须以正式状态或真实回执为准。
-- 阶段7只允许在频道隔离目录内注册真实发布回执、导入／采集有权使用的数据、生成版本化快照／报告并展示建议。它不接触 Token、不发起 OAuth、不调用私有 Analytics API；`syntheticFixture=true` 只能进入隔离命名空间。任何 `channel_default`、`must_avoid` 或其他长期学习写回都必须返回 `LONG_TERM_LEARNING_APPROVAL_REQUIRED`，自动模式也不得绕过。
-
-## 内容包主链
+`content-source` 是视频链接、上传文本、资料库和按需联网资料的输入适配器，不计入四个创作 Skill。正式内容主链为：
 
 ```text
-Stage 2 Channel Profile / Production Profile
-+ Stage 3 Source Package
-+ 可选冻结 Analysis Package v1 / Channel Runtime Profile v1 / Writing Style Contract v1
-→ Topic Package v1（G3）
-→ Manuscript Package v1（G4）
-→ Publishing Asset Package v1（G5）
-→ content_handoff_check
-→ Production Package v2.1
-→ Production Task v1（P0–P11）
-→ Production Result Package v1（VIDEO_READY）
-→ Publish Package v2（PACKAGE_READY／WAITING_REVIEW／READY_TO_UPLOAD，仅本地资格）
-→ Publication Receipt v1 + 真实 youtube_video_id（外部真实发布后）
-→ Video Registration → Analytics Snapshot v1 → Reports → Recommendation Card v1（AWAITING_LEARNING_DECISION）
+输入适配：content-source
+→ 1. content-deconstruct（拆书与迁移方向）
+→ 2. content-rewrite（完整仿写初稿）
+→ 3. content-review-edit（审核、修改、复查、冻结正式稿）
+→ 4. content-title-description（标题、YouTube 简介与正式封面）
+→ publishing-assets 汇总
+→ production-handoff
 ```
 
-- 来源只接 `CONTENT_READY`；`PARTIAL` 必须先展示缺失项并取得本次明确接受。所有下游保留 `fact`、`inference`、`unknown`、来源版本和 SHA-256。
-- 每个正式包冻结后不可原地覆盖；修改生成新版本，并只使真正受影响的下游失效。
-- 审核模式等待对应确认门；自动模式只能在该项目已有明确授权且质量硬门通过时自动确认例行内容阶段。
-- 未确认、坏哈希、语言行映射错误、Hashtags 数量错误、封面比例错误或上游版本错配不得移交。
-- `content_handoff_check` 只报告是否具备阶段 5 条件；只有路由到 `$production-handoff` 并通过制作输入卡后才组包、建任务或调用隔离工坊。
+用户一句话要求“下载、拆解、仿写、修改并生成标题简介封面”时，按上图连续执行；每步真实保存并通过质量门。只有拆书迁移方向需要用户选择且没有自动授权，或目标语言、目标受众、篇幅档位、资料范围存在会明显改变结果的歧义时才暂停。
 
-专用 Skill 的确定性工具顺序固定为：`content_project_start` 创建内容项目；`content_topic_checkpoint` 逐候选保存；`content_topic_finalize` 冻结选题；`content_manuscript_finalize` 冻结母稿与审核稿；`content_publishing_finalize` 冻结发布素材。每次冻结后调用 `content_integrity_check`，恢复或查进度使用 `content_project_get`，不得跳过中间确认门。
+## 路由
 
-## 状态卡
+- 建立／进入频道资料库、修改频道默认值、备份恢复：`$channel-onboarding`。
+- 视频链接、用户文件、粘贴文本、资料库检索或用户明确要求的公开联网资料：`$content-source`。
+- 完整拆书、逐章分析和不少于六个迁移方向：`$content-deconstruct`。
+- 单源高贴合原创仿写或多资料融合仿写：`$content-rewrite`。
+- 审稿、直接修改、复查和正式母稿冻结：`$content-review-edit`。
+- 依据正式母稿生成标题、YouTube 简介和正式16:9封面：`$content-title-description`；`content-thumbnail` 只是该 Skill 的资产槽位，不是独立 Skill。
+- 发布素材联合核验与汇总：`$publishing-assets`。
+- 工坊制作、进度、失败重试、成片技术验收：`$production-handoff`。
+- `VIDEO_READY` 后本地发布包与只读状态：`$publish-video`。
+- 数据采集、报告与建议：`$data-center`。
+- 系统更新：`$update-ai-video-system`。
 
-用普通用户能理解的语言显示：
+## 状态与恢复
 
-1. 产品与本地工具版本。
-2. 当前唯一频道、地区、语言和活动生产预设。
-3. Source、Topic、Manuscript、Publishing Asset、Production Package、Production Task、Production Result、Publication Receipt、Analytics Snapshot、Report 与 Recommendation 各状态、版本和确认门。
-4. 当前真实进度，例如 `topic n/10` 或文稿第 `n/m` 集；不要把测试 fixture 或占位数据报告为真实产出。
-5. 下一项可执行动作、不可用扩展及所缺条件。
+1. 调用 `content_capabilities` 读取内容能力；标题、简介和封面都由同一 Skill 提供。
+2. 一个任务只绑定一个 `channelProfileId`，不得把参考视频频道当成发布频道。
+3. 只分短篇和长篇；长篇按检查点恢复，只补缺失章节，不用摘要代替正文。
+4. 正式内容主链使用 Source Package → Content Deconstruction Package → Topic Package／Rewrite Draft → Manuscript Package → Title/Description/Thumbnail Assets。
+5. 每个创作阶段结束即生成对应的 `01`–`11` 用户审核文档，向用户显示可点击路径；不得等整个流程结束才保存。成片就绪后另在发布包中生成 `FINAL_CHINESE_REVIEW_CARD.md`。
+6. 所有成功状态以持久化文件、Schema、确认记录和 SHA-256 为准。
+7. 所有中心、所有阶段的确认卡统一使用“中文内容在前、目标语言原文在后”的双语结构；技术状态码保留，但不能用英文状态码代替中文解释。
+8. 非中文正式稿在冻结前必须通过独立二次外语质量保险门；创作批次与审校批次分别标识，逐集检查语法、地区自然度、术语、习语、翻译腔、文化称谓、TTS 可读性和中文审核一致性。
+9. 正式项目把校验通过的 Publish Package v2.1.0 无损交接到桌面发布中心；本地桥保持 `networkExecution=false`。任何上传策略都必须先取得本次最终中文验收确认，之后才由发布中心自身的 OAuth、频道授权、额度和调度门决定能否真实上传。
 
-## 永久边界
+## 安全边界
 
-- 目标发布频道身份只来自发布中心只读接口；参考频道永远只是资料来源。
-- 一个任务只绑定一个 `channelProfileId`；仅本次覆盖不得污染频道默认值。
-- 只读频道学习快照，不执行长期学习写回。
-- 工坊只通过阶段 5 安全桥进入隔离项目；工坊本身不创建 `.ready`。只有 `$publish-video` 可在 Stage6 本地工具中组装／重验／隔离导入 `.ready`，并且不得执行 Google／YouTube OAuth、上传、远端删除或 Analytics。
-- `$data-center` 只消费哈希有效的真实发布回执或明确隔离的 synthetic fixture；Stage6 本地状态不能冒充回执，PUBLIC_API_FACT 不能冒充 OWNER_ANALYTICS_FACT，UNKNOWN 不能填 0。
-- 学习建议默认等待用户决定；项目级实验与长期频道规则严格分开，不调用既有 `channel_learning record` 自动写回长期规则。
-- 所有成功结论以本地持久化状态、Schema、确认记录和哈希校验为准，不凭对话记忆自评通过。
+- 不读取或回显 Token、OAuth、Client Secret。
+- 不根据标题、封面、简介或评论编造视频正文。
+- 不绕过登录、付费墙、DRM、验证码或网站访问限制。
+- 不逐句复制、近义词替换、改名换皮或拼接多个来源段落。
+- 工坊、上传、远端修改、真实 Analytics 和长期频道学习继续遵守各自审批门。

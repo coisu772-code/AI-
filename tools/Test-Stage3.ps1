@@ -61,10 +61,10 @@ try {
 
     $installed = Join-Path $installRoot "current"
     $plugin = Join-Path $installed "plugins\ai-video-channel-production"
-    $sourceSkill = Join-Path $plugin "skills\source-library\SKILL.md"
+    $sourceSkill = Join-Path $plugin "skills\content-source\SKILL.md"
     $server = Join-Path $plugin "mcp\server.py"
     if (-not (Test-Path -LiteralPath $sourceSkill -PathType Leaf)) {
-        throw "Installed source-library Skill is missing."
+        throw "Installed content-source Skill is missing."
     }
     if (-not (Test-Path -LiteralPath $server -PathType Leaf)) {
         throw "Installed MCP server is missing."

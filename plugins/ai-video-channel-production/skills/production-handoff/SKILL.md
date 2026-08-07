@@ -11,13 +11,15 @@ description: 将已确认的 Manuscript Package v1 与 Publishing Asset Package 
 
 1. 调用 `production_capabilities`。确认 Production Package `2.1`、Production Task `1.0.0`、FFmpeg、ffprobe 和所选工坊兼容接口可用。不得把无外部探测的合成 runner 描述成真实模型或收费服务调用。
 2. 调用 `content_handoff_check`。只接收 `SCRIPT_READY`、`PUBLISHING_ASSETS_READY`、哈希完整、质量门有效且锁定真实 16:9 封面的项目。
-3. 向用户显示一张简短制作卡：项目、地区、语言、标题、集数、锁定音色、制作方式、视频范围、失败策略和能力状态。审核模式等待确认；已有自动制作授权且所有硬门通过时可自动继续。
+3. 向用户显示一张中文优先、目标语言对照的简短制作卡：项目、地区、语言、中文标题与目标语言标题、集数、锁定音色、制作方式、视频范围、失败策略和能力状态。审核模式等待确认；已有自动制作授权且所有硬门通过时可自动继续。
 4. 调用 `production_package_assemble`。生产配置必须明确：
    - `deliveryMode`：`auto_render` 或 `jianying_refine`；
    - `videoGeneration.selectionMode`：`none`、`project_first_n_storyboards`、`episode_first_n_storyboards` 或 `all_storyboards`；
    - 显式视频生成默认 `fallbackPolicy=pause`；只有用户已经明确允许时使用 `use_static_image`；
    - 工坊兼容接口必须为 `2.1`。
-5. 只有组装工具返回完整、无敏感字段的标准包后，调用 `production_task_start`。相同项目与包版本已经有活动任务时，继续原任务，不新建第二个活动任务。
+5. 组装工具同时生成 `用户审核文档/11_完整生产资料总览.md`，汇总正式配音文本引用、角色形象、角色音色、制作方式、视频范围、标题、封面、简介、标签和机器生产包路径。向用户显示该文档路径和 SHA-256。
+6. `Production Package v2.1` 仍是机器读取包：生产正文只包含目标语言正式稿，并保留角色、音色、视觉锚点、制作配置和既有工坊界面所需的 `titleZhTranslation`；中文版长稿、中文简介／标签审核译文、拆解报告和审稿报告不得混入机器输入。
+7. 只有组装工具返回完整、无敏感字段的标准包后，调用 `production_task_start`。相同项目与包版本已经有活动任务时，继续原任务，不新建第二个活动任务。
 
 ## 运行、查看与修复
 

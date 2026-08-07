@@ -1,7 +1,0 @@
-interface:
-  display_name: "选题中心"
-  short_description: "Create ranked traceable story packages from ready sources"
-  default_prompt: "使用 $topic-selection 根据当前频道资料或我的大纲准备并确认完整选题。"
-
-policy:
-  allow_implicit_invocation: false

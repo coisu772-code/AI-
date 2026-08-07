@@ -20,7 +20,7 @@
   "properties": {
     "schema_version": {"const": "2.0"},
     "protocol": {"const": "youtube-publish-package-v2"},
-    "package_version": {"const": "2.0.0"},
+    "package_version": {"const": "2.1.0"},
     "publish_intent_id": {"type": "string", "pattern": "^pi_[0-9a-f]{32}$"},
     "project_id": {"type": "string", "minLength": 3, "maxLength": 128},
     "created_at": {"type": "string", "format": "date-time"},
@@ -38,8 +38,8 @@
     "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "files": {
       "type": "array",
-      "minItems": 8,
-      "maxItems": 8,
+      "minItems": 10,
+      "maxItems": 10,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -50,7 +50,7 @@
           "size_bytes": {"type": "integer", "minimum": 0},
           "media_type": {"type": "string", "minLength": 1},
           "role": {
-            "enum": ["metadata", "upload_task", "validation", "production_binding", "upload_status", "final_video", "thumbnail", "subtitle"]
+            "enum": ["human_review_card", "human_review_card_data", "metadata", "upload_task", "validation", "production_binding", "upload_status", "final_video", "thumbnail", "subtitle"]
           }
         }
       }

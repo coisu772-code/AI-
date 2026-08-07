@@ -222,6 +222,12 @@
     "qualityGateHash": {
       "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
     },
+    "foreignLanguageQualityGate": {
+      "$ref": "#/$defs/foreignLanguageQualityGate"
+    },
+    "foreignLanguageQualityGateHash": {
+      "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+    },
     "selectiveInvalidation": {
       "type": "object",
       "additionalProperties": false,
@@ -800,6 +806,99 @@
             }
           }
         }
+      }
+    },
+    "foreignLanguageQualityGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "contentHash",
+        "targetScriptHash",
+        "targetLanguage",
+        "status",
+        "reviewMode",
+        "independentFromAuthoring",
+        "revisionRounds",
+        "episodeResults",
+        "summaryZh"
+      ],
+      "properties": {
+        "version": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/semver"
+        },
+        "contentHash": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+        },
+        "targetScriptHash": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+        },
+        "targetLanguage": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/bcp47Language"
+        },
+        "status": {
+          "enum": ["PASSED", "NOT_APPLICABLE"]
+        },
+        "reviewMode": {
+          "enum": ["independent-second-pass", "not-applicable-target-is-chinese"]
+        },
+        "independentFromAuthoring": {
+          "type": "boolean"
+        },
+        "authoringPassId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "reviewPassId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "revisionRounds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "episodeResults": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["episodeNumber", "status", "revisionCount", "checks", "findingsZh"],
+            "properties": {
+              "episodeNumber": { "type": "integer", "minimum": 1 },
+              "status": { "const": "PASSED" },
+              "revisionCount": { "type": "integer", "minimum": 0, "maximum": 3 },
+              "checks": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "chinese-review-consistency",
+                  "cultural-address",
+                  "grammar-and-syntax",
+                  "idiom-and-collocation",
+                  "naming-and-terminology",
+                  "regional-naturalness",
+                  "translationese-avoidance",
+                  "tts-readability"
+                ],
+                "properties": {
+                  "chinese-review-consistency": { "const": true },
+                  "cultural-address": { "const": true },
+                  "grammar-and-syntax": { "const": true },
+                  "idiom-and-collocation": { "const": true },
+                  "naming-and-terminology": { "const": true },
+                  "regional-naturalness": { "const": true },
+                  "translationese-avoidance": { "const": true },
+                  "tts-readability": { "const": true }
+                }
+              },
+              "findingsZh": { "type": "string", "minLength": 1, "maxLength": 5000 }
+            }
+          }
+        },
+        "summaryZh": { "type": "string", "minLength": 1, "maxLength": 5000 }
       }
     }
   }

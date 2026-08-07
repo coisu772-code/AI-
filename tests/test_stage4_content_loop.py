@@ -59,13 +59,15 @@ class Stage4ContentLoopTests(unittest.TestCase):
         self.assertEqual(code, caught.exception.code)
         return caught.exception
 
-    def test_installed_surface_exposes_nine_stage4_tools_and_no_external_action(self) -> None:
+    def test_installed_surface_exposes_eleven_stage4_tools_and_no_external_action(self) -> None:
         names = {item["name"] for item in tool_definitions()}
         expected = {
             "content_capabilities",
             "content_project_start",
             "content_topic_checkpoint",
             "content_topic_finalize",
+            "content_review_document_save",
+            "content_review_documents_get",
             "content_manuscript_finalize",
             "content_publishing_finalize",
             "content_project_get",
@@ -73,12 +75,30 @@ class Stage4ContentLoopTests(unittest.TestCase):
             "content_handoff_check",
         }
         self.assertTrue(expected.issubset(names))
+        definitions = {item["name"]: item for item in tool_definitions()}
+        self.assertIn("foreignLanguageQualityGate", definitions["content_manuscript_finalize"]["inputSchema"]["required"])
+        self.assertIn("storySummaryChinese", definitions["content_publishing_finalize"]["inputSchema"]["required"])
         service, _, _, _ = create_service(
             self.root / "surface", "en-US", plugin_root=PLUGIN_ROOT,
             local_tool_service=LocalToolService, service_config=ServiceConfig,
         )
         capabilities = service.call("content_capabilities")
         self.assertEqual("available", capabilities["extensionInterfaces"]["analysis-package-v1"]["status"])
+        extensions = {item["capability"]: item for item in capabilities["extensions"]}
+        self.assertEqual("available", extensions["title-generation"]["status"])
+        self.assertEqual("content-title-description", extensions["title-generation"]["skillId"])
+        self.assertEqual(["manuscript-package"], extensions["title-generation"]["inputContractTypes"])
+        self.assertEqual("available", extensions["description-generation"]["status"])
+        self.assertEqual("content-title-description", extensions["description-generation"]["skillId"])
+        self.assertEqual("available", extensions["thumbnail-generation"]["status"])
+        self.assertEqual("content-title-description", extensions["thumbnail-generation"]["skillId"])
+        self.assertEqual(["manuscript-package"], extensions["thumbnail-generation"]["inputContractTypes"])
+        self.assertTrue(capabilities["userReviewDocuments"]["available"])
+        self.assertEqual(11, len(capabilities["userReviewDocuments"]["documentIds"]))
+        system = service.call("system_capabilities")
+        self.assertTrue(Path(system["storage"]["userDataRoot"]).samefile(self.root / "surface" / "data"))
+        self.assertTrue(system["storage"]["largeAssetsStoredUnderUserDataRoot"])
+        self.assertTrue(system["storage"]["programUpdatesPreserveUserDataRoot"])
         self.assertFalse(capabilities["boundaries"]["workshop"])
         self.assertFalse(capabilities["boundaries"]["upload"])
         self.assertFalse(capabilities["boundaries"]["longTermLearningWrite"])
@@ -99,6 +119,61 @@ class Stage4ContentLoopTests(unittest.TestCase):
         finally:
             repository_safety.ROOT = original_root
 
+    def test_review_documents_are_versioned_in_order_and_freeze_after_manuscript(self) -> None:
+        ctx = self.context("zh-CN")
+        finalize_topic(ctx)
+
+        def save(document_type: str, content: str):
+            return ctx.service.call(
+                "content_review_document_save",
+                {
+                    "taskId": ctx.task_id,
+                    "channelProfileId": ctx.channel_id,
+                    "bindingProof": ctx.proof,
+                    "projectId": ctx.project_id,
+                    "documentType": document_type,
+                    "content": content,
+                },
+            )
+
+        self.assert_tool_error(
+            "REWRITE_DRAFT_DOCUMENT_REQUIRED",
+            lambda: save("revision-log", "# 修改记录\n\n" + "尚未生成初稿，因此该记录必须被拒绝。" * 8),
+        )
+        first = save("rewrite-draft-target", "第一版完整仿写初稿。" * 20)
+        second = save("rewrite-draft-target", "第二版完整仿写初稿。" * 20)
+        self.assertEqual(1, first["document"]["version"])
+        self.assertEqual(2, second["document"]["version"])
+        save("editorial-review", "# 编辑审核报告\n\n" + "逐项检查事实、人物、因果、节奏与语言，记录问题证据和修改建议。" * 8)
+        self.assert_tool_error(
+            "REWRITE_DRAFT_REVIEW_ALREADY_STARTED",
+            lambda: save("rewrite-draft-target", "审核开始后不允许替换来源初稿。" * 20),
+        )
+        save("revision-log", "# 修改记录与前后对照\n\n" + "位置、修改前、修改后、原因和影响范围均已逐项登记。" * 8)
+        self.assert_tool_error(
+            "EDITORIAL_REVIEW_REVISION_ALREADY_RECORDED",
+            lambda: save("editorial-review", "修改对照完成后不允许替换审核来源。" * 20),
+        )
+        manuscript = manuscript_payload(ctx)
+        for key in ("rewriteDraftText", "editorialReviewMarkdown", "revisionLogMarkdown"):
+            manuscript.pop(key)
+        final = ctx.service.call(
+            "content_manuscript_finalize",
+            {
+                "taskId": ctx.task_id,
+                "channelProfileId": ctx.channel_id,
+                "bindingProof": ctx.proof,
+                "projectId": ctx.project_id,
+                **manuscript,
+                "authoringMode": "target-language-native",
+            },
+        )
+        self.assertEqual("SCRIPT_READY", final["package"]["status"])
+        self.assert_tool_error(
+            "CONTENT_REVIEW_DOCUMENTS_FROZEN",
+            lambda: save("revision-log", "正式稿冻结后不能回写早期审核文档。" * 20),
+        )
+
     def test_three_markets_use_the_same_schema_state_machine_and_quality_gates(self) -> None:
         self.assertTrue(SYNTHETIC_THUMBNAIL.is_file())
         for language in MARKETS:
@@ -111,7 +186,35 @@ class Stage4ContentLoopTests(unittest.TestCase):
                 self.assertEqual("SCRIPT_READY", result["manuscript"]["package"]["status"])
                 self.assertEqual("PUBLISHING_ASSETS_READY", result["publishing"]["package"]["status"])
                 self.assertEqual(language, result["manuscript"]["package"]["targetLanguage"])
+                expected_foreign_status = "NOT_APPLICABLE" if language.startswith("zh") else "PASSED"
+                self.assertEqual(expected_foreign_status, result["manuscript"]["package"]["foreignLanguageQualityGate"]["status"])
+                self.assertTrue((Path(result["manuscript"]["packagePath"]) / "foreign-language-quality-gate.json").is_file())
+                for stage in ("topic", "manuscript", "publishing"):
+                    card = result[stage]["confirmationCard"]
+                    self.assertEqual("CHINESE_FIRST_WITH_TARGET_LANGUAGE", card["displayMode"])
+                    self.assertIn("chinesePrimary", card)
+                    self.assertIn("targetLanguageComparison", card)
                 self.assertEqual(5, len(result["publishing"]["package"]["thumbnailCandidates"]))
+                review_root = Path(result["publishing"]["userReviewDocuments"]["directory"])
+                expected_review_files = {
+                    "04_仿写初稿_目标语言.txt",
+                    "05_编辑审核报告.md",
+                    "06_修改记录与前后对照.md",
+                    "07_正式稿_目标语言.txt",
+                    "08_正式稿_中文版.txt",
+                    "09_标题简介标签_双语审核.md",
+                    "10_封面候选与选择结果.md",
+                }
+                self.assertTrue(expected_review_files.issubset({item.name for item in review_root.iterdir()}))
+                packaging_review = (review_root / "09_标题简介标签_双语审核.md").read_text(encoding="utf-8")
+                self.assertIn(result["publishing"]["package"]["title"], packaging_review)
+                self.assertIn(result["publishing"]["package"]["titleZhTranslation"], packaging_review)
+                listed = ctx.service.call(
+                    "content_review_documents_get",
+                    {"channelProfileId": ctx.channel_id, "projectId": ctx.project_id},
+                )
+                self.assertTrue(listed["progressReadOnly"])
+                self.assertEqual(7, len(listed["documents"]))
                 manuscript_root = Path(result["manuscript"]["packagePath"])
                 if language.startswith("zh"):
                     self.assertEqual("same-as-target", result["manuscript"]["package"]["auditScript"]["mode"])
@@ -125,6 +228,64 @@ class Stage4ContentLoopTests(unittest.TestCase):
                     ["production-package", "workshop", "publisher-authorization", "upload", "analytics", "long-term-learning-write"],
                     result["handoff"]["notExecuted"],
                 )
+
+    def test_non_chinese_manuscript_requires_independent_foreign_language_gate(self) -> None:
+        ctx = self.context("ja-JP")
+        finalize_topic(ctx)
+        payload = manuscript_payload(ctx)
+        for document_type, payload_key in (
+            ("rewrite-draft-target", "rewriteDraftText"),
+            ("editorial-review", "editorialReviewMarkdown"),
+            ("revision-log", "revisionLogMarkdown"),
+        ):
+            ctx.service.call(
+                "content_review_document_save",
+                {
+                    "taskId": ctx.task_id,
+                    "channelProfileId": ctx.channel_id,
+                    "bindingProof": ctx.proof,
+                    "projectId": ctx.project_id,
+                    "documentType": document_type,
+                    "content": payload.pop(payload_key),
+                },
+            )
+        payload["foreignLanguageQualityGate"]["independentFromAuthoring"] = False
+        self.assert_tool_error(
+            "FOREIGN_LANGUAGE_REVIEW_NOT_INDEPENDENT",
+            lambda: ctx.service.call(
+                "content_manuscript_finalize",
+                {
+                    "taskId": ctx.task_id,
+                    "channelProfileId": ctx.channel_id,
+                    "bindingProof": ctx.proof,
+                    "projectId": ctx.project_id,
+                    **payload,
+                    "authoringMode": "target-language-native",
+                },
+            ),
+        )
+
+    def test_user_review_document_tamper_blocks_integrity_and_handoff(self) -> None:
+        ctx = self.context("en-US")
+        result = build_complete_pipeline(ctx, SYNTHETIC_THUMBNAIL)
+        review_root = Path(result["publishing"]["userReviewDocuments"]["directory"])
+        revision_log = review_root / "06_修改记录与前后对照.md"
+        revision_log.write_text(revision_log.read_text(encoding="utf-8") + "\n未登记篡改\n", encoding="utf-8")
+        integrity = ctx.service.call(
+            "content_integrity_check",
+            {"channelProfileId": ctx.channel_id, "projectId": ctx.project_id},
+        )
+        self.assertEqual("FAIL", integrity["status"])
+        self.assertTrue(
+            any(item.get("documentId") == "revision-log" and item.get("issue") == "file-hash" for item in integrity["errors"])
+        )
+        self.assert_tool_error(
+            "CONTENT_HANDOFF_BLOCKED",
+            lambda: ctx.service.call(
+                "content_handoff_check",
+                {"channelProfileId": ctx.channel_id, "projectId": ctx.project_id},
+            ),
+        )
 
     def test_committed_three_market_package_chains_remain_valid(self) -> None:
         self.assertEqual([], validate_stage4_packages())

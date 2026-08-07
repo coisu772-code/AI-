@@ -4,7 +4,7 @@
 
 使用以下五个工具连接 Production Result Package v1、Publishing Asset Package v1 与发布中心本地 v2 导入链。以安装版本暴露的 JSON Schema 为参数事实源；遇到缺少字段或协议版本不兼容时停止，不猜测参数。
 
-协议标识为 Publisher Local Tool Protocol v1；发布包为 v2；Upload Intent 与 Publication Receipt 均为 v1。版本不兼容时失败关闭。
+协议标识为 Publisher Local Tool Protocol v1；带最终中文验收卡的发布包版本为 v2.1.0；Upload Intent 与 Publication Receipt 均为 v1。版本不兼容时失败关闭。
 
 所有写操作必须显式设置 `networkExecution=false`。五个工具均不得发起 OAuth、YouTube API、远端视频／元数据修改或删除。
 
@@ -22,10 +22,12 @@
 
 ## 发布包 v2
 
-`<publish_intent_id>.creating` 与最终 `.ready` 只允许以下固定九类文件；缩略图和字幕各选择一种允许扩展名：
+`<publish_intent_id>.creating` 与最终 `.ready` 只允许以下固定十一类文件；缩略图和字幕各选择一种允许扩展名：
 
 ```text
 manifest.json
+FINAL_CHINESE_REVIEW_CARD.md
+final_chinese_review_card.json
 metadata.json
 upload_task.json
 validation.json
@@ -66,8 +68,8 @@ subtitles.srt|vtt
 ## 策略与审批门
 
 - `DO_NOT_UPLOAD`：本地保存／导入，停在 `PACKAGE_READY`。
-- `REQUIRE_REVIEW`：生成不可变 Upload Intent v1 与人工确认卡，停在 `WAITING_REVIEW`。
-- `AUTO`：同时验证工作区明确授权、频道 AUTO 明确授权、当前发布意图 AUTO 明确授权及其版本／时间。缺一项失败；Stage6 即使全部通过也只到 `READY_TO_UPLOAD`，真实执行返回 `EXTERNAL_APPROVAL_REQUIRED`。
+- `REQUIRE_REVIEW`：生成不可变 Upload Intent v1 与最终中文验收卡，停在 `WAITING_REVIEW / FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED`。
+- `AUTO`：同时验证工作区明确授权、频道 AUTO 明确授权、当前发布意图 AUTO 明确授权及其版本／时间；即使授权齐全，本次最终中文验收未确认前仍停在 `WAITING_REVIEW / FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED`。
 
 所有视频未来必须先以 private 创建；先持久化真实 video ID，再分别恢复封面、字幕、处理和最终可见性。取得 video ID 后不得再次调用 `videos.insert`。删除本地任务或包不得触发远端删除。
 
@@ -82,4 +84,4 @@ subtitles.srt|vtt
 - AUTO 缺授权门、排期过期、无效时区、额度或并发已满；
 - 伪 video ID、假 receipt、上传／OAuth／远端修改／删除越权。
 
-对 `EXTERNAL_APPROVAL_REQUIRED` 说明当前本地资格和仍需用户确认的真实外部动作，不重试为网络执行。
+对 `FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED` 先展示 G6 最终中文验收卡，不重试为网络执行；用户确认后仍由真实发布中心处理 OAuth 与上传审批。

@@ -21,8 +21,9 @@ from .content_analysis import (
     _validate_analysis_buckets,
     _validate_dimensions,
 )
-from .contracts import canonical_hash, utc_now, with_hash
+from .contracts import canonical_hash, resolve_contracts_root, utc_now, with_hash
 from .errors import ToolError
+from .review_documents import review_documents_view, save_review_document, validate_review_documents
 
 
 VIDEO_DECONSTRUCTION_VERSION = "1.0.0"
@@ -46,6 +47,34 @@ VIDEO_DECONSTRUCTION_DIMENSIONS = {
     "credibilityAndConstraints",
     "originalityBoundaries",
 }
+
+
+def _source_summary_markdown(plan: dict[str, Any]) -> str:
+    lines = [
+        "# 原始素材说明",
+        "",
+        f"- 拆解编号：`{plan['deconstructionId']}`",
+        f"- 拆解模式：`{plan['mode']}`",
+        f"- 素材数量：{len(plan['videos'])}",
+        "- 说明：本文件只记录已冻结来源身份和读取边界，不根据标题或封面补写未知正文。",
+        "",
+        "## 素材清单",
+        "",
+    ]
+    for index, item in enumerate(plan["videos"], 1):
+        lines.extend(
+            [
+                f"### {index}. {item.get('title') or item['sourcePackageId']}",
+                "",
+                f"- Source Package：`{item['sourcePackageId']}`",
+                f"- 角色：{item['role']}",
+                f"- 语言：{item.get('language') or '未知'}",
+                f"- 公开地址：{item.get('canonicalUrl') or '无／本地素材'}",
+                f"- 内容哈希：`{item['sourcePackage']['targetHash']}`",
+                "",
+            ]
+        )
+    return "\n".join(lines)
 CHECKPOINT_QUALITY_KEYS = {
     "fiveBucketsSeparated",
     "evidenceTraceable",
@@ -63,7 +92,7 @@ FINAL_QUALITY_KEYS = {
     "antiCopyBoundary",
     "timingIntegrity",
 }
-DOWNSTREAM_CONSUMERS = {"topic-center", "manuscript-center"}
+DOWNSTREAM_CONSUMERS = {"topic-center", "manuscript-center", "content-rewrite", "content-review-edit"}
 
 
 def _read_json(path: Path, code: str) -> dict[str, Any]:
@@ -100,16 +129,22 @@ class VideoCopyDeconstruction:
         *,
         channel_distillations: Any = None,
         plugin_root: Path | None = None,
+        analysis_kind: str = "video-copy-deconstruction",
+        root_folder: str = "video-deconstructions",
+        accepted_source_types: set[str] | None = None,
     ) -> None:
         self.store = store
         self.sources = sources
         self.channel_distillations = channel_distillations
         self.plugin_root = plugin_root
+        self.analysis_kind = analysis_kind
+        self.root_folder = root_folder
+        self.accepted_source_types = accepted_source_types or {"youtube-video"}
 
     def _validate_contract_schema(self, contract: dict[str, Any], schema_name: str) -> None:
         if self.plugin_root is None:
             return
-        schema_root = self.plugin_root.resolve().parents[1] / "contracts" / "schemas"
+        schema_root = resolve_contracts_root(self.plugin_root) / "schemas"
         schema_path = schema_root / schema_name
         try:
             resources = []
@@ -135,20 +170,36 @@ class VideoCopyDeconstruction:
             )
 
     def capabilities(self) -> dict[str, Any]:
-        return {
-            "available": True,
-            "version": VIDEO_DECONSTRUCTION_VERSION,
-            "platforms": ["youtube"],
-            "modes": sorted(VIDEO_DECONSTRUCTION_MODES),
-            "interfaces": {
+        generic = self.analysis_kind == "content-deconstruction"
+        interfaces = (
+            {
+                "content-deconstruction": "available",
+                "video-analysis": "available",
+                "analysis-package-v1": "available",
+                "direct-rewrite": "available-via-content-rewrite",
+                "synthesis-rewrite": "available-via-content-rewrite",
+            }
+            if generic
+            else {
+                "content-deconstruction": "unavailable",
                 "video-analysis": "available",
                 "analysis-package-v1": "available",
                 "style-imitation": "available-via-original-imitation-writing",
                 "writing-style-contract-v1": "available-via-original-imitation-writing",
-            },
+            }
+        )
+        return {
+            "available": True,
+            "version": VIDEO_DECONSTRUCTION_VERSION,
+            "platforms": ["youtube", "local-file", "pasted-text", "novel-web"] if generic else ["youtube"],
+            "modes": sorted(VIDEO_DECONSTRUCTION_MODES),
+            "interfaces": interfaces,
             "dimensions": sorted(VIDEO_DECONSTRUCTION_DIMENSIONS),
-            "outputs": ["video-deconstruction-analysis-v1", "analysis-package-v1"],
-            "consumers": ["topic-center", "manuscript-center"],
+            "outputs": [
+                "content-deconstruction-analysis-v1" if generic else "video-deconstruction-analysis-v1",
+                "analysis-package-v1",
+            ],
+            "consumers": ["content-rewrite", "content-review-edit"] if generic else ["topic-center", "manuscript-center"],
             "boundaries": {
                 "requiresCanonicalContentTxt": True,
                 "readsRawSubtitleFiles": False,
@@ -165,7 +216,7 @@ class VideoCopyDeconstruction:
         return (
             self.store.channel_path(channel_profile_id)
             / "content-analysis"
-            / "video-deconstructions"
+            / self.root_folder
             / _safe_identifier(deconstruction_id, "deconstructionId")
         )
 
@@ -213,8 +264,12 @@ class VideoCopyDeconstruction:
         manifest = detail["manifest"]
         if canonical_hash(manifest) != manifest.get("contentHash"):
             raise ToolError("SOURCE_HASH_MISMATCH", "Source Package 的 canonical-json-v1 哈希无效。")
-        if manifest.get("sourceType") != "youtube-video":
-            raise ToolError("VIDEO_SOURCE_REQUIRED", "视频文案拆解只接收 youtube-video Source Package。")
+        if manifest.get("sourceType") not in self.accepted_source_types:
+            raise ToolError(
+                "CONTENT_SOURCE_TYPE_UNSUPPORTED",
+                "当前文案拆解不支持该 Source Package 类型。",
+                details={"sourceType": manifest.get("sourceType"), "accepted": sorted(self.accepted_source_types)},
+            )
         content_asset = self._asset(manifest, "content.txt")
         if manifest.get("status") != "CONTENT_READY" or content_asset is None:
             raise ToolError("CANONICAL_VIDEO_TEXT_REQUIRED", "视频必须先形成已验收的统一 content.txt。")
@@ -322,6 +377,7 @@ class VideoCopyDeconstruction:
         plan = {
             "schemaVersion": VIDEO_DECONSTRUCTION_VERSION,
             "deconstructionId": deconstruction_id,
+            "analysisKind": self.analysis_kind,
             "channelProfileId": channel_profile_id,
             "targetChannel": _contract_ref(self.store.get_channel(channel_profile_id)["channelProfile"]),
             "mode": mode,
@@ -345,6 +401,7 @@ class VideoCopyDeconstruction:
         state = {
             "schemaVersion": VIDEO_DECONSTRUCTION_VERSION,
             "deconstructionId": deconstruction_id,
+            "analysisKind": self.analysis_kind,
             "channelProfileId": channel_profile_id,
             "mode": mode,
             "state": "ANALYSIS_READY",
@@ -631,11 +688,14 @@ class VideoCopyDeconstruction:
                 source_package_id,
             )
             quality_checks = self._validate_quality_checks(analysis.get("qualityChecks"))
+            generic = self.analysis_kind == "content-deconstruction"
+            item_contract_type = "content-deconstruction-analysis-v1" if generic else "video-deconstruction-analysis-v1"
+            item_schema = "content-deconstruction-analysis-v1.schema.json" if generic else "video-deconstruction-analysis-v1.schema.json"
             contract = with_hash(
                 {
                     "schemaVersion": CONTENT_ANALYSIS_VERSION,
-                    "contractType": "video-deconstruction-analysis-v1",
-                    "id": _derived_id("video_deconstruction", deconstruction_id, source_package_id),
+                    "contractType": item_contract_type,
+                    "id": _derived_id("content_deconstruction" if generic else "video_deconstruction", deconstruction_id, source_package_id),
                     "version": "1.0.0",
                     "createdAt": now,
                     "hashAlgorithm": "SHA-256",
@@ -658,15 +718,18 @@ class VideoCopyDeconstruction:
                     "status": "FROZEN",
                 }
             )
-            self._validate_contract_schema(contract, "video-deconstruction-analysis-v1.schema.json")
+            self._validate_contract_schema(contract, item_schema)
         else:
             if not isinstance(failure, dict) or not isinstance(failure.get("reason"), str) or not failure["reason"].strip():
                 raise ToolError("VIDEO_DECONSTRUCTION_FAILURE_REQUIRED", "失败或跳过视频必须记录原因。")
+            generic = self.analysis_kind == "content-deconstruction"
+            item_contract_type = "content-deconstruction-analysis-v1" if generic else "video-deconstruction-analysis-v1"
+            item_schema = "content-deconstruction-analysis-v1.schema.json" if generic else "video-deconstruction-analysis-v1.schema.json"
             contract = with_hash(
                 {
                     "schemaVersion": CONTENT_ANALYSIS_VERSION,
-                    "contractType": "video-deconstruction-analysis-v1",
-                    "id": _derived_id("video_deconstruction", deconstruction_id, source_package_id),
+                    "contractType": item_contract_type,
+                    "id": _derived_id("content_deconstruction" if generic else "video_deconstruction", deconstruction_id, source_package_id),
                     "version": "1.0.0",
                     "createdAt": now,
                     "hashAlgorithm": "SHA-256",
@@ -682,7 +745,7 @@ class VideoCopyDeconstruction:
                     "status": status,
                 }
             )
-            self._validate_contract_schema(contract, "video-deconstruction-analysis-v1.schema.json")
+            self._validate_contract_schema(contract, item_schema)
         _atomic_json(path, contract)
         state["videos"][source_package_id] = {
             "status": status,
@@ -756,7 +819,7 @@ class VideoCopyDeconstruction:
 
     @staticmethod
     def _downstream_views(analyses: list[dict[str, Any]]) -> dict[str, Any]:
-        method_ids = {"topic-center": [], "manuscript-center": []}
+        method_ids = {consumer: [] for consumer in DOWNSTREAM_CONSUMERS}
         boundary_ids: list[dict[str, str]] = []
         unknown_ids: list[dict[str, str]] = []
         for analysis in analyses:
@@ -774,36 +837,40 @@ class VideoCopyDeconstruction:
                 {"sourcePackageId": source_package_id, "unknownId": item["unknownId"]}
                 for item in analysis["analysisBuckets"]["unknowns"]
             )
+        topic_view = {
+            "transferableMethods": method_ids["topic-center"],
+            "preferredDimensions": [
+                "positioning",
+                "oneSentenceCore",
+                "functionalStructure",
+                "emotionalCurve",
+                "audienceRewards",
+                "payoffAndReversals",
+                "characterFunctionsAndRelations",
+                "credibilityAndConstraints",
+            ],
+            "prohibitedCopy": boundary_ids,
+            "unknowns": unknown_ids,
+        }
+        manuscript_view = {
+            "transferableMethods": method_ids["manuscript-center"],
+            "preferredDimensions": [
+                "functionalStructure",
+                "narrativeVoiceAndStyle",
+                "paragraphBreath",
+                "expressionTechniques",
+                "youtubeTiming",
+                "retentionMechanics",
+                "titlePromiseFulfillment",
+            ],
+            "prohibitedCopy": boundary_ids,
+            "unknowns": unknown_ids,
+        }
         return {
-            "topicCenter": {
-                "transferableMethods": method_ids["topic-center"],
-                "preferredDimensions": [
-                    "positioning",
-                    "oneSentenceCore",
-                    "functionalStructure",
-                    "emotionalCurve",
-                    "audienceRewards",
-                    "payoffAndReversals",
-                    "characterFunctionsAndRelations",
-                    "credibilityAndConstraints",
-                ],
-                "prohibitedCopy": boundary_ids,
-                "unknowns": unknown_ids,
-            },
-            "manuscriptCenter": {
-                "transferableMethods": method_ids["manuscript-center"],
-                "preferredDimensions": [
-                    "functionalStructure",
-                    "narrativeVoiceAndStyle",
-                    "paragraphBreath",
-                    "expressionTechniques",
-                    "youtubeTiming",
-                    "retentionMechanics",
-                    "titlePromiseFulfillment",
-                ],
-                "prohibitedCopy": boundary_ids,
-                "unknowns": unknown_ids,
-            },
+            "topicCenter": topic_view,
+            "manuscriptCenter": manuscript_view,
+            "rewrite": {**topic_view, "transferableMethods": method_ids["content-rewrite"] or topic_view["transferableMethods"]},
+            "productionText": {**manuscript_view, "transferableMethods": method_ids["content-review-edit"] or manuscript_view["transferableMethods"]},
         }
 
     def finalize(
@@ -815,6 +882,8 @@ class VideoCopyDeconstruction:
         deconstruction_id: Any,
         quality_gate: Any,
         comparison: Any = None,
+        deconstruction_report: Any = None,
+        transfer_directions: Any = None,
     ) -> dict[str, Any]:
         self.store.assert_binding(
             task_id=task_id,
@@ -867,8 +936,8 @@ class VideoCopyDeconstruction:
         }
         created = utc_now()
         downstream_views = self._downstream_views(analyses)
-        package = with_hash(
-            {
+        generic = self.analysis_kind == "content-deconstruction"
+        package_payload = {
                 "schemaVersion": CONTENT_ANALYSIS_VERSION,
                 "contractType": "analysis-package-v1",
                 "id": _derived_id("analysis", deconstruction_id),
@@ -879,29 +948,66 @@ class VideoCopyDeconstruction:
                 "upstream": [
                     item["sourcePackage"] for item in plan["videos"]
                 ] + ([plan["accountRequirement"]] if plan.get("accountRequirement") else []),
-                "analysisKind": "video-copy-deconstruction",
+                "analysisKind": self.analysis_kind,
                 "deconstructionId": deconstruction_id,
                 "distillationId": plan.get("distillationId"),
                 "targetChannelProfileId": channel_profile_id,
                 "mode": plan["mode"],
                 "analysisBuckets": merged_buckets,
-                "videoAnalyses": analyses,
-                "failedVideos": failures,
                 "comparison": comparison,
                 "downstreamViews": downstream_views,
                 "qualityGate": quality_gate,
                 "status": "FROZEN",
             }
-        )
+        if generic:
+            package_payload["sourceAnalyses"] = analyses
+            package_payload["failedSources"] = failures
+        else:
+            package_payload["videoAnalyses"] = analyses
+            package_payload["failedVideos"] = failures
+        package = with_hash(package_payload)
         package_path = root / "analysis-package-v1.json"
         self._validate_contract_schema(package, "analysis-package-v1.schema.json")
         _atomic_json(package_path, package)
+        user_review_documents = None
+        if generic:
+            if not isinstance(deconstruction_report, str) or len(deconstruction_report.strip()) < 200:
+                raise ToolError("DECONSTRUCTION_REVIEW_DOCUMENT_REQUIRED", "必须保存可直接查看的完整拆解报告，不能只冻结内部 JSON。")
+            if not isinstance(transfer_directions, str) or len(transfer_directions.strip()) < 120:
+                raise ToolError("TRANSFER_DIRECTIONS_DOCUMENT_REQUIRED", "必须保存可直接查看的迁移方向文档。")
+            try:
+                save_review_document(
+                    root,
+                    document_id="source-summary",
+                    content=_source_summary_markdown(plan),
+                    language="zh-CN",
+                    updated_at=created,
+                )
+                save_review_document(
+                    root,
+                    document_id="deconstruction-report",
+                    content=deconstruction_report,
+                    language="zh-CN",
+                    updated_at=created,
+                    minimum_characters=200,
+                )
+                save_review_document(
+                    root,
+                    document_id="transfer-directions",
+                    content=transfer_directions,
+                    language="zh-CN",
+                    updated_at=created,
+                    minimum_characters=120,
+                )
+            except ValueError as exc:
+                raise ToolError("CONTENT_REVIEW_DOCUMENT_INVALID", str(exc)) from exc
+            user_review_documents = review_documents_view(root)
         outputs = {
             "analysisPackage": {
                 **_contract_ref(package),
                 "path": package_path.relative_to(root).as_posix(),
             },
-            "videoAnalyses": [
+            "sourceAnalyses" if generic else "videoAnalyses": [
                 {
                     **_contract_ref(analysis),
                     "sourcePackageId": analysis["sourcePackageId"],
@@ -911,6 +1017,8 @@ class VideoCopyDeconstruction:
             ],
             "downstreamConsumers": ["topic-center", "manuscript-center"],
         }
+        if user_review_documents is not None:
+            outputs["userReviewDocuments"] = user_review_documents
         _atomic_json(root / "outputs.json", outputs)
         state["outputs"] = outputs
         state["state"] = "FROZEN"
@@ -919,12 +1027,12 @@ class VideoCopyDeconstruction:
             "state": state,
             "outputs": outputs,
             "completionCard": {
-                "videoDeconstruction": f"{len(analyses)}/{len(plan['videos'])} succeeded",
+                "contentDeconstruction" if generic else "videoDeconstruction": f"{len(analyses)}/{len(plan['videos'])} succeeded",
                 "failedOrSkipped": len(failures),
                 "accountRequirementsApplied": bool(plan.get("accountRequirement")),
                 "fiveEvidenceBuckets": list(BUCKET_KEYS),
-                "handoffReady": ["topic-center", "manuscript-center"],
-                "next": "wait for second capability acceptance; original imitation remains unavailable",
+                "handoffReady": ["content-rewrite", "content-review-edit"] if generic else ["topic-center", "manuscript-center"],
+                "next": "continue to content-rewrite" if generic else "legacy analysis package frozen",
             },
         }
 
@@ -992,6 +1100,15 @@ class VideoCopyDeconstruction:
                     errors.append({"distillationId": plan["distillationId"], "issue": "account-requirement-version"})
             except (AttributeError, ToolError) as exc:
                 errors.append({"distillationId": plan.get("distillationId"), "issue": getattr(exc, "code", "provider-unavailable")})
+        if self.analysis_kind == "content-deconstruction" and state.get("state") == "FROZEN":
+            review_check = validate_review_documents(
+                root,
+                ("source-summary", "deconstruction-report", "transfer-directions"),
+            )
+            errors.extend(
+                {"documentId": item.get("documentId"), "issue": f"review-document-{item.get('issue')}"}
+                for item in review_check["errors"]
+            )
         return {
             "status": "PASS" if not errors else "FAIL",
             "deconstructionId": deconstruction_id,

@@ -27,6 +27,7 @@ BOOTSTRAP_FILES = (
     "installer/Common.ps1",
     "installer/CodexCli.ps1",
     "installer/Install-AIVideoChannelProduction.ps1",
+    "installer/Start-AIVideoChannelProductionInstall.ps1",
     "installer/install.cmd",
 )
 WORKSHOP_VERSION = "2.3.1-rc.1"
