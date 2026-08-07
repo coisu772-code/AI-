@@ -46,6 +46,83 @@ class ContentPromptSkillTests(unittest.TestCase):
             self.assertTrue(slots[slot_id]["discovered"])
             self.assertEqual("content-title-description", slots[slot_id]["providedBySkillId"])
 
+    def test_three_tier_adaptation_contract_is_generic_and_enforced(self) -> None:
+        deconstruct_skill = (
+            PLUGIN / "skills" / "content-deconstruct" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        deconstruct_prompt = (
+            PLUGIN / "skills" / "content-deconstruct" / "references" / "prompt-v2.2.txt"
+        ).read_text(encoding="utf-8")
+        deconstruct_contract = (
+            PLUGIN / "skills" / "content-deconstruct" / "references" / "deconstruction-contract.md"
+        ).read_text(encoding="utf-8")
+        rewrite_skill = (
+            PLUGIN / "skills" / "content-rewrite" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        rewrite_prompt = (
+            PLUGIN / "skills" / "content-rewrite" / "references" / "prompt-v5.2.txt"
+        ).read_text(encoding="utf-8")
+        rewrite_gates = (
+            PLUGIN / "skills" / "content-rewrite" / "references" / "rewrite-gates.md"
+        ).read_text(encoding="utf-8")
+        router = (PLUGIN / "skills" / "channel-production" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        review_documents = (
+            PLUGIN
+            / "skills"
+            / "channel-production"
+            / "references"
+            / "user-review-documents.md"
+        ).read_text(encoding="utf-8")
+
+        all_contract_text = "\n".join(
+            (
+                deconstruct_skill,
+                deconstruct_prompt,
+                deconstruct_contract,
+                rewrite_skill,
+                rewrite_prompt,
+                rewrite_gates,
+                router,
+                review_documents,
+            )
+        )
+        for marker in (
+            "close-structure",
+            "balanced-reconstruction",
+            "free-original",
+            "mustPreserve",
+            "allowedToChange",
+            "mustRebuild",
+            "protectedExpressionBoundary",
+            "sourceFidelityEvidence",
+            "nonCopyEvidence",
+            "directionDistinctnessMatrix",
+        ):
+            self.assertIn(marker, all_contract_text)
+
+        for group_marker in ("A1—A5", "B1—B5", "C1—C5"):
+            self.assertIn(group_marker, deconstruct_prompt)
+        self.assertIn("共15个方向", deconstruct_prompt)
+        self.assertIn("组内与跨组两两去重", deconstruct_prompt)
+        self.assertIn("不以“相似度越低越好”为目标", rewrite_gates)
+        self.assertIn("不把“与原文有相似结构或桥段”本身判为失败", rewrite_skill)
+        self.assertIn("不绑定晚年情感、异世界、职场或任何固定题材模板", deconstruct_skill)
+        for narrative_scope in (
+            "异世界轻小说",
+            "情感故事",
+            "现实逆转",
+            "纪实",
+            "口播文案",
+        ):
+            self.assertIn(narrative_scope, deconstruct_prompt)
+            self.assertIn(narrative_scope, rewrite_prompt)
+        self.assertNotIn("不少于六个迁移方向", router)
+        self.assertNotIn("不少于六个实质不同方向", review_documents)
+        self.assertNotIn("必须输出不少于6个方向", deconstruct_prompt)
+        self.assertNotIn("所有主要人物的姓名、身份、职业", rewrite_prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

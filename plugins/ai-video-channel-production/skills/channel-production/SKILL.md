@@ -27,8 +27,8 @@ description: 作为 AI 视频频道生产系统唯一默认总入口，识别频
 
 - 建立／进入频道资料库、修改频道默认值、备份恢复：`$channel-onboarding`。
 - 视频链接、用户文件、粘贴文本、资料库检索或用户明确要求的公开联网资料：`$content-source`。
-- 完整拆书、逐章分析和不少于六个迁移方向：`$content-deconstruct`。
-- 单源高贴合原创仿写或多资料融合仿写：`$content-rewrite`。
+- 完整拆书、逐章分析，以及高贴合／中度重构／大胆创新三档各 5 个、共 15 个去重迁移方向：`$content-deconstruct`。
+- 按已确认保留契约执行单源高贴合／平衡／自由原创，或多资料融合仿写：`$content-rewrite`。
 - 审稿、直接修改、复查和正式母稿冻结：`$content-review-edit`。
 - 依据正式母稿生成标题、YouTube 简介和正式16:9封面：`$content-title-description`；`content-thumbnail` 只是该 Skill 的资产槽位，不是独立 Skill。
 - 发布素材联合核验与汇总：`$publishing-assets`。
