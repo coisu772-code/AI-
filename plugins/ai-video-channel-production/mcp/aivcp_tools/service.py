@@ -641,6 +641,7 @@ class LocalToolService:
                 comparison=args.get("comparison"),
                 deconstruction_report=args.get("deconstructionReportMarkdown"),
                 transfer_directions=args.get("transferDirectionsMarkdown"),
+                direction_package=args.get("directionPackage"),
             )
         elif name == "content_deconstruction_get":
             result = self.content_deconstruction.get(
@@ -1259,10 +1260,8 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "deconstructionId": {"type": "string"},
                 "qualityGate": {"type": "object"},
                 "comparison": {"type": "object"},
-                "deconstructionReportMarkdown": {"type": "string", "minLength": 200},
-                "transferDirectionsMarkdown": {"type": "string", "minLength": 120},
             },
-            ["taskId", "channelProfileId", "bindingProof", "deconstructionId", "qualityGate", "deconstructionReportMarkdown", "transferDirectionsMarkdown"],
+            ["taskId", "channelProfileId", "bindingProof", "deconstructionId", "qualityGate"],
         ),
         (
             "video_deconstruction_get",
@@ -1320,14 +1319,20 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "content_deconstruction_finalize",
-            "冻结可交给单源高贴合或多资料融合仿写的 Content Deconstruction Package v1。",
+            "冻结来源证据驱动的 Content Deconstruction Package v1；必须含完整拆解文档、三档各5个方向和等待用户选择状态。",
             {
                 **binding_properties,
                 "deconstructionId": {"type": "string"},
                 "qualityGate": {"type": "object"},
                 "comparison": {"type": "object"},
+                "deconstructionReportMarkdown": {"type": "string", "minLength": 200},
+                "transferDirectionsMarkdown": {"type": "string", "minLength": 120},
+                "directionPackage": {"type": "object"},
             },
-            ["taskId", "channelProfileId", "bindingProof", "deconstructionId", "qualityGate"],
+            [
+                "taskId", "channelProfileId", "bindingProof", "deconstructionId", "qualityGate",
+                "deconstructionReportMarkdown", "transferDirectionsMarkdown", "directionPackage",
+            ],
         ),
         (
             "content_deconstruction_get",

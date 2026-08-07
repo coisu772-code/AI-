@@ -12,7 +12,8 @@ description: 根据 content-deconstruct 冻结的拆书报告、改编档位、�
 1. 调用 `content_capabilities` 与 `content_project_get`，验证 Content Deconstruction Package v1、Source Package 和 SHA-256。
 2. 没有合格拆书包时先调用 `$content-deconstruct`，不得凭标题、封面、简介或不完整印象直接仿写。
 3. 验证已确认方向同时绑定 `adaptationMode`、`preservationContract` 和去重结果。用户未确认迁移方向时，审核模式停在方向选择；用户明确授权自动采用最高评分方向时，只能在其明确档位或适用默认档位内采用合格推荐方向。
-4. 兼容旧项目：旧包已经由用户确认并进入正文时保持原锁继续；旧包仍停在方向选择且缺少三档保留契约时，返回拆解阶段生成新版方向卡，不沿用旧推荐。
+4. 验证冻结 `directionPackage` 的 `sourceStoryDNA`、`expansionSeams`、`sourceAnchorRefs`、`naturalExpansionRationale` 和 `genericTemplateRisk=false`。缺少来源锚点或使用没有来源依据的通用母版时，返回拆解阶段重做，不能在正文阶段自行补理由。
+5. 兼容旧项目：旧包已经由用户确认并进入正文时保持原锁继续；旧包仍停在方向选择且缺少三档保留契约或来源证据驱动方向包时，返回拆解阶段生成新版方向卡，不沿用旧推荐。
 
 ## 两种模式
 
@@ -26,6 +27,8 @@ description: 根据 content-deconstruct 冻结的拆书报告、改编档位、�
 
 三档都不得逐句改写、近义词替换、改名换皮或复制专有名称、标志性表达和高度独特的连续事件组合。高贴合不等于复制，自由原创也不等于偏离已确认的观众承诺。
 
+无论档位如何，初稿必须逐项兑现已确认方向的来源事实锚点和自然扩展理由。不得把“被低估、建设、翻盘、治愈、成长、复仇”等抽象主题扩写成一个与原文无具体因果联系的新职业、新资产、新机构、新灾难、公开审判、系统、追放或打脸故事。
+
 ### 资料融合仿写
 
 使用 `sourceMode=synthesis-rewrite`。资料库、用户上传资料和用户明确要求的公开联网研究，都必须先经过 `$content-source` 与 `$content-deconstruct`。每个来源记录抽象贡献和排除项，最终只建立一条统一主线、一套人物关系、一个因果引擎、一个高潮和一个完整结局；不得按来源分段拼接。
@@ -33,7 +36,7 @@ description: 根据 content-deconstruct 冻结的拆书报告、改编档位、�
 ## 生成与保存
 
 1. 调用 `content_project_start` 建立绑定项目。
-2. 生成唯一完整方案及 `sourceTransformationMap`。其中每个来源条目继续记录功能迁移，同时用方向包绑定 `adaptationMode`、`mustPreserve`、`allowedToChange`、`mustRebuild`、`sourceFidelityEvidence`、`rebuiltCausalBranch` 和 `nonCopyEvidence`；调用 `content_topic_checkpoint` 和 `content_topic_finalize` 冻结 Topic Package v1。
+2. 生成唯一完整方案及 `sourceTransformationMap`。其中每个来源条目继续记录功能迁移，同时用方向包绑定 `adaptationMode`、`mustPreserve`、`allowedToChange`、`mustRebuild`、`sourceAnchorRefs`、`expansionSeamIds`、`sourceFidelityEvidence`、`naturalExpansionRationale`、`rebuiltCausalBranch`、`nonCopyEvidence` 和 `genericTemplateRisk=false`；调用 `content_topic_checkpoint` 和 `content_topic_finalize` 冻结 Topic Package v1。
 3. 按目标市场的目标语言直接创作完整仿写稿。只分“短篇”和“长篇”两档；用户或频道预设的篇幅、集数和输出语言优先于提示词默认的四章篇幅。长篇可以分批保存，但不能压缩事件链、章节功能或结构质量。
 4. 初稿完成后立即调用 `content_review_document_save`，使用 `documentType=rewrite-draft-target` 保存完整正文。不得等到审核结束才落盘，也不得用摘要代替正文。
 5. 工具生成稳定文件 `用户审核文档/04_仿写初稿_目标语言.txt` 和不可覆盖的历史版本。调用 `content_review_documents_get`，向用户展示文件路径、版本和 SHA-256。

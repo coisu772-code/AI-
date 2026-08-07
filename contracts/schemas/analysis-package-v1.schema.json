@@ -18,7 +18,7 @@
           "required": ["analysisKind"]
         },
         "then": {
-          "required": ["deconstructionId", "distillationId", "sourceAnalyses", "failedSources", "comparison", "downstreamViews"]
+          "required": ["deconstructionId", "distillationId", "sourceAnalyses", "failedSources", "comparison", "downstreamViews", "directionPackage"]
         },
         "else": {
           "required": ["deconstructionId", "distillationId", "videoAnalyses", "failedVideos", "comparison", "downstreamViews"]
@@ -57,6 +57,7 @@
     },
     "failedSources": { "type": "array", "maxItems": 8, "items": { "type": "object" } },
     "comparison": { "type": ["object", "null"] },
+    "directionPackage": { "$ref": "#/$defs/directionPackage" },
     "downstreamViews": {
       "type": "object",
       "additionalProperties": false,
@@ -72,6 +73,31 @@
     "status": { "const": "FROZEN" }
   },
   "$defs": {
+    "directionPackage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceStoryDNA", "expansionSeams", "adaptationProfiles", "directions",
+        "directionDistinctnessMatrix", "selection"
+      ],
+      "properties": {
+        "sourceStoryDNA": { "type": "object", "minProperties": 8 },
+        "expansionSeams": { "type": "array", "minItems": 1, "items": { "type": "object" } },
+        "adaptationProfiles": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "object" } },
+        "directions": { "type": "array", "minItems": 15, "maxItems": 15, "items": { "type": "object" } },
+        "directionDistinctnessMatrix": { "type": "array", "minItems": 105, "maxItems": 105, "items": { "type": "object" } },
+        "selection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "selectedDirectionId", "recommendedByTier"],
+          "properties": {
+            "status": { "const": "AWAITING_USER" },
+            "selectedDirectionId": { "type": ["string", "null"] },
+            "recommendedByTier": { "type": "object", "minProperties": 3, "maxProperties": 3 }
+          }
+        }
+      }
+    },
     "buckets": {
       "type": "object",
       "additionalProperties": false,

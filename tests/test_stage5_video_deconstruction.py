@@ -113,6 +113,7 @@ def deconstruction_analysis(
     required_sections: list[str] | None = None,
 ) -> dict[str, object]:
     fact_open = f"fact-open-{suffix}"
+    fact_action = f"fact-action-{suffix}"
     fact_payoff = f"fact-payoff-{suffix}"
     conclusion_structure = f"conclusion-structure-{suffix}"
     conclusion_reward = f"conclusion-reward-{suffix}"
@@ -126,6 +127,11 @@ def deconstruction_analysis(
                     "evidenceRefs": [{"sourcePackageId": source_package_id, "locator": "content.txt#p0001"}],
                 },
                 {
+                    "factId": fact_action,
+                    "statement": "第二段让人物在明确限制下采取有成本的行动。",
+                    "evidenceRefs": [{"sourcePackageId": source_package_id, "locator": "content.txt#p0002"}],
+                },
+                {
                     "factId": fact_payoff,
                     "statement": "第三至第四段交付新证据并完成因果和情绪回报。",
                     "evidenceRefs": [{"sourcePackageId": source_package_id, "locator": "content.txt#p0003-p0004"}],
@@ -135,7 +141,7 @@ def deconstruction_analysis(
                 {
                     "conclusionId": conclusion_structure,
                     "statement": "文案用承诺、受限行动、新证据、收束形成四步推进。",
-                    "evidenceFactIds": [fact_open, fact_payoff],
+                    "evidenceFactIds": [fact_open, fact_action, fact_payoff],
                     "confidence": 0.94,
                 },
                 {
@@ -177,7 +183,7 @@ def deconstruction_analysis(
             ],
         },
         "dimensions": {
-            key: {"summary": f"{key}-{suffix}", "evidenceFactIds": [fact_open, fact_payoff]}
+            key: {"summary": f"{key}-{suffix}", "evidenceFactIds": [fact_open, fact_action, fact_payoff]}
             for key in (
                 "positioning",
                 "oneSentenceCore",
@@ -250,8 +256,8 @@ def deconstruction_analysis(
     }
 
 
-def final_quality_gate() -> dict[str, object]:
-    return {
+def final_quality_gate(*, generic: bool = False) -> dict[str, object]:
+    result = {
         "passed": True,
         "hardFailures": [],
         "independentVideoAnalysis": True,
@@ -261,6 +267,131 @@ def final_quality_gate() -> dict[str, object]:
         "downstreamHandoff": True,
         "antiCopyBoundary": True,
         "timingIntegrity": True,
+    }
+    if generic:
+        result.update(
+            {
+                "sourceStoryDnaBound": True,
+                "expansionSeamsEvidenceBound": True,
+                "directionFidelityValidated": True,
+                "directionDistinctnessValidated": True,
+                "genericTemplateLeakageAbsent": True,
+                "manualSelectionPending": True,
+            }
+        )
+    return result
+
+
+def direction_package(source_facts: dict[str, list[str]], *, compare: bool = False) -> dict[str, object]:
+    modes = {
+        "close-structure": ("A", 3),
+        "balanced-reconstruction": ("B", 2),
+        "free-original": ("C", 1),
+    }
+    contracts = {
+        mode: {
+            "mustPreserve": [f"{mode} 保留来源观众承诺与核心体验。"],
+            "allowedToChange": [f"{mode} 允许调整具体实现。"],
+            "mustRebuild": [f"{mode} 重建专名、表达与必要因果。"],
+            "protectedExpressionBoundary": ["不复制原句、专名和完整事件顺序。"],
+        }
+        for mode in modes
+    }
+    all_anchors = [
+        {"sourcePackageId": source_id, "factId": fact_id}
+        for source_id, fact_ids in source_facts.items()
+        for fact_id in fact_ids
+    ]
+    seams = [
+        {
+            "seamId": f"seam-{index}",
+            "gap": f"来源 {source_id} 的既有行动留下可继续推演的具体后果。",
+            "naturalGrowthRationale": "从已发生事件的后果继续，而不是另套职业或灾难模板。",
+            "applicableModes": list(modes),
+            "sourceEvidenceRefs": [{"sourcePackageId": source_id, "factId": fact_ids[0]}],
+        }
+        for index, (source_id, fact_ids) in enumerate(source_facts.items(), 1)
+    ]
+    directions = []
+    direction_ids = []
+    for mode, (prefix, minimum) in modes.items():
+        for index in range(1, 6):
+            direction_id = f"{prefix}{index}"
+            direction_ids.append(direction_id)
+            anchor_count = max(minimum, len(source_facts) if compare else minimum)
+            if compare:
+                anchors = [
+                    {"sourcePackageId": source_id, "factId": fact_ids[0]}
+                    for source_id, fact_ids in source_facts.items()
+                ]
+                anchors.extend(anchor for anchor in all_anchors if anchor not in anchors)
+                anchors = anchors[:anchor_count]
+            else:
+                anchors = all_anchors[:anchor_count]
+            directions.append(
+                {
+                    "directionId": direction_id,
+                    "adaptationMode": mode,
+                    "title": f"证据驱动方向 {direction_id}",
+                    "preservationContract": contracts[mode],
+                    "sourceAnchorRefs": anchors,
+                    "expansionSeamIds": [item["seamId"] for item in seams],
+                    "sourceFidelityEvidence": [
+                        {**anchor, "preservedFunction": f"保留 {anchor['factId']} 对应的具体推进功能。"}
+                        for anchor in anchors
+                    ],
+                    "naturalExpansionRationale": "沿来源事件已经造成的关系和结果继续推演。",
+                    "causalOutline": [
+                        {
+                            "phase": f"{direction_id} 阶段 {stage}",
+                            "event": f"角色依据来源锚点推进新的具体行动 {stage}。",
+                            "causesNext": f"该行动产生后续阶段 {stage + 1} 的条件。",
+                            "sourceFunctionOrSeam": seams[0]["seamId"],
+                        }
+                        for stage in range(1, 5)
+                    ],
+                    "nonCopyEvidence": ["重新设计具体人物选择、表达、场景和后果。"],
+                    "distinctiveEngine": f"unique-causal-engine-{direction_id}",
+                    "genericTemplateRisk": False,
+                }
+            )
+    matrix = []
+    for left_index, left in enumerate(direction_ids):
+        for right in direction_ids[left_index + 1 :]:
+            matrix.append(
+                {
+                    "leftDirectionId": left,
+                    "rightDirectionId": right,
+                    "differentDimensions": ["protagonistGoal", "causalEngine", "endingPayoff"],
+                    "sameTemplate": False,
+                }
+            )
+    return {
+        "sourceStoryDNA": {
+            "audiencePromise": "以可验证行动推动关系变化并兑现结果。",
+            "plotEngine": "限制下的行动产生新证据并改变后续选择。",
+            "relationshipEngine": "资源、信任和决定权随行动结果变化。",
+            "worldOrRealityRules": "行动成本与证据约束结果。",
+            "causalChain": ["异常关系", "受限行动", "新证据", "结果兑现"],
+            "emotionalArc": ["好奇", "紧张", "理解变化", "释然"],
+            "climaxFunction": "用此前行动积累完成主要因果。",
+            "endingPayoff": "交付信息和情绪闭环。",
+        },
+        "expansionSeams": seams,
+        "adaptationProfiles": [
+            {"adaptationMode": mode, "preservationContract": contracts[mode]} for mode in modes
+        ],
+        "directions": directions,
+        "directionDistinctnessMatrix": matrix,
+        "selection": {
+            "status": "AWAITING_USER",
+            "selectedDirectionId": None,
+            "recommendedByTier": {
+                "close-structure": "A1",
+                "balanced-reconstruction": "B1",
+                "free-original": "C1",
+            },
+        },
     }
 
 
@@ -286,6 +417,66 @@ class VideoDeconstructionTests(unittest.TestCase):
             callback()
         self.assertEqual(code, caught.exception.code)
         return caught.exception
+
+    def test_content_direction_package_hard_gates_source_fidelity_and_distinctness(self) -> None:
+        source_id = self.ids["textstory01"]
+        analysis = deconstruction_analysis(source_id, "hard-gate")
+        frozen_analysis = {
+            "sourcePackageId": source_id,
+            "analysisBuckets": analysis["analysisBuckets"],
+        }
+        valid = direction_package(
+            {
+                source_id: [
+                    "fact-open-hard-gate",
+                    "fact-action-hard-gate",
+                    "fact-payoff-hard-gate",
+                ]
+            }
+        )
+        checked = self.service.content_deconstruction._validate_direction_package(valid, [frozen_analysis], "single")
+        self.assertEqual(15, len(checked["directions"]))
+        self.assertEqual(105, len(checked["directionDistinctnessMatrix"]))
+        self.assertEqual("AWAITING_USER", checked["selection"]["status"])
+
+        template_leak = json.loads(json.dumps(valid, ensure_ascii=False))
+        template_leak["directions"][0]["genericTemplateRisk"] = True
+        self.assert_tool_error(
+            "DIRECTION_GENERIC_TEMPLATE_RISK",
+            lambda: self.service.content_deconstruction._validate_direction_package(
+                template_leak, [frozen_analysis], "single"
+            ),
+        )
+
+        weak_anchor = json.loads(json.dumps(valid, ensure_ascii=False))
+        weak_anchor["directions"][0]["sourceAnchorRefs"] = weak_anchor["directions"][0]["sourceAnchorRefs"][:1]
+        self.assert_tool_error(
+            "DIRECTION_SOURCE_ANCHORS_INSUFFICIENT",
+            lambda: self.service.content_deconstruction._validate_direction_package(
+                weak_anchor, [frozen_analysis], "single"
+            ),
+        )
+
+        incomplete_matrix = json.loads(json.dumps(valid, ensure_ascii=False))
+        incomplete_matrix["directionDistinctnessMatrix"].pop()
+        self.assert_tool_error(
+            "DIRECTION_DISTINCTNESS_MATRIX_INCOMPLETE",
+            lambda: self.service.content_deconstruction._validate_direction_package(
+                incomplete_matrix, [frozen_analysis], "single"
+            ),
+        )
+
+    def test_content_finalize_tool_requires_documents_and_direction_package_only_for_content(self) -> None:
+        definitions = {item["name"]: item["inputSchema"] for item in tool_definitions()}
+        content_required = set(definitions["content_deconstruction_finalize"]["required"])
+        self.assertTrue(
+            {"deconstructionReportMarkdown", "transferDirectionsMarkdown", "directionPackage"}.issubset(
+                content_required
+            )
+        )
+        video_required = set(definitions["video_deconstruction_finalize"]["required"])
+        self.assertNotIn("deconstructionReportMarkdown", video_required)
+        self.assertNotIn("transferDirectionsMarkdown", video_required)
 
     def _add_sources(self) -> dict[str, str]:
         inputs = [
@@ -532,6 +723,9 @@ class VideoDeconstructionTests(unittest.TestCase):
         self.assertEqual("available", capabilities["interfaces"]["content-deconstruction"])
         self.assertIn("local-file", capabilities["platforms"])
         self.assertIn("novel-web", capabilities["platforms"])
+        self.assertTrue(capabilities["boundaries"]["generatesOriginalDirections"])
+        self.assertTrue(capabilities["boundaries"]["directionsRequireSourceAnchors"])
+        self.assertTrue(capabilities["boundaries"]["directionsRequireManualSelection"])
 
         source_id = self.ids["textstory01"]
         self.service.call(
@@ -579,9 +773,18 @@ class VideoDeconstructionTests(unittest.TestCase):
                 "channelProfileId": self.channel_id,
                 "bindingProof": self.proof,
                 "deconstructionId": "content-text-single-001",
-                "qualityGate": final_quality_gate(),
+                "qualityGate": final_quality_gate(generic=True),
                 "deconstructionReportMarkdown": "# 完整拆解报告\n\n" + ("本报告逐段记录素材事实、全局结构、人物功能、因果推进、情绪变化、钩子、节奏、表达方式、优缺点与商业吸引机制。" * 8),
-                "transferDirectionsMarkdown": "# 迁移方向选择\n\n" + "\n".join(f"## 方向 {index}\n重建人物、关系、世界参数、事件因果、高潮与结局，保留经证据支持的叙事功能。" for index in range(1, 7)),
+                "transferDirectionsMarkdown": "# 迁移方向选择\n\n" + "\n".join(f"## 方向 {index}\n绑定来源事实与自然扩展缺口，按所属档位保留核心体验并重建必要实现。" for index in range(1, 16)),
+                "directionPackage": direction_package(
+                    {
+                        source_id: [
+                            "fact-open-generic-text",
+                            "fact-action-generic-text",
+                            "fact-payoff-generic-text",
+                        ]
+                    }
+                ),
             },
         )
         self.assertEqual("1/1 succeeded", finalized["completionCard"]["contentDeconstruction"])
@@ -738,9 +941,24 @@ class VideoDeconstructionTests(unittest.TestCase):
                     "averagingUsed": False,
                     "segmentSplicingUsed": False,
                 },
-                "qualityGate": final_quality_gate(),
+                "qualityGate": final_quality_gate(generic=True),
                 "deconstructionReportMarkdown": "# 完整拆解报告\n\n" + ("本报告分别拆解两个来源，再比较结构、人物功能、因果、节奏、回报、表达和不可复制边界。" * 10),
-                "transferDirectionsMarkdown": "# 迁移方向选择\n\n" + "\n".join(f"## 方向 {index}\n以统一主线重组多来源功能，并重建人物关系、具体事件、高潮行动和完整结局。" for index in range(1, 7)),
+                "transferDirectionsMarkdown": "# 迁移方向选择\n\n" + "\n".join(f"## 方向 {index}\n以两个来源的事实锚点和自然扩展缺口建立统一新因果。" for index in range(1, 16)),
+                "directionPackage": direction_package(
+                    {
+                        source_id: [
+                            "fact-open-synthesis-1",
+                            "fact-action-synthesis-1",
+                            "fact-payoff-synthesis-1",
+                        ],
+                        second_source_id: [
+                            "fact-open-synthesis-2",
+                            "fact-action-synthesis-2",
+                            "fact-payoff-synthesis-2",
+                        ],
+                    },
+                    compare=True,
+                ),
             },
         )
         synthesis_project_id = "synthesis-rewrite-from-library"
