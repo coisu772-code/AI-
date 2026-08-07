@@ -30,7 +30,7 @@ from .workshop_bridge import WorkshopBridge
 
 
 LOCAL_TOOL_PROTOCOL_VERSION = "1.0.0"
-SERVICE_VERSION = "0.10.2-rc.1"
+SERVICE_VERSION = "0.11.0-rc.1"
 
 
 def default_data_root(plugin_root: Path | None = None) -> Path:

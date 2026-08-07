@@ -1,0 +1,81 @@
+{
+  "component": "youtube-publisher-center",
+  "components": [
+    {
+      "path": "youtube-publisher-center.exe",
+      "sha256": "22223a4a1f18e56e90c7f5d979121e97a651a41ae6fe8cee398af070d627c4f4",
+      "size_bytes": 27691008
+    },
+    {
+      "path": "publish-package-v2.exe",
+      "sha256": "84b8e5e27d246bc8babe250071212099116ede1c482f14a0e230d13b658b3431",
+      "size_bytes": 17474560
+    },
+    {
+      "path": "channel-list.exe",
+      "sha256": "64fa70cf50d08e616f85e7e35f149baad2774be8ec5c9d86e5e63f89f1ae5840",
+      "size_bytes": 9923584
+    }
+  ],
+  "display_name": "YouTube 发布中心",
+  "distribution": "local-release-candidate",
+  "integration_contract": {
+    "constraints_catalog_sha256": "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a",
+    "constraints_catalog_version": "2026.08.04.1",
+    "final_chinese_review_card_required": true,
+    "formal_handoff": true,
+    "line_ending_normalization": "CRLF and CR normalize to LF before SHA-256",
+    "live_receipt": true,
+    "live_status": true,
+    "publish_package_version": "2.1.0"
+  },
+  "legal_inventory": {
+    "license_text_files": 101,
+    "notices_json": {
+      "path": "THIRD-PARTY-NOTICES.json",
+      "sha256": "ce69b2728be6e63a8c9f55932051f81b053c98ce994d4cb59b425249a7965833"
+    },
+    "notices_markdown": {
+      "path": "THIRD-PARTY-NOTICES.md",
+      "sha256": "1905b824df23c4faa76149b8f55b510441e8bb74800fad4db648818c250e6a9c"
+    },
+    "product_license": {
+      "path": "LICENSE.md",
+      "sha256": "04e55744da6e7c91c00918cbe625ae4778d49fac9937a3542e6e9b1ca857bbae"
+    },
+    "review_required": 0
+  },
+  "release_asset": {
+    "file_entries": 112,
+    "name": "youtube-publisher-center-v0.9.0-rc.1-windows-amd64.zip",
+    "sha256": "8249cac26e838647fdd8b4e107922fa494ca8914e12748b53de52168fbdeb5c5",
+    "size_bytes": 32586344,
+    "zip_entries": 112
+  },
+  "release_channel": "beta",
+  "safety_contract": {
+    "auto_requires_explicit_channel_authorization": true,
+    "codex_handoff_network_execution": false,
+    "credentials_included": false,
+    "final_chinese_review_blocker": "FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED",
+    "final_chinese_review_required_for_all_upload_policies": true,
+    "oauth_owner": "youtube-publisher-center-desktop",
+    "publication_receipt_after_remote_video_id_only": true,
+    "upload_execution_owner": "youtube-publisher-center-desktop",
+    "user_data_included": false
+  },
+  "schema_version": "1.3",
+  "source": {
+    "baseline_commit": "49a43fe51d3414f39ed448ae34300612da225dba",
+    "snapshot_file_count": 266,
+    "snapshot_sha256": "ba6e768cfec954d6f56363587f0ec754a18e016a78035d633e92b3ecf4b74d8c",
+    "working_tree_clean": true
+  },
+  "target": {
+    "arch": "amd64",
+    "desktop_runtime": "Wails v2.12.0",
+    "os": "windows",
+    "packaging": "portable-zip"
+  },
+  "version": "0.9.0-rc.1"
+}

@@ -2,12 +2,19 @@
   "schemaVersion": "1.0.0",
   "productId": "ai-video-channel-production",
   "productName": "AI 视频频道生产系统",
-  "currentReleaseCandidate": "0.10.2-rc.1",
+  "currentReleaseCandidate": "0.11.0-rc.1",
   "publishedVersion": "0.10.1-rc.1",
   "versions": [
     {
-      "version": "0.10.2-rc.1",
+      "version": "0.11.0-rc.1",
       "status": "local-release-candidate",
+      "gitTag": "v0.11.0-rc.1",
+      "manifest": "unified-release-v0.11.0-rc.1.json",
+      "remotePublished": false
+    },
+    {
+      "version": "0.10.2-rc.1",
+      "status": "superseded-local-candidate",
       "gitTag": "v0.10.2-rc.1",
       "manifest": "unified-release-v0.10.2-rc.1.json",
       "remotePublished": false

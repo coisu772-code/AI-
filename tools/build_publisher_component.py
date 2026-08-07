@@ -9,7 +9,7 @@ import zipfile
 from pathlib import Path, PurePosixPath
 
 
-FIXED_TIME = (2026, 8, 6, 0, 0, 0)
+FIXED_TIME = (2026, 8, 7, 0, 0, 0)
 BINARY_NAMES = (
     "youtube-publisher-center.exe",
     "publish-package-v2.exe",
@@ -139,6 +139,48 @@ def build(args: argparse.Namespace) -> dict[str, object]:
         "`import/status/receipt` 继续保留给合成验收夹具使用，不作为真实用户默认路径。\n"
     )
 
+    # Replace the inherited release notes with UTF-8 Chinese documentation for
+    # the v2.1.0 handoff contract. These assignments intentionally come after
+    # the legacy template so the packaged files cannot inherit mojibake.
+    files[f"README-v{version}.md"] = text(
+        f"""# YouTube 发布中心 {version}
+
+此组件由 AI 视频频道生产系统统一安装，用于管理频道授权、审核发布任务并执行真实 YouTube 上传。
+
+- `publish-package-v2.exe`：离线校验并导入 Publish Package v2.1.0；本命令不联网、不执行 OAuth、不上传。
+- `youtube-publisher-center.exe`：桌面发布中心；只有最终中文验收、频道身份、OAuth、隐私和上传策略全部通过后，才可能调用 YouTube API。
+- `channel-list.exe`：只读输出可用频道档案，供频道序号和身份校验。
+
+升级包不包含 OAuth 凭据、频道资料、任务数据库或用户媒体。
+"""
+    )
+    files[f"INSTALL-UPGRADE-ROLLBACK-v{version}.md"] = text(
+        f"""# 安装、升级与回退 {version}
+
+请通过 AI 视频频道生产系统统一安装器安装或升级本组件。程序文件按版本隔离；用户频道、OAuth 和任务数据保存在独立数据目录。升级失败时，统一安装器恢复上一个活动版本。
+
+升级后请重新启动 Codex 和 YouTube 发布中心。首次真实上传仍须在发布中心完成账号 OAuth，并按界面确认最终中文验收、频道、隐私状态和发布策略。
+"""
+    )
+    files[f"SECURITY-REVIEW-v{version}.md"] = text(
+        f"""# 安全边界 {version}
+
+Codex 交接命令固定为 `network_execution=false`，只进行本地校验、复制和数据库导入。真实 OAuth 与 YouTube API 调用只属于桌面发布中心。
+
+所有 MANUAL、SCHEDULED 和 AUTO 任务在本次最终中文验收前都必须停在 `FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED`。确认该卡只解除这一项阻断；频道停用、OAuth 无效、频道身份不一致、每日限额或其他安全门仍会继续阻断。AUTO 不能跳过最终中文验收。
+"""
+    )
+    files["docs/publish-package-v2-live-execution.md"] = text(
+        """# Publish Package v2.1.0 正式交接
+
+`handoff` 将外部 `.ready` 包非破坏性复制到发布中心正式队列，使用真实 ffprobe、正式频道档案和主数据库重新校验后创建任务；它不执行网络请求或启动上传。
+
+包内必须包含 `FINAL_CHINESE_REVIEW_CARD.md` 与 `final_chinese_review_card.json`。无论上传策略为何，任务都先停在 `FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED`，只有用户完成本次最终中文验收后才会解除该阻断。
+
+`status-live` 从主数据库读取任务状态；`receipt-live` 只在桌面发布中心真实上传并保存 YouTube video ID 后返回发布回执。
+"""
+    )
+
     checksum_lines = []
     for relative, payload in sorted(files.items()):
         checksum_lines.append(f"{sha256_bytes(payload)}  {relative}\n")
@@ -197,9 +239,11 @@ def build(args: argparse.Namespace) -> dict[str, object]:
             "constraints_catalog_version": "2026.08.04.1",
             "constraints_catalog_sha256": "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a",
             "line_ending_normalization": "CRLF and CR normalize to LF before SHA-256",
+            "publish_package_version": "2.1.0",
             "formal_handoff": True,
             "live_status": True,
             "live_receipt": True,
+            "final_chinese_review_card_required": True,
         },
         "safety_contract": {
             "codex_handoff_network_execution": False,
@@ -208,6 +252,8 @@ def build(args: argparse.Namespace) -> dict[str, object]:
             "credentials_included": False,
             "user_data_included": False,
             "auto_requires_explicit_channel_authorization": True,
+            "final_chinese_review_required_for_all_upload_policies": True,
+            "final_chinese_review_blocker": "FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED",
             "publication_receipt_after_remote_video_id_only": True,
         },
     }

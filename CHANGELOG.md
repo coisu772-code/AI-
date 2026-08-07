@@ -1,5 +1,14 @@
 # 更新记录
 
+## 0.11.0-rc.1 - GitHub prerelease
+
+- 内容流程改为四阶段创作 Skills，并新增独立外语质量保险门；非中文正式稿缺少目标语言质量证据时不得进入发布。
+- 所有用户确认卡采用中文优先、目标语言对照；上传前新增最终中文验收卡，正式发布包升级为 Publish Package v2.1.0。
+- YouTube 发布中心升级为 `0.9.0-rc.1`，校验并导入最终中文验收卡；MANUAL、SCHEDULED、AUTO 均不能跳过 `FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED`。
+- 新漫剧工坊升级为 `2.4.0-rc.1`，纳入安全书籍导入、本地 Wenku8 CLI、单行字幕、可见动态、宫格预设和 NVIDIA H.264 探测；完整包包含 FFmpeg、Python、Node.js、Wenku8 与 Sharp。
+- 合并跨电脑工坊隔离交接和正式发布中心交接修复，保留离线 Codex 交接边界；未执行 Google/YouTube OAuth 或真实视频上传。
+- 不包含 Token、API Key、Cookie、OAuth 凭据、频道、项目或运行数据；升级不迁移用户数据。
+
 ## 0.10.2-rc.1 - 本地候选
 
 - 修复工坊项目默认目标落在隔离根之外而触发 `WORKSHOP_TARGET_NOT_ISOLATED` 的问题。

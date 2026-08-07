@@ -26,10 +26,10 @@ def current_manifest_path() -> Path:
 
 def validate_release_manifest(manifest_path: Path | None = None) -> list[str]:
     plugin = load_json(ROOT / "plugins" / "ai-video-channel-production" / ".codex-plugin" / "plugin.json")
-    if plugin.get("version") == "0.10.2-rc.1" and manifest_path is None:
-        selected = ROOT / "release-manifests" / "unified-release-v0.10.2-rc.1.json"
+    if plugin.get("version") == "0.11.0-rc.1" and manifest_path is None:
+        selected = ROOT / "release-manifests" / "unified-release-v0.11.0-rc.1.json"
         if not selected.is_file():
-            return ["unified-release-v0.10.2-rc.1.json is missing"]
+            return ["unified-release-v0.11.0-rc.1.json is missing"]
         manifest = load_json(selected)
         schema = load_json(ROOT / "release-manifests" / "unified-release-manifest.schema.json")
         errors = []
@@ -45,12 +45,12 @@ def validate_release_manifest(manifest_path: Path | None = None) -> list[str]:
         if publisher.get("license", {}).get("reviewStatus") != "technical-inventory-validated-release-owner-approval-required":
             errors.append("publisher technical inventory status or external release-owner gate is missing")
         source = publisher.get("source", {})
-        if source.get("commit") != "70f9a8d13143050e045b1bfd61005742724d0fa6":
+        if source.get("commit") != "49a43fe51d3414f39ed448ae34300612da225dba":
             errors.append("publisher source commit is not locked to the final candidate")
         component_attestation = source.get("componentManifest", {})
         if (
-            component_attestation.get("fileName") != "publisher-component-manifest-v0.8.1-rc.1.json"
-            or component_attestation.get("sha256") != "9fb16b78bdb27776b14b840643662033566ff6afc796061cc74d7d8769050a04"
+            component_attestation.get("fileName") != "publisher-component-manifest-v0.9.0-rc.1.json"
+            or component_attestation.get("sha256") != "c97fbb01b8ba4ed35e230d461bab2ae0e7d260d0b79b51828edb5ae7f2aa14e6"
         ):
             errors.append("publisher component reuse attestation is not locked")
         if source.get("constraintsCatalog", {}).get("sha256") != "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a":
