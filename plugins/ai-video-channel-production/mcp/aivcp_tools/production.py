@@ -180,6 +180,60 @@ def _contract_ref(contract: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _source_ref(value: dict[str, Any], *, field: str, expected_contract_type: str | None = None) -> dict[str, Any]:
+    """Normalize either a full canonical contract or an existing source ref.
+
+    Production Package 2.1 stores references, not complete contracts.  Passing
+    a complete Production Profile through unchanged used to make the Workshop
+    decoder drop ``contentHash`` (it expects ``targetHash``), which then caused
+    ``PRODUCTION_PACKAGE_V21_SOURCE_LOCK_INVALID: productionPreset``.
+    """
+
+    if not isinstance(value, dict):
+        raise ToolError("PRODUCTION_SOURCE_LOCK_INVALID", f"{field} 必须是版本化合同或来源引用。")
+    if all(key in value for key in ("contractType", "id", "version", "schemaVersion", "contentHash")):
+        if expected_contract_type and value.get("contractType") != expected_contract_type:
+            raise ToolError(
+                "PRODUCTION_SOURCE_LOCK_INVALID",
+                f"{field} 合同类型不正确。",
+                details={"expected": expected_contract_type},
+            )
+        if canonical_hash(value) != value.get("contentHash"):
+            raise ToolError("PRODUCTION_SOURCE_LOCK_INVALID", f"{field} canonical-json-v1 哈希无效。")
+        return _contract_ref(value)
+
+    identifier = value.get("targetId") or value.get("id")
+    version = value.get("targetVersion") or value.get("version")
+    source_hash = value.get("targetHash") or value.get("hash")
+    if (
+        not isinstance(identifier, str)
+        or not identifier.strip()
+        or not isinstance(version, str)
+        or not version.strip()
+        or not isinstance(source_hash, str)
+        or re.fullmatch(r"[0-9a-fA-F]{64}", source_hash.strip()) is None
+    ):
+        raise ToolError("PRODUCTION_SOURCE_LOCK_INVALID", f"{field} 缺少有效 ID、版本或 SHA-256。")
+    contract_type = value.get("targetContractType")
+    schema_version = value.get("targetSchemaVersion")
+    if expected_contract_type and contract_type not in {None, "", expected_contract_type}:
+        raise ToolError(
+            "PRODUCTION_SOURCE_LOCK_INVALID",
+            f"{field} 引用类型不正确。",
+            details={"expected": expected_contract_type},
+        )
+    result = {
+        "targetId": identifier.strip(),
+        "targetVersion": version.strip(),
+        "targetHash": source_hash.strip().lower(),
+    }
+    if isinstance(contract_type, str) and contract_type.strip():
+        result["targetContractType"] = contract_type.strip()
+    if isinstance(schema_version, str) and schema_version.strip():
+        result["targetSchemaVersion"] = schema_version.strip()
+    return result
+
+
 def _read_contract(path: Path, expected_type: str) -> tuple[dict[str, Any], Path]:
     manifest_path = path / "manifest.json" if path.is_dir() else path
     contract = _read_json(manifest_path, "PRODUCTION_UPSTREAM_INVALID")
@@ -375,6 +429,11 @@ class ProductionCenter:
     ) -> dict[str, Any]:
         if not isinstance(production_preset, dict) or not isinstance(workshop_compatibility, dict):
             raise ToolError("PRODUCTION_CONFIG_INVALID", "生产预设和工坊兼容声明必须是对象。")
+        production_preset_ref = _source_ref(
+            production_preset,
+            field="productionPreset",
+            expected_contract_type="production-profile",
+        )
         if workshop_compatibility.get("interfaceVersion") != "2.1":
             raise ToolError("PRODUCTION_WORKSHOP_VERSION_UNSUPPORTED", "工坊兼容接口必须声明 2.1。")
         manuscript, manuscript_root = _read_contract(manuscript_path, "manuscript-package")
@@ -494,7 +553,7 @@ class ProductionCenter:
                 "schemaVersion": "2.1",
                 "manuscriptPackage": _contract_ref(manuscript),
                 "publishingAssetPackage": _contract_ref(publishing),
-                "productionPreset": deepcopy(production_preset),
+                "productionPreset": production_preset_ref,
                 "workshopCompatibility": deepcopy(workshop_compatibility),
                 "voiceCatalog": {
                     "id": catalog.get("catalogId", "voice-catalog"),
@@ -776,9 +835,15 @@ class ProductionCenter:
     def import_package(self, package_root: Path, *, target_root: Path | None = None) -> dict[str, Any]:
         package_root = package_root.resolve()
         manifest = self.validate_package(package_root)
-        target = target_root or (self.root / "workshop-projects" / manifest["projectId"] / manifest["packageVersion"])
-        target = _ensure_within(self.root, target, "workshop import target")
         if self.workshop_bridge is not None:
+            target = (
+                target_root.resolve()
+                if target_root is not None
+                else self.workshop_bridge.isolation_root
+                / "workshop-projects"
+                / manifest["projectId"]
+                / manifest["packageVersion"]
+            )
             result = self.workshop_bridge.import_package(
                 package_root,
                 target,
@@ -787,6 +852,8 @@ class ProductionCenter:
             if not result.get("roundTripValidated") or result.get("publishingTriggered"):
                 raise ToolError("PRODUCTION_WORKSHOP_ROUNDTRIP_MISMATCH", "工坊没有返回锁定内容往返证明。")
             return {**result, "adapter": "actual-workshop-cli"}
+        target = target_root or (self.root / "workshop-projects" / manifest["projectId"] / manifest["packageVersion"])
+        target = _ensure_within(self.root, target, "workshop import target")
         return self._strict_roundtrip(package_root, target)
 
     def start_task(

@@ -28,7 +28,7 @@ from .workshop_bridge import WorkshopBridge
 
 
 LOCAL_TOOL_PROTOCOL_VERSION = "1.0.0"
-SERVICE_VERSION = "0.10.1-rc.1"
+SERVICE_VERSION = "0.10.2-rc.1"
 
 
 def default_data_root(plugin_root: Path | None = None) -> Path:
@@ -133,15 +133,28 @@ class LocalToolService:
             and publisher_v2_path.name.lower() == "publish-package-v2.exe"
         )
         publisher_capabilities = self.publisher.capabilities()
+        publisher_v2_capabilities: dict[str, Any] = {
+            "configured": publisher_v2_configured,
+            "formalHandoff": False,
+            "liveStatus": False,
+            "liveReceipt": False,
+            "networkExecution": False,
+        }
+        if publisher_v2_configured and publisher_v2_path is not None:
+            try:
+                publisher_v2_capabilities = PublisherV2Bridge(publisher_v2_path).capabilities()
+            except ToolError as exc:
+                publisher_v2_capabilities["reasonCode"] = exc.code
+        publisher_upload_available = bool(
+            publisher_capabilities.get("available", False)
+            and publisher_v2_capabilities.get("formalHandoff", False)
+        )
         return {
             "service": "ai-video-channel-local-tools",
             "serviceVersion": SERVICE_VERSION,
             "protocolVersion": LOCAL_TOOL_PROTOCOL_VERSION,
             "publisherInterface": publisher_capabilities,
-            "publisherV2Bridge": {
-                "configured": publisher_v2_configured,
-                "networkExecution": False,
-            },
+            "publisherV2Bridge": publisher_v2_capabilities,
             "voiceCatalog": self.voices.capabilities(),
             "schemas": {
                 "systemDatabase": SYSTEM_SCHEMA_VERSION,
@@ -197,7 +210,11 @@ class LocalToolService:
                 "publishPackageValidation": True,
                 "publisherIsolatedImport": True,
                 "workshop": self.production.workshop_bridge is not None,
-                "upload": False,
+                "upload": publisher_upload_available,
+                "directUploadFromCodex": False,
+                "formalPublisherHandoff": publisher_v2_capabilities.get("formalHandoff", False),
+                "publisherLiveStatus": publisher_v2_capabilities.get("liveStatus", False),
+                "publisherLiveReceipt": publisher_v2_capabilities.get("liveReceipt", False),
                 "analytics": False,
                 "analyticsOwnerAuthorizationAvailable": False,
                 "dataCenter": True,
@@ -240,6 +257,46 @@ class LocalToolService:
             raise ToolError("PUBLISHER_CHANNEL_NOT_FOUND", "发布中心没有找到指定的真实频道。")
         channel = matches[0]
         return channel
+
+    def _assert_auto_upload_ready(
+        self,
+        *,
+        channel_profile: dict[str, Any],
+        defaults: Any,
+        authorization: Any,
+    ) -> None:
+        if not isinstance(defaults, dict) or defaults.get("uploadPolicy") != "AUTO":
+            return
+        if authorization != {
+            "confirmed": True,
+            "scope": "channel_default",
+            "version": "1.0.0",
+        }:
+            raise ToolError(
+                "AUTO_UPLOAD_AUTHORIZATION_REQUIRED",
+                "自动上传必须由用户明确确认频道级授权；不会从自动制作或历史对话推断。",
+            )
+        binding = channel_profile.get("publisherBinding")
+        if not isinstance(binding, dict):
+            raise ToolError("PUBLISHER_BINDING_INVALID", "频道资料库缺少发布中心身份绑定。")
+        publisher_channel = self._find_publisher_channel(
+            {"youtubeChannelId": binding.get("youtubeChannelId")}
+        )
+        serial = str(publisher_channel.get("channelSerial") or "")
+        ready = (
+            publisher_channel.get("enabled") is True
+            and publisher_channel.get("authorizationStatus") == "ACTIVE"
+            and publisher_channel.get("uploadPolicy") == "AUTO"
+            and serial.isdigit()
+            and len(serial) >= 2
+            and publisher_channel.get("publisherProfileId") == binding.get("publisherProfileId")
+            and serial == binding.get("channelSerial")
+        )
+        if not ready:
+            raise ToolError(
+                "AUTO_UPLOAD_PUBLISHER_NOT_READY",
+                "发布中心尚未同时满足：真实频道已启用、OAuth 有效、频道策略为 AUTO、频道序号一致。",
+            )
 
     def call(self, name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
         args = arguments or {}
@@ -295,11 +352,11 @@ class LocalToolService:
             requested_defaults = args.get("defaults")
             voice = requested_defaults.get("voice") if isinstance(requested_defaults, dict) else {}
             self.voices.validate_selection(voice.get("engineId"), voice.get("voiceId"))
-            if requested_defaults.get("uploadPolicy") == "AUTO":
-                raise ToolError(
-                    "AUTO_UPLOAD_NOT_AVAILABLE_STAGE2",
-                    "首次建库不能自动授权真实上传；阶段2只允许 DO_NOT_UPLOAD 或 REQUIRE_REVIEW。",
-                )
+            self._assert_auto_upload_ready(
+                channel_profile=channel,
+                defaults=requested_defaults,
+                authorization=args.get("autoUploadAuthorization"),
+            )
             result = self.store.complete_library(
                 task_id=args.get("taskId"),
                 channel_profile_id=args.get("channelProfileId"),
@@ -324,11 +381,12 @@ class LocalToolService:
             )
         elif name == "channel_update_defaults":
             requested_defaults = args.get("defaults")
-            if isinstance(requested_defaults, dict) and requested_defaults.get("uploadPolicy") == "AUTO":
-                raise ToolError(
-                    "AUTO_UPLOAD_NOT_AVAILABLE_STAGE2",
-                    "阶段2不能把频道默认值改为自动上传；必须等待真实上传授权链。",
-                )
+            channel = self.store.get_channel(args.get("channelProfileId"))
+            self._assert_auto_upload_ready(
+                channel_profile=channel,
+                defaults=requested_defaults,
+                authorization=args.get("autoUploadAuthorization"),
+            )
             result = self.store.update_defaults(
                 task_id=args.get("taskId"),
                 channel_profile_id=args.get("channelProfileId"),
@@ -909,6 +967,7 @@ def tool_definitions() -> list[dict[str, Any]]:
                 **binding_properties,
                 "defaults": {"type": "object"},
                 "executionMode": {"type": "string", "enum": ["review", "auto"]},
+                "autoUploadAuthorization": {"type": "object"},
             },
             ["taskId", "channelProfileId", "bindingProof", "defaults"],
         ),
@@ -934,7 +993,12 @@ def tool_definitions() -> list[dict[str, Any]]:
         (
             "channel_update_defaults",
             "在明确频道级确认后生成新的生产预设版本，不改旧项目快照。",
-            {**binding_properties, "defaults": {"type": "object"}, "confirmation": {"type": "object"}},
+            {
+                **binding_properties,
+                "defaults": {"type": "object"},
+                "confirmation": {"type": "object"},
+                "autoUploadAuthorization": {"type": "object"},
+            },
             ["taskId", "channelProfileId", "bindingProof", "defaults", "confirmation"],
         ),
         (
@@ -1426,10 +1490,12 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "import_publish_package_v2",
-            "通过隔离发布中心 CLI 导入 .ready 包；强制 networkExecution=false，不触碰正式数据库。",
+            "把真实 .ready 包本地移交正式发布中心，或在显式测试模式导入隔离数据库；本调用不执行网络上传。",
             {
                 "publisherCliPath": {"type": "string"},
                 "packagePath": {"type": "string"},
+                "handoffMode": {"type": "string", "enum": ["formal", "isolated"]},
+                "publisherDataDir": {"type": "string"},
                 "inboxPath": {"type": "string"},
                 "databasePath": {"type": "string"},
                 "isolationRoot": {"type": "string"},
@@ -1439,31 +1505,35 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "ffprobePath": {"type": "string"},
                 "networkExecution": {"const": False},
             },
-            ["publisherCliPath", "packagePath", "inboxPath", "databasePath", "isolationRoot", "networkExecution"],
+            ["publisherCliPath", "packagePath", "networkExecution"],
         ),
         (
             "get_publication_status",
             "从隔离发布中心 SQLite 只读查询本地或真实状态，不推进任务。",
             {
                 "publisherCliPath": {"type": "string"},
+                "handoffMode": {"type": "string", "enum": ["formal", "isolated"]},
+                "publisherDataDir": {"type": "string"},
                 "databasePath": {"type": "string"},
                 "isolationRoot": {"type": "string"},
                 "publishIntentId": {"type": "string"},
                 "networkExecution": {"const": False},
             },
-            ["publisherCliPath", "databasePath", "isolationRoot", "publishIntentId", "networkExecution"],
+            ["publisherCliPath", "publishIntentId", "networkExecution"],
         ),
         (
             "get_publication_receipt",
             "只读获取真实发布回执；没有真实 YouTube video ID 时明确返回 not_available。",
             {
                 "publisherCliPath": {"type": "string"},
+                "handoffMode": {"type": "string", "enum": ["formal", "isolated"]},
+                "publisherDataDir": {"type": "string"},
                 "databasePath": {"type": "string"},
                 "isolationRoot": {"type": "string"},
                 "publishIntentId": {"type": "string"},
                 "networkExecution": {"const": False},
             },
-            ["publisherCliPath", "databasePath", "isolationRoot", "publishIntentId", "networkExecution"],
+            ["publisherCliPath", "publishIntentId", "networkExecution"],
         ),
         (
             "data_center_capabilities",

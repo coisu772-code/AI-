@@ -1,6 +1,6 @@
 ---
 name: channel-production
-description: 作为 AI 视频频道生产系统唯一默认总入口，识别系统管理、频道建库、资料、选题、文稿、发布素材、制作、上传准备或数据复盘意图，并只路由到当前安装版本真实具备的能力。用户说“启动系统”“开始频道生产”“建立或进入频道资料库”“添加资料”“给我选题”“按大纲写”“生成口播稿”“准备标题封面”“开始或继续制作”“修复失败素材”“准备上传成片”“查看上传状态与回执”“检查频道数据”“复盘视频”“生成7天报告”“查看建议”或询问各业务中心状态时使用；阶段7开放频道隔离的本地数据闭环，但不模拟 OAuth、真实上传、真实 video ID、发布回执、私有 Analytics 数据或长期学习成功。
+description: 作为 AI 视频频道生产系统唯一默认总入口，识别系统管理、频道建库、资料、选题、文稿、发布素材、制作、上传准备或数据复盘意图，并只路由到当前安装版本真实具备的能力。用户说“启动系统”“开始频道生产”“建立或进入频道资料库”“添加资料”“给我选题”“按大纲写”“生成口播稿”“准备标题封面”“开始或继续制作”“修复失败素材”“准备上传成片”“查看上传状态与回执”“检查频道数据”“复盘视频”“生成7天报告”“查看建议”或询问各业务中心状态时使用；真实上传只由独立发布中心在既有授权门通过后执行，不模拟 OAuth、video ID、回执、私有 Analytics 数据或长期学习成功。
 ---
 
 # AI 视频频道生产系统总入口
@@ -28,7 +28,7 @@ description: 作为 AI 视频频道生产系统唯一默认总入口，识别系
 - 检查频道数据、复盘视频、生成 T+24／T+7／T+28 报告、查看建议或数据进度：调用 `$data-center`。七个工具为 `data_center_capabilities`、`data_video_register`、`data_collection_run`、`data_report_generate`、`data_recommendations_list`、`data_learning_decide`、`data_progress_get`。没有真实 Publication Receipt v1 时保持 `WAITING_FOR_PUBLICATION_RECEIPT`；Analytics 默认 `AUTH_REQUIRED`、`available=false`。
 - 频道蒸馏由 `$channel-distillation` 提供频道画像 Analysis Package；视频文案拆解由 `$video-copy-deconstruction` 提供逐视频 Analysis Package；原创仿写由 `$original-imitation-writing` 提供 Writing Style Contract v1。趋势与独立普通作品／书籍拆解仍检查各自扩展接口；未安装时明确显示 unavailable，不得用其他包冒充。
 - 工坊制作只允许走阶段 5 的 Production Package v2.1、Production Task v1 与隔离桥；不得调用旧 `.ready` 自动移交链。
-- 阶段6只允许发布包 v2 本地组装、独立验证、隔离导入和只读状态／回执查询；始终 `networkExecution=false`。Google／YouTube OAuth、真实上传、远端修改和删除仍需外部明确批准。`VIDEO_READY`、`.ready`、`READY_TO_UPLOAD` 均不等于已上传。
+- 阶段6先离线组装、独立验证发布包 v2，再把正式项目本地移交 YouTube 发布中心；合成验收才使用隔离导入。Codex 桥始终 `networkExecution=false`，但发布中心在全局同意、频道 AUTO、有效 OAuth 与发布意图授权全部通过后可以执行真实上传。`VIDEO_READY`、`.ready`、导入成功和 `READY_TO_UPLOAD` 均不等于已上传，必须以正式状态或真实回执为准。
 - 阶段7只允许在频道隔离目录内注册真实发布回执、导入／采集有权使用的数据、生成版本化快照／报告并展示建议。它不接触 Token、不发起 OAuth、不调用私有 Analytics API；`syntheticFixture=true` 只能进入隔离命名空间。任何 `channel_default`、`must_avoid` 或其他长期学习写回都必须返回 `LONG_TERM_LEARNING_APPROVAL_REQUIRED`，自动模式也不得绕过。
 
 ## 内容包主链

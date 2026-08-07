@@ -211,12 +211,15 @@ def validate(manifest_path: Path, asset_root: Path) -> dict[str, object]:
         errors.append("release-owner license approval gate is missing")
     publisher_source = publisher.get("source", {})
     expected_publisher_source = {
-        "commit": "e6350fd290e2e75782334d712ba01ad0411a1efd",
-        "componentManifestSha256": "fac82b06df0516fc137bc56620a3d1aedf7bc7d260cd442278403f3e7e644816",
-        "constraintsSha256": "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13",
+        "commit": "70f9a8d13143050e045b1bfd61005742724d0fa6",
+        "snapshotSha256": "4b58ec8dba46584f887b32185bf5b20f434231d5e05eadff60632b71c3d48925",
+        "componentManifestSha256": "9fb16b78bdb27776b14b840643662033566ff6afc796061cc74d7d8769050a04",
+        "constraintsSha256": "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a",
     }
     if publisher_source.get("commit") != expected_publisher_source["commit"]:
         errors.append("publisher source commit mismatch")
+    if publisher_source.get("snapshotSha256") != expected_publisher_source["snapshotSha256"]:
+        errors.append("publisher source snapshot mismatch")
     if publisher_source.get("componentManifest", {}).get("sha256") != expected_publisher_source["componentManifestSha256"]:
         errors.append("publisher component manifest mismatch")
     if publisher_source.get("constraintsCatalog", {}).get("sha256") != expected_publisher_source["constraintsSha256"]:
@@ -226,7 +229,7 @@ def validate(manifest_path: Path, asset_root: Path) -> dict[str, object]:
         with zipfile.ZipFile(publisher_path) as archive:
             root = publisher.get("archiveRoot", "") + "/"
             file_names = [info.filename for info in archive.infolist() if not info.is_dir()]
-            if len(file_names) != 112:
+            if len(file_names) != 110:
                 errors.append(f"publisher file entry count mismatch: {len(file_names)}")
             for required in ("LICENSE.md", "THIRD-PARTY-NOTICES.json", "THIRD-PARTY-NOTICES.md"):
                 if root + required not in file_names:

@@ -15,12 +15,12 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.10.1-rc.1"
+VERSION = "0.10.2-rc.1"
 PYTHON_VERSION = "3.12.13"
 PYTHON_BUILD = "20260610"
 FIXED_TIME = (2026, 8, 6, 0, 0, 0)
 TEXT_SUFFIXES = {".cmd", ".json", ".md", ".ps1", ".py", ".txt", ".yaml", ".yml"}
-EXACT_BYTE_TEXT_PATHS = {"contracts/youtube-constraints/catalog-2026.08.04.1.json"}
+EXACT_BYTE_TEXT_PATHS: set[str] = set()
 RUNTIME_LICENSE_NAME_MARKERS = ("license", "copying", "notice", "copyright", "patent", "authors")
 CORE_ITEMS = (".agents", "plugins", "contracts", "installer", "release-manifests", "docs", "README.md", "CHANGELOG.md", "LICENSE.md")
 BOOTSTRAP_FILES = (
@@ -35,15 +35,16 @@ WORKSHOP_SHA = "6d7a5100821c590a99fc9e96d742503282da2526f5582f7585437abf7a0b109f
 WORKSHOP_SIZE = 94959814
 WORKSHOP_ROOT = "Z-Manga-Workshop-2.3.1-rc.1-for-AIVCP-0.10.1-rc.1-windows-x64-portable"
 WORKSHOP_SOURCE_COMMIT = "01ef170a797da4a9b7210135babd58d6a0ab3277"
-PUBLISHER_VERSION = "0.8.0-rc.2"
-PUBLISHER_NAME = "youtube-publisher-center-v0.8.0-rc.2-windows-amd64.zip"
-PUBLISHER_SHA = "8d2644c11310fd5ee31f6e39250f75a000ccf038cd8c35a9eed8f0f23388c48d"
-PUBLISHER_SIZE = 32585503
-PUBLISHER_ROOT = "youtube-publisher-center-v0.8.0-rc.2-windows-amd64"
-PUBLISHER_SOURCE_COMMIT = "e6350fd290e2e75782334d712ba01ad0411a1efd"
-PUBLISHER_COMPONENT_MANIFEST_NAME = "publisher-component-reuse-attestation-v0.8.0-rc.2.json"
-PUBLISHER_COMPONENT_MANIFEST_SHA = "fac82b06df0516fc137bc56620a3d1aedf7bc7d260cd442278403f3e7e644816"
-PUBLISHER_CONSTRAINTS_SHA = "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13"
+PUBLISHER_VERSION = "0.8.1-rc.1"
+PUBLISHER_NAME = "youtube-publisher-center-v0.8.1-rc.1-windows-amd64.zip"
+PUBLISHER_SHA = "335135f7d48d142e127b1dd10823b6366dec57cadb16c8a1c639e1b6b4377989"
+PUBLISHER_SIZE = 32266174
+PUBLISHER_ROOT = "youtube-publisher-center-v0.8.1-rc.1-windows-amd64"
+PUBLISHER_SOURCE_COMMIT = "70f9a8d13143050e045b1bfd61005742724d0fa6"
+PUBLISHER_SOURCE_SNAPSHOT_SHA = "4b58ec8dba46584f887b32185bf5b20f434231d5e05eadff60632b71c3d48925"
+PUBLISHER_COMPONENT_MANIFEST_NAME = "publisher-component-manifest-v0.8.1-rc.1.json"
+PUBLISHER_COMPONENT_MANIFEST_SHA = "9fb16b78bdb27776b14b840643662033566ff6afc796061cc74d7d8769050a04"
+PUBLISHER_CONSTRAINTS_SHA = "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a"
 KOKORO_VARIANTS = ("cpu", "nvidia", "nvidia-blackwell")
 KOKORO_REUSE_VERSION = "0.10.0-rc.1"
 KOKORO_REUSE_MANIFEST = f"unified-release-v{KOKORO_REUSE_VERSION}.json"
@@ -311,6 +312,62 @@ def build_runtime(output: Path, runtime_source: Path, uv: Path, working: Path, d
     return result | {"path": str(target), "fileCount": len(files), "packageInventory": inventory, "technicalLicenseInventory": technical_license_inventory, "bundledTools": bundled_tools}
 
 
+def reuse_runtime(output: Path, runtime_asset: Path) -> dict[str, object]:
+    """Reuse a previously verified deterministic runtime without contacting PyPI."""
+    runtime_asset = runtime_asset.resolve(strict=True)
+    expected_name = f"aivcp-python-runtime-{PYTHON_VERSION}-windows-x64.zip"
+    if runtime_asset.name != expected_name:
+        raise RuntimeError(f"runtime reuse asset name mismatch: {runtime_asset.name}")
+    root = f"aivcp-python-runtime-{PYTHON_VERSION}/"
+    with zipfile.ZipFile(runtime_asset) as archive:
+        names = archive.namelist()
+        manifest_name = root + "RUNTIME-MANIFEST.json"
+        if manifest_name not in names or any("\\" in name or not name.startswith(root) for name in names):
+            raise RuntimeError("runtime reuse archive structure is invalid")
+        document = json.loads(archive.read(manifest_name))
+        inventory = document.get("packages")
+        technical = document.get("technicalLicenseInventory")
+        bundled_tools = document.get("bundledTools")
+        package_names = {
+            str(item.get("name", "")).lower()
+            for item in inventory
+            if isinstance(item, dict)
+        } if isinstance(inventory, list) else set()
+        if (
+            document.get("schemaVersion") != "1.1.0"
+            or document.get("pythonVersion") != PYTHON_VERSION
+            or package_names != EXPECTED_RUNTIME_PACKAGE_NAMES
+            or not isinstance(technical, dict)
+            or technical.get("licenseEntryCount") != EXPECTED_RUNTIME_LICENSE_ENTRIES
+            or technical.get("reviewRequired") != 0
+            or not isinstance(bundled_tools, list)
+        ):
+            raise RuntimeError("runtime reuse manifest contract is invalid")
+        deno = next((item for item in bundled_tools if isinstance(item, dict) and item.get("toolId") == "deno"), None)
+        if not isinstance(deno, dict) or deno.get("sha256") != DENO_EXE_SHA or deno.get("sizeBytes") != DENO_EXE_SIZE:
+            raise RuntimeError("runtime reuse Deno identity is invalid")
+        deno_name = root + str(deno.get("relativePath") or "")
+        if deno_name not in names:
+            raise RuntimeError("runtime reuse Deno executable is missing")
+        payload = archive.read(deno_name)
+        if len(payload) != DENO_EXE_SIZE or hashlib.sha256(payload).hexdigest() != DENO_EXE_SHA:
+            raise RuntimeError("runtime reuse Deno bytes are invalid")
+        file_count = sum(1 for item in archive.infolist() if not item.is_dir())
+    target = output / expected_name
+    if target.resolve() != runtime_asset:
+        shutil.copy2(runtime_asset, target)
+    return {
+        "fileName": target.name,
+        "sizeBytes": target.stat().st_size,
+        "sha256": sha256(target),
+        "path": str(target),
+        "fileCount": file_count,
+        "packageInventory": inventory,
+        "technicalLicenseInventory": technical,
+        "bundledTools": bundled_tools,
+    }
+
+
 def assert_frozen(path: Path, expected_size: int, expected_sha: str) -> None:
     if not path.is_file() or path.stat().st_size != expected_size or sha256(path) != expected_sha:
         raise RuntimeError(f"frozen upstream asset mismatch: {path.name}")
@@ -321,21 +378,23 @@ def publisher_machine_manifest(path: Path) -> dict[str, object]:
         raise RuntimeError(f"publisher component manifest mismatch: {path.name}")
     document = json.loads(path.read_text(encoding="utf-8"))
     expected = {
-        "sourceCommit": document.get("source", {}).get("commit"),
+        "sourceCommit": document.get("source", {}).get("baseline_commit"),
+        "sourceSnapshotSha256": document.get("source", {}).get("snapshot_sha256"),
         "assetName": document.get("release_asset", {}).get("name"),
         "assetSize": document.get("release_asset", {}).get("size_bytes"),
         "assetSha256": document.get("release_asset", {}).get("sha256"),
         "fileEntries": document.get("release_asset", {}).get("file_entries"),
         "reviewRequired": document.get("legal_inventory", {}).get("review_required"),
         "licenseTextFiles": document.get("legal_inventory", {}).get("license_text_files"),
-        "constraintsSha256": document.get("external_integration_gate", {}).get("publisher_constraints_sha256"),
+        "constraintsSha256": document.get("integration_contract", {}).get("constraints_catalog_sha256"),
     }
     required = {
         "sourceCommit": PUBLISHER_SOURCE_COMMIT,
+        "sourceSnapshotSha256": PUBLISHER_SOURCE_SNAPSHOT_SHA,
         "assetName": PUBLISHER_NAME,
         "assetSize": PUBLISHER_SIZE,
         "assetSha256": PUBLISHER_SHA,
-        "fileEntries": 112,
+        "fileEntries": 110,
         "reviewRequired": 0,
         "licenseTextFiles": 101,
         "constraintsSha256": PUBLISHER_CONSTRAINTS_SHA,
@@ -439,7 +498,7 @@ def reuse_kokoro_packages() -> list[dict[str, object]]:
     return reused
 
 
-def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, publisher_dir: Path, deno_archive: Path | None = None) -> dict[str, object]:
+def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, publisher_dir: Path, deno_archive: Path | None = None, runtime_asset: Path | None = None) -> dict[str, object]:
     output.mkdir(parents=True, exist_ok=True)
     workshop_source = workshop_dir / WORKSHOP_NAME
     publisher_source = publisher_dir / PUBLISHER_NAME
@@ -451,7 +510,7 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
         working = Path(temp)
         core = build_core(output)
         bootstrap = build_bootstrap(output)
-        runtime = build_runtime(output, runtime_source, uv, working, deno_archive)
+        runtime = reuse_runtime(output, runtime_asset) if runtime_asset else build_runtime(output, runtime_source, uv, working, deno_archive)
     workshop_target = output / WORKSHOP_NAME
     publisher_target = output / PUBLISHER_NAME
     shutil.copy2(workshop_source, workshop_target)
@@ -462,7 +521,7 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
         asset_record("core", core, version=VERSION, compatibleProductVersions=[VERSION], install=True, archiveRoot="ai-video-channel-production-core", installSubpath="", license={"expression":"LicenseRef-AI-Video-Channel-Production-1.0","source":"LICENSE.md","reviewStatus":"product-license-applies"}, source={"repository":"https://github.com/coisu772-code/AI-/","commit":"LOCAL_COMMIT_TO_BE_RECORDED"}),
         asset_record("python-runtime", runtime, version=PYTHON_VERSION, compatibleProductVersions=[VERSION], install=True, archiveRoot=f"aivcp-python-runtime-{PYTHON_VERSION}", installSubpath="runtime/python", license={"expression":"PSF-2.0 AND bundled-third-party-licenses AND MIT","source":f"LICENSE.txt plus {EXPECTED_RUNTIME_LICENSE_ENTRIES} license entries covering {len(EXPECTED_RUNTIME_PACKAGE_NAMES)} packages and the bundled Deno runtime","reviewStatus":"technical-inventory-validated-release-owner-approval-required"}, source={"url":"https://github.com/astral-sh/python-build-standalone","build":PYTHON_BUILD,"technicalLicenseInventory":runtime["technicalLicenseInventory"],"bundledTools":runtime["bundledTools"]}),
         {"assetId":"workshop","fileName":WORKSHOP_NAME,"sizeBytes":WORKSHOP_SIZE,"sha256":WORKSHOP_SHA,"version":WORKSHOP_VERSION,"compatibleProductVersions":[VERSION],"install":True,"archiveRoot":WORKSHOP_ROOT,"installSubpath":"apps/workshop","license":{"expression":"LicenseRef-AIVCP-Workshop AND GPL-3.0-only","source":"licenses/application/LICENSE.md, licenses/ffmpeg/COPYING.GPLv3 and FFMPEG-PROVENANCE.txt inside archive","reviewStatus":"technical-inventory-validated-release-owner-approval-required"},"source":{"commit":WORKSHOP_SOURCE_COMMIT,"acceptanceStatus":"LOCAL_MERGED_ACCEPTANCE_PASS"}},
-        {"assetId":"publisher-center","fileName":PUBLISHER_NAME,"sizeBytes":PUBLISHER_SIZE,"sha256":PUBLISHER_SHA,"version":PUBLISHER_VERSION,"compatibleProductVersions":[VERSION],"install":True,"archiveRoot":PUBLISHER_ROOT,"installSubpath":"apps/publisher","license":{"expression":"LicenseRef-AI-Video-Channel-Production-1.0 AND bundled-third-party-licenses","source":"LICENSE.md, THIRD-PARTY-NOTICES.json/.md and 101 third-party license texts inside archive","reviewStatus":"technical-inventory-validated-release-owner-approval-required"},"source":{"commit":PUBLISHER_SOURCE_COMMIT,"acceptanceStatus":"PUBLISHED_COMPONENT_REUSED_AFTER_HASH_REVALIDATION","componentManifest":{"fileName":PUBLISHER_COMPONENT_MANIFEST_NAME,"sha256":PUBLISHER_COMPONENT_MANIFEST_SHA},"constraintsCatalog":{"version":"2026.08.04.1","sha256":PUBLISHER_CONSTRAINTS_SHA},"fileEntries":publisher_manifest["release_asset"]["file_entries"],"licenseReviewRequired":publisher_manifest["legal_inventory"]["review_required"]}},
+        {"assetId":"publisher-center","fileName":PUBLISHER_NAME,"sizeBytes":PUBLISHER_SIZE,"sha256":PUBLISHER_SHA,"version":PUBLISHER_VERSION,"compatibleProductVersions":[VERSION],"install":True,"archiveRoot":PUBLISHER_ROOT,"installSubpath":"apps/publisher","license":{"expression":"LicenseRef-AI-Video-Channel-Production-1.0 AND bundled-third-party-licenses","source":"LICENSE.md, THIRD-PARTY-NOTICES.json/.md and 101 third-party license texts inside archive","reviewStatus":"technical-inventory-validated-release-owner-approval-required"},"source":{"commit":PUBLISHER_SOURCE_COMMIT,"snapshotSha256":PUBLISHER_SOURCE_SNAPSHOT_SHA,"acceptanceStatus":"LOCAL_FORMAL_HANDOFF_AND_OFFLINE_SAFETY_PASS","componentManifest":{"fileName":PUBLISHER_COMPONENT_MANIFEST_NAME,"sha256":PUBLISHER_COMPONENT_MANIFEST_SHA},"constraintsCatalog":{"version":"2026.08.04.1","sha256":PUBLISHER_CONSTRAINTS_SHA,"normalization":"CRLF_AND_CR_TO_LF_BEFORE_SHA256"},"fileEntries":publisher_manifest["release_asset"]["file_entries"],"licenseReviewRequired":publisher_manifest["legal_inventory"]["review_required"]}},
     ]
     manifest = {
         "schemaVersion":"2.0.0","productId":"ai-video-channel-production","productName":"AI 视频频道生产系统","productVersion":VERSION,
@@ -486,7 +545,7 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
         "manifest":{"fileName":manifest_path.name,"sizeBytes":manifest_path.stat().st_size,"sha256":sha256(manifest_path)},
         "checksums":{"fileName":checksums.name,"sizeBytes":checksums.stat().st_size,"sha256":sha256(checksums)},
         "runtimePackageCount":len(runtime["packageInventory"]),"runtimeTechnicalLicenseInventory":runtime["technicalLicenseInventory"],
-        "publisherMachineManifest":{"fileName":publisher_manifest_path.name,"sha256":sha256(publisher_manifest_path),"sourceCommit":publisher_manifest["source"]["commit"]},
+        "publisherMachineManifest":{"fileName":publisher_manifest_path.name,"sha256":sha256(publisher_manifest_path),"sourceCommit":publisher_manifest["source"]["baseline_commit"],"sourceSnapshotSha256":publisher_manifest["source"]["snapshot_sha256"]},
         "upstreamInputsUnmodified":True,"reusedOptionalRuntimeVersion":KOKORO_REUSE_VERSION,"externalActionsExecuted":False,
     }
     report_path = output / "unified-release-build-report.json"
@@ -502,9 +561,14 @@ def main() -> int:
     parser.add_argument("--workshop-dir", type=Path, required=True)
     parser.add_argument("--publisher-dir", type=Path, required=True)
     parser.add_argument("--deno-archive", type=Path)
+    parser.add_argument("--runtime-asset", type=Path, help="reuse a previously verified deterministic Python runtime ZIP")
     args = parser.parse_args()
     fixed_paths = tuple(path.resolve() for path in (args.output, args.runtime_source, args.uv, args.workshop_dir, args.publisher_dir))
-    result = build_all(*fixed_paths, deno_archive=args.deno_archive.resolve() if args.deno_archive else None)
+    result = build_all(
+        *fixed_paths,
+        deno_archive=args.deno_archive.resolve() if args.deno_archive else None,
+        runtime_asset=args.runtime_asset.resolve() if args.runtime_asset else None,
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
 

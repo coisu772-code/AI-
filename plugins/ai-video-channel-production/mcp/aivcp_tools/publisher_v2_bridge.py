@@ -84,7 +84,7 @@ class PublisherV2Bridge:
             raise ToolError("PUBLISHER_CLI_PROTOCOL_INVALID", "发布中心 CLI 未证明 network_execution=false。")
         if completed.returncode != 0:
             code = str(payload.get("code") or "PUBLISHER_CLI_FAILED")
-            if operation == "receipt" and code == "PUBLICATION_RECEIPT_NOT_AVAILABLE":
+            if operation in {"receipt", "receipt-live"} and code == "PUBLICATION_RECEIPT_NOT_AVAILABLE":
                 return {
                     "status": "not_available",
                     "code": code,
@@ -100,8 +100,41 @@ class PublisherV2Bridge:
             )
         return payload
 
+    def capabilities(self) -> dict[str, Any]:
+        payload = self._run("capabilities", [], timeout=15)
+        result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+        commands = result.get("commands") if isinstance(result.get("commands"), list) else []
+        return {
+            "configured": True,
+            "formalHandoff": "handoff" in commands,
+            "liveStatus": "status-live" in commands,
+            "liveReceipt": "receipt-live" in commands,
+            "uploadExecutionOwner": result.get("upload_execution_owner"),
+            "networkExecution": False,
+        }
+
     def import_package(self, arguments: dict[str, Any]) -> dict[str, Any]:
         self.assert_offline(arguments)
+        mode = arguments.get("handoffMode")
+        if mode is None:
+            mode = "isolated" if arguments.get("syntheticChannelProfilePath") else "formal"
+        if mode == "formal":
+            package = _path(arguments.get("packagePath"), field="packagePath", file=False)
+            if not package.name.endswith(".ready"):
+                raise ToolError("PUBLISHER_PACKAGE_LIFECYCLE_INVALID", "只允许移交 .ready 发布包。")
+            command = ["--package", str(package)]
+            data_dir = arguments.get("publisherDataDir")
+            if data_dir:
+                command.extend(["--data-dir", str(_path(data_dir, field="publisherDataDir", file=False))])
+            payload = self._run("handoff", command, timeout=180)
+            return {
+                "publisher": payload,
+                "handoffMode": "formal",
+                "networkExecution": False,
+                "uploadExecutionOwner": "youtube-publisher-center-desktop",
+            }
+        if mode != "isolated":
+            raise ToolError("PUBLISHER_HANDOFF_MODE_INVALID", "handoffMode 只允许 formal 或 isolated。")
         isolation = _path(arguments.get("isolationRoot"), field="isolationRoot", file=False)
         inbox = _path(arguments.get("inboxPath"), field="inboxPath", file=False)
         database = _path(arguments.get("databasePath"), field="databasePath", must_exist=False)
@@ -119,22 +152,32 @@ class PublisherV2Bridge:
         if ffprobe:
             command.extend(["--ffprobe", str(_path(ffprobe, field="ffprobePath", file=True))])
         payload = self._run("import", command, timeout=120)
-        return {"publisher": payload, "networkExecution": False}
+        return {"publisher": payload, "handoffMode": "isolated", "networkExecution": False}
 
     def read_status(self, arguments: dict[str, Any], *, receipt: bool) -> dict[str, Any]:
         self.assert_offline(arguments)
-        isolation = _path(arguments.get("isolationRoot"), field="isolationRoot", file=False)
-        database = _path(arguments.get("databasePath"), field="databasePath", file=True)
-        _within(isolation, database, field="databasePath")
+        mode = arguments.get("handoffMode", "formal")
         intent = arguments.get("publishIntentId")
         if not isinstance(intent, str) or not intent:
             raise ToolError("PUBLISHER_ARGUMENT_INVALID", "publishIntentId 是必填项。")
+        if mode == "formal":
+            command = ["--publish-intent-id", intent]
+            data_dir = arguments.get("publisherDataDir")
+            if data_dir:
+                command.extend(["--data-dir", str(_path(data_dir, field="publisherDataDir", file=False))])
+            payload = self._run("receipt-live" if receipt else "status-live", command, timeout=30)
+            return {"publisher": payload, "handoffMode": "formal", "networkExecution": False}
+        if mode != "isolated":
+            raise ToolError("PUBLISHER_HANDOFF_MODE_INVALID", "handoffMode 只允许 formal 或 isolated。")
+        isolation = _path(arguments.get("isolationRoot"), field="isolationRoot", file=False)
+        database = _path(arguments.get("databasePath"), field="databasePath", file=True)
+        _within(isolation, database, field="databasePath")
         payload = self._run(
             "receipt" if receipt else "status",
             ["--database", str(database), "--isolation-root", str(isolation), "--publish-intent-id", intent],
             timeout=30,
         )
-        return {"publisher": payload, "networkExecution": False}
+        return {"publisher": payload, "handoffMode": "isolated", "networkExecution": False}
 
     @staticmethod
     def _append_channel_source(command: list[str], arguments: dict[str, Any]) -> None:

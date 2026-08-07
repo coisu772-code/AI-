@@ -296,7 +296,11 @@ def _load_catalog(path: Path) -> tuple[dict[str, Any], str]:
     rules = catalog.get("rules")
     if not isinstance(rules, dict):
         raise PublishPackageError("PUBLISH_CONSTRAINTS_INVALID", "Constraints catalog rules are missing")
-    return catalog, _sha256_file(path)
+    # Git may materialize the same JSON contract with CRLF or LF on different
+    # machines.  Hash normalized text bytes so checkout policy cannot break the
+    # publisher compatibility lock while semantic content remains unchanged.
+    normalized = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    return catalog, _sha256_bytes(normalized)
 
 
 def _parse_iso(value: str, *, timezone: ZoneInfo | None = None) -> datetime:
