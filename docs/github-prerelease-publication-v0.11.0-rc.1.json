@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "1.0.0",
+  "productVersion": "0.11.0-rc.1",
+  "status": "PASS",
+  "publishedAt": "2026-08-07T13:33:39Z",
+  "release": {
+    "id": 366769787,
+    "url": "https://github.com/coisu772-code/AI-/releases/tag/v0.11.0-rc.1",
+    "tag": "v0.11.0-rc.1",
+    "draft": false,
+    "prerelease": true,
+    "latest": false,
+    "remoteMainCommitShaAtPublication": "04d5cc29c74941c96850359f28009e02926455b6",
+    "annotatedTagObjectSha": "15077eb0bdad830347411d3803e55a9975ac7df9",
+    "tagResolvedCommitSha": "04d5cc29c74941c96850359f28009e02926455b6"
+  },
+  "workshopSource": {
+    "repository": "https://github.com/coisu772-code/zz-",
+    "tag": "v2.4.0-rc.1",
+    "remoteMainCommitSha": "56df24dc34ecbf03dc341edf42dd976a24c8a502",
+    "annotatedTagObjectSha": "9ba6a6ac88bbea9067f0a2ec5b008ee7b3522e73",
+    "tagResolvedCommitSha": "56df24dc34ecbf03dc341edf42dd976a24c8a502"
+  },
+  "publisherSource": {
+    "commit": "49a43fe51d3414f39ed448ae34300612da225dba",
+    "componentVersion": "0.9.0-rc.1",
+    "remoteConfigured": false,
+    "bundledInUnifiedRelease": true
+  },
+  "assets": {
+    "uploadedTotal": 7,
+    "corePackages": 5,
+    "metadata": 2,
+    "uploadedBytes": 258892132,
+    "reusedOptionalRuntimeAttachments": 9,
+    "reusedOptionalRuntimeTag": "v0.10.0-rc.1",
+    "manifestSha256": "a774042d82d0fb800a775ae3059688956fda1ff7aa942135bba087a9cb446794",
+    "checksumsSha256": "1796a1e16cf146d8b987fd58491a80558a2a6eac7798a0cf4458ccb28fad7541",
+    "allManifestSizesMatched": true,
+    "allGitHubDigestSha256Matched": true,
+    "allRemoteDownloadsMatched": true,
+    "allReusedRuntimeDigestsMatched": true
+  },
+  "acceptance": {
+    "systemUnitTests": {
+      "total": 212,
+      "passed": 210,
+      "skipped": 2,
+      "failed": 0,
+      "errors": 0
+    },
+    "skillCount": 12,
+    "pluginValidationPassed": true,
+    "contractExamplesPassed": 10,
+    "repositorySafetyFilesChecked": 387,
+    "publisherGoFullTestsPassed": true,
+    "publisherFrontendTestsPassed": 19,
+    "workshopFrontendTestScriptsPassed": 18,
+    "threeMarketOfflineFlowPassed": true,
+    "publicAssetsRedownloaded": true,
+    "remoteDownloadedInstallPassed": true,
+    "upgradeFromVersion": "0.10.1-rc.1",
+    "upgradePassed": true,
+    "uninstallPreservedUserData": true
+  },
+  "authentication": {
+    "existingGitCredentialReused": true,
+    "interactiveBrowserLoginStarted": false,
+    "ghCliRequired": false
+  },
+  "privacy": {
+    "oauthTokenIncluded": false,
+    "credentialIncluded": false,
+    "userProjectIncluded": false,
+    "runtimeDataIncluded": false,
+    "googleYoutubeOAuthExecuted": false,
+    "realVideoUploadExecuted": false,
+    "userDataMigrationExecuted": false,
+    "longTermLearningWriteExecuted": false,
+    "remoteDeletionExecuted": false
+  }
+}
