@@ -13,16 +13,16 @@
       "skillId": "content-deconstruct",
       "suppliedFileName": "通用叙事内容完整拆解与迁移方向分析提示词_GPT统一版_2.2_完善版.txt",
       "bundledPath": "skills/content-deconstruct/references/prompt-v2.2.txt",
-      "sizeBytes": 28946,
-      "sha256": "d4ae26fa2b3f5d46216ebc37ed730428452f6698a365d2ec1a83f4a052686e45"
+      "sizeBytes": 33231,
+      "sha256": "e096b8f5a8d7d7352a7f3ea0bafb7a68c64284a8600c53245d9698513174bb05"
     },
     {
       "stage": 2,
       "skillId": "content-rewrite",
       "suppliedFileName": "叙事内容深度拆解提示词_GPT通用版_5.2_素材模式完善版.txt",
       "bundledPath": "skills/content-rewrite/references/prompt-v5.2.txt",
-      "sizeBytes": 54706,
-      "sha256": "54ff156593491e5fa41f2dcdaf1cc9a4d663f8419eb4d13172a61685ae67d613"
+      "sizeBytes": 58340,
+      "sha256": "fdb95b33d90c1e9206fe4ef91640e8a0bfdd8e394de03ce40202eb2a60e2f27e"
     },
     {
       "stage": 3,
