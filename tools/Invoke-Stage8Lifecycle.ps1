@@ -134,7 +134,19 @@ try {
     & $runtimePython (Join-Path $root "tools\validate_runtime_binding_tamper.py") --cached-plugin-root $cachedPluginRoot --report $bindingTamperReport
     if ($LASTEXITCODE -ne 0) { throw "Runtime-bound component path/version tamper rejection failed." }
     $bindingTamper = Get-Content -LiteralPath $bindingTamperReport -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ([string]$bindingTamper.status -ne "PASS" -or -not [bool]$bindingTamper.allRejectedBeforeService -or @($bindingTamper.cases.PSObject.Properties).Count -ne 7) {
+    $expectedTamperCases = @(
+        "AIVCP_EXPECTED_PRODUCT_VERSION",
+        "AIVCP_FFMPEG_PATH",
+        "AIVCP_FFPROBE_PATH",
+        "AIVCP_PUBLISHER_CHANNEL_LIST_EXE",
+        "AIVCP_PUBLISHER_V2_CLI",
+        "AIVCP_WORKSHOP_EXECUTABLE",
+        "AIVCP_WORKSHOP_ISOLATION_ROOT",
+        "AIVCP_YT_DLP_COMMAND_JSON"
+    ) | Sort-Object
+    $actualTamperCases = @($bindingTamper.cases.PSObject.Properties.Name) | Sort-Object
+    $tamperCaseDifference = @(Compare-Object -ReferenceObject $expectedTamperCases -DifferenceObject $actualTamperCases)
+    if ([string]$bindingTamper.status -ne "PASS" -or -not [bool]$bindingTamper.allRejectedBeforeService -or $tamperCaseDifference.Count -ne 0) {
         throw "Runtime-bound component tamper evidence is invalid."
     }
     $staleCachedPluginRoot = Join-Path $base "Stale Codex Cache\ai-video-channel-production"
