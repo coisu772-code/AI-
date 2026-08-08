@@ -1,6 +1,6 @@
 # AI 视频频道生产系统 RC
 
-当前预发布版本是 `v0.11.0-rc.3`。本版在 `v0.11.0-rc.2` 的发布、安全和便携运行链上，新增通用三档内容迁移方向、15 方向去重、原文核心体验保留门与非换皮原创门。系统不会代替用户执行 Google/YouTube OAuth 或真实视频上传。
+当前预发布候选版本是 `v0.11.0-rc.4`。本版在 `v0.11.0-rc.3` 的三档迁移机制上补齐来源证据驱动的完整仿写链：视频或文本仿写固定经过来源包与完整拆解，15 个方向逐项绑定来源事实和自然扩展缺口，并在 `D2_DECONSTRUCTION` 等待用户选择。系统不会代替用户执行 Google/YouTube OAuth 或真实视频上传。
 
 ## 当前内容主流程
 
@@ -12,9 +12,9 @@
 
 ## Windows 一键安装
 
-[下载 Windows 统一安装器（v0.11.0-rc.3）](https://github.com/coisu772-code/AI-/releases/download/v0.11.0-rc.3/AI-Video-Channel-Production-Unified-Installer-v0.11.0-rc.3.zip)
+[下载 Windows 统一安装器（v0.11.0-rc.4）](https://github.com/coisu772-code/AI-/releases/download/v0.11.0-rc.4/AI-Video-Channel-Production-Unified-Installer-v0.11.0-rc.4.zip)
 
-普通联网用户只需下载这一个 ZIP，解压并双击 `install.cmd`。入口只从锁定的 `v0.11.0-rc.3` Release URL 获取总清单，不使用 `latest`；随后逐项校验大小和 SHA-256，再事务式安装全部组件。新漫剧工坊需要 Kokoro 时，会按 CPU、NVIDIA 或 NVIDIA Blackwell 选择对应的公开分卷运行包，先校验清单、大小和 SHA-256，再在工坊程序目录内安装；本次继续复用 `v0.10.0-rc.1` 中内容未变化且已校验的公开 Kokoro 运行包，不重复上传 10GB 以上相同资产，也不会写入频道、项目、凭据或运行数据目录。
+普通联网用户只需下载这一个 ZIP，解压并双击 `install.cmd`。入口只从锁定的 `v0.11.0-rc.4` Release URL 获取总清单，不使用 `latest`；随后逐项校验大小和 SHA-256，再事务式安装全部组件。新漫剧工坊需要 Kokoro 时，会按 CPU、NVIDIA 或 NVIDIA Blackwell 选择对应的公开分卷运行包，先校验清单、大小和 SHA-256，再在工坊程序目录内安装；本次继续复用 `v0.10.0-rc.1` 中内容未变化且已校验的公开 Kokoro 运行包，不重复上传 10GB 以上相同资产，也不会写入频道、项目、凭据或运行数据目录。
 
 先决条件：Windows 10/11 x64、PowerShell 5.1 或更高版本、统一系统约 1 GB 可用空间，以及 Codex 桌面版或支持 `plugin` 命令的 Codex CLI。无需预装 Python、uv 或 FFmpeg。Kokoro 是可选本地语音运行时，按所选硬件还需要约 2–6 GB 额外空间。
 

@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.11.0-rc.3"
+VERSION = "0.11.0-rc.4"
 PYTHON_VERSION = "3.12.13"
 PYTHON_BUILD = "20260610"
 FIXED_TIME = (2026, 8, 8, 0, 0, 0)
