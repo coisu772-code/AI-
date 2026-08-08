@@ -5,7 +5,7 @@ description: 接收用户提供的视频链接、YouTube 链接、本地文件�
 
 # 内容来源
 
-把用户给出的链接或文本直接转换为可追溯的 Source Package。用户已经明确要求“下载、拆解、仿写或使用这个资料”时，该请求就是本次来源取得授权；范围与原请求完全一致时，不再增加一次“确认入库”对话门。
+先读取 [逐阶段确认契约](../channel-production/references/manual-stage-confirmations.md)。把用户给出的链接或文本直接转换为可追溯的 Source Package。用户已经明确要求“下载、拆解、仿写或使用这个资料”时，该请求就是本次来源取得授权；范围与原请求完全一致时，不再增加一次“确认入库”对话门，但它不构成后续阶段自动授权。
 
 ## 输入路由
 
@@ -22,6 +22,8 @@ description: 接收用户提供的视频链接、YouTube 链接、本地文件�
 3. 调用 `source_add_prepare`。若返回计划与用户原请求一致，立即调用 `source_add_confirm`；只有计划扩大下载范围、产生付费、需要登录或可能保存用户未授权内容时才暂停询问。
 4. 查询使用 `source_job_get`，恢复使用 `source_job_resume`，完整性使用 `source_integrity_check`。状态查询只读。
 5. 只把清洗后的唯一正文保存为 `normalized/.../content.txt`；字幕格式文件只作为临时输入。可另存 `timing-map.json`、`chapters.json` 和来源元数据。
+6. 为规范正文建立连续 `paragraphId`；视频尽可能把 `paragraphId` 绑定时间范围，长文本把章节与段落范围写入 `chapters.json`。来源交接必须保留这些证据定位，不能只交一段主题摘要。
+7. 采集方法必须按事实记录：实际取得人工字幕、自动字幕或本地转录时，分别记录对应方式；不得把已读取的字幕标成 `user_supplied_summary`，也不得用标题或简介的字符数冒充正文长度。
 
 ## 完成门
 
@@ -29,10 +31,13 @@ description: 接收用户提供的视频链接、YouTube 链接、本地文件�
 - `PARTIAL`：显示缺失范围；用户明确接受后才允许拆解。
 - `BLOCKED`：请求用户补充字幕、文字稿、音频、视频或本地文件；不得根据标题、封面、简介或评论编造正文。
 
-用户原请求同时包含“取得后拆解”时，来源完成后直接调用 `$content-deconstruct`，不要求用户再说一次继续。字段约定见 [references/source-handoff.md](references/source-handoff.md)。
+用户原请求同时包含“取得后拆解”时，来源完成后可直接调用 `$content-deconstruct`，不要求用户再说一次继续；拆解完成后仍必须执行 `D2_DECONSTRUCTION` 确认门。字段约定见 [references/source-handoff.md](references/source-handoff.md)。
+
+用户说“仿写／完全仿写／给仿写方向”时，也视为明确要求先拆解：来源完成后固定交给 `$content-deconstruct`，不得直接交给原创重构、大纲或正文生成。
 
 ## 边界
 
 - 不分析结构，不生成仿写，不生成标题、简介或封面。
+- 不把完整字幕或正文压缩成抽象卖点后替代 Source Package，也不把来源采集与创作重构合并在同一步。
 - 不启动工坊、发布、上传、Analytics 或长期频道学习。
 - 原始文件、规范正文、分析结果和正式文稿必须分开存放，任何已被下游引用的版本不得覆盖。

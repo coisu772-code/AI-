@@ -5,14 +5,15 @@ description: 根据 content-deconstruct 冻结的拆书报告、改编档位、�
 
 # 仿写正文
 
-这是四阶段内容主链的第二步。执行前必须完整阅读 [references/prompt-v5.2.txt](references/prompt-v5.2.txt)、[references/rewrite-gates.md](references/rewrite-gates.md) 和 [用户审核文档规范](../channel-production/references/user-review-documents.md)。用户提供的提示词同时包含拆解与重写；本 Skill 已接收冻结拆书包时，只执行其中的改编设计、重写和自检，不重复拆书。
+这是四阶段内容主链的第二步。执行前必须完整阅读 [逐阶段确认契约](../channel-production/references/manual-stage-confirmations.md)、[references/prompt-v5.2.txt](references/prompt-v5.2.txt)、[references/rewrite-gates.md](references/rewrite-gates.md) 和 [用户审核文档规范](../channel-production/references/user-review-documents.md)。逐阶段确认契约优先于提示词中关于“不等待确认”或“直接继续”的旧描述。用户提供的提示词同时包含拆解与重写；本 Skill 已接收冻结拆书包时，只执行其中的改编设计、重写和自检，不重复拆书。
 
 ## 前提
 
 1. 调用 `content_capabilities` 与 `content_project_get`，验证 Content Deconstruction Package v1、Source Package 和 SHA-256。
 2. 没有合格拆书包时先调用 `$content-deconstruct`，不得凭标题、封面、简介或不完整印象直接仿写。
 3. 验证已确认方向同时绑定 `adaptationMode`、`preservationContract` 和去重结果。用户未确认迁移方向时，审核模式停在方向选择；用户明确授权自动采用最高评分方向时，只能在其明确档位或适用默认档位内采用合格推荐方向。
-4. 兼容旧项目：旧包已经由用户确认并进入正文时保持原锁继续；旧包仍停在方向选择且缺少三档保留契约时，返回拆解阶段生成新版方向卡，不沿用旧推荐。
+4. 验证冻结 `directionPackage` 的 `sourceStoryDNA`、`expansionSeams`、`sourceAnchorRefs`、`naturalExpansionRationale` 和 `genericTemplateRisk=false`。缺少来源锚点或使用没有来源依据的通用母版时，返回拆解阶段重做，不能在正文阶段自行补理由。
+5. 兼容旧项目：旧包已经由用户确认并进入正文时保持原锁继续；旧包仍停在方向选择且缺少三档保留契约或来源证据驱动方向包时，返回拆解阶段生成新版方向卡，不沿用旧推荐。
 
 ## 两种模式
 
@@ -26,6 +27,8 @@ description: 根据 content-deconstruct 冻结的拆书报告、改编档位、�
 
 三档都不得逐句改写、近义词替换、改名换皮或复制专有名称、标志性表达和高度独特的连续事件组合。高贴合不等于复制，自由原创也不等于偏离已确认的观众承诺。
 
+无论档位如何，初稿必须逐项兑现已确认方向的来源事实锚点和自然扩展理由。不得把“被低估、建设、翻盘、治愈、成长、复仇”等抽象主题扩写成一个与原文无具体因果联系的新职业、新资产、新机构、新灾难、公开审判、系统、追放或打脸故事。
+
 ### 资料融合仿写
 
 使用 `sourceMode=synthesis-rewrite`。资料库、用户上传资料和用户明确要求的公开联网研究，都必须先经过 `$content-source` 与 `$content-deconstruct`。每个来源记录抽象贡献和排除项，最终只建立一条统一主线、一套人物关系、一个因果引擎、一个高潮和一个完整结局；不得按来源分段拼接。
@@ -33,13 +36,13 @@ description: 根据 content-deconstruct 冻结的拆书报告、改编档位、�
 ## 生成与保存
 
 1. 调用 `content_project_start` 建立绑定项目。
-2. 生成唯一完整方案及 `sourceTransformationMap`。其中每个来源条目继续记录功能迁移，同时用方向包绑定 `adaptationMode`、`mustPreserve`、`allowedToChange`、`mustRebuild`、`sourceFidelityEvidence`、`rebuiltCausalBranch` 和 `nonCopyEvidence`；调用 `content_topic_checkpoint` 和 `content_topic_finalize` 冻结 Topic Package v1。
-3. 按目标市场的目标语言直接创作完整仿写稿。只分“短篇”和“长篇”两档；用户或频道预设的篇幅、集数和输出语言优先于提示词默认的四章篇幅。长篇可以分批保存，但不能压缩事件链、章节功能或结构质量。
+2. 生成唯一完整方案及 `sourceTransformationMap`。其中每个来源条目继续记录功能迁移，同时用方向包绑定 `adaptationMode`、`mustPreserve`、`allowedToChange`、`mustRebuild`、`sourceAnchorRefs`、`expansionSeamIds`、`sourceFidelityEvidence`、`naturalExpansionRationale`、`rebuiltCausalBranch`、`nonCopyEvidence` 和 `genericTemplateRisk=false`；调用 `content_topic_checkpoint` 和 `content_topic_finalize` 冻结 Topic Package v1。
+3. 按目标市场的目标语言直接创作完整仿写稿。只分“短篇”和“长篇”两档，并严格读取当前项目已确认的篇幅、集数和输出语言；没有已确认范围时返回上游补齐，不得把任何四章模板当作默认值。长篇可以分批保存，但不能压缩事件链、章节功能或结构质量。
 4. 初稿完成后立即调用 `content_review_document_save`，使用 `documentType=rewrite-draft-target` 保存完整正文。不得等到审核结束才落盘，也不得用摘要代替正文。
 5. 工具生成稳定文件 `用户审核文档/04_仿写初稿_目标语言.txt` 和不可覆盖的历史版本。调用 `content_review_documents_get`，向用户展示文件路径、版本和 SHA-256。
 6. 调用 `content_integrity_check`，确认来源锁、Topic Package 和初稿文档仍有效。
 
-生成的是待编辑初稿，状态只能到 `REWRITE_DRAFT_READY`，不得标记 `SCRIPT_READY`。完成后立即交给 `$content-review-edit` 执行审稿、修改、复查与正式母稿冻结。
+生成的是待编辑初稿，状态只能到 `REWRITE_DRAFT_READY`，不得标记 `SCRIPT_READY`。审核模式必须展示 `04_仿写初稿_目标语言.txt` 并停在 `D4_REWRITE_DRAFT`；用户确认进入编辑审核后才交给 `$content-review-edit`。只有当前任务已有明确自动授权时才可连续进入审核。
 
 ## 边界
 

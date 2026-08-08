@@ -1,7 +1,7 @@
 interface:
   display_name: "拆书与迁移方向"
-  short_description: "完整拆解叙事素材并生成三档各五个去重迁移方向和仿写交接卡"
-  default_prompt: "Use `$content-deconstruct` to fully deconstruct the narrative, create five distinct directions in each of the three adaptation tiers, and prepare the rewrite handoff."
+  short_description: "完整拆解叙事素材并生成三档各五个来源锚定、去重迁移方向"
+  default_prompt: "Use `$content-deconstruct` to fully deconstruct the narrative, bind expansion seams and source evidence, create five distinct directions in each adaptation tier, then wait for my selection."
 
 policy:
   allow_implicit_invocation: false

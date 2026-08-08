@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 sys.path.insert(0, str(ROOT / "tools"))
 
 from aivcp_tools.errors import ToolError  # noqa: E402
+from aivcp_tools.content import _approval  # noqa: E402
 from aivcp_tools.service import LocalToolService, ServiceConfig, tool_definitions  # noqa: E402
 from stage4_support import (  # noqa: E402
     MARKETS,
@@ -59,6 +60,32 @@ class Stage4ContentLoopTests(unittest.TestCase):
         self.assertEqual(code, caught.exception.code)
         return caught.exception
 
+    def test_auto_approval_must_be_scoped_to_current_task(self) -> None:
+        created = "2026-08-08T00:00:00Z"
+        with self.assertRaises(ToolError) as caught:
+            _approval(
+                "G3_TOPIC",
+                {"mode": "auto", "authorizationRef": "old-profile-auto"},
+                created,
+                task_id="task-current",
+            )
+        self.assertEqual("AUTO_CONFIRMATION_INVALID", caught.exception.code)
+
+        approval = _approval(
+            "G3_TOPIC",
+            {
+                "mode": "auto",
+                "authorizationRef": "task:task-current:auto-remaining-workflow",
+            },
+            created,
+            task_id="task-current",
+        )
+        self.assertEqual("auto", approval["mode"])
+        self.assertEqual(
+            "task:task-current:auto-remaining-workflow",
+            approval["authorizationRef"],
+        )
+
     def test_installed_surface_exposes_eleven_stage4_tools_and_no_external_action(self) -> None:
         names = {item["name"] for item in tool_definitions()}
         expected = {
@@ -76,6 +103,10 @@ class Stage4ContentLoopTests(unittest.TestCase):
         }
         self.assertTrue(expected.issubset(names))
         definitions = {item["name"]: item for item in tool_definitions()}
+        self.assertEqual(
+            ["review"],
+            definitions["channel_onboarding_complete"]["inputSchema"]["properties"]["executionMode"]["enum"],
+        )
         self.assertIn("foreignLanguageQualityGate", definitions["content_manuscript_finalize"]["inputSchema"]["required"])
         self.assertIn("storySummaryChinese", definitions["content_publishing_finalize"]["inputSchema"]["required"])
         service, _, _, _ = create_service(
@@ -102,6 +133,54 @@ class Stage4ContentLoopTests(unittest.TestCase):
         self.assertFalse(capabilities["boundaries"]["workshop"])
         self.assertFalse(capabilities["boundaries"]["upload"])
         self.assertFalse(capabilities["boundaries"]["longTermLearningWrite"])
+
+    def test_learning_snapshot_requires_current_task_confirmation(self) -> None:
+        context = self.context()
+        args = {
+            "taskId": context.task_id,
+            "channelProfileId": context.channel_id,
+            "bindingProof": context.proof,
+            "projectId": f"{context.project_id}-invalid-learning",
+            "sourceMode": "market-original",
+            "sourcePackages": [{"sourcePackageId": context.source["source_package_id"]}],
+            "learningSnapshot": {"mode": "read_only"},
+        }
+        self.assert_tool_error(
+            "LEARNING_SNAPSHOT_CONFIRMATION_REQUIRED",
+            lambda: context.service.call("content_project_start", args),
+        )
+
+    def test_existing_project_resume_requires_current_task_confirmation(self) -> None:
+        context = self.context()
+        resumed_task_id = f"{context.task_id}-resume"
+        binding = context.service.call(
+            "channel_bind_task",
+            {"taskId": resumed_task_id, "channelProfileId": context.channel_id},
+        )
+        args = {
+            "taskId": resumed_task_id,
+            "channelProfileId": context.channel_id,
+            "bindingProof": binding["bindingProof"],
+            "projectId": context.project_id,
+            "sourceMode": "market-original",
+            "sourcePackages": [{"sourcePackageId": context.source["source_package_id"]}],
+            "learningSnapshot": {
+                "mode": "read_only",
+                "confirmedForTaskId": resumed_task_id,
+                "confirmationRef": f"task:{resumed_task_id}:load-channel-learning",
+            },
+            "oneTimeModifications": ["仅本合成项目使用简短两集结构。"],
+        }
+        self.assert_tool_error(
+            "EXPLICIT_PROJECT_RESUME_REQUIRED",
+            lambda: context.service.call("content_project_start", args),
+        )
+
+        args["resumeExistingProject"] = True
+        args["resumeConfirmationRef"] = f"task:{resumed_task_id}:resume:{context.project_id}"
+        resumed = context.service.call("content_project_start", args)
+        self.assertTrue(resumed["idempotent"])
+        self.assertEqual(resumed_task_id, resumed["state"]["lastResume"]["taskId"])
 
     def test_repository_media_exception_is_limited_to_named_synthetic_fixtures(self) -> None:
         fixture = self.root / "contracts" / "examples" / "valid" / "fixtures" / "confirmed-thumbnail-1600x900.png"

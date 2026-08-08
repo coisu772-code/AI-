@@ -383,17 +383,22 @@ class LocalToolService:
             requested_defaults = args.get("defaults")
             voice = requested_defaults.get("voice") if isinstance(requested_defaults, dict) else {}
             self.voices.validate_selection(voice.get("engineId"), voice.get("voiceId"))
-            self._assert_auto_upload_ready(
-                channel_profile=channel,
-                defaults=requested_defaults,
-                authorization=args.get("autoUploadAuthorization"),
-            )
+            if requested_defaults.get("uploadPolicy") == "AUTO":
+                raise ToolError(
+                    "AUTO_UPLOAD_NOT_AVAILABLE_STAGE2",
+                    "首次建库不能自动授权真实上传；阶段2只允许 DO_NOT_UPLOAD 或 REQUIRE_REVIEW。",
+                )
+            if args.get("executionMode", "review") != "review":
+                raise ToolError(
+                    "PERSISTENT_AUTO_MODE_NOT_ALLOWED",
+                    "频道预设固定为审核模式；自动完成授权只能由用户在当前任务明确授予，不能持久化到频道。",
+                )
             result = self.store.complete_library(
                 task_id=args.get("taskId"),
                 channel_profile_id=args.get("channelProfileId"),
                 binding_proof=args.get("bindingProof"),
                 defaults=requested_defaults,
-                execution_mode=args.get("executionMode", "review"),
+                execution_mode="review",
             )
         elif name == "channel_list":
             result = {"channels": self.store.list_channels()}
@@ -694,6 +699,7 @@ class LocalToolService:
                 comparison=args.get("comparison"),
                 deconstruction_report=args.get("deconstructionReportMarkdown"),
                 transfer_directions=args.get("transferDirectionsMarkdown"),
+                direction_package=args.get("directionPackage"),
             )
         elif name == "content_deconstruction_get":
             result = self.content_deconstruction.get(
@@ -788,6 +794,8 @@ class LocalToolService:
                 learning_snapshot=args.get("learningSnapshot"),
                 one_time_modifications=args.get("oneTimeModifications"),
                 long_term_learning=args.get("longTermLearning"),
+                resume_existing_project=args.get("resumeExistingProject", False),
+                resume_confirmation_ref=args.get("resumeConfirmationRef"),
             )
         elif name == "content_topic_checkpoint":
             result = self.content.checkpoint_topic(
@@ -1066,12 +1074,11 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "channel_onboarding_complete",
-            "确认阶段 B 四项生产默认值并原子创建独立频道资料库。",
+            "确认阶段 B 四项生产默认值并以固定审核模式原子创建独立频道资料库。",
             {
                 **binding_properties,
                 "defaults": {"type": "object"},
-                "executionMode": {"type": "string", "enum": ["review", "auto"]},
-                "autoUploadAuthorization": {"type": "object"},
+                "executionMode": {"type": "string", "enum": ["review"]},
             },
             ["taskId", "channelProfileId", "bindingProof", "defaults"],
         ),
@@ -1316,10 +1323,8 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "deconstructionId": {"type": "string"},
                 "qualityGate": {"type": "object"},
                 "comparison": {"type": "object"},
-                "deconstructionReportMarkdown": {"type": "string", "minLength": 200},
-                "transferDirectionsMarkdown": {"type": "string", "minLength": 120},
             },
-            ["taskId", "channelProfileId", "bindingProof", "deconstructionId", "qualityGate", "deconstructionReportMarkdown", "transferDirectionsMarkdown"],
+            ["taskId", "channelProfileId", "bindingProof", "deconstructionId", "qualityGate"],
         ),
         (
             "video_deconstruction_get",
@@ -1377,14 +1382,20 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "content_deconstruction_finalize",
-            "冻结可交给单源高贴合或多资料融合仿写的 Content Deconstruction Package v1。",
+            "冻结来源证据驱动的 Content Deconstruction Package v1；必须含完整拆解文档、三档各5个方向和等待用户选择状态。",
             {
                 **binding_properties,
                 "deconstructionId": {"type": "string"},
                 "qualityGate": {"type": "object"},
                 "comparison": {"type": "object"},
+                "deconstructionReportMarkdown": {"type": "string", "minLength": 200},
+                "transferDirectionsMarkdown": {"type": "string", "minLength": 120},
+                "directionPackage": {"type": "object"},
             },
-            ["taskId", "channelProfileId", "bindingProof", "deconstructionId", "qualityGate"],
+            [
+                "taskId", "channelProfileId", "bindingProof", "deconstructionId", "qualityGate",
+                "deconstructionReportMarkdown", "transferDirectionsMarkdown", "directionPackage",
+            ],
         ),
         (
             "content_deconstruction_get",
@@ -1503,6 +1514,8 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "learningSnapshot": {"type": "object"},
                 "oneTimeModifications": {"type": "array", "items": {"type": "string"}},
                 "longTermLearning": {},
+                "resumeExistingProject": {"type": "boolean"},
+                "resumeConfirmationRef": {"type": "string"},
             },
             ["taskId", "channelProfileId", "bindingProof", "projectId", "sourceMode"],
         ),

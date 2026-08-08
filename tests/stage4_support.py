@@ -223,7 +223,11 @@ def start_topic_context(root: Path, language: str, *, plugin_root: Path, local_t
             "projectId": project_id,
             "sourceMode": "market-original",
             "sourcePackages": [{"sourcePackageId": source["source_package_id"]}],
-            "learningSnapshot": {"mode": "read_only"},
+            "learningSnapshot": {
+                "mode": "read_only",
+                "confirmedForTaskId": task_id,
+                "confirmationRef": f"task:{task_id}:load-channel-learning",
+            },
             "oneTimeModifications": ["仅本合成项目使用简短两集结构。"],
         },
     )

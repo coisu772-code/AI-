@@ -92,6 +92,38 @@ FINAL_QUALITY_KEYS = {
     "antiCopyBoundary",
     "timingIntegrity",
 }
+CONTENT_DIRECTION_QUALITY_KEYS = {
+    "sourceStoryDnaBound",
+    "expansionSeamsEvidenceBound",
+    "directionFidelityValidated",
+    "directionDistinctnessValidated",
+    "genericTemplateLeakageAbsent",
+    "manualSelectionPending",
+}
+DIRECTION_MODES = {
+    "close-structure": ("A", 3),
+    "balanced-reconstruction": ("B", 2),
+    "free-original": ("C", 1),
+}
+DIRECTION_DISTINCTNESS_DIMENSIONS = {
+    "protagonistGoal",
+    "worldOrRealityRules",
+    "coreRelationship",
+    "conflictSource",
+    "causalEngine",
+    "climaxAction",
+    "endingPayoff",
+}
+SOURCE_STORY_DNA_KEYS = {
+    "audiencePromise",
+    "plotEngine",
+    "relationshipEngine",
+    "worldOrRealityRules",
+    "causalChain",
+    "emotionalArc",
+    "climaxFunction",
+    "endingPayoff",
+}
 DOWNSTREAM_CONSUMERS = {"topic-center", "manuscript-center", "content-rewrite", "content-review-edit"}
 
 
@@ -198,6 +230,7 @@ class VideoCopyDeconstruction:
             "outputs": [
                 "content-deconstruction-analysis-v1" if generic else "video-deconstruction-analysis-v1",
                 "analysis-package-v1",
+                *(["direction-package-inline-v1"] if generic else []),
             ],
             "consumers": ["content-rewrite", "content-review-edit"] if generic else ["topic-center", "manuscript-center"],
             "boundaries": {
@@ -207,7 +240,9 @@ class VideoCopyDeconstruction:
                 "eachVideoRemainsIndependent": True,
                 "averagingUsed": False,
                 "segmentSplicingUsed": False,
-                "generatesOriginalDirections": False,
+                "generatesOriginalDirections": generic,
+                "directionsRequireSourceAnchors": generic,
+                "directionsRequireManualSelection": generic,
                 "writesOutlineOrManuscript": False,
             },
         }
@@ -807,11 +842,243 @@ class VideoCopyDeconstruction:
         return json.loads(json.dumps(value, ensure_ascii=False))
 
     @staticmethod
-    def _validate_final_quality(value: Any) -> dict[str, Any]:
+    def _validate_direction_package(
+        value: Any,
+        analyses: list[dict[str, Any]],
+        mode: str,
+    ) -> dict[str, Any]:
+        if not isinstance(value, dict):
+            raise ToolError("DIRECTION_PACKAGE_REQUIRED", "内容拆解必须提交来源证据驱动的迁移方向包。")
+
+        def meaningful(item: Any) -> bool:
+            if isinstance(item, str):
+                return bool(item.strip())
+            if isinstance(item, list):
+                return bool(item)
+            if isinstance(item, dict):
+                return bool(item)
+            return False
+
+        source_fact_ids = {
+            analysis["sourcePackageId"]: {
+                fact["factId"] for fact in analysis["analysisBuckets"]["originalFacts"]
+            }
+            for analysis in analyses
+        }
+
+        def anchor_pairs(refs: Any, *, code: str) -> set[tuple[str, str]]:
+            if not isinstance(refs, list) or not refs:
+                raise ToolError(code, "来源锚点不能为空。")
+            pairs: set[tuple[str, str]] = set()
+            for ref in refs:
+                if not isinstance(ref, dict):
+                    raise ToolError(code, "来源锚点必须使用 sourcePackageId 与 factId。")
+                source_id = ref.get("sourcePackageId")
+                fact_id = ref.get("factId")
+                if (
+                    not isinstance(source_id, str)
+                    or not isinstance(fact_id, str)
+                    or fact_id not in source_fact_ids.get(source_id, set())
+                ):
+                    raise ToolError(
+                        code,
+                        "迁移方向引用了不存在或不属于该来源的事实锚点。",
+                        details={"sourcePackageId": source_id, "factId": fact_id},
+                    )
+                pairs.add((source_id, fact_id))
+            if len(pairs) != len(refs):
+                raise ToolError(code, "来源锚点不得重复凑数。")
+            return pairs
+
+        story_dna = value.get("sourceStoryDNA")
+        if not isinstance(story_dna, dict):
+            raise ToolError("SOURCE_STORY_DNA_REQUIRED", "迁移方向包缺少来源故事 DNA。")
+        missing_dna = sorted(SOURCE_STORY_DNA_KEYS - set(story_dna))
+        if missing_dna or any(not meaningful(story_dna.get(key)) for key in SOURCE_STORY_DNA_KEYS):
+            raise ToolError(
+                "SOURCE_STORY_DNA_INCOMPLETE",
+                "来源故事 DNA 必须完整记录观众承诺、因果、关系、规则、情绪、高潮和结局回报。",
+                details={"missing": missing_dna},
+            )
+
+        seams = value.get("expansionSeams")
+        if not isinstance(seams, list) or not seams:
+            raise ToolError("EXPANSION_SEAMS_REQUIRED", "必须先识别有原文证据的自然扩展缺口。")
+        seam_rows: dict[str, dict[str, Any]] = {}
+        for seam in seams:
+            if not isinstance(seam, dict):
+                raise ToolError("EXPANSION_SEAM_INVALID", "自然扩展缺口结构无效。")
+            seam_id = seam.get("seamId")
+            applicable = seam.get("applicableModes")
+            if (
+                not isinstance(seam_id, str)
+                or not seam_id.strip()
+                or seam_id in seam_rows
+                or not meaningful(seam.get("gap"))
+                or not meaningful(seam.get("naturalGrowthRationale"))
+                or not isinstance(applicable, list)
+                or not applicable
+                or not set(applicable).issubset(DIRECTION_MODES)
+            ):
+                raise ToolError("EXPANSION_SEAM_INVALID", "自然扩展缺口必须有唯一编号、具体缺口、自然生长理由和适用档位。")
+            anchor_pairs(seam.get("sourceEvidenceRefs"), code="EXPANSION_SEAM_EVIDENCE_INVALID")
+            seam_rows[seam_id] = seam
+
+        profiles = value.get("adaptationProfiles")
+        if not isinstance(profiles, list) or len(profiles) != 3:
+            raise ToolError("ADAPTATION_PROFILES_INVALID", "必须冻结高贴合、中度重构和大胆创新三个档位。")
+        profile_rows: dict[str, dict[str, Any]] = {}
+        for profile in profiles:
+            if not isinstance(profile, dict) or profile.get("adaptationMode") not in DIRECTION_MODES:
+                raise ToolError("ADAPTATION_PROFILES_INVALID", "改编档位无效。")
+            adaptation_mode = profile["adaptationMode"]
+            if adaptation_mode in profile_rows:
+                raise ToolError("ADAPTATION_PROFILES_INVALID", "每个改编档位只能出现一次。")
+            contract = profile.get("preservationContract")
+            if not isinstance(contract, dict):
+                raise ToolError("PRESERVATION_CONTRACT_INVALID", "每个档位必须包含保留契约。")
+            for key in ("mustPreserve", "allowedToChange", "mustRebuild", "protectedExpressionBoundary"):
+                if not isinstance(contract.get(key), list) or not contract[key] or any(
+                    not isinstance(item, str) or not item.strip() for item in contract[key]
+                ):
+                    raise ToolError("PRESERVATION_CONTRACT_INVALID", f"保留契约缺少 {key}。")
+            profile_rows[adaptation_mode] = profile
+        if set(profile_rows) != set(DIRECTION_MODES):
+            raise ToolError("ADAPTATION_PROFILES_INVALID", "三个通用改编档位必须完整且不重复。")
+
+        directions = value.get("directions")
+        if not isinstance(directions, list) or len(directions) != 15:
+            raise ToolError("DIRECTION_COUNT_INVALID", "迁移方向必须为三档各5个、共15个。")
+        expected_ids = {
+            f"{prefix}{index}": adaptation_mode
+            for adaptation_mode, (prefix, _) in DIRECTION_MODES.items()
+            for index in range(1, 6)
+        }
+        direction_rows: dict[str, dict[str, Any]] = {}
+        engines: set[str] = set()
+        for direction in directions:
+            if not isinstance(direction, dict):
+                raise ToolError("DIRECTION_INVALID", "迁移方向结构无效。")
+            direction_id = direction.get("directionId")
+            adaptation_mode = direction.get("adaptationMode")
+            if (
+                direction_id not in expected_ids
+                or expected_ids[direction_id] != adaptation_mode
+                or direction_id in direction_rows
+            ):
+                raise ToolError("DIRECTION_ID_INVALID", "方向编号必须为 A1—A5、B1—B5、C1—C5，并匹配对应档位。")
+            if not meaningful(direction.get("title")) or not meaningful(direction.get("naturalExpansionRationale")):
+                raise ToolError("DIRECTION_INVALID", "每个方向必须有名称和从原文自然拓展的理由。")
+            if direction.get("genericTemplateRisk") is not False:
+                raise ToolError("DIRECTION_GENERIC_TEMPLATE_RISK", "检测到通用母版污染的方向不能冻结。")
+            contract = direction.get("preservationContract")
+            if contract != profile_rows[adaptation_mode]["preservationContract"]:
+                raise ToolError("DIRECTION_PRESERVATION_CONTRACT_MISMATCH", "方向必须使用所属档位冻结的保留契约。")
+            anchors = anchor_pairs(direction.get("sourceAnchorRefs"), code="DIRECTION_SOURCE_ANCHORS_INVALID")
+            minimum_anchors = DIRECTION_MODES[adaptation_mode][1]
+            if len(anchors) < minimum_anchors:
+                raise ToolError(
+                    "DIRECTION_SOURCE_ANCHORS_INSUFFICIENT",
+                    "方向的来源事实锚点数量低于所属档位要求。",
+                    details={"directionId": direction_id, "minimum": minimum_anchors, "actual": len(anchors)},
+                )
+            if mode == "compare" and {item[0] for item in anchors} != set(source_fact_ids):
+                raise ToolError("DIRECTION_SOURCE_COVERAGE_INCOMPLETE", "比较／融合方向必须引用每个成功来源的事实。")
+            seam_ids = direction.get("expansionSeamIds")
+            if not isinstance(seam_ids, list) or not seam_ids or len(set(seam_ids)) != len(seam_ids):
+                raise ToolError("DIRECTION_EXPANSION_SEAM_INVALID", "每个方向必须绑定至少一个不重复的自然扩展缺口。")
+            if any(
+                seam_id not in seam_rows or adaptation_mode not in seam_rows[seam_id]["applicableModes"]
+                for seam_id in seam_ids
+            ):
+                raise ToolError("DIRECTION_EXPANSION_SEAM_INVALID", "方向引用了不存在或不适用于本档的扩展缺口。")
+            fidelity = direction.get("sourceFidelityEvidence")
+            if not isinstance(fidelity, list) or len(fidelity) < minimum_anchors:
+                raise ToolError("DIRECTION_FIDELITY_EVIDENCE_INSUFFICIENT", "来源贴合证据数量低于所属档位要求。")
+            fidelity_pairs: set[tuple[str, str]] = set()
+            for item in fidelity:
+                if (
+                    not isinstance(item, dict)
+                    or not meaningful(item.get("preservedFunction"))
+                    or not isinstance(item.get("sourcePackageId"), str)
+                    or not isinstance(item.get("factId"), str)
+                ):
+                    raise ToolError("DIRECTION_FIDELITY_EVIDENCE_INVALID", "来源贴合证据必须绑定事实并说明保留功能。")
+                pair = (item["sourcePackageId"], item["factId"])
+                if pair not in anchors:
+                    raise ToolError("DIRECTION_FIDELITY_EVIDENCE_INVALID", "来源贴合证据必须来自本方向的事实锚点。")
+                fidelity_pairs.add(pair)
+            if len(fidelity_pairs) < minimum_anchors:
+                raise ToolError("DIRECTION_FIDELITY_EVIDENCE_INSUFFICIENT", "来源贴合证据不得重复凑数。")
+            causal_outline = direction.get("causalOutline")
+            if not isinstance(causal_outline, list) or len(causal_outline) < 4:
+                raise ToolError("DIRECTION_CAUSAL_OUTLINE_INCOMPLETE", "每个方向至少需要4个来源自适应因果阶段。")
+            for stage in causal_outline:
+                if not isinstance(stage, dict) or any(
+                    not meaningful(stage.get(key)) for key in ("phase", "event", "causesNext", "sourceFunctionOrSeam")
+                ):
+                    raise ToolError("DIRECTION_CAUSAL_OUTLINE_INCOMPLETE", "因果阶段必须说明行动、因果连接和来源功能。")
+            if not meaningful(direction.get("nonCopyEvidence")):
+                raise ToolError("DIRECTION_NON_COPY_EVIDENCE_REQUIRED", "每个方向必须说明非换皮原创证据。")
+            engine = str(direction.get("distinctiveEngine") or "").strip().casefold()
+            if not engine or engine in engines:
+                raise ToolError("DIRECTION_ENGINE_DUPLICATE", "15个方向必须使用实质不同的因果发动机，不能重复母版。")
+            engines.add(engine)
+            direction_rows[direction_id] = direction
+        if set(direction_rows) != set(expected_ids):
+            raise ToolError("DIRECTION_ID_INVALID", "15个方向编号必须完整且不重复。")
+
+        matrix = value.get("directionDistinctnessMatrix")
+        if not isinstance(matrix, list) or len(matrix) != 105:
+            raise ToolError("DIRECTION_DISTINCTNESS_MATRIX_INCOMPLETE", "15个方向必须保存105组两两去重结果。")
+        expected_pairs = {
+            tuple(sorted((left, right)))
+            for index, left in enumerate(sorted(expected_ids))
+            for right in sorted(expected_ids)[index + 1 :]
+        }
+        actual_pairs: set[tuple[str, str]] = set()
+        for row in matrix:
+            if not isinstance(row, dict):
+                raise ToolError("DIRECTION_DISTINCTNESS_MATRIX_INVALID", "方向去重矩阵结构无效。")
+            left = row.get("leftDirectionId")
+            right = row.get("rightDirectionId")
+            pair = tuple(sorted((left, right))) if isinstance(left, str) and isinstance(right, str) else ()
+            dimensions = row.get("differentDimensions")
+            if (
+                pair not in expected_pairs
+                or pair in actual_pairs
+                or not isinstance(dimensions, list)
+                or len(set(dimensions)) < 3
+                or not set(dimensions).issubset(DIRECTION_DISTINCTNESS_DIMENSIONS)
+                or row.get("sameTemplate") is not False
+            ):
+                raise ToolError("DIRECTION_DISTINCTNESS_MATRIX_INVALID", "每对方向至少在3个核心维度实质不同，并且不得共享同一母版。")
+            actual_pairs.add(pair)
+        if actual_pairs != expected_pairs:
+            raise ToolError("DIRECTION_DISTINCTNESS_MATRIX_INCOMPLETE", "方向去重矩阵没有覆盖全部105对方向。")
+
+        selection = value.get("selection")
+        if (
+            not isinstance(selection, dict)
+            or selection.get("status") != "AWAITING_USER"
+            or selection.get("selectedDirectionId") not in (None, "")
+        ):
+            raise ToolError("DIRECTION_SELECTION_STATE_INVALID", "审核模式拆解完成后必须等待用户选择，不能预先选定方向。")
+        recommendations = selection.get("recommendedByTier")
+        if not isinstance(recommendations, dict) or set(recommendations) != set(DIRECTION_MODES):
+            raise ToolError("DIRECTION_RECOMMENDATIONS_INVALID", "必须分别给出三个档位的推荐方向。")
+        for adaptation_mode, direction_id in recommendations.items():
+            if expected_ids.get(direction_id) != adaptation_mode:
+                raise ToolError("DIRECTION_RECOMMENDATIONS_INVALID", "每档推荐必须来自本档5个方向。")
+        return json.loads(json.dumps(value, ensure_ascii=False))
+
+    @staticmethod
+    def _validate_final_quality(value: Any, *, generic: bool = False) -> dict[str, Any]:
         if not isinstance(value, dict) or value.get("passed") is not True:
             raise ToolError("VIDEO_DECONSTRUCTION_FINAL_QUALITY_FAILED", "视频文案拆解最终质量门必须通过。")
-        missing = sorted(FINAL_QUALITY_KEYS - set(value))
-        if missing or any(value.get(key) is not True for key in FINAL_QUALITY_KEYS):
+        required = FINAL_QUALITY_KEYS | (CONTENT_DIRECTION_QUALITY_KEYS if generic else set())
+        missing = sorted(required - set(value))
+        if missing or any(value.get(key) is not True for key in required):
             raise ToolError("VIDEO_DECONSTRUCTION_FINAL_QUALITY_FAILED", "最终质量硬项未全部通过。", details={"missing": missing})
         if value.get("hardFailures") not in (None, []):
             raise ToolError("VIDEO_DECONSTRUCTION_FINAL_QUALITY_FAILED", "存在硬失败时不能冻结分析包。")
@@ -884,6 +1151,7 @@ class VideoCopyDeconstruction:
         comparison: Any = None,
         deconstruction_report: Any = None,
         transfer_directions: Any = None,
+        direction_package: Any = None,
     ) -> dict[str, Any]:
         self.store.assert_binding(
             task_id=task_id,
@@ -925,7 +1193,12 @@ class VideoCopyDeconstruction:
             plan["mode"],
             {analysis["sourcePackageId"] for analysis in analyses},
         )
-        quality_gate = self._validate_final_quality(quality_gate)
+        generic = self.analysis_kind == "content-deconstruction"
+        quality_gate = self._validate_final_quality(quality_gate, generic=generic)
+        if generic:
+            direction_package = self._validate_direction_package(direction_package, analyses, plan["mode"])
+        elif direction_package not in (None, {}):
+            raise ToolError("DIRECTION_PACKAGE_MODE_MISMATCH", "只有统一内容拆解可以冻结迁移方向包。")
         merged_buckets = {
             key: [
                 {**item, "sourcePackageId": analysis["sourcePackageId"]}
@@ -936,7 +1209,6 @@ class VideoCopyDeconstruction:
         }
         created = utc_now()
         downstream_views = self._downstream_views(analyses)
-        generic = self.analysis_kind == "content-deconstruction"
         package_payload = {
                 "schemaVersion": CONTENT_ANALYSIS_VERSION,
                 "contractType": "analysis-package-v1",
@@ -962,6 +1234,7 @@ class VideoCopyDeconstruction:
         if generic:
             package_payload["sourceAnalyses"] = analyses
             package_payload["failedSources"] = failures
+            package_payload["directionPackage"] = direction_package
         else:
             package_payload["videoAnalyses"] = analyses
             package_payload["failedVideos"] = failures
@@ -1019,6 +1292,11 @@ class VideoCopyDeconstruction:
         }
         if user_review_documents is not None:
             outputs["userReviewDocuments"] = user_review_documents
+            outputs["directionSelection"] = {
+                "status": direction_package["selection"]["status"],
+                "recommendedByTier": direction_package["selection"]["recommendedByTier"],
+                "directionCount": len(direction_package["directions"]),
+            }
         _atomic_json(root / "outputs.json", outputs)
         state["outputs"] = outputs
         state["state"] = "FROZEN"
@@ -1031,8 +1309,10 @@ class VideoCopyDeconstruction:
                 "failedOrSkipped": len(failures),
                 "accountRequirementsApplied": bool(plan.get("accountRequirement")),
                 "fiveEvidenceBuckets": list(BUCKET_KEYS),
-                "handoffReady": ["content-rewrite", "content-review-edit"] if generic else ["topic-center", "manuscript-center"],
-                "next": "continue to content-rewrite" if generic else "legacy analysis package frozen",
+                "handoffReady": ["await-user-direction-selection"] if generic else ["topic-center", "manuscript-center"],
+                "stageGate": "D2_DECONSTRUCTION" if generic else None,
+                "gateStatus": "AWAITING_USER" if generic else None,
+                "next": "wait for user to choose A1-C5" if generic else "legacy analysis package frozen",
             },
         }
 

@@ -5,6 +5,8 @@ description: 通过本地安全工具读取 YouTube 发布中心的真实频道�
 
 # 频道建库与绑定
 
+先读取 [逐阶段确认契约](../channel-production/references/manual-stage-confirmations.md)。频道预设只保存内容与制作参数，固定使用 `executionMode=review`；不得把当前任务或历史任务的自动授权持久化为频道默认值。
+
 ## 先检查能力
 
 1. 调用 `system_capabilities`。
@@ -26,11 +28,10 @@ description: 通过本地安全工具读取 YouTube 发布中心的真实频道�
 
 1. 调用 `system_voice_catalog`，只展示已安装的预扫描真实引擎和音色；不要启动工坊扫描或手写不存在的音色 ID。
 2. 音色目录不可用时，引导运行安装修复并停止建库写入。
-3. 第二张确认卡一次确认默认配音、`auto_by_topic` 篇幅范围、`auto_by_topic` 集数范围、制作方式、视频分镜范围和上传策略。不得把“自动成片”擅自写成 `videoGeneration.enabled=false`；静态封面口播版必须由用户明确选择。
-4. 用户选择动态分镜时写入 `videoGeneration.enabled=true`，并明确 `project_first_n_storyboards`、`episode_first_n_storyboards` 或 `all_storyboards`；显式视频生成默认 `fallbackPolicy=pause`。用户没有指定数量时，推荐“全项目前 6 镜”，但必须在卡片中可见。
-5. 用户选择 `AUTO` 上传时，先确认发布中心返回的真实频道已启用、`authorizationStatus=ACTIVE`、频道 `uploadPolicy=AUTO` 且序号一致；然后只在用户明确同意“以后本频道自动上传”后传 `autoUploadAuthorization={"confirmed":true,"scope":"channel_default","version":"1.0.0"}`。任一条件不满足就保留 `REQUIRE_REVIEW` 并指出应在发布中心完成的设置，不得伪造授权。
-6. 用户确认后调用 `channel_onboarding_complete`。成功结果必须同时满足 `READY`、存在 Channel Profile、存在 Production Profile 和完整性检查通过。
-7. 创建失败时显示结构化错误和可恢复动作，不把半成品报告为成功。
+3. 第二张确认卡一次确认默认配音、`auto_by_topic` 篇幅范围、`auto_by_topic` 集数范围、制作方式和视频分镜范围；上传策略固定显示为 `REQUIRE_REVIEW`，不得持久化当前任务的自动执行或自动上传授权。
+4. 不得把“自动成片”擅自写成 `videoGeneration.enabled=false`；静态封面口播版必须由用户明确选择。用户选择动态分镜时写入 `videoGeneration.enabled=true`，并明确 `project_first_n_storyboards`、`episode_first_n_storyboards` 或 `all_storyboards`；显式视频生成默认 `fallbackPolicy=pause`。用户没有指定数量时，推荐“全项目前 6 镜”，但必须在卡片中可见。
+5. 用户确认后调用 `channel_onboarding_complete`，固定传 `executionMode=review`，并保持 `uploadPolicy=REQUIRE_REVIEW`。成功结果必须同时满足 `READY`、存在 Channel Profile、存在 Production Profile 和完整性检查通过。
+6. 创建失败时显示结构化错误和可恢复动作，不把半成品报告为成功。
 
 ## 重新绑定与日常使用
 
@@ -40,7 +41,7 @@ description: 通过本地安全工具读取 YouTube 发布中心的真实频道�
 - 仅本次修改调用 `channel_resolve_production` 并传 `overrides`；确认返回 `persistedDefaultsChanged=false`。
 - 只有用户明确确认“以后本频道都这样”时才调用 `channel_update_defaults`，并传 `confirmation={"confirmed":true,"scope":"channel_default"}`。预设必须生成新版本，不改变已冻结项目。
 - 已有频道预设为 `videoGeneration.enabled=false`，但用户明确要求动态分镜或完整小说漫时，先显示旧值和建议新值，再通过 `channel_update_defaults` 创建新预设版本。已经冻结的 Production Package 不原地改写；用新预设重新组装新包版本。
-- 已有频道要从 `REQUIRE_REVIEW` 改为 `AUTO` 时，除频道级默认值确认外，还必须满足上述发布中心准备条件并传独立的 `autoUploadAuthorization`。全局自动发布同意仍由 YouTube 发布中心保存和执行。
+- 频道预设不得从 `REQUIRE_REVIEW` 改为 `AUTO`；真实自动发布授权只由 YouTube 发布中心独立保存和执行，不能写回频道生产预设。
 
 ## 备份、恢复与迁移
 
