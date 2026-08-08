@@ -788,6 +788,12 @@ class VideoDeconstructionTests(unittest.TestCase):
             },
         )
         self.assertEqual("1/1 succeeded", finalized["completionCard"]["contentDeconstruction"])
+        self.assertEqual("D2_DECONSTRUCTION", finalized["completionCard"]["stageGate"])
+        self.assertEqual("AWAITING_USER", finalized["completionCard"]["gateStatus"])
+        self.assertEqual(
+            "AWAITING_USER",
+            finalized["outputs"]["directionSelection"]["status"],
+        )
         deconstruction_review_root = Path(finalized["outputs"]["userReviewDocuments"]["directory"])
         self.assertTrue((deconstruction_review_root / "01_原始素材说明.md").is_file())
         self.assertTrue((deconstruction_review_root / "02_完整拆解报告.md").is_file())

@@ -1310,7 +1310,8 @@ class VideoCopyDeconstruction:
                 "accountRequirementsApplied": bool(plan.get("accountRequirement")),
                 "fiveEvidenceBuckets": list(BUCKET_KEYS),
                 "handoffReady": ["await-user-direction-selection"] if generic else ["topic-center", "manuscript-center"],
-                "stageGate": "D2_DECONSTRUCTION_AWAITING_USER" if generic else None,
+                "stageGate": "D2_DECONSTRUCTION" if generic else None,
+                "gateStatus": "AWAITING_USER" if generic else None,
                 "next": "wait for user to choose A1-C5" if generic else "legacy analysis package frozen",
             },
         }

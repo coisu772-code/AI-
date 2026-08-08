@@ -21,8 +21,8 @@
       "skillId": "content-rewrite",
       "suppliedFileName": "叙事内容深度拆解提示词_GPT通用版_5.2_素材模式完善版.txt",
       "bundledPath": "skills/content-rewrite/references/prompt-v5.2.txt",
-      "sizeBytes": 59617,
-      "sha256": "454a4c7c50b016de4ab171635184e20b6f395031505d1fee5cb53b7fe54211d7"
+      "sizeBytes": 59759,
+      "sha256": "24e1fc7268634e6a5538dea84b67c91e89cb2cffa1905769097b7be45b71ee85"
     },
     {
       "stage": 3,

@@ -37,7 +37,7 @@ description: 根据 content-deconstruct 冻结的拆书报告、改编档位、�
 
 1. 调用 `content_project_start` 建立绑定项目。
 2. 生成唯一完整方案及 `sourceTransformationMap`。其中每个来源条目继续记录功能迁移，同时用方向包绑定 `adaptationMode`、`mustPreserve`、`allowedToChange`、`mustRebuild`、`sourceAnchorRefs`、`expansionSeamIds`、`sourceFidelityEvidence`、`naturalExpansionRationale`、`rebuiltCausalBranch`、`nonCopyEvidence` 和 `genericTemplateRisk=false`；调用 `content_topic_checkpoint` 和 `content_topic_finalize` 冻结 Topic Package v1。
-3. 按目标市场的目标语言直接创作完整仿写稿。只分“短篇”和“长篇”两档；用户或频道预设的篇幅、集数和输出语言优先于提示词默认的四章篇幅。长篇可以分批保存，但不能压缩事件链、章节功能或结构质量。
+3. 按目标市场的目标语言直接创作完整仿写稿。只分“短篇”和“长篇”两档，并严格读取当前项目已确认的篇幅、集数和输出语言；没有已确认范围时返回上游补齐，不得把任何四章模板当作默认值。长篇可以分批保存，但不能压缩事件链、章节功能或结构质量。
 4. 初稿完成后立即调用 `content_review_document_save`，使用 `documentType=rewrite-draft-target` 保存完整正文。不得等到审核结束才落盘，也不得用摘要代替正文。
 5. 工具生成稳定文件 `用户审核文档/04_仿写初稿_目标语言.txt` 和不可覆盖的历史版本。调用 `content_review_documents_get`，向用户展示文件路径、版本和 SHA-256。
 6. 调用 `content_integrity_check`，确认来源锁、Topic Package 和初稿文档仍有效。

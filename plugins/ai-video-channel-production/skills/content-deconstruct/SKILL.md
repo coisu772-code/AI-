@@ -51,7 +51,7 @@ description: 完整拆解一个或多个视频字幕、上传文本、小说正�
 
 工具同时保存 `01_原始素材说明.md`、`02_完整拆解报告.md`、`03_迁移方向选择.md`，再生成 Content Deconstruction Package v1。随后调用 `content_deconstruction_integrity_check`，并向用户展示三份文档的可点击路径、版本与 SHA-256。查询或恢复使用 `content_deconstruction_get`，只补缺失范围。
 
-审核模式完成后状态固定为 `D2_DECONSTRUCTION_AWAITING_USER`，展示报告、15 个方向和推荐项并结束当前轮次。用户选择方向后再冻结 `D3_TOPIC`；普通“继续／按推荐”只确认当前推荐方向。只有当前任务已有明确自动授权时，才可自动采用最高分合格方向并交给 `$content-rewrite`。
+审核模式完成后阶段门固定为 `D2_DECONSTRUCTION`，方向选择状态固定为 `AWAITING_USER`；展示报告、15 个方向和推荐项后结束当前轮次。用户选择方向后再冻结 `D3_TOPIC`；普通“继续／按推荐”只确认当前推荐方向。只有当前任务已有明确自动授权时，才可自动采用最高分合格方向并交给 `$content-rewrite`。
 
 ## 边界
 

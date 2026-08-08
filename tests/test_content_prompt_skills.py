@@ -128,7 +128,15 @@ class ContentPromptSkillTests(unittest.TestCase):
         self.assertNotIn("必须输出不少于6个方向", deconstruct_prompt)
         self.assertNotIn("所有主要人物的姓名、身份、职业", rewrite_prompt)
         self.assertNotIn("开局 → 第一目标 → 初次受阻 → 第一次反馈", deconstruct_prompt)
-        self.assertNotIn("默认一次性输出完整 4 章", rewrite_prompt)
+        for forbidden_fixed_length_rule in (
+            "默认一次性输出完整 4 章",
+            "支撑完整4章",
+            "提示词默认的四章篇幅",
+        ):
+            self.assertNotIn(forbidden_fixed_length_rule, rewrite_prompt)
+            self.assertNotIn(forbidden_fixed_length_rule, rewrite_skill)
+        self.assertIn("不得自行套固定章数或字数", rewrite_prompt)
+        self.assertIn("不得把任何四章模板当作默认值", rewrite_skill)
         self.assertIn("不得给全部方向套统一九段式", deconstruct_prompt)
         self.assertIn("高贴合方向至少绑定 3 个事实锚点", deconstruct_skill)
 
