@@ -112,7 +112,7 @@ def main() -> int:
             "deno:" + str((active_root / "runtime/python/tools/deno.exe").resolve()),
             "--ffmpeg-location",
             str((active_root / "apps/workshop/tools/ffmpeg/bin").resolve()),
-        ], separators=(",", ":")),
+        ], ensure_ascii=False, separators=(",", ":")),
         "AIVCP_PUBLISHER_TIMEOUT_SECONDS": "8",
         "AIVCP_NETWORK_EXECUTION": "false",
         "AIVCP_PUBLISHER_NETWORK_EXECUTION": "false",
