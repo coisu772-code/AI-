@@ -17,7 +17,7 @@
       "sha256": "272310805acb9ab199f18cfaf0836ae39f3ba2d7352520fda8a99347ad3f99e7",
       "sizeBytes": 16247,
       "source": {
-        "commit": "LOCAL_COMMIT_TO_BE_RECORDED",
+        "commit": "2dcf2a15c52ce9b0a349399ee91b8594b932b55e",
         "repository": "https://github.com/coisu772-code/AI-/"
       },
       "version": "0.11.0-rc.4"
@@ -39,7 +39,7 @@
       "sha256": "cc1d0dd93e78f02bfee2c76664316e532c0bbe7d14a750f19818a75251f162ca",
       "sizeBytes": 609825,
       "source": {
-        "commit": "LOCAL_COMMIT_TO_BE_RECORDED",
+        "commit": "2dcf2a15c52ce9b0a349399ee91b8594b932b55e",
         "repository": "https://github.com/coisu772-code/AI-/"
       },
       "version": "0.11.0-rc.4"
@@ -312,7 +312,7 @@
   "productName": "AI 视频频道生产系统",
   "productVersion": "0.11.0-rc.4",
   "publicationGates": [
-    "replace-local-commit-placeholders",
+    "tag-to-source-commit-verification",
     "release-license-owner-approval",
     "clean-windows-acceptance",
     "github-release-approval",

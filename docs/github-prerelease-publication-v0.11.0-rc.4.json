@@ -1,0 +1,95 @@
+{
+  "schemaVersion": "1.0.0",
+  "productVersion": "0.11.0-rc.4",
+  "status": "PASS",
+  "publishedAt": "2026-08-08T06:32:34Z",
+  "release": {
+    "id": 367131796,
+    "url": "https://github.com/coisu772-code/AI-/releases/tag/v0.11.0-rc.4",
+    "tag": "v0.11.0-rc.4",
+    "draft": false,
+    "prerelease": true,
+    "latest": false,
+    "remoteMainCommitShaAtPublication": "2dcf2a15c52ce9b0a349399ee91b8594b932b55e",
+    "annotatedTagObjectSha": "763c2dfcb25ff828946c912cbcc353c26a8afb6c",
+    "tagResolvedCommitSha": "2dcf2a15c52ce9b0a349399ee91b8594b932b55e"
+  },
+  "contentChange": {
+    "requestedCommit": "38767a0d23abde9520fe11f77230f319d1417ac1",
+    "acceptanceFixCommit": "98c9fdad8fb9dcfe28673f239fa918c50ad0101d",
+    "description": "source-grounded adaptation routing, deconstruction evidence gates and adaptive structure"
+  },
+  "releaseSource": {
+    "commit": "2dcf2a15c52ce9b0a349399ee91b8594b932b55e"
+  },
+  "workshopSource": {
+    "commit": "56df24dc34ecbf03dc341edf42dd976a24c8a502",
+    "componentVersion": "2.4.0-rc.1",
+    "bundledInUnifiedRelease": true
+  },
+  "publisherSource": {
+    "commit": "00adafe9fa6b358991616793d545e0ef0def9ee9",
+    "componentVersion": "0.9.0-rc.2",
+    "bundledInUnifiedRelease": true
+  },
+  "assets": {
+    "uploadedTotal": 7,
+    "corePackages": 5,
+    "metadata": 2,
+    "uploadedBytes": 259020701,
+    "reusedOptionalRuntimeAttachments": 9,
+    "reusedOptionalRuntimeTag": "v0.10.0-rc.1",
+    "manifestSha256": "8173db06256eeee208952bbd5348762b4f23707e533e1c689102001e88e7b0ee",
+    "checksumsSha256": "34e7c830ae12da2b72fa273e9062b8c7d34194f2398b1128c92534dcc848c254",
+    "allManifestSizesMatched": true,
+    "allGitHubDigestSha256Matched": true,
+    "allRemoteDownloadsMatched": true,
+    "allReusedRuntimeDigestsMatched": true
+  },
+  "acceptance": {
+    "systemUnitTests": {
+      "total": 220,
+      "passed": 220,
+      "skipped": 0,
+      "failed": 0,
+      "errors": 0
+    },
+    "skillCount": 12,
+    "pluginValidationPassed": true,
+    "marketplaceValidationPassed": true,
+    "contractExamplesPassed": 10,
+    "repositorySafetyFilesChecked": 398,
+    "deterministicBuildsMatched": true,
+    "isolatedDefaultPathLifecyclePassed": true,
+    "isolatedUnicodeAndSpacesPathPassed": true,
+    "isolatedOfflineAndLoopbackOnlineInstallPassed": true,
+    "installedToolCount": 88,
+    "installedHealthCheckPassed": true,
+    "upgradeRollbackRepairPassed": true,
+    "runtimeTamperCasesRejected": 8,
+    "isolatedUninstallPassed": true,
+    "uninstallPreservedTestUserData": true
+  },
+  "authentication": {
+    "existingGitCredentialReused": true,
+    "interactiveBrowserLoginStarted": false,
+    "ghCliRequired": false
+  },
+  "privacy": {
+    "oauthTokenIncluded": false,
+    "credentialIncluded": false,
+    "userProjectIncluded": false,
+    "runtimeDataIncluded": false,
+    "googleYoutubeOAuthExecuted": false,
+    "realVideoUploadExecuted": false,
+    "userDataMigrationExecuted": false,
+    "longTermLearningWriteExecuted": false,
+    "remoteDeletionExecuted": false,
+    "existingReleaseOverwritten": false
+  },
+  "residualRisks": [
+    "The full Windows lifecycle completed in 713 seconds under real-time file scanning; installation progress can appear idle while large components are scanned.",
+    "The lifecycle used a fresh cached plugin process and validated 88 tools, but did not launch a visible Codex UI; users must restart Codex and create a new task after updating.",
+    "Google/YouTube OAuth and real video upload remain outside this release approval and were not executed."
+  ]
+}
