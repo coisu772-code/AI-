@@ -49,6 +49,15 @@ def with_hash(document: dict[str, Any]) -> dict[str, Any]:
 def validate_defaults(defaults: Any) -> dict[str, Any]:
     if not isinstance(defaults, dict):
         raise ToolError("INVALID_DEFAULTS", "生产默认值必须是对象。")
+    defaults = json.loads(json.dumps(defaults, ensure_ascii=False))
+    defaults.setdefault(
+        "imageStyle",
+        {
+            "presetId": "visual_01",
+            "prompt": "现代二维商业电视动画视觉；线条干净稳定，赛璐璐分层上色，人物与背景适合连续叙事。",
+        },
+    )
+    defaults.setdefault("storyImageTextPolicy", "forbid_visible_text")
     required = {"voice", "manuscript", "episodes", "deliveryMode", "videoGeneration", "uploadPolicy"}
     missing = sorted(required - set(defaults))
     if missing:
@@ -73,6 +82,14 @@ def validate_defaults(defaults: Any) -> dict[str, Any]:
 
     if defaults.get("deliveryMode") not in {"auto_render", "jianying_refine"}:
         raise ToolError("INVALID_DEFAULTS", "制作方式不受支持。")
+    image_style = defaults.get("imageStyle")
+    if not isinstance(image_style, dict) or not all(
+        isinstance(image_style.get(key), str) and image_style[key].strip()
+        for key in ("presetId", "prompt")
+    ):
+        raise ToolError("INVALID_DEFAULTS", "图片风格必须包含当前预设 presetId 和完整 prompt。")
+    if defaults.get("storyImageTextPolicy") != "forbid_visible_text":
+        raise ToolError("INVALID_DEFAULTS", "故事画面必须使用 forbid_visible_text 禁字策略。")
     if defaults.get("uploadPolicy") not in {"DO_NOT_UPLOAD", "REQUIRE_REVIEW", "AUTO"}:
         raise ToolError("INVALID_DEFAULTS", "上传策略不受支持。")
     video = defaults.get("videoGeneration")
@@ -80,6 +97,15 @@ def validate_defaults(defaults: Any) -> dict[str, Any]:
         raise ToolError("INVALID_DEFAULTS", "videoGeneration 必须是对象。")
     if not isinstance(video.get("enabled"), bool):
         raise ToolError("INVALID_DEFAULTS", "videoGeneration.enabled 必须是布尔值。")
+    if "frameInputMode" in video or "endFrameSource" in video:
+        if video.get("enabled") is not True:
+            raise ToolError("INVALID_DEFAULTS", "频道长期默认不得持久化镜头视频输入模式；只能在本次明确开启视频时临时设置。")
+        frame_input_mode = str(video.get("frameInputMode") or "first_frame").strip()
+        end_frame_source = str(video.get("endFrameSource") or "dedicated_generated").strip()
+        if frame_input_mode not in {"first_frame", "first_last_frame"}:
+            raise ToolError("INVALID_DEFAULTS", "视频输入模式只能选择仅首帧或首尾帧。")
+        if end_frame_source != "dedicated_generated":
+            raise ToolError("INVALID_DEFAULTS", "尾帧来源当前只支持同镜头独立生成。")
     if video.get("selectionMode") not in {
         "none", "project_first_n_storyboards", "episode_first_n_storyboards", "all_storyboards"
     }:
