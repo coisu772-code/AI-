@@ -14,7 +14,13 @@ from typing import Any
 
 from .contracts import canonical_hash, utc_now, with_hash
 from .errors import ToolError
-from .review_documents import review_documents_view, save_review_document
+from .review_documents import (
+    render_script_text,
+    review_documents_view,
+    save_review_document,
+    validate_review_document_bindings,
+    validate_review_documents,
+)
 from .security import contains_sensitive_material
 
 
@@ -288,11 +294,17 @@ def _production_overview_markdown(
     production_preset: dict[str, Any],
     package_path: Path,
     package_hash: str,
+    review_documents: dict[str, Any],
 ) -> str:
     def cell(value: Any) -> str:
         return str(value).replace("|", "\\|").replace("\r", " ").replace("\n", "<br>")
 
     video = production_config["videoGeneration"]
+    review_by_id = {item["documentId"]: item for item in review_documents.get("documents", [])}
+    target_review = review_by_id["final-script-target"]
+    chinese_review = review_by_id["final-script-zh"]
+    machine_script_path = package_path / "script_lines.json"
+    machine_script_hash = _sha256_file(machine_script_path) if machine_script_path.is_file() else "尚未生成"
     lines = [
         "# 完整生产资料总览",
         "",
@@ -303,10 +315,24 @@ def _production_overview_markdown(
         f"- 正式标题：{publishing['title']}",
         f"- 中文标题：{publishing['titleZhTranslation']}",
         f"- 制作方式：`{production_config['deliveryMode']}`",
+        f"- 图片风格预设：`{production_config['imageStyle']['presetId']}`",
+        f"- 图片风格提示词：{production_config['imageStyle']['prompt']}",
+        f"- 剧情图片文字策略：`{production_config['storyImageTextPolicy']}`（角色图、分镜图和宫格图禁止可读文字；正式封面不受此项限制）",
         f"- 视频生成范围：`{video['selectionMode']}`",
         f"- 视频失败策略：`{video['fallbackPolicy']}`",
         f"- Production Package：`{package_path}`",
         f"- Package SHA-256：`{package_hash}`",
+        "",
+        "## 正式口播稿与中文审核稿",
+        "",
+        f"- **唯一用于配音、字幕和分镜的正式口播稿**：`{target_review['absolutePath']}`",
+        f"- 正式口播稿 SHA-256：`{target_review['sha256']}`",
+        f"- 正式口播稿内容绑定：`{manuscript['targetScript']['contentHash']}`",
+        f"- 工坊机器输入：`{machine_script_path}`",
+        f"- 工坊机器输入 SHA-256：`{machine_script_hash}`",
+        f"- 中文审核稿（禁止生产）：`{chinese_review['absolutePath']}`",
+        f"- 中文审核稿 SHA-256：`{chinese_review['sha256']}`",
+        "- 绑定状态：`PASSED`；07 正式稿与 `script_lines.json` 来自同一组目标语言结构化行。",
         "",
         "## 配音与角色",
         "",
@@ -494,9 +520,116 @@ class ProductionCenter:
             )
         ):
             raise ToolError("PRODUCTION_FOREIGN_LANGUAGE_QUALITY_GATE_INVALID", "外语质量保险门缺失、未通过或没有绑定当前正式母稿。")
+        target_lines = target_script.get("lines", [])
+        audit_lines = (
+            target_lines
+            if manuscript.get("targetLanguage", "").lower().startswith("zh")
+            else manuscript.get("auditScript", {}).get("lines", [])
+        )
+        try:
+            expected_target_text = render_script_text(target_lines)
+            expected_audit_text = render_script_text(audit_lines)
+        except ValueError as exc:
+            raise ToolError("PRODUCTION_TARGET_SCRIPT_INVALID", str(exc)) from exc
+        review_view = review_documents_view(user_project_root)
+        required_review_documents = tuple(
+            dict.fromkeys(
+                [item["documentId"] for item in review_view["documents"]]
+                + [
+            "rewrite-draft-target",
+            "editorial-review",
+            "revision-log",
+            "final-script-target",
+            "final-script-zh",
+            "packaging-bilingual",
+            "thumbnail-review",
+                ]
+            )
+        )
+        review_validation = validate_review_documents(user_project_root, required_review_documents)
+        if review_validation["status"] != "PASS":
+            raise ToolError(
+                "PRODUCTION_REVIEW_DOCUMENTS_REQUIRED",
+                "用户审核文档缺失、损坏或用途标记错误，不能组装生产包。",
+                details={"errors": review_validation["errors"]},
+            )
+        topic_ref = manuscript.get("upstream", [{}])[0]
+        review_binding_expectations = {
+                "rewrite-draft-target": {
+                    "sourceContractType": topic_ref.get("targetContractType"),
+                    "sourceContractId": topic_ref.get("targetId"),
+                    "sourceContentHash": topic_ref.get("targetHash"),
+                },
+                "editorial-review": {
+                    "sourceContractType": topic_ref.get("targetContractType"),
+                    "sourceContractId": topic_ref.get("targetId"),
+                    "sourceContentHash": topic_ref.get("targetHash"),
+                },
+                "revision-log": {
+                    "sourceContractType": topic_ref.get("targetContractType"),
+                    "sourceContractId": topic_ref.get("targetId"),
+                    "sourceContentHash": topic_ref.get("targetHash"),
+                },
+                "final-script-target": {
+                    "content": expected_target_text,
+                    "language": manuscript["targetLanguage"],
+                    "productionUseAllowed": True,
+                    "sourceContractType": manuscript["contractType"],
+                    "sourceContractId": manuscript["id"],
+                    "sourceContentHash": manuscript["contentHash"],
+                },
+                "final-script-zh": {
+                    "content": expected_audit_text,
+                    "language": "zh-CN",
+                    "productionUseAllowed": False,
+                    "sourceContractType": manuscript["contractType"],
+                    "sourceContractId": manuscript["id"],
+                    "sourceContentHash": manuscript["contentHash"],
+                },
+                "packaging-bilingual": {
+                    "sourceContractType": publishing["contractType"],
+                    "sourceContractId": publishing["id"],
+                    "sourceContentHash": publishing["contentHash"],
+                },
+                "thumbnail-review": {
+                    "sourceContractType": publishing["contractType"],
+                    "sourceContractId": publishing["id"],
+                    "sourceContentHash": publishing["contentHash"],
+                },
+            }
+        review_binding = validate_review_document_bindings(user_project_root, review_binding_expectations)
+        if review_binding["status"] != "PASS":
+            raise ToolError(
+                "PRODUCTION_REVIEW_DOCUMENT_MISMATCH",
+                "用户看到的正式口播稿或中文审核稿与机器文稿包不一致。",
+                details={"errors": review_binding["errors"]},
+            )
         target_asset = target_script.get("asset")
         if isinstance(target_asset, dict):
-            _validate_descriptor(manuscript_root, target_asset, code="PRODUCTION_TARGET_SCRIPT_ASSET_INVALID")
+            target_asset_path = _validate_descriptor(manuscript_root, target_asset, code="PRODUCTION_TARGET_SCRIPT_ASSET_INVALID")
+            target_asset_document = _read_json(target_asset_path)
+            if target_asset_document.get("language") != manuscript.get("targetLanguage") or target_asset_document.get("lines") != target_lines:
+                raise ToolError("PRODUCTION_TARGET_SCRIPT_ASSET_INVALID", "目标语言机器稿与文稿合同不一致。")
+        else:
+            raise ToolError("PRODUCTION_TARGET_SCRIPT_ASSET_INVALID", "目标语言机器稿缺少结构化资产。")
+        target_text_asset = target_script.get("textAsset")
+        if not isinstance(target_text_asset, dict):
+            raise ToolError("PRODUCTION_TARGET_SCRIPT_ASSET_INVALID", "目标语言机器稿缺少可读文本资产。")
+        target_text_path = _validate_descriptor(manuscript_root, target_text_asset, code="PRODUCTION_TARGET_SCRIPT_ASSET_INVALID")
+        if target_text_path.read_text(encoding="utf-8-sig") != expected_target_text:
+            raise ToolError("PRODUCTION_TARGET_SCRIPT_ASSET_INVALID", "目标语言机器文本与结构化正式稿不一致。")
+        if not manuscript.get("targetLanguage", "").lower().startswith("zh"):
+            audit_script = manuscript.get("auditScript", {})
+            audit_text_asset = audit_script.get("textAsset")
+            audit_asset = audit_script.get("asset")
+            if not isinstance(audit_text_asset, dict) or not isinstance(audit_asset, dict):
+                raise ToolError("PRODUCTION_CHINESE_AUDIT_ASSET_INVALID", "非中文正式稿缺少中文审核资产。")
+            audit_text_path = _validate_descriptor(manuscript_root, audit_text_asset, code="PRODUCTION_CHINESE_AUDIT_ASSET_INVALID")
+            audit_asset_path = _validate_descriptor(manuscript_root, audit_asset, code="PRODUCTION_CHINESE_AUDIT_ASSET_INVALID")
+            audit_asset_document = _read_json(audit_asset_path)
+            if audit_text_path.read_text(encoding="utf-8-sig") != expected_audit_text or audit_asset_document.get("lines") != audit_lines:
+                raise ToolError("PRODUCTION_CHINESE_AUDIT_ASSET_INVALID", "中文审核机器资产与逐行映射不一致。")
+        review_by_id = {item["documentId"]: item for item in review_view["documents"]}
         thumbnail = publishing.get("thumbnail", {})
         if thumbnail.get("mode") != "real_file" or not isinstance(thumbnail.get("asset"), dict):
             raise ToolError("PRODUCTION_THUMBNAIL_INVALID", "必须锁定真实 16:9 封面。")
@@ -535,10 +668,16 @@ class ProductionCenter:
                         production_preset=production_preset,
                         package_path=existing,
                         package_hash=manifest["packageHash"],
+                        review_documents=review_view,
                     ),
                     language="zh-CN",
                     updated_at=manifest["createdAt"],
                     minimum_characters=120,
+                    source_binding={
+                        "contractType": manifest["packageType"],
+                        "contractId": manifest["productionPackageId"],
+                        "contentHash": manifest["packageHash"],
+                    },
                 )
             except ValueError as exc:
                 raise ToolError("PRODUCTION_REVIEW_DOCUMENT_INVALID", str(exc)) from exc
@@ -618,6 +757,13 @@ class ProductionCenter:
                     "version": catalog_version,
                     "hash": catalog_hash,
                 },
+                "targetScriptBinding": {
+                    "targetScriptContentHash": target_script["contentHash"],
+                    "userReviewDocumentId": "final-script-target",
+                    "userReviewDocumentSha256": review_by_id["final-script-target"]["sha256"],
+                    "productionUseAllowed": True,
+                    "productionFile": "script_lines.json",
+                },
             }
             for name, document in (
                 ("project.json", project),
@@ -672,10 +818,16 @@ class ProductionCenter:
                         production_preset=production_preset,
                         package_path=package_root,
                         package_hash=manifest["packageHash"],
+                        review_documents=review_view,
                     ),
                     language="zh-CN",
                     updated_at=manifest["createdAt"],
                     minimum_characters=120,
+                    source_binding={
+                        "contractType": manifest["packageType"],
+                        "contractId": manifest["productionPackageId"],
+                        "contentHash": manifest["packageHash"],
+                    },
                 )
             except ValueError as exc:
                 raise ToolError("PRODUCTION_REVIEW_DOCUMENT_INVALID", str(exc)) from exc
@@ -704,6 +856,49 @@ class ProductionCenter:
             raise ToolError("PRODUCTION_CONFIG_INVALID", "画幅、分辨率或帧率无效。")
         if width * 9 != height * 16:
             raise ToolError("PRODUCTION_CONFIG_INVALID", "分辨率不是 16:9。")
+        image_style = deepcopy(config.get("imageStyle"))
+        if not isinstance(image_style, dict):
+            raise ToolError("PRODUCTION_IMAGE_STYLE_REQUIRED", "开始制作前必须选择图片风格预设或确认自定义图片风格提示词。")
+        image_style_id = str(image_style.get("presetId") or "").strip()
+        image_style_prompt = str(image_style.get("prompt") or "").strip()
+        current_style_ids = {f"visual_{index:02d}" for index in range(1, 37)} | {"custom"}
+        if image_style_id not in current_style_ids:
+            raise ToolError(
+                "PRODUCTION_IMAGE_STYLE_RETIRED",
+                "新生产包只接受 visual_01–visual_36 或 custom；旧画风预设已退役。",
+            )
+        if not image_style_prompt:
+            raise ToolError("PRODUCTION_IMAGE_STYLE_REQUIRED", "图片风格提示词不能为空；每个新任务都必须明确确认一次。")
+        if len(image_style_prompt) > 2000:
+            raise ToolError("PRODUCTION_IMAGE_STYLE_INVALID", "图片风格提示词过长。")
+        story_image_text_policy = str(config.get("storyImageTextPolicy") or "").strip()
+        if story_image_text_policy != "forbid_visible_text":
+            raise ToolError(
+                "PRODUCTION_STORY_IMAGE_TEXT_POLICY_INVALID",
+                "角色图、分镜图和宫格图必须使用 forbid_visible_text；正式封面文字由封面流程单独管理。",
+            )
+        prompt_generation = deepcopy(config.get("promptGeneration", {"image": False, "video": False}))
+        if (
+            not isinstance(prompt_generation, dict)
+            or not isinstance(prompt_generation.get("image"), bool)
+            or not isinstance(prompt_generation.get("video"), bool)
+        ):
+            raise ToolError("PRODUCTION_PROMPT_GENERATION_INVALID", "图片提示词和视频提示词开关必须分别为明确的是／否。")
+        grid_batch = deepcopy(config.get("gridBatch", {"template": "wide_16_9_4", "selectionSource": "default"}))
+        if not isinstance(grid_batch, dict):
+            raise ToolError("PRODUCTION_GRID_BATCH_INVALID", "宫格批次必须是对象。")
+        grid_template = str(grid_batch.get("template") or "").strip()
+        valid_grid_templates = {
+            "wide_16_9_1", "wide_16_9_4", "wide_16_9_9", "wide_16_9_16",
+            "wide_4_3_4", "wide_4_3_9", "wide_4_3_16",
+            "portrait_9_16_1", "portrait_9_16_4", "portrait_9_16_9", "portrait_9_16_16",
+            "square_1_1_1", "square_1_1_4", "square_1_1_9", "square_1_1_16",
+        }
+        if grid_template not in valid_grid_templates:
+            raise ToolError("PRODUCTION_GRID_BATCH_INVALID", "宫格批次预设无效。")
+        grid_selection_source = str(grid_batch.get("selectionSource") or "default").strip()
+        if grid_selection_source not in {"user", "default", "production_profile"}:
+            raise ToolError("PRODUCTION_GRID_BATCH_INVALID", "宫格批次选择来源无效。")
         video = deepcopy(config.get("videoGeneration", {}))
         if not isinstance(video.get("enabled"), bool) or video.get("selectionMode") not in VIDEO_SELECTION_MODES:
             raise ToolError("PRODUCTION_VIDEO_SCOPE_INVALID", "视频生成范围无效。")
@@ -714,6 +909,18 @@ class ProductionCenter:
                 raise ToolError("PRODUCTION_VIDEO_SCOPE_INVALID", "按数量选择视频时必须提供正整数 count。")
         if not video["enabled"] and video["selectionMode"] != "none":
             raise ToolError("PRODUCTION_VIDEO_SCOPE_INVALID", "禁用视频生成时 selectionMode 必须为 none。")
+        frame_input_mode = str(video.get("frameInputMode") or "first_frame").strip()
+        raw_end_frame_source = video.get("endFrameSource")
+        end_frame_source = "dedicated_generated" if raw_end_frame_source is None else str(raw_end_frame_source).strip()
+        if frame_input_mode not in {"first_frame", "first_last_frame"}:
+            raise ToolError("PRODUCTION_VIDEO_FRAME_INPUT_INVALID", "视频输入模式只能选择仅首帧或首尾帧。")
+        if frame_input_mode == "first_last_frame":
+            if not video["enabled"]:
+                raise ToolError("PRODUCTION_VIDEO_FRAME_INPUT_INVALID", "首尾帧模式只能用于本次已明确开启的视频生成范围。")
+            if end_frame_source != "dedicated_generated":
+                raise ToolError("PRODUCTION_VIDEO_END_FRAME_INVALID", "首尾帧模式当前只接受同镜头独立尾帧。")
+        video["frameInputMode"] = frame_input_mode
+        video["endFrameSource"] = end_frame_source
         video["selectedStoryboardIds"] = []
         concurrency = deepcopy(config.get("concurrency", {"image": 1, "video": 1, "tts": 1}))
         if any(not isinstance(value, int) or isinstance(value, bool) or value < 1 or value > 16 for value in concurrency.values()):
@@ -727,6 +934,16 @@ class ProductionCenter:
             "width": width,
             "height": height,
             "frameRate": frame_rate,
+            "imageStyle": {"presetId": image_style_id, "prompt": image_style_prompt},
+            "storyImageTextPolicy": story_image_text_policy,
+            "promptGeneration": {
+                "image": prompt_generation["image"],
+                "video": prompt_generation["video"],
+            },
+            "gridBatch": {
+                "template": grid_template,
+                "selectionSource": grid_selection_source,
+            },
             "videoGeneration": video,
             "concurrency": concurrency,
             "retryLimit": retry_limit,
@@ -1038,6 +1255,21 @@ class ProductionCenter:
 
     def retry_failed(self, task_id: Any) -> dict[str, Any]:
         task = self._load_task(task_id)
+        if not task.get("synthetic") and isinstance(task.get("workshop"), dict):
+            if task.get("state") not in {"FAILED", "PAUSED", "NEEDS_REPAIR", "RETRYING"}:
+                raise ToolError("PRODUCTION_TASK_NOT_RETRYABLE", "真实工坊任务当前不处于失败或暂停状态。")
+            previous_request_id = task["workshop"].get("requestId")
+            task["workshop"]["previousRequestId"] = previous_request_id
+            task["workshop"].pop("requestId", None)
+            task["workshop"].pop("lastStatus", None)
+            task["state"] = "RETRYING"
+            task["runId"] = None
+            self._save_task(
+                task,
+                event="WORKSHOP_RETRY_SCHEDULED",
+                details={"previousRequestId": previous_request_id, "skipCompleted": True},
+            )
+            return task
         failed_assets = [asset for asset in task["assets"] if asset.get("status") == "FAILED"]
         if not failed_assets:
             raise ToolError("PRODUCTION_NO_FAILED_ASSETS", "没有可重试的失败资产。")
@@ -1373,6 +1605,22 @@ class ProductionCenter:
                 continue
             image_path = self._task_root(task["productionTaskId"]) / "assets" / "storyboard-images" / f"{storyboard_id}.png"
             video_path = self._task_root(task["productionTaskId"]) / "assets" / "storyboard-videos" / f"{storyboard_id}.mp4"
+            upstream_ids = [f"storyboard-image-{storyboard_id}"]
+            if video_config.get("frameInputMode") == "first_last_frame":
+                end_frame_path = self._task_root(task["productionTaskId"]) / "assets" / "storyboard-end-frames" / f"{storyboard_id}.png"
+                if not end_frame_path.is_file():
+                    _write_copy(image_path, end_frame_path)
+                end_frame_asset_id = f"storyboard-end-frame-{storyboard_id}"
+                self._register_asset(
+                    task,
+                    step_id="P8",
+                    asset_id=end_frame_asset_id,
+                    asset_type="storyboard-end-frame",
+                    path=end_frame_path,
+                    input_value={"storyboardId": storyboard_id, "source": "dedicated_generated", "synthetic": task["synthetic"]},
+                    upstream_ids=[f"storyboard-image-{storyboard_id}"],
+                )
+                upstream_ids.append(end_frame_asset_id)
             if storyboard_id in fail_storyboard_ids:
                 if video_config["fallbackPolicy"] == "use_static_image":
                     task["fallbacks"].append({"storyboardId": storyboard_id, "mode": "use_static_image", "reason": "synthetic injected video failure"})
@@ -1382,7 +1630,7 @@ class ProductionCenter:
                 failed = True
                 continue
             self._render_media(image_path, video_path, duration_seconds=0.75, width=documents["production_config.json"]["width"], height=documents["production_config.json"]["height"], frame_rate=documents["production_config.json"]["frameRate"])
-            self._register_asset(task, step_id="P8", asset_id=asset_id, asset_type="storyboard-video", path=video_path, input_value={"storyboardId": storyboard_id, "videoConfig": video_config}, upstream_ids=[f"storyboard-image-{storyboard_id}"])
+            self._register_asset(task, step_id="P8", asset_id=asset_id, asset_type="storyboard-video", path=video_path, input_value={"storyboardId": storyboard_id, "videoConfig": video_config}, upstream_ids=upstream_ids)
         if failed:
             step = self._step(task, "P8")
             step["status"] = "FAILED"
@@ -1401,6 +1649,7 @@ class ProductionCenter:
             "status": "PASSED" if not failed else "FAILED",
             "failedAssetIds": failed,
             "selectedStoryboardIds": task["selectedStoryboardIds"],
+            "frameInputMode": documents["production_config.json"]["videoGeneration"].get("frameInputMode", "first_frame"),
             "fallbacks": task["fallbacks"],
             "synthetic": task["synthetic"],
         }
@@ -1613,9 +1862,17 @@ class ProductionCenter:
         for item, line in zip(items, expected_lines, strict=True):
             if item.get("textHash") != _sha256_bytes(line["text"].encode("utf-8")) or item.get("endSeconds", 0) <= item.get("startSeconds", 0):
                 raise ToolError("PRODUCTION_SUBTITLE_MAPPING_MISMATCH", "字幕文本或时间轴映射无效。")
-        srt_text = subtitles_path.read_text(encoding="utf-8")
-        if any(line["text"] not in srt_text for line in expected_lines):
-            raise ToolError("PRODUCTION_SUBTITLE_MAPPING_MISMATCH", "SRT 没有完整包含目标语言正式母稿。")
+        srt_text = subtitles_path.read_text(encoding="utf-8-sig")
+        subtitle_text_parts: list[str] = []
+        for block in re.split(r"\r?\n\s*\r?\n", srt_text.strip()):
+            rows = block.splitlines()
+            time_index = next((index for index, row in enumerate(rows) if "-->" in row), None)
+            if time_index is not None:
+                subtitle_text_parts.extend(rows[time_index + 1 :])
+        normalized_subtitles = re.sub(r"\s+", "", "".join(subtitle_text_parts))
+        normalized_script = re.sub(r"\s+", "", "".join(line["text"] for line in expected_lines))
+        if not normalized_script or normalized_script not in normalized_subtitles:
+            raise ToolError("PRODUCTION_SUBTITLE_MAPPING_MISMATCH", "SRT 没有按原顺序完整包含目标语言正式母稿。")
         expected_duration = float(timeline.get("durationSeconds", 0))
         if abs(duration - expected_duration) > max(1.0, expected_duration * 0.2):
             raise ToolError("PRODUCTION_TIMELINE_DURATION_MISMATCH", "成片时长与字幕时间轴超出允许误差。")
@@ -1639,6 +1896,288 @@ class ProductionCenter:
             "timelineMapSha256": _sha256_file(timeline_path),
         }
 
+    @staticmethod
+    def _workshop_selected_steps(config: dict[str, Any]) -> list[str]:
+        steps = [
+            "character_images",
+            "voice_matching",
+            "character_assets_gate",
+            "audio",
+            "storyboard",
+        ]
+        prompt_generation = config.get("promptGeneration")
+        if isinstance(prompt_generation, dict) and bool(prompt_generation.get("image") or prompt_generation.get("video")):
+            steps.append("image_prompts")
+        steps.append("grid_image")
+        if bool(config.get("videoGeneration", {}).get("enabled")):
+            steps.append("video")
+        steps.append("diagnostics")
+        steps.append("export" if config.get("deliveryMode") == "jianying_refine" else "final_render")
+        return steps
+
+    @staticmethod
+    def _srt_end_seconds(path: Path) -> float:
+        text = path.read_text(encoding="utf-8-sig")
+        matches = re.findall(r"-->\s*(\d{2}):(\d{2}):(\d{2})[,.](\d{3})", text)
+        if not matches:
+            raise ToolError("PRODUCTION_SUBTITLES_INVALID", "工坊 SRT 不包含可解析的时间轴。")
+        hour, minute, second, millisecond = matches[-1]
+        return int(hour) * 3600 + int(minute) * 60 + int(second) + int(millisecond) / 1000
+
+    def _write_workshop_timeline(
+        self,
+        task: dict[str, Any],
+        documents: dict[str, dict[str, Any]],
+        workshop_snapshot: dict[str, Any],
+        subtitle_path: Path,
+        destination: Path,
+    ) -> Path:
+        lines = documents["script_lines.json"]["lines"]
+        workshop_lines = {
+            item.get("lineId"): item
+            for item in workshop_snapshot.get("scriptLines", [])
+            if isinstance(item, dict) and item.get("lineId")
+        }
+        duration_total = self._srt_end_seconds(subtitle_path)
+        weights = []
+        for line in lines:
+            item = workshop_lines.get(line["lineId"], {})
+            try:
+                duration = float(item.get("durationSeconds") or 0)
+            except (TypeError, ValueError):
+                duration = 0
+            weights.append(max(duration, 0.01))
+        weight_total = sum(weights)
+        cursor = 0.0
+        timeline_items = []
+        for index, (line, weight) in enumerate(zip(lines, weights, strict=True), 1):
+            start = cursor
+            end = duration_total if index == len(lines) else cursor + duration_total * weight / weight_total
+            timeline_items.append(
+                {
+                    "cue": index,
+                    "lineId": line["lineId"],
+                    "episodeNumber": line["episodeNumber"],
+                    "speakerId": line["speakerId"],
+                    "startSeconds": round(start, 3),
+                    "endSeconds": round(end, 3),
+                    "textHash": _sha256_bytes(line["text"].encode("utf-8")),
+                }
+            )
+            cursor = end
+        _atomic_json(
+            destination,
+            {
+                "schemaVersion": "1.0.0",
+                "language": documents["script_lines.json"]["language"],
+                "durationSeconds": round(duration_total, 3),
+                "items": timeline_items,
+                "source": "workshop-script-line-durations-scaled-to-final-srt",
+            },
+        )
+        return destination
+
+    def _sample_video_frames(self, task: dict[str, Any], video_path: Path, duration_seconds: float) -> dict[str, Any]:
+        sample_root = self._task_root(task["productionTaskId"]) / "reports" / "frame-samples"
+        sample_root.mkdir(parents=True, exist_ok=True)
+        hashes: list[str] = []
+        for index, ratio in enumerate((0.1, 0.3, 0.5, 0.7, 0.9), 1):
+            output = sample_root / f"frame-{index:02d}.png"
+            self._run_command(
+                [
+                    self.ffmpeg_path,
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-ss",
+                    f"{max(0.0, duration_seconds * ratio):.3f}",
+                    "-i",
+                    str(video_path),
+                    "-frames:v",
+                    "1",
+                    "-vf",
+                    "scale=320:-2",
+                    str(output),
+                ],
+                code="PRODUCTION_FRAME_SAMPLE_FAILED",
+            )
+            if not output.is_file() or output.stat().st_size == 0:
+                raise ToolError("PRODUCTION_FRAME_SAMPLE_FAILED", "无法从正式成片抽取技术验收帧。")
+            hashes.append(_sha256_file(output))
+        return {
+            "sampleCount": len(hashes),
+            "uniqueFrameCount": len(set(hashes)),
+            "frameHashes": hashes,
+        }
+
+    def _workshop_media_integrity(
+        self,
+        task: dict[str, Any],
+        workshop_snapshot: dict[str, Any],
+        *,
+        video_path: Path,
+        duration_seconds: float,
+    ) -> dict[str, Any]:
+        images = workshop_snapshot.get("storyboardImages", [])
+        image_hashes = [str(item.get("sha256") or "") for item in images if isinstance(item, dict)]
+        total = len(image_hashes)
+        unique = len(set(image_hashes))
+        duplicates = total - unique
+        duplicate_ratio = duplicates / total if total else 1.0
+        if total == 0 or (total > 1 and (unique < 2 or duplicate_ratio > 0.5)):
+            raise ToolError(
+                "PRODUCTION_STORYBOARD_IMAGE_INTEGRITY_FAILED",
+                "分镜图片缺失或大面积精确重复，已阻止把占位画面当作正式成片。",
+                details={
+                    "totalStoryboardImages": total,
+                    "uniqueImageCount": unique,
+                    "exactDuplicateRatio": round(duplicate_ratio, 6),
+                },
+            )
+        frame_samples = self._sample_video_frames(task, video_path, duration_seconds)
+        if total > 1 and frame_samples["uniqueFrameCount"] < 2:
+            raise ToolError(
+                "PRODUCTION_FINAL_VIDEO_VISUAL_CHANGE_FAILED",
+                "最终视频抽样画面没有任何变化，已阻止静态占位成片进入发布中心。",
+            )
+        return {
+            "status": "PASSED",
+            "provenance": "workshop",
+            "placeholderRunnerUsed": False,
+            "totalStoryboardImages": total,
+            "uniqueImageCount": unique,
+            "exactDuplicateCount": duplicates,
+            "exactDuplicateRatio": round(duplicate_ratio, 6),
+            **frame_samples,
+        }
+
+    def _ingest_workshop_completion(
+        self,
+        task: dict[str, Any],
+        documents: dict[str, dict[str, Any]],
+        snapshot: dict[str, Any],
+    ) -> dict[str, Any]:
+        render_root = self._task_root(task["productionTaskId"]) / "render"
+        render_root.mkdir(parents=True, exist_ok=True)
+        video_path = render_root / "final-video.mp4"
+        subtitle_path = render_root / "subtitles.srt"
+        _write_copy(Path(snapshot["finalVideoPath"]), video_path)
+        _write_copy(Path(snapshot["subtitlePath"]), subtitle_path)
+        timeline_path = self._write_workshop_timeline(
+            task,
+            documents,
+            snapshot,
+            subtitle_path,
+            render_root / "timeline-map.json",
+        )
+        validation = self.validate_video(
+            video_path=video_path,
+            subtitles_path=subtitle_path,
+            timeline_path=timeline_path,
+            expected_lines=documents["script_lines.json"]["lines"],
+            expected_width=documents["production_config.json"]["width"],
+            expected_height=documents["production_config.json"]["height"],
+        )
+        validation["synthetic"] = False
+        validation["provenance"] = "workshop"
+        validation["placeholderRunnerUsed"] = False
+        validation["mediaIntegrity"] = self._workshop_media_integrity(
+            task,
+            snapshot,
+            video_path=video_path,
+            duration_seconds=validation["durationSeconds"],
+        )
+        validation["workshopUploadReport"] = {
+            key: snapshot.get("uploadReport", {}).get(key)
+            for key in ("status", "sceneCount", "subtitleCount", "durationSec", "resolution", "renderHash")
+        }
+        validation_path = self._task_root(task["productionTaskId"]) / "reports" / "p11-validation.json"
+        _atomic_json(validation_path, validation)
+        task["selectedStoryboardIds"] = [str(item.get("sceneId")) for item in snapshot["storyboardImages"]]
+        task["workshop"]["artifactSnapshot"] = {
+            "provenance": "workshop",
+            "storyboardImageCount": len(snapshot["storyboardImages"]),
+            "uploadReportSha256": _sha256_file(Path(snapshot["uploadReportPath"])),
+            "finalVideoSha256": _sha256_file(video_path),
+            "subtitlesSha256": _sha256_file(subtitle_path),
+        }
+        self._register_asset(task, step_id="P10", asset_id="final-video", asset_type="final-video", path=video_path, source="workshop")
+        self._register_asset(task, step_id="P10", asset_id="subtitles", asset_type="subtitles", path=subtitle_path, source="workshop")
+        self._register_asset(task, step_id="P10", asset_id="timeline-map", asset_type="timeline-map", path=timeline_path, source="workshop")
+        self._register_asset(task, step_id="P11", asset_id="technical-validation", asset_type="quality-report", path=validation_path, source="workshop")
+        for step in task["steps"]:
+            step["status"] = "SKIPPED" if step["stepId"] == "P8" and not task["videoGeneration"].get("enabled") else "COMPLETED"
+            step["attempts"] = max(1, int(step.get("attempts", 0)))
+        self._update_progress(task)
+        task["state"] = "VIDEO_READY"
+        result_root = self._build_result_package(task, documents, validation_path)
+        task["resultPackagePath"] = str(result_root)
+        self._save_task(task, event="VIDEO_READY", details={"resultPackagePath": str(result_root), "provenance": "workshop"})
+        return {"task": task, "idempotent": False, "workshopCompleted": True}
+
+    def _run_workshop_task(self, task: dict[str, Any]) -> dict[str, Any]:
+        if self.workshop_bridge is None:
+            raise ToolError("PRODUCTION_WORKSHOP_UNAVAILABLE", "正式制作必须使用真实工坊桥。")
+        project_path_text = str(task.get("import", {}).get("projectPath") or "").strip()
+        if not project_path_text:
+            raise ToolError("PRODUCTION_WORKSHOP_IMPORT_INVALID", "正式制作任务缺少隔离工坊项目路径。")
+        project_path = Path(project_path_text)
+        documents = self._task_documents(task)
+        workshop = task.setdefault("workshop", {})
+        request_id = str(workshop.get("requestId") or "")
+        if not request_id:
+            if self._step(task, "P0")["status"] != "COMPLETED":
+                self._execute_p0(task, documents)
+            request_id = f"stage5-{task['productionTaskId']}-{uuid.uuid4().hex[:12]}"
+            selected_steps = self._workshop_selected_steps(documents["production_config.json"])
+            start = self.workshop_bridge.start_production(
+                project_path,
+                selected_step_ids=selected_steps,
+                request_id=request_id,
+                expected_project_id=task["projectId"],
+                skip_completed=True,
+            )
+            request_id = str(start.get("requestId") or request_id)
+            task["runId"] = request_id
+            task["state"] = "RUNNING"
+            task["workshop"] = {
+                "requestId": request_id,
+                "selectedStepIds": selected_steps,
+                "projectPath": str(project_path.resolve()),
+                "joinedExisting": bool(start.get("joinedExisting")),
+                "startConfirmed": bool(start.get("startConfirmed")),
+                "launchCount": int(workshop.get("launchCount", 0)) + (0 if start.get("joinedExisting") else 1),
+                "provenance": "workshop",
+            }
+            self._save_task(task, event="WORKSHOP_RUN_STARTED", details={"requestId": request_id, "selectedStepIds": selected_steps})
+            return {"task": task, "workshopStarted": True, "idempotent": False}
+
+        status = self.workshop_bridge.production_status(
+            project_path,
+            expected_project_id=task["projectId"],
+            expected_request_id=request_id,
+        )
+        workshop["lastStatus"] = status
+        normalized_status = str(status.get("status") or "").strip().lower()
+        if normalized_status in {"running", "idle"} or not status.get("taskPresent"):
+            task["state"] = "RUNNING"
+            self._save_task(task, event="WORKSHOP_STATUS_OBSERVED", details={"status": normalized_status or "NOT_STARTED"})
+            return {"task": task, "workshopRunning": True, "idempotent": True}
+        if normalized_status in {"paused", "failed", "cancelled"}:
+            task["state"] = "PAUSED" if normalized_status == "paused" else "FAILED"
+            workshop["lastError"] = status.get("error") or status.get("message")
+            self._save_task(task, event="WORKSHOP_STOPPED", details={"status": normalized_status})
+            return {"task": task, "workshopNeedsAttention": True, "idempotent": True}
+        if normalized_status != "completed":
+            raise ToolError("WORKSHOP_STATUS_INVALID", "工坊返回了无法识别的生产状态。", details={"status": normalized_status})
+        snapshot = self.workshop_bridge.production_artifacts(
+            project_path,
+            expected_project_id=task["projectId"],
+            expected_request_id=request_id,
+        )
+        return self._ingest_workshop_completion(task, documents, snapshot)
+
     def _execute_p11(self, task: dict[str, Any], documents: dict[str, dict[str, Any]]) -> None:
         render_root = self._task_root(task["productionTaskId"]) / "render"
         validation = self.validate_video(
@@ -1651,6 +2190,14 @@ class ProductionCenter:
         )
         validation["synthetic"] = task["synthetic"]
         validation["externalMediaServicesCalled"] = False if task["synthetic"] else None
+        validation["provenance"] = "deterministic-fixture-runner" if task["synthetic"] else "workshop"
+        validation["placeholderRunnerUsed"] = bool(task["synthetic"])
+        if task["synthetic"]:
+            validation["mediaIntegrity"] = {
+                "status": "SYNTHETIC_FIXTURE_ONLY",
+                "provenance": "deterministic-fixture-runner",
+                "placeholderRunnerUsed": True,
+            }
         validation_path = self._task_root(task["productionTaskId"]) / "reports" / "p11-validation.json"
         _atomic_json(validation_path, validation)
         self._register_asset(task, step_id="P11", asset_id="technical-validation", asset_type="quality-report", path=validation_path, input_value=validation)
@@ -1666,6 +2213,7 @@ class ProductionCenter:
         documents: dict[str, dict[str, Any]],
         validation_path: Path,
     ) -> Path:
+        validation = _read_json(validation_path, "PRODUCTION_RESULT_INVALID")
         result_root = self.root / "results" / task["projectId"] / task["productionTaskId"]
         if result_root.exists():
             shutil.rmtree(result_root)
@@ -1685,6 +2233,9 @@ class ProductionCenter:
             "selectedStoryboardIds": task["selectedStoryboardIds"],
             "fallbacks": task["fallbacks"],
             "synthetic": task["synthetic"],
+            "provenance": validation.get("provenance"),
+            "placeholderRunnerUsed": validation.get("placeholderRunnerUsed"),
+            "mediaIntegrity": validation.get("mediaIntegrity"),
             "externalServiceCalls": [],
             "publishingTriggered": False,
         }
@@ -1762,6 +2313,9 @@ class ProductionCenter:
                 "timelineMapHash": _sha256_file(timeline_source),
                 "fallbacks": task["fallbacks"],
                 "synthetic": task["synthetic"],
+                "provenance": validation.get("provenance"),
+                "placeholderRunnerUsed": validation.get("placeholderRunnerUsed"),
+                "mediaIntegrity": validation.get("mediaIntegrity"),
                 "files": files,
                 "publishingTriggered": False,
             }
@@ -1807,6 +2361,19 @@ class ProductionCenter:
             raise ToolError("PRODUCTION_RESULT_FILE_SET_INVALID", "Result package contains undeclared or missing files.")
         if manifest.get("publishingTriggered") is not False:
             raise ToolError("PRODUCTION_PUBLISH_BOUNDARY_VIOLATION", "制作结果错误标记为已触发发布。")
+        if manifest.get("synthetic") is not True:
+            media_integrity = manifest.get("mediaIntegrity")
+            if (
+                manifest.get("provenance") != "workshop"
+                or manifest.get("placeholderRunnerUsed") is not False
+                or not isinstance(media_integrity, dict)
+                or media_integrity.get("status") != "PASSED"
+                or media_integrity.get("provenance") != "workshop"
+            ):
+                raise ToolError(
+                    "PRODUCTION_REAL_MEDIA_PROVENANCE_INVALID",
+                    "正式结果包缺少真实工坊来源或分镜／成片完整性证明。",
+                )
         return {"status": "PASS", "manifest": manifest}
 
     def run_task(
@@ -1821,6 +2388,8 @@ class ProductionCenter:
             return {"task": task, "idempotent": True}
         if task["state"] not in {"READY_TO_PRODUCE", "RETRYING", "RUNNING"}:
             raise ToolError("PRODUCTION_TASK_NOT_RUNNABLE", "当前制作任务不能运行。")
+        if not task["synthetic"]:
+            return self._run_workshop_task(task)
         task["state"] = "RUNNING"
         task["runId"] = f"run_{uuid.uuid4().hex}"
         self._save_task(task, event="RUN_STARTED", details={"runId": task["runId"]})

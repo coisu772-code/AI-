@@ -19,11 +19,13 @@ sys.path.insert(0, str(ROOT / "tests"))
 from aivcp_tools.contracts import with_hash  # noqa: E402
 from aivcp_tools.errors import ToolError  # noqa: E402
 from aivcp_tools.production import ProductionCenter, production_package_hash  # noqa: E402
+from aivcp_tools.review_documents import save_review_document  # noqa: E402
 from aivcp_tools.service import LocalToolService, ServiceConfig, tool_definitions  # noqa: E402
 from stage5_support import (  # noqa: E402
     build_stage5_context,
     export_identity,
     mutation_arguments,
+    production_config,
 )
 
 
@@ -124,6 +126,31 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         self.assertFalse(capabilities["boundaries"]["readyPackage"])
         self.assertFalse(capabilities["boundaries"]["upload"])
 
+    def test_real_package_video_scope_requires_current_task_authorization_and_retired_style_is_rejected(self) -> None:
+        context = self.context(selection_mode="project_first_n_storyboards", count=1)
+        arguments = {
+            "taskId": context.content.task_id,
+            "channelProfileId": context.content.channel_id,
+            "bindingProof": context.content.proof,
+            "projectId": context.content.project_id,
+            "productionConfig": context.production_config,
+            "productionPreset": {"id": "real-production", "version": "1.0.0", "hash": "1" * 64, "targetRegion": "Japan"},
+            "workshopCompatibility": {"interfaceVersion": "2.1", "workshopVersion": "2.1.0"},
+            "synthetic": False,
+        }
+        self.assert_tool_error(
+            "VIDEO_GENERATION_AUTHORIZATION_REQUIRED",
+            lambda: context.content.service.call("production_package_assemble", arguments),
+        )
+
+        retired = json.loads(json.dumps(context.production_config))
+        retired["videoGeneration"] = {"enabled": False, "selectionMode": "none", "fallbackPolicy": "pause"}
+        retired["imageStyle"]["presetId"] = "gpt2_01"
+        self.assert_tool_error(
+            "PRODUCTION_IMAGE_STYLE_RETIRED",
+            lambda: context.content.service.production._validate_production_config(retired),
+        )
+
     def test_package_v21_contains_only_locked_target_language_inputs_and_is_idempotent(self) -> None:
         context = self.context()
         package_root = Path(context.package["packagePath"])
@@ -136,12 +163,19 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         self.assertTrue(production_overview.is_file())
         overview_text = production_overview.read_text(encoding="utf-8")
         self.assertIn("script_lines.json", overview_text)
+        self.assertIn("07_正式稿_目标语言.txt", overview_text)
+        self.assertIn("08_正式稿_中文版.txt", overview_text)
+        self.assertIn("唯一用于配音、字幕和分镜", overview_text)
         self.assertIn("角色形象提示词", overview_text)
         self.assertIn(manifest["packageHash"], overview_text)
         manuscript_path, _ = self._upstream_paths(context)
         manuscript = json.loads(manuscript_path.read_text(encoding="utf-8"))
         package_lines = json.loads((package_root / "script_lines.json").read_text(encoding="utf-8"))["lines"]
         self.assertEqual(manuscript["targetScript"]["lines"], package_lines)
+        source_lock = json.loads((package_root / "source_lock.json").read_text(encoding="utf-8"))
+        self.assertEqual(manuscript["targetScript"]["contentHash"], source_lock["targetScriptBinding"]["targetScriptContentHash"])
+        self.assertEqual("final-script-target", source_lock["targetScriptBinding"]["userReviewDocumentId"])
+        self.assertTrue(source_lock["targetScriptBinding"]["productionUseAllowed"])
         characters = json.loads((package_root / "characters.json").read_text(encoding="utf-8"))["characters"]
         self.assertEqual(manuscript["characters"], [{key: value for key, value in item.items() if key != "voice"} for item in characters])
         second = context.content.service.production.import_package(package_root)
@@ -162,6 +196,22 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         )
         self.assertTrue(assembled_again["idempotent"])
         self.assertEqual(manifest["packageHash"], assembled_again["manifest"]["packageHash"])
+
+    def test_package_assembly_rejects_user_visible_script_that_differs_from_machine_master(self) -> None:
+        context = self.context()
+        manuscript_path, publishing_path = self._upstream_paths(context)
+        project_root = Path(context.package["userReviewDocuments"]["contextRoot"])
+        save_review_document(
+            project_root,
+            document_id="final-script-target",
+            content="[E01-L001] narrator: This is not the locked production manuscript.",
+            language="ja-JP",
+            updated_at="2026-08-08T08:30:00Z",
+        )
+        self.assert_tool_error(
+            "PRODUCTION_REVIEW_DOCUMENT_MISMATCH",
+            lambda: self._assemble_direct(context, manuscript_path, publishing_path),
+        )
 
     def test_auto_render_pause_restart_resume_video_ready_and_read_only_progress(self) -> None:
         context = self.context("ja-JP", delivery_mode="auto_render", selection_mode="none")
@@ -303,6 +353,25 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         self.assertEqual(["SB-1", "SB-3"], center._selected_storyboards(storyboards, {"enabled": True, "selectionMode": "episode_first_n_storyboards", "count": 1}))
         self.assertEqual(["SB-1", "SB-2", "SB-3", "SB-4"], center._selected_storyboards(storyboards, {"enabled": True, "selectionMode": "all_storyboards"}))
 
+    def test_first_last_frame_video_config_is_explicit_and_never_silently_downgraded(self) -> None:
+        center = self.context().content.service.production
+        config = production_config(selection_mode="project_first_n_storyboards", count=1)
+        config["videoGeneration"].update({
+            "frameInputMode": "first_last_frame",
+            "endFrameSource": "dedicated_generated",
+        })
+        validated = center._validate_production_config(config)
+        self.assertEqual("first_last_frame", validated["videoGeneration"]["frameInputMode"])
+        self.assertEqual("dedicated_generated", validated["videoGeneration"]["endFrameSource"])
+        self.assertEqual("wide_16_9_4", validated["gridBatch"]["template"])
+
+        missing_end_source = json.loads(json.dumps(config))
+        missing_end_source["videoGeneration"]["endFrameSource"] = ""
+        self.assert_tool_error(
+            "PRODUCTION_VIDEO_END_FRAME_INVALID",
+            lambda: center._validate_production_config(missing_end_source),
+        )
+
     def test_failure_matrix_upstream_and_package_hard_gates(self) -> None:
         context = self.context()
         manuscript_path, publishing_path = self._upstream_paths(context)
@@ -424,6 +493,85 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
             "PRODUCTION_WORKSHOP_UNAVAILABLE",
             lambda: center.start_task(production_task_id="formal-task", package_root=package_root),
         )
+
+    def test_formal_task_starts_workshop_once_and_never_runs_placeholder_executors(self) -> None:
+        context = self.context("zh-CN")
+        package_root = self._package_copy(context, "formal-workshop-routing")
+        config_path = package_root / "production_config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["syntheticFixtureRunner"] = False
+        config["promptGeneration"] = {"image": False, "video": False}
+        config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        manifest_path = package_root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["synthetic"] = False
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        self._refresh_package_manifest(package_root)
+
+        class FakeWorkshopBridge:
+            def __init__(self) -> None:
+                self.start_calls = 0
+                self.status_value = "running"
+
+            def import_package(self, _package_root, target_root, *, expected_project_id):
+                target_root.mkdir(parents=True, exist_ok=True)
+                project_path = target_root / "novel_manga_project.json"
+                project_path.write_text(json.dumps({"id": expected_project_id}), encoding="utf-8")
+                return {
+                    "projectId": expected_project_id,
+                    "projectPath": str(project_path),
+                    "roundTripValidated": True,
+                    "publishingTriggered": False,
+                    "duplicate": False,
+                }
+
+            def start_production(self, _project_path, *, selected_step_ids, request_id, **_kwargs):
+                self.start_calls += 1
+                self.assert_no_placeholder_steps(selected_step_ids)
+                return {
+                    "requestId": request_id,
+                    "joinedExisting": False,
+                    "startConfirmed": True,
+                    "publishingTriggered": False,
+                }
+
+            @staticmethod
+            def assert_no_placeholder_steps(selected_step_ids):
+                if any(step.startswith("P") for step in selected_step_ids):
+                    raise AssertionError("formal workshop must receive Workshop step IDs")
+
+            def production_status(self, _project_path, **_kwargs):
+                return {
+                    "taskPresent": True,
+                    "status": self.status_value,
+                    "error": "fixture failure" if self.status_value == "failed" else "",
+                    "message": "",
+                }
+
+        bridge = FakeWorkshopBridge()
+        center = ProductionCenter(
+            self.root / "formal-routing-center",
+            voice_catalog_path=context.content.root / "voice-catalog.json",
+            ffmpeg_path=shutil.which("ffmpeg"),
+            ffprobe_path=shutil.which("ffprobe"),
+            workshop_bridge=bridge,
+        )
+        center.start_task(production_task_id="formal-routing-task", package_root=package_root)
+        first = center.run_task("formal-routing-task")
+        self.assertTrue(first["workshopStarted"])
+        self.assertEqual(1, bridge.start_calls)
+        second = center.run_task("formal-routing-task")
+        self.assertTrue(second["workshopRunning"])
+        self.assertEqual(1, bridge.start_calls)
+        self.assertFalse((center._task_root("formal-routing-task") / "assets" / "storyboard-images").exists())
+
+        bridge.status_value = "failed"
+        failed = center.run_task("formal-routing-task")
+        self.assertTrue(failed["workshopNeedsAttention"])
+        center.retry_failed("formal-routing-task")
+        restarted = center.run_task("formal-routing-task")
+        self.assertTrue(restarted["workshopStarted"])
+        self.assertEqual(2, bridge.start_calls)
 
 
 if __name__ == "__main__":
