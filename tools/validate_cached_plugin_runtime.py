@@ -131,6 +131,19 @@ def main() -> int:
         "AIVCP_PUBLISHER_NETWORK_EXECUTION": "false",
         "PYTHONUTF8": "1",
         "PYTHONDONTWRITEBYTECODE": "1",
+        "AIVCP_YT_DLP_COMMAND_JSON": json.dumps(
+            [
+                str(runtime_python),
+                "-m",
+                "yt_dlp",
+                "--js-runtimes",
+                f"deno:{active_root / 'runtime/python/tools/deno.exe'}",
+                "--ffmpeg-location",
+                str(active_root / "apps/workshop/tools/ffmpeg/bin"),
+            ],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ),
     }
     if server.get("type") != "stdio" or server.get("cwd") != ".":
         raise SystemExit("Cached plugin MCP descriptor is not locked stdio with cache-relative cwd.")
@@ -226,6 +239,7 @@ def main() -> int:
         if tool_name == "production_capabilities":
             workshop_health = result.get("workshopHealth", {})
             workshop_capabilities = result.get("workshopCapabilities", {})
+            codex_visual_plan = result.get("codexVisualPlan", {})
             voice_catalog = json.loads(Path(expected_environment["AIVCP_VOICE_CATALOG"]).read_text(encoding="utf-8-sig"))
             covered_voice_engines = {
                 str(item.get("engineId"))
@@ -249,6 +263,12 @@ def main() -> int:
                 or "2.1" not in workshop_capabilities.get("supportedPackageVersions", [])
                 or workshop_capabilities.get("externalServiceProbeExecuted") is not False
                 or not reported_voice_engines.issubset(covered_voice_engines)
+                or codex_visual_plan.get("schemaVersion") != "1.1"
+                or codex_visual_plan.get("storyVisualPlanning") is not True
+                or codex_visual_plan.get("complexityAdaptivePageCount") is not True
+                or codex_visual_plan.get("criticalEmotionVisualSignals") is not True
+                or codex_visual_plan.get("continuityBible") is not True
+                or codex_visual_plan.get("promptBudgets") != {"imageMaxChars": 600, "videoMaxChars": 500}
             ):
                 raise SystemExit("Cached plugin workshop bridge or voice-engine catalog coverage is incomplete.")
             component_integration["workshopHealthCheckExecuted"] = True
@@ -258,6 +278,8 @@ def main() -> int:
             component_integration["ffprobeAvailable"] = True
             component_integration["externalServiceProbeExecuted"] = False
             component_integration["workshopVoiceEnginesCovered"] = sorted(reported_voice_engines)
+            component_integration["codexVisualPlanSchema"] = "1.1"
+            component_integration["criticalEmotionVisualSignals"] = True
         capability_status[tool_name] = "PASS"
 
     report = {

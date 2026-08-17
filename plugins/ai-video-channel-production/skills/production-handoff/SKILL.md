@@ -5,19 +5,20 @@ description: 用户明确说开始制作后，把无频道自由创作工作区�
 
 # 制作中心
 
-先读取 [逐阶段确认契约](../channel-production/references/manual-stage-confirmations.md)。只生成媒体资产并完成技术验收。保持目标语言正式母稿、角色音色、视觉锚点和发布素材只读；任何内容修改都返回对应上游中心建立新版本。
+先读取 [逐阶段确认契约](../channel-production/references/manual-stage-confirmations.md) 和 [Codex 视觉方案合同](references/codex-visual-plan.md)。只生成媒体资产并完成技术验收。保持目标语言正式母稿、角色音色和发布素材只读；视觉方案在本次制作设置确认后由 Codex 根据锁定文稿、角色和画风生成，进入生产包后只读。任何内容修改都返回对应上游中心建立新版本。
 
 ## 开始制作
 
 1. 调用 `content_workspace_get`。确认当前工作区属于本任务，列出已确认文稿与包装素材；不得读取旧频道项目填充。
 2. 只有用户明确说“开始制作／进入工坊／移交制作”后才查询频道列表。让用户选择目标发布频道，绝不能把参考频道或旧项目频道当作默认频道。
-3. 调用 `production_capabilities`，读取频道预设、预扫描音色目录和 [36 个图片风格预设](../../assets/image-style-presets.json)，显示中文优先制作设置卡：唯一正式文稿、频道、地区、语言、集数、配音引擎／模型／音色、章节标题是否朗读、宫格与画幅、图片／视频提示词开关、画风、制作方式、实际镜头视频范围、视频输入模式（仅首帧／首尾帧）、失败策略和能力状态。
+3. 调用 `production_capabilities`，读取频道预设、预扫描音色目录和 [36 个图片风格预设](../../assets/image-style-presets.json)，显示中文优先制作设置卡：唯一正式文稿、频道、地区、语言、集数、配音引擎／模型／音色、章节标题是否朗读、宫格与画幅、图片提示词（关闭／由 Codex 生成）、视频提示词（关闭／由 Codex 生成）、画风、制作方式、实际镜头视频范围、视频输入模式（仅首帧／首尾帧）、失败策略和能力状态。用户只选开关和范围，不要求用户编写提示词。
 4. 故事图片画风使用独立 `S` 编号组，分组但完整列出 `visual_01`–`visual_36` 全部预设的编号和名称，并提供自定义入口；可以标注一个有理由的推荐项，但不得只显示推荐项。频道预设和旧项目只作为预选，不能代替当前项目确认。审核模式停在 `G5B_PRODUCTION` 等待确认；即使当前任务已授权自动完成，如果自动授权语句没有逐项给出本卡设置，也必须等待本次确认。
-5. 把“视频提示词”和“实际生成镜头视频”显示为两个独立的是／否或范围项。未明确要求视频提示词时固定关闭；未明确要求实际视频及具体镜头范围时固定 `enabled=false`、`selectionMode=none`、`count=0`。仅确认视频提示词不得开启实际视频生成。
+5. 把“视频提示词”和“实际生成镜头视频”显示为两个独立的是／否或范围项。未明确要求视频提示词时固定关闭；未明确要求实际视频及具体镜头范围时固定 `enabled=false`、`selectionMode=none`、`count=0`。仅确认视频提示词不得开启实际视频生成。图片或视频提示词一旦开启，作者固定为 Codex；工坊旧提示词生成器不再重写。
    视频输入模式默认 `first_frame`。只有用户在本次制作卡明确选择首尾帧时才使用 `first_last_frame`，且不能借此自动开启上述两个独立开关。首尾帧模式为已选分镜独立生成同镜头尾帧，并提交首帧、尾帧和该分镜的明确视频提示词；缺少任一输入或模型不支持时暂停，不得静默退回仅首帧。
-6. 用户确认制作设置后先调用 `content_workspace_bind_production`，再调用 `content_workspace_narration_prepare` 整理正式配音稿。默认不朗读“第一章／Chapter 1”等结构标题；只有本次制作卡明确允许时才保留。然后调用 `$publishing-assets` 复用已确认标题、简介、Hashtags 和封面，只生成缺失项。全部就绪后才调用频道内兼容入口和 `production_package_assemble`。生产配置必须明确：
+6. 用户确认制作设置后先调用 `content_workspace_bind_production`，再调用 `content_workspace_narration_prepare` 整理正式配音稿。默认不朗读“第一章／Chapter 1”等结构标题；只有本次制作卡明确允许时才保留。然后调用 `$publishing-assets` 复用已确认标题、简介、Hashtags 和封面，只生成缺失项。全部就绪后，Codex 按 [视觉方案合同](references/codex-visual-plan.md) 基于唯一正式配音稿、角色关系与已选画风，先规划开篇钩子、人物关系、核心矛盾、铺垫／反转／回报、复杂度自适应页数与连续性圣经，再生成漫画角色设计、逐镜表演和已开启的图片／视频提示词，作为 `productionConfig.codexVisualPlan` 交给 `production_package_assemble`。重要情绪必须用特写或破格构图和至少两个可见信号表达，相邻镜头不得重复同一种情绪爆点；不得用画面文字代替表演。每镜先分段分析再压缩合并，图片提示词不超过 600 字符，视频提示词不超过 500 字符。这个过程不新增强制确认门；组装工具会生成用户可查看文档。生产配置必须明确：
    - `imageStyle.presetId` 与 `imageStyle.prompt`：每个新任务都由用户从当前 `visual_01`–`visual_36` 预设或自定义画风中选择或确认，提示词不得为空；已退役预设不得进入新包；
    - `storyImageTextPolicy=forbid_visible_text`：只约束角色图、分镜图和宫格图，正式封面文字继续使用已确认封面资产；
+   - `codexVisualPlan`：图片或视频提示词任一开启时必填，使用 schema 1.1，角色参考固定 `identity_only`，逐镜完整且仅覆盖正式稿行；必须绑定故事节拍、镜头合同、可见情绪信号、地点／服装／道具连续性和长度预算，工坊不得覆盖已锁定提示词；
    - `deliveryMode`：`auto_render` 或 `jianying_refine`；
    - `videoGeneration.selectionMode`：`none`、`project_first_n_storyboards`、`episode_first_n_storyboards` 或 `all_storyboards`；
    - `videoGeneration.frameInputMode`：`first_frame` 或 `first_last_frame`；后者必须同时使用 `endFrameSource=dedicated_generated`；

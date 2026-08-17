@@ -26,10 +26,10 @@ def current_manifest_path() -> Path:
 
 def validate_release_manifest(manifest_path: Path | None = None) -> list[str]:
     plugin = load_json(ROOT / "plugins" / "ai-video-channel-production" / ".codex-plugin" / "plugin.json")
-    if plugin.get("version") == "0.12.0-rc.2" and manifest_path is None:
-        selected = ROOT / "release-manifests" / "unified-release-v0.12.0-rc.2.json"
+    if plugin.get("version") == "0.12.0-rc.3" and manifest_path is None:
+        selected = ROOT / "release-manifests" / "unified-release-v0.12.0-rc.3.json"
         if not selected.is_file():
-            return ["unified-release-v0.12.0-rc.2.json is missing"]
+            return ["unified-release-v0.12.0-rc.3.json is missing"]
         manifest = load_json(selected)
         schema = load_json(ROOT / "release-manifests" / "unified-release-manifest.schema.json")
         errors = []

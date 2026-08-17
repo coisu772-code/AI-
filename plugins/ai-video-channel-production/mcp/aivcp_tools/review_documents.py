@@ -25,6 +25,7 @@ DOCUMENT_SPECS: dict[str, dict[str, str]] = {
     "packaging-bilingual": {"filename": "09_标题简介标签_双语审核.md", "title": "标题简介标签双语审核", "stage": "packaging"},
     "thumbnail-review": {"filename": "10_封面候选与选择结果.md", "title": "封面候选与选择结果", "stage": "packaging"},
     "production-overview": {"filename": "11_完整生产资料总览.md", "title": "完整生产资料总览", "stage": "production"},
+    "codex-visual-plan": {"filename": "11B_Codex角色设计与分镜提示词方案.md", "title": "Codex角色设计与分镜提示词方案", "stage": "production"},
 }
 
 

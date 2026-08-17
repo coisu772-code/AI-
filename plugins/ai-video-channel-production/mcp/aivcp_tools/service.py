@@ -39,7 +39,7 @@ RETIRED_CONTENT_TOOL_PREFIXES = (
 
 
 LOCAL_TOOL_PROTOCOL_VERSION = "1.0.0"
-SERVICE_VERSION = "0.12.0-rc.2"
+SERVICE_VERSION = "0.12.0-rc.3"
 
 
 def default_data_root(plugin_root: Path | None = None) -> Path:
@@ -1975,7 +1975,7 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "production_package_assemble",
-            "从已确认的 Manuscript 与 Publishing Asset 组装 Production Package v2.1；硬门校验 07 正式口播稿与机器生产脚本逐字一致、08 中文稿仅供审核，并生成含实际使用稿路径与哈希的 11 生产包总览。",
+            "从已确认的 Manuscript 与 Publishing Asset 组装 Production Package v2.1；开启图片或视频提示词时，必须由 Codex 在 productionConfig.codexVisualPlan 中提交漫画角色设计、故事画面规划、复杂度自适应页数、镜头构图、情绪爆点可见信号、连续性绑定、预算内图片提示词和可选视频提示词，工坊锁定执行且不得重写。硬门同时校验 07 正式口播稿与机器生产脚本逐字一致、08 中文稿仅供审核，并生成生产包总览与可查看视觉方案文档。",
             {
                 **binding_properties,
                 "projectId": {"type": "string"},

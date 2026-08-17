@@ -130,7 +130,7 @@ class Stage4ContentLoopTests(unittest.TestCase):
         self.assertEqual("content-title-description", extensions["thumbnail-generation"]["skillId"])
         self.assertEqual(["manuscript-package"], extensions["thumbnail-generation"]["inputContractTypes"])
         self.assertTrue(capabilities["userReviewDocuments"]["available"])
-        self.assertEqual(13, len(capabilities["userReviewDocuments"]["documentIds"]))
+        self.assertEqual(14, len(capabilities["userReviewDocuments"]["documentIds"]))
         system = service.call("system_capabilities")
         self.assertTrue(Path(system["storage"]["userDataRoot"]).samefile(self.root / "surface" / "data"))
         self.assertTrue(system["storage"]["largeAssetsStoredUnderUserDataRoot"])
