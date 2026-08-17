@@ -78,12 +78,12 @@ Write-AivcpRuntimeBoundMcpDescriptor -PluginRoot "{plugin}" -InstallRoot "{insta
             self.assertEqual(0, completed.returncode, completed.stderr)
             descriptor = json.loads((plugin / ".mcp.json").read_text(encoding="utf-8-sig"))
             command = json.loads(descriptor["mcpServers"]["ai-video-channel-tools"]["env"]["AIVCP_YT_DLP_COMMAND_JSON"])
-            self.assertEqual(str((current / "runtime/python/python.exe").resolve()), command[0])
+            self.assertTrue((current / "runtime/python/python.exe").samefile(command[0]))
             self.assertEqual(["-m", "yt_dlp"], command[1:3])
             self.assertEqual("--js-runtimes", command[3])
-            self.assertEqual("deno:" + str((current / "runtime/python/tools/deno.exe").resolve()), command[4])
+            self.assertTrue((current / "runtime/python/tools/deno.exe").samefile(command[4].removeprefix("deno:")))
             self.assertEqual("--ffmpeg-location", command[5])
-            self.assertEqual(str((current / "apps/workshop/tools/ffmpeg/bin").resolve()), command[6])
+            self.assertTrue((current / "apps/workshop/tools/ffmpeg/bin").samefile(command[6]))
 
             (current / "runtime/python/tools/deno.exe").unlink()
             missing = subprocess.run(

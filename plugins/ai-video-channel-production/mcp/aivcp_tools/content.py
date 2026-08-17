@@ -495,6 +495,12 @@ class ContentLoop:
             "contentLoopVersion": CONTENT_LOOP_VERSION,
             "packageSchemaVersion": PACKAGE_SCHEMA_VERSION,
             "routes": {
+                "direct-draft": {
+                    "available": True,
+                    "label": "按当前请求直接成稿",
+                    "requiresConfirmedOutline": False,
+                    "firstUserReviewGate": "D4_REWRITE_DRAFT",
+                },
                 "market-original": {"available": True, "label": "目标市场原创"},
                 "channel-library": {"available": True, "label": "频道画像锚定"},
                 "provided-outline": {"available": True, "label": "用户大纲直通"},

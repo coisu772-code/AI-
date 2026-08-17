@@ -65,6 +65,7 @@ class ContentPromptSkillTests(unittest.TestCase):
         self.assertIn("content_workspace_get", rewrite)
         self.assertIn("不得调用 `channel_list`", rewrite)
         self.assertIn("task-prompt-guided", rewrite)
+        self.assertIn('"direct-draft": {', content)
         self.assertIn("提示词正文", rewrite)
         self.assertIn("RETIRED_CONTENT_TOOL_PREFIXES", service)
         self.assertIn("if not name.startswith(RETIRED_CONTENT_TOOL_PREFIXES)", service)
@@ -89,9 +90,12 @@ class ContentPromptSkillTests(unittest.TestCase):
         self.assertIn("来源任务结束", source)
         self.assertIn("不自动交给拆解、方向推荐或正文生成", source)
 
-    def test_writing_requires_current_confirmed_outline(self) -> None:
+    def test_direct_draft_skips_unrequested_outline_and_outline_route_still_valid(self) -> None:
         rewrite = (PLUGIN / "skills" / "content-rewrite" / "SKILL.md").read_text(encoding="utf-8")
         for marker in (
+            "direct-draft",
+            "不得把内部简报另存为创作方案后要求用户确认",
+            "直接进入 `D4_REWRITE_DRAFT`",
             "不少于 80 字",
             "主角",
             "主要因果推进",
@@ -103,6 +107,7 @@ class ContentPromptSkillTests(unittest.TestCase):
             "$content-review-edit",
         ):
             self.assertIn(marker, rewrite)
+        self.assertIn("用户已经明确要求“写一篇完整文章”时不得误判为方向请求", rewrite)
 
     def test_title_description_and_thumbnail_share_one_provider(self) -> None:
         registry = json.loads(
@@ -133,6 +138,7 @@ class ContentPromptSkillTests(unittest.TestCase):
         self.assertIn("用户没有选择前不得写小说", source)
         self.assertIn("G5B_PRODUCTION", handoff)
         self.assertIn("内容阶段不得提前显示或确认这些设置", stage_contract)
+        self.assertIn("`direct-draft` 不得被强制经过本门", stage_contract)
         self.assertIn("仅确认视频提示词不得开启实际视频生成", handoff)
         self.assertIn("视频输入模式（仅首帧／首尾帧）", handoff)
         self.assertIn("不得静默退回仅首帧", handoff)
@@ -175,6 +181,20 @@ class ContentPromptSkillTests(unittest.TestCase):
         ):
             self.assertIn(marker, router)
         self.assertIn("提示词正文不得复制进 Skill", source)
+        self.assertIn("direct-draft", source)
+        self.assertIn("不得误判为方向请求", source)
+
+    def test_rejected_old_template_cannot_be_reused(self) -> None:
+        skills_root = PLUGIN / "skills"
+        router = (skills_root / "channel-production" / "SKILL.md").read_text(encoding="utf-8")
+        rewrite = (skills_root / "content-rewrite" / "SKILL.md").read_text(encoding="utf-8")
+        review_rules = (
+            skills_root / "channel-production" / "references" / "user-review-documents.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("指出“旧模板”", router)
+        self.assertIn("用户否决、要求作废或指出“旧模板”", rewrite)
+        self.assertIn("被用户否决或标记为旧模板", review_rules)
+        self.assertIn("通用模板污染检查", router)
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ REQUIRED_TOOLS = (
     "system_capabilities",
     "content_capabilities",
     "content_workspace_start",
+    "content_workspace_document_reject",
     "content_workspace_narration_prepare",
     "production_capabilities",
     "data_center_capabilities",
@@ -210,6 +211,18 @@ def main() -> int:
             component_integration["publisherV2Configured"] = True
             component_integration["publisherNetworkExecution"] = False
             component_integration["voiceCatalogAvailable"] = True
+        if tool_name == "content_capabilities":
+            direct_draft = result.get("routes", {}).get("direct-draft", {})
+            workspace_routes = result.get("creativeWorkspace", {}).get("draftingRoutes", [])
+            if (
+                direct_draft.get("available") is not True
+                or direct_draft.get("requiresConfirmedOutline") is not False
+                or direct_draft.get("firstUserReviewGate") != "D4_REWRITE_DRAFT"
+                or "direct-draft" not in workspace_routes
+                or "provided-outline" not in workspace_routes
+            ):
+                raise SystemExit("Cached plugin did not expose the direct-draft route without a forced outline gate.")
+            component_integration["directDraftWithoutOutlineGate"] = True
         if tool_name == "production_capabilities":
             workshop_health = result.get("workshopHealth", {})
             workshop_capabilities = result.get("workshopCapabilities", {})

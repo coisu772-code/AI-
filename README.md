@@ -1,10 +1,10 @@
 # AI 视频频道生产系统 RC
 
-当前预发布候选版本是 `v0.12.0-rc.1`。本版把新任务默认入口改为无频道自由创作工作区，支持有来源的热点选择、当前任务临时提示词编排和按已确认大纲写作；旧内置拆解与迁移／仿写方向入口正式退役。开始制作后新增 36 种故事图片画风确认、首尾帧视频模式和项目级自动上传授权交接。系统不会代替用户执行 Google／YouTube OAuth。
+当前预发布候选版本是 `v0.12.0-rc.2`。本版把新任务默认入口改为无频道自由创作工作区，支持有来源的热点选择、当前任务临时提示词编排、按用户当前请求直接成稿和按已确认大纲写作；旧内置拆解与迁移／仿写方向入口正式退役。开始制作后新增 36 种故事图片画风确认、首尾帧视频模式和项目级自动上传授权交接。系统不会代替用户执行 Google／YouTube OAuth。
 
 ## 当前内容主流程
 
-新任务先建立不绑定频道的自由创作工作区。`content-source` 只负责取得并保存视频字幕、上传文本、资料库或按需联网资料；热点研究必须先展示带来源、日期与趋势依据的中文选择卡。用户本次提供的提示词文件只按当前任务登记用途、顺序、字段映射与 SHA-256，不复制进 Skill。用户提供或确认不少于 80 字的创作简报／故事大纲后，`content-rewrite` 生成正文，`content-review-edit` 审核修改并冻结正式稿，`content-title-description` 生成标题、YouTube 简介和正式封面。旧 `content-deconstruct`、迁移／仿写方向和旧 8 方向入口不再用于新任务。
+新任务先建立不绑定频道的自由创作工作区。`content-source` 只负责取得并保存视频字幕、上传文本、资料库或按需联网资料；热点研究必须先展示带来源、日期与趋势依据的中文选择卡。用户本次提供的提示词文件只按当前任务登记用途、顺序、字段映射与 SHA-256，不复制进 Skill。用户明确要求直接生成完整文章时，`content-rewrite` 使用 `direct-draft` 路线，附件中的分析和构思作为内部方法执行，不再强制大纲确认；用户提供或确认不少于 80 字的大纲时则使用 `provided-outline`。随后由 `content-review-edit` 审核修改并冻结正式稿，`content-title-description` 生成标题、YouTube 简介和正式封面。旧 `content-deconstruct`、迁移／仿写方向和旧 8 方向入口不再用于新任务。
 
 标题、简介和封面现由一个 `content-title-description` Skill 同时提供，对外保存为 `title-asset-v1`、`description-asset-v1` 和 `thumbnail-asset-v1`。封面先由同一标题提示词确定短文案与视觉方向，再调用内置图片生成能力产出五张16:9候选并选定正式图；不再保留独立封面 Skill 或未来等待点。
 
@@ -12,9 +12,9 @@
 
 ## Windows 一键安装
 
-[下载 Windows 统一安装器（v0.12.0-rc.1）](https://github.com/coisu772-code/AI-/releases/download/v0.12.0-rc.1/AI-Video-Channel-Production-Unified-Installer-v0.12.0-rc.1.zip)
+[下载 Windows 统一安装器（v0.12.0-rc.2）](https://github.com/coisu772-code/AI-/releases/download/v0.12.0-rc.2/AI-Video-Channel-Production-Unified-Installer-v0.12.0-rc.2.zip)
 
-普通联网用户只需下载这一个 ZIP，解压并双击 `install.cmd`。入口只从锁定的 `v0.12.0-rc.1` Release URL 获取总清单，不使用 `latest`；随后逐项校验大小和 SHA-256，再事务式安装全部组件。新漫剧工坊需要 Kokoro 时，会按 CPU、NVIDIA 或 NVIDIA Blackwell 选择对应的公开分卷运行包，先校验清单、大小和 SHA-256，再在工坊程序目录内安装；本次继续复用 `v0.10.0-rc.1` 中内容未变化且已校验的公开 Kokoro 运行包，不重复上传相同大资产，也不会写入频道、项目、凭据或运行数据目录。
+普通联网用户只需下载这一个 ZIP，解压并双击 `install.cmd`。入口只从锁定的 `v0.12.0-rc.2` Release URL 获取总清单，不使用 `latest`；随后逐项校验大小和 SHA-256，再事务式安装全部组件。新漫剧工坊需要 Kokoro 时，会按 CPU、NVIDIA 或 NVIDIA Blackwell 选择对应的公开分卷运行包，先校验清单、大小和 SHA-256，再在工坊程序目录内安装；本次继续复用 `v0.10.0-rc.1` 中内容未变化且已校验的公开 Kokoro 运行包，不重复上传相同大资产，也不会写入频道、项目、凭据或运行数据目录。
 
 先决条件：Windows 10/11 x64、PowerShell 5.1 或更高版本、统一系统约 1 GB 可用空间，以及 Codex 桌面版或支持 `plugin` 命令的 Codex CLI。无需预装 Python、uv 或 FFmpeg。Kokoro 是可选本地语音运行时，按所选硬件还需要约 2–6 GB 额外空间。
 

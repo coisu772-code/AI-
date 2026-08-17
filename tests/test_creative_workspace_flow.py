@@ -77,6 +77,44 @@ class CreativeWorkspaceFlowTests(unittest.TestCase):
         self.assertEqual(2, updated["version"])
         self.assertFalse(updated["confirmation"]["confirmed"])
 
+    def test_user_can_reject_old_template_and_rejected_version_cannot_be_confirmed(self) -> None:
+        saved = self.workspace.save_document(
+            task_id="task-free-001",
+            workspace_id=self.workspace_id,
+            binding_proof=self.proof,
+            document_id="old-template-plan",
+            title="旧模板方案",
+            stage="ideation",
+            purpose="等待用户选择",
+            language="zh-CN",
+            content="这是用户已经明确否决的旧模板方案。",
+        )["document"]
+        ref = f"task:task-free-001:reject-content:{self.workspace_id}:old-template-plan:v001"
+        rejected = self.workspace.reject_document(
+            task_id="task-free-001",
+            workspace_id=self.workspace_id,
+            binding_proof=self.proof,
+            document_id="old-template-plan",
+            rejection={
+                "rejected": True,
+                "explicitUserInstruction": True,
+                "confirmationRef": ref,
+                "sha256": saved["sha256"],
+                "reason": "用户指出这是旧模板并要求作废。",
+            },
+        )["document"]
+        self.assertEqual("REJECTED_BY_USER", rejected["confirmation"]["status"])
+        confirm_ref = f"task:task-free-001:confirm-content:{self.workspace_id}:old-template-plan:v001"
+        with self.assertRaises(ToolError) as caught:
+            self.workspace.confirm_document(
+                task_id="task-free-001",
+                workspace_id=self.workspace_id,
+                binding_proof=self.proof,
+                document_id="old-template-plan",
+                confirmation={"confirmed": True, "confirmationRef": confirm_ref, "sha256": saved["sha256"]},
+            )
+        self.assertEqual("CONTENT_WORKSPACE_DOCUMENT_REJECTED", caught.exception.code)
+
     def test_production_binding_requires_explicit_channel_and_gate_then_narration(self) -> None:
         self._save_and_confirm()
         auth_ref = f"task:task-free-001:auto-upload:{self.workspace_id}"
@@ -153,6 +191,7 @@ class CreativeWorkspaceFlowTests(unittest.TestCase):
         self.assertIn("content_workspace_start", definitions)
         self.assertNotIn("channelProfileId", definitions["content_workspace_start"]["inputSchema"]["required"])
         self.assertIn("content_workspace_narration_prepare", definitions)
+        self.assertIn("content_workspace_document_reject", definitions)
 
 
 if __name__ == "__main__":

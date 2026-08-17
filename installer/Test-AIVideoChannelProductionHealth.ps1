@@ -36,6 +36,7 @@ $requiredContentTools = @(
     "content_workspace_prompt_register",
     "content_workspace_document_save",
     "content_workspace_document_confirm",
+    "content_workspace_document_reject",
     "content_workspace_auto_upload_authorize",
     "content_workspace_bind_production",
     "content_workspace_narration_prepare",

@@ -340,6 +340,11 @@ class CreativeWorkspace:
         record = state["documents"].get(document_id)
         if not isinstance(record, dict):
             raise ToolError("CONTENT_WORKSPACE_DOCUMENT_NOT_FOUND", "没有找到需要确认的当前文档。")
+        if record.get("confirmation", {}).get("status") == "REJECTED_BY_USER":
+            raise ToolError(
+                "CONTENT_WORKSPACE_DOCUMENT_REJECTED",
+                "该版本已被用户否决，不能重新确认；如需继续必须保存一个真正的新版本。",
+            )
         expected_ref = f"task:{state['taskId']}:confirm-content:{state['workspaceId']}:{document_id}:v{record['version']:03d}"
         if (
             not isinstance(confirmation, dict)
@@ -361,6 +366,53 @@ class CreativeWorkspace:
         }
         self._save(state)
         return {"document": record, "next": "只确认了该文档当前版本；不会自动进入制作。"}
+
+    def reject_document(
+        self,
+        *,
+        task_id: Any,
+        workspace_id: Any,
+        binding_proof: Any,
+        document_id: Any,
+        rejection: Any,
+    ) -> dict[str, Any]:
+        state = self._assert(task_id=task_id, workspace_id=workspace_id, binding_proof=binding_proof)
+        document_id = _safe_id(document_id, "documentId", maximum=128)
+        record = state["documents"].get(document_id)
+        if not isinstance(record, dict):
+            raise ToolError("CONTENT_WORKSPACE_DOCUMENT_NOT_FOUND", "没有找到需要否决的当前文档。")
+        expected_ref = f"task:{state['taskId']}:reject-content:{state['workspaceId']}:{document_id}:v{record['version']:03d}"
+        if (
+            not isinstance(rejection, dict)
+            or rejection.get("rejected") is not True
+            or rejection.get("explicitUserInstruction") is not True
+            or rejection.get("confirmationRef") != expected_ref
+            or rejection.get("sha256") != record["sha256"]
+            or not isinstance(rejection.get("reason"), str)
+            or not rejection["reason"].strip()
+        ):
+            raise ToolError(
+                "CONTENT_WORKSPACE_REJECTION_REQUIRED",
+                "只有当前任务中用户明确否决当前版本时才能标记作废。",
+                details={"expectedConfirmationRef": expected_ref, "expectedSha256": record["sha256"]},
+            )
+        record["confirmation"] = {
+            "confirmed": False,
+            "status": "REJECTED_BY_USER",
+            "confirmationRef": expected_ref,
+            "rejectedAt": rejection.get("rejectedAt") or utc_now(),
+            "source": "current_task_user",
+            "reason": rejection["reason"].strip(),
+        }
+        binding = state.get("productionBinding")
+        if isinstance(binding, dict) and binding.get("sourceDocumentId") == document_id:
+            binding["status"] = "INVALIDATED_BY_CONTENT_REJECTION"
+            state["state"] = "CREATIVE_ACTIVE"
+        self._save(state)
+        return {
+            "document": record,
+            "next": "该版本已永久排除为后续输入；需要继续时必须保存全新的版本。",
+        }
 
     def authorize_auto_upload(
         self,

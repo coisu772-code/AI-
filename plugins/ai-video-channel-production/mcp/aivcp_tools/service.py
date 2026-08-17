@@ -39,7 +39,7 @@ RETIRED_CONTENT_TOOL_PREFIXES = (
 
 
 LOCAL_TOOL_PROTOCOL_VERSION = "1.0.0"
-SERVICE_VERSION = "0.12.0-rc.1"
+SERVICE_VERSION = "0.12.0-rc.2"
 
 
 def default_data_root(plugin_root: Path | None = None) -> Path:
@@ -834,6 +834,7 @@ class LocalToolService:
                 "channelRequired": False,
                 "channelListLookupAllowed": False,
                 "productionBindingTrigger": "explicit-user-start-production",
+                "draftingRoutes": ["direct-draft", "provided-outline"],
             }
         elif name == "content_workspace_start":
             result = self.creative_workspace.start(
@@ -875,6 +876,14 @@ class LocalToolService:
                 binding_proof=args.get("workspaceBindingProof"),
                 document_id=args.get("documentId"),
                 confirmation=args.get("confirmation"),
+            )
+        elif name == "content_workspace_document_reject":
+            result = self.creative_workspace.reject_document(
+                task_id=args.get("taskId"),
+                workspace_id=args.get("workspaceId"),
+                binding_proof=args.get("workspaceBindingProof"),
+                document_id=args.get("documentId"),
+                rejection=args.get("rejection"),
             )
         elif name == "content_workspace_auto_upload_authorize":
             result = self.creative_workspace.authorize_auto_upload(
@@ -1802,6 +1811,16 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "confirmation": {"type": "object"},
             },
             ["taskId", "workspaceId", "workspaceBindingProof", "documentId", "confirmation"],
+        ),
+        (
+            "content_workspace_document_reject",
+            "把用户在当前任务明确否决的当前文档版本永久标记为不可复用；新写作必须保存真正的新版本。",
+            {
+                **workspace_binding_properties,
+                "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+                "rejection": {"type": "object"},
+            },
+            ["taskId", "workspaceId", "workspaceBindingProof", "documentId", "rejection"],
         ),
         (
             "content_workspace_auto_upload_authorize",
