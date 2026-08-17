@@ -201,8 +201,52 @@ def validate(manifest_path: Path, asset_root: Path) -> dict[str, object]:
     if unexpected_kokoro:
         errors.append(f"untracked Kokoro release attachments: {sorted(unexpected_kokoro)}")
     assets_by_id = {asset.get("assetId"): asset for asset in manifest.get("assets", [])}
+    workshop = assets_by_id.get("workshop", {})
     publisher = assets_by_id.get("publisher-center", {})
     runtime_asset = assets_by_id.get("python-runtime", {})
+    if workshop.get("license", {}).get("reviewStatus") != "technical-inventory-validated-release-owner-approval-required":
+        errors.append("workshop technical inventory status or external release-owner gate is missing")
+    workshop_path = asset_root / workshop.get("fileName", "")
+    workshop_records = records_by_id.get("workshop", {})
+    if workshop_path.is_file():
+        with zipfile.ZipFile(workshop_path) as archive:
+            root = workshop.get("archiveRoot", "") + "/"
+            names = set(archive.namelist())
+            required = (
+                "licenses/application/LICENSE.md",
+                "licenses/ffmpeg/COPYING.GPLv3",
+                "licenses/ffmpeg/FFMPEG-PROVENANCE.txt",
+                "THIRD-PARTY-NOTICES.md",
+                "README-安装说明.txt",
+                "component-manifest.json",
+            )
+            for relative in required:
+                if root + relative not in names:
+                    errors.append(f"workshop compliance evidence missing: {relative}")
+            for forbidden in ("projects/", "configs/"):
+                if any(name.startswith(root + forbidden) for name in names):
+                    errors.append(f"workshop archive contains user data directory: {forbidden}")
+            component_name = root + "component-manifest.json"
+            if component_name in names:
+                component = json.loads(archive.read(component_name))
+                entries = component.get("files", []) if isinstance(component, dict) else []
+                component_records = {
+                    entry.get("path"): (entry.get("sizeBytes"), entry.get("sha256"))
+                    for entry in entries
+                    if isinstance(entry, dict)
+                }
+                expected_records = {
+                    path: record for path, record in workshop_records.items() if path != "component-manifest.json"
+                }
+                if (
+                    component.get("schemaVersion") != "1.0.0"
+                    or component.get("componentId") != "z-manga-workshop"
+                    or component.get("version") != workshop.get("version")
+                    or component.get("credentialsIncluded") is not False
+                    or component.get("userDataIncluded") is not False
+                    or component_records != expected_records
+                ):
+                    errors.append("workshop component manifest is missing, unsafe or hash-mismatched")
     if publisher.get("license", {}).get("reviewStatus") != "technical-inventory-validated-release-owner-approval-required":
         errors.append("publisher technical inventory status or external release-owner gate is missing")
     if runtime_asset.get("license", {}).get("reviewStatus") != "technical-inventory-validated-release-owner-approval-required":
@@ -279,9 +323,6 @@ def validate(manifest_path: Path, asset_root: Path) -> dict[str, object]:
                         errors.append("bundled Deno license is missing or hash-mismatched")
     if manifest.get("runtime", {}).get("requiresPreinstalledPython") or manifest.get("runtime", {}).get("requiresPreinstalledUv"):
         errors.append("clean installation must not require preinstalled Python or uv")
-    workshop_records = records_by_id.get("workshop", {})
-    workshop_root = next((asset.get("archiveRoot") for asset in manifest.get("assets", []) if asset.get("assetId") == "workshop"), "")
-    del workshop_root
     for logical in manifest.get("logicalComponents", []):
         for file in logical.get("files", []):
             relative = file["relativeInstallPath"].replace("apps/workshop/", "", 1)

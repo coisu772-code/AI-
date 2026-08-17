@@ -2,7 +2,7 @@
 
 ## 统一资产
 
-锁定总清单管理五个核心 Release ZIP：统一安装入口、无大型 EXE 的核心插件、独立 Python 3.12.13 runtime、新漫剧工坊和 YouTube 发布中心。FFmpeg 8.1.1 与 ffprobe 是工坊包内的显式受管组件，总清单记录逐文件哈希、GPL-3.0 许可来源与健康检查。
+锁定总清单管理五个核心 Release ZIP：统一安装入口、无大型 EXE 的核心插件、独立 Python 3.12.13 runtime、新漫剧工坊和 YouTube 发布中心。FFmpeg 8.1.2 与 ffprobe 是工坊包内的显式受管组件，总清单记录逐文件哈希、GPL-3.0 许可来源与健康检查。
 
 同一个 Release 另外携带 Kokoro-FastAPI 的 CPU、NVIDIA 和 NVIDIA Blackwell 三套可选分卷资产。它们不属于统一安装器的五个安装 ZIP，不会在安装或升级系统时自动下载；用户在新漫剧工坊中明确选择本地 Kokoro 后，工坊才从锁定版本的公开 Release 读取对应 JSON 清单，逐卷校验大小和 SHA-256、重组并验证整包 SHA-256，然后安装到工坊程序目录。清单只接受 `coisu772-code/AI-` 的公开 GitHub Release 地址。
 

@@ -121,7 +121,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["componentId", "version", "providedByAsset", "license", "healthCheck", "files"],
       "properties": {
-        "componentId": { "const": "ffmpeg-runtime" }, "version": { "const": "8.1.1" }, "providedByAsset": { "const": "workshop" },
+        "componentId": { "const": "ffmpeg-runtime" }, "version": { "const": "8.1.2" }, "providedByAsset": { "const": "workshop" },
         "license": { "type": "object", "required": ["expression", "source"] },
         "healthCheck": { "type": "object", "required": ["command", "expected"] },
         "files": { "type": "array", "minItems": 2, "items": { "type": "object", "required": ["relativeInstallPath", "sizeBytes", "sha256"], "properties": { "relativeInstallPath": { "type": "string" }, "sizeBytes": { "type": "integer" }, "sha256": { "$ref": "#/$defs/sha256" } } } }

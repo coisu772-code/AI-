@@ -107,11 +107,11 @@
         "reviewStatus": "technical-inventory-validated-release-owner-approval-required",
         "source": "licenses/application/LICENSE.md, licenses/ffmpeg/COPYING.GPLv3 and FFMPEG-PROVENANCE.txt inside archive"
       },
-      "sha256": "65086624d1f738a35a81ddf234265fc3f32a7c498790985ec4d0ddf6493e881d",
-      "sizeBytes": 156852661,
+      "sha256": "81bf0ed50d4ed3de784b908425bbdf088c900da3b72c7655141c5effce5f80b6",
+      "sizeBytes": 157467965,
       "source": {
         "acceptanceStatus": "LOCAL_MERGED_ACCEPTANCE_PASS",
-        "commit": "4a7fff75fa2c8e8d52bc27f1b3f12e45a6f72830"
+        "commit": "777e794ea8444c067d6f672193f200a79b69b17f"
       },
       "version": "2.5.0-rc.1"
     },
@@ -159,25 +159,25 @@
       "files": [
         {
           "relativeInstallPath": "apps/workshop/tools/ffmpeg/bin/ffmpeg.exe",
-          "sha256": "228d7a8556258de907fdb55f36850078ebc7680b84ec30d84ea02e99bec1d1eb",
-          "sizeBytes": 101457920
+          "sha256": "1326dde4c84ff1f96fe6b8916c5bed29e163e9b5dccf995f6f3db069d143ec5e",
+          "sizeBytes": 101897728
         },
         {
           "relativeInstallPath": "apps/workshop/tools/ffmpeg/bin/ffprobe.exe",
-          "sha256": "0fde260f5abd35c9cafd96f594cc76365a780c1b73a90e35b6a3409ea1db1bf0",
-          "sizeBytes": 101251072
+          "sha256": "b49ccc7c6547b141ad5a2f6ec69cc04323d7133d7704d70b331b904c63eecb07",
+          "sizeBytes": 101692928
         }
       ],
       "healthCheck": {
         "command": "apps/workshop/tools/ffmpeg/bin/ffmpeg.exe -version",
-        "expected": "ffmpeg version 8.1.1"
+        "expected": "ffmpeg version 8.1.2"
       },
       "license": {
         "expression": "GPL-3.0-only",
         "source": "apps/workshop/licenses/ffmpeg/COPYING.GPLv3 and FFMPEG-PROVENANCE.txt"
       },
       "providedByAsset": "workshop",
-      "version": "8.1.1"
+      "version": "8.1.2"
     }
   ],
   "optionalRuntimePackages": [

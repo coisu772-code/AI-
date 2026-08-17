@@ -32,10 +32,10 @@ BOOTSTRAP_FILES = (
 )
 WORKSHOP_VERSION = "2.5.0-rc.1"
 WORKSHOP_NAME = "Z-Manga-Workshop-2.5.0-rc.1-for-AIVCP-0.12.0-rc.1-windows-x64-portable.zip"
-WORKSHOP_SHA = "65086624d1f738a35a81ddf234265fc3f32a7c498790985ec4d0ddf6493e881d"
-WORKSHOP_SIZE = 156852661
+WORKSHOP_SHA = "81bf0ed50d4ed3de784b908425bbdf088c900da3b72c7655141c5effce5f80b6"
+WORKSHOP_SIZE = 157467965
 WORKSHOP_ROOT = "Z-Manga-Workshop-2.5.0-rc.1-for-AIVCP-0.12.0-rc.1-windows-x64-portable"
-WORKSHOP_SOURCE_COMMIT = "4a7fff75fa2c8e8d52bc27f1b3f12e45a6f72830"
+WORKSHOP_SOURCE_COMMIT = "777e794ea8444c067d6f672193f200a79b69b17f"
 PUBLISHER_VERSION = "0.9.0-rc.2"
 PUBLISHER_NAME = "youtube-publisher-center-v0.9.0-rc.2-windows-amd64.zip"
 PUBLISHER_SHA = "ef85eb6edaee360f6d404695e53b0cce0f12a8b9de53fd161beb239f89a4e810"
@@ -533,9 +533,9 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
         "releaseStatus":"candidate","hashAlgorithm":"SHA-256","downloadBaseUrl":f"https://github.com/coisu772-code/AI-/releases/download/v{VERSION}",
         "generatedAt":"2026-08-08T00:00:00Z","assets":assets,"optionalRuntimePackages":kokoro_packages,
         "runtime":{"pythonVersion":PYTHON_VERSION,"pythonBuild":PYTHON_BUILD,"youtubeCollectorVersion":YT_DLP_VERSION,"youtubeCollectorCommandVersion":YT_DLP_COMMAND_VERSION,"javascriptRuntimeVersion":DENO_VERSION,"requiresPreinstalledPython":False,"requiresPreinstalledUv":False,"requiresPreinstalledYoutubeCollector":False,"requiresPreinstalledJavascriptRuntime":False},
-        "logicalComponents":[{"componentId":"ffmpeg-runtime","version":"8.1.1","providedByAsset":"workshop","license":{"expression":"GPL-3.0-only","source":"apps/workshop/licenses/ffmpeg/COPYING.GPLv3 and FFMPEG-PROVENANCE.txt"},"healthCheck":{"command":"apps/workshop/tools/ffmpeg/bin/ffmpeg.exe -version","expected":"ffmpeg version 8.1.1"},"files":[
-            {"relativeInstallPath":"apps/workshop/tools/ffmpeg/bin/ffmpeg.exe","sizeBytes":101457920,"sha256":"228d7a8556258de907fdb55f36850078ebc7680b84ec30d84ea02e99bec1d1eb"},
-            {"relativeInstallPath":"apps/workshop/tools/ffmpeg/bin/ffprobe.exe","sizeBytes":101251072,"sha256":"0fde260f5abd35c9cafd96f594cc76365a780c1b73a90e35b6a3409ea1db1bf0"}
+        "logicalComponents":[{"componentId":"ffmpeg-runtime","version":"8.1.2","providedByAsset":"workshop","license":{"expression":"GPL-3.0-only","source":"apps/workshop/licenses/ffmpeg/COPYING.GPLv3 and FFMPEG-PROVENANCE.txt"},"healthCheck":{"command":"apps/workshop/tools/ffmpeg/bin/ffmpeg.exe -version","expected":"ffmpeg version 8.1.2"},"files":[
+            {"relativeInstallPath":"apps/workshop/tools/ffmpeg/bin/ffmpeg.exe","sizeBytes":101897728,"sha256":"1326dde4c84ff1f96fe6b8916c5bed29e163e9b5dccf995f6f3db069d143ec5e"},
+            {"relativeInstallPath":"apps/workshop/tools/ffmpeg/bin/ffprobe.exe","sizeBytes":101692928,"sha256":"b49ccc7c6547b141ad5a2f6ec69cc04323d7133d7704d70b331b904c63eecb07"}
         ]}],
         "safetyBoundaries":{"credentialsIncluded":False,"userDataIncluded":False,"oauthExecuted":False,"realUploadExecuted":False,"longTermLearningWriteExecuted":False},
         "publicationGates":["replace-local-commit-placeholders","release-license-owner-approval","clean-windows-acceptance","github-release-approval","google-oauth-approval","private-upload-approval","studio-data-approval","long-term-learning-write-approval"]
