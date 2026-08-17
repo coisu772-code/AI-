@@ -49,32 +49,6 @@ VIDEO_DECONSTRUCTION_DIMENSIONS = {
 }
 
 
-def _source_summary_markdown(plan: dict[str, Any]) -> str:
-    lines = [
-        "# 原始素材说明",
-        "",
-        f"- 拆解编号：`{plan['deconstructionId']}`",
-        f"- 拆解模式：`{plan['mode']}`",
-        f"- 素材数量：{len(plan['videos'])}",
-        "- 说明：本文件只记录已冻结来源身份和读取边界，不根据标题或封面补写未知正文。",
-        "",
-        "## 素材清单",
-        "",
-    ]
-    for index, item in enumerate(plan["videos"], 1):
-        lines.extend(
-            [
-                f"### {index}. {item.get('title') or item['sourcePackageId']}",
-                "",
-                f"- Source Package：`{item['sourcePackageId']}`",
-                f"- 角色：{item['role']}",
-                f"- 语言：{item.get('language') or '未知'}",
-                f"- 公开地址：{item.get('canonicalUrl') or '无／本地素材'}",
-                f"- 内容哈希：`{item['sourcePackage']['targetHash']}`",
-                "",
-            ]
-        )
-    return "\n".join(lines)
 CHECKPOINT_QUALITY_KEYS = {
     "fiveBucketsSeparated",
     "evidenceTraceable",
@@ -93,7 +67,12 @@ FINAL_QUALITY_KEYS = {
     "timingIntegrity",
 }
 CONTENT_DIRECTION_QUALITY_KEYS = {
+    "intentRoutingValidated",
+    "contentLocksValidated",
+    "scopeBoundariesValidated",
+    "activeVersionIsolationValidated",
     "sourceStoryDnaBound",
+    "audienceFunctionalTransferValidated",
     "expansionSeamsEvidenceBound",
     "directionFidelityValidated",
     "directionDistinctnessValidated",
@@ -106,9 +85,12 @@ DIRECTION_MODES = {
     "free-original": ("C", 1),
 }
 DIRECTION_DISTINCTNESS_DIMENSIONS = {
+    "audienceNeed",
+    "functionalTransferAxis",
     "protagonistGoal",
     "worldOrRealityRules",
     "coreRelationship",
+    "powerStructure",
     "conflictSource",
     "causalEngine",
     "climaxAction",
@@ -124,6 +106,61 @@ SOURCE_STORY_DNA_KEYS = {
     "climaxFunction",
     "endingPayoff",
 }
+AUDIENCE_NEED_TYPES = {"pain", "desire", "preference", "payoff"}
+AUDIENCE_NEED_BASIS_TYPES = {"user-confirmed", "channel-profile", "source-supported", "hypothesis"}
+AUDIENCE_NEED_CONFIDENCE = {"high", "medium", "low"}
+TRANSFER_MODES = {"natural-expansion", "functional-parallel", "hybrid"}
+FUNCTIONAL_TRANSFER_MINIMUMS = {
+    "close-structure": 4,
+    "balanced-reconstruction": 3,
+    "free-original": 2,
+}
+TEMPLATE_CONTAMINATION_CHECK = {
+    "promptExampleCopied": False,
+    "presetSettingInjected": False,
+    "audienceNeedJustified": True,
+    "functionalMappingComplete": True,
+    "causalCompatibilityPassed": True,
+}
+INTENT_MODES = {"exploratory_recommendation", "scope_locked_migration", "delta_revision"}
+CONTENT_LOCK_KEYS = {"sourceFacts", "narrativeEngine", "audiencePayoffContract", "surfaceImplementation"}
+NARRATIVE_ENGINE_KEYS = {
+    "goal",
+    "causalEngine",
+    "progressionMechanism",
+    "feedbackLoop",
+    "escalationOrDevelopment",
+    "climaxFunction",
+}
+AUDIENCE_PAYOFF_KEYS = {"audiencePromise", "emotionalPayoffs", "experienceMechanisms"}
+SURFACE_IMPLEMENTATION_KEYS = {"lockedElements", "changeableElements", "unknownElements"}
+SCOPE_CHANGE_KEYS = {
+    "requestedChanges",
+    "explicitlyPreserved",
+    "necessaryCascadeChanges",
+    "optionalCreativeSuggestions",
+    "forbiddenExpansion",
+    "unresolvedItems",
+    "unchangedStoryFunctions",
+}
+CHANGE_ORIGINS = {"user-requested", "logic-required", "optional-suggestion"}
+CHANGE_STATUSES = {"active", "inactive", "rejected", "pending"}
+INTENT_QUALITY_BOOLEAN_KEYS = {
+    "intentModeCorrect",
+    "requestedChangesFullyApplied",
+    "explicitPreservesUntouched",
+    "causalChainCoherent",
+    "noUnsolicitedExpansion",
+    "originalityBoundaryPassed",
+    "supersededContentInactive",
+    "formalProductionOutlineNotGenerated",
+}
+INTENT_QUALITY_STATUS_KEYS = {
+    "narrativeEngineStatus",
+    "audiencePayoffStatus",
+    "characterFunctionStatus",
+}
+AUTHORIZED_CHANGE_STATUSES = {"preserved", "authorized-change"}
 DOWNSTREAM_CONSUMERS = {"topic-center", "manuscript-center", "content-rewrite", "content-review-edit"}
 
 
@@ -890,6 +927,185 @@ class VideoCopyDeconstruction:
                 raise ToolError(code, "来源锚点不得重复凑数。")
             return pairs
 
+        intent_mode = value.get("intentMode")
+        if intent_mode not in INTENT_MODES:
+            raise ToolError("INTENT_MODE_INVALID", "必须先区分开放探索、范围锁定或增量修订意图。")
+        active_adaptation_modes = value.get("activeAdaptationModes")
+        if (
+            not isinstance(active_adaptation_modes, list)
+            or not active_adaptation_modes
+            or len(active_adaptation_modes) not in ({1, 3} if intent_mode == "exploratory_recommendation" else {1})
+            or any(not isinstance(item, str) for item in active_adaptation_modes)
+            or len(set(active_adaptation_modes)) != len(active_adaptation_modes)
+            or not set(active_adaptation_modes).issubset(DIRECTION_MODES)
+        ):
+            raise ToolError("ACTIVE_ADAPTATION_MODES_INVALID", "开放探索只能使用单档或完整三档，单卡模式只能使用一个改编档位。")
+        if len(active_adaptation_modes) == 3 and set(active_adaptation_modes) != set(DIRECTION_MODES):
+            raise ToolError("ACTIVE_ADAPTATION_MODES_INVALID", "完整三档必须同时包含高贴合、中度重构和大胆创新。")
+        active_version_id = value.get("activeVersionId")
+        if not isinstance(active_version_id, str) or not active_version_id.strip():
+            raise ToolError("ACTIVE_VERSION_REQUIRED", "迁移方向包必须冻结唯一活动版本。")
+
+        content_locks = value.get("contentLocks")
+        if not isinstance(content_locks, dict) or set(content_locks) != CONTENT_LOCK_KEYS:
+            raise ToolError("CONTENT_LOCKS_INVALID", "必须分别冻结来源事实、叙事发动机、观众回报和表层实现四层内容锁。")
+        anchor_pairs(content_locks.get("sourceFacts"), code="CONTENT_LOCK_SOURCE_FACTS_INVALID")
+        narrative_engine = content_locks.get("narrativeEngine")
+        if (
+            not isinstance(narrative_engine, dict)
+            or set(narrative_engine) != NARRATIVE_ENGINE_KEYS
+            or any(not meaningful(narrative_engine.get(key)) for key in NARRATIVE_ENGINE_KEYS)
+        ):
+            raise ToolError("NARRATIVE_ENGINE_LOCK_INVALID", "叙事发动机必须完整锁定目标、因果、推进、反馈、发展和高潮功能。")
+        audience_payoff = content_locks.get("audiencePayoffContract")
+        if (
+            not isinstance(audience_payoff, dict)
+            or set(audience_payoff) != AUDIENCE_PAYOFF_KEYS
+            or any(not meaningful(audience_payoff.get(key)) for key in AUDIENCE_PAYOFF_KEYS)
+        ):
+            raise ToolError("AUDIENCE_PAYOFF_LOCK_INVALID", "观众回报合同必须锁定承诺、情绪回报和体验机制。")
+        surface = content_locks.get("surfaceImplementation")
+        if not isinstance(surface, dict) or set(surface) != SURFACE_IMPLEMENTATION_KEYS:
+            raise ToolError("SURFACE_IMPLEMENTATION_LOCK_INVALID", "表层实现必须区分已锁定、可改变和未知内容。")
+        for key in SURFACE_IMPLEMENTATION_KEYS:
+            if not isinstance(surface.get(key), list) or any(
+                not isinstance(item, str) or not item.strip() for item in surface[key]
+            ):
+                raise ToolError("SURFACE_IMPLEMENTATION_LOCK_INVALID", "表层实现各层必须使用有效文本数组。")
+        if not surface["lockedElements"] and not surface["changeableElements"]:
+            raise ToolError("SURFACE_IMPLEMENTATION_LOCK_INVALID", "表层实现至少需要一项已锁定或可改变内容。")
+
+        scope_change_contract = value.get("scopeChangeContract")
+        if intent_mode == "exploratory_recommendation":
+            if scope_change_contract is not None or value.get("deltaRevision") is not None or value.get("scopeLockedCard") is not None:
+                raise ToolError("EXPLORATORY_SCOPE_CONFLICT", "开放探索不得伪造范围锁定或增量修订合同。")
+        else:
+            if not isinstance(scope_change_contract, dict) or set(scope_change_contract) != SCOPE_CHANGE_KEYS:
+                raise ToolError("SCOPE_CHANGE_CONTRACT_REQUIRED", "范围锁定与增量修订必须提交完整变更范围合同。")
+            change_ids: set[str] = set()
+            expected_origins = {
+                "requestedChanges": {"user-requested"},
+                "explicitlyPreserved": {"user-requested"},
+                "necessaryCascadeChanges": {"logic-required"},
+                "optionalCreativeSuggestions": {"optional-suggestion"},
+                "forbiddenExpansion": {"user-requested", "logic-required"},
+                "unresolvedItems": CHANGE_ORIGINS,
+                "unchangedStoryFunctions": {"user-requested", "logic-required"},
+            }
+            required_nonempty = {"requestedChanges", "forbiddenExpansion", "unchangedStoryFunctions"}
+            for key in SCOPE_CHANGE_KEYS:
+                items = scope_change_contract.get(key)
+                if not isinstance(items, list) or (key in required_nonempty and not items):
+                    raise ToolError("SCOPE_CHANGE_CONTRACT_INVALID", f"变更范围合同缺少 {key}。")
+                for item in items:
+                    if not isinstance(item, dict):
+                        raise ToolError("SCOPE_CHANGE_ITEM_INVALID", "变更范围项目结构无效。")
+                    item_id = item.get("itemId")
+                    origin = item.get("changeOrigin")
+                    status = item.get("status")
+                    if (
+                        not isinstance(item_id, str)
+                        or not item_id.strip()
+                        or item_id in change_ids
+                        or not meaningful(item.get("statement"))
+                        or origin not in expected_origins[key]
+                        or status not in CHANGE_STATUSES
+                    ):
+                        raise ToolError("SCOPE_CHANGE_ITEM_INVALID", "每项变更必须有唯一编号、内容、合法来源和状态。")
+                    if key == "optionalCreativeSuggestions" and status not in {"inactive", "rejected"}:
+                        raise ToolError("OPTIONAL_SUGGESTION_ACTIVE", "可选创意建议未经用户确认不得进入活动方案。")
+                    if key not in {"optionalCreativeSuggestions", "unresolvedItems"} and status != "active":
+                        raise ToolError("SCOPE_CHANGE_ITEM_INVALID", "当前合同中的用户要求、保留项和必要联动必须处于活动状态。")
+                    if key == "unresolvedItems" and status not in {"pending", "inactive"}:
+                        raise ToolError("SCOPE_CHANGE_ITEM_INVALID", "未解决项只能处于等待或未激活状态。")
+                    change_ids.add(item_id)
+
+        intent_quality_gate = value.get("intentQualityGate")
+        if intent_mode == "exploratory_recommendation":
+            if intent_quality_gate is not None:
+                raise ToolError("EXPLORATORY_QUALITY_GATE_CONFLICT", "开放探索不使用范围锁定质量门。")
+        else:
+            if not isinstance(intent_quality_gate, dict):
+                raise ToolError("INTENT_QUALITY_GATE_REQUIRED", "范围锁定与增量修订必须通过意图质量门。")
+            if any(intent_quality_gate.get(key) is not True for key in INTENT_QUALITY_BOOLEAN_KEYS):
+                raise ToolError("INTENT_QUALITY_GATE_FAILED", "范围锁定硬质量项未全部通过。")
+            if any(intent_quality_gate.get(key) not in AUTHORIZED_CHANGE_STATUSES for key in INTENT_QUALITY_STATUS_KEYS):
+                raise ToolError("INTENT_QUALITY_GATE_FAILED", "发动机、观众回报和角色功能必须标记为保留或已授权改变。")
+
+        scope_locked_card = value.get("scopeLockedCard")
+        delta_revision = value.get("deltaRevision")
+        if intent_mode == "scope_locked_migration":
+            required_card_keys = {
+                "userChangeScope",
+                "narrativeEngine",
+                "audiencePayoff",
+                "preservedCharacterFunctions",
+                "preservedStageFunctions",
+                "directReplacementFields",
+                "necessaryCascadeFields",
+                "protectedContent",
+                "originalityBoundary",
+                "logicDriftRisks",
+                "unresolvedItems",
+                "confirmationStatus",
+            }
+            if (
+                not isinstance(scope_locked_card, dict)
+                or set(scope_locked_card) != required_card_keys
+                or scope_locked_card.get("confirmationStatus") != "AWAITING_USER"
+                or any(
+                    not meaningful(scope_locked_card.get(key))
+                    for key in required_card_keys - {"necessaryCascadeFields", "unresolvedItems", "confirmationStatus"}
+                )
+                or any(
+                    not isinstance(scope_locked_card.get(key), list)
+                    for key in {"necessaryCascadeFields", "unresolvedItems"}
+                )
+            ):
+                raise ToolError("SCOPE_LOCKED_CARD_INVALID", "范围锁定必须提交完整单卡并等待用户确认。")
+            if delta_revision is not None:
+                raise ToolError("SCOPE_DELTA_CONFLICT", "范围锁定不能同时提交增量修订。")
+        elif intent_mode == "delta_revision":
+            required_delta_keys = {
+                "baseVersionId",
+                "latestVersionId",
+                "newChanges",
+                "affectedFields",
+                "unchangedFields",
+                "supersededDesigns",
+                "narrativeEngineImpact",
+                "audiencePayoffImpact",
+                "activeVersionSummary",
+            }
+            if not isinstance(delta_revision, dict) or set(delta_revision) != required_delta_keys:
+                raise ToolError("DELTA_REVISION_INVALID", "增量修订必须记录基础版本、变化范围、失活内容和最新版本。")
+            if (
+                not isinstance(delta_revision.get("baseVersionId"), str)
+                or not delta_revision["baseVersionId"].strip()
+                or delta_revision.get("latestVersionId") != active_version_id
+                or delta_revision["baseVersionId"] == active_version_id
+                or not meaningful(delta_revision.get("newChanges"))
+                or not meaningful(delta_revision.get("affectedFields"))
+                or not meaningful(delta_revision.get("unchangedFields"))
+                or delta_revision.get("narrativeEngineImpact") not in AUTHORIZED_CHANGE_STATUSES
+                or delta_revision.get("audiencePayoffImpact") not in AUTHORIZED_CHANGE_STATUSES
+                or not meaningful(delta_revision.get("activeVersionSummary"))
+            ):
+                raise ToolError("DELTA_REVISION_INVALID", "增量修订的版本、影响范围或活动摘要无效。")
+            superseded = delta_revision.get("supersededDesigns")
+            if not isinstance(superseded, list):
+                raise ToolError("DELTA_REVISION_INVALID", "被替代设计必须使用数组记录。")
+            for item in superseded:
+                if (
+                    not isinstance(item, dict)
+                    or not meaningful(item.get("designId"))
+                    or item.get("status") not in {"inactive", "rejected"}
+                    or not meaningful(item.get("reason"))
+                ):
+                    raise ToolError("SUPERSEDED_CONTENT_ACTIVE", "被撤销设计必须明确标为 inactive 或 rejected。")
+            if scope_locked_card is not None:
+                raise ToolError("SCOPE_DELTA_CONFLICT", "增量修订不能同时提交范围锁定卡。")
+
         story_dna = value.get("sourceStoryDNA")
         if not isinstance(story_dna, dict):
             raise ToolError("SOURCE_STORY_DNA_REQUIRED", "迁移方向包缺少来源故事 DNA。")
@@ -900,6 +1116,48 @@ class VideoCopyDeconstruction:
                 "来源故事 DNA 必须完整记录观众承诺、因果、关系、规则、情绪、高潮和结局回报。",
                 details={"missing": missing_dna},
             )
+
+        audience_model = value.get("audienceNeedModel")
+        if (
+            not isinstance(audience_model, dict)
+            or not meaningful(audience_model.get("targetAudienceContext"))
+            or not meaningful(audience_model.get("evidenceBoundary"))
+        ):
+            raise ToolError("AUDIENCE_NEED_MODEL_REQUIRED", "迁移方向必须先建立有证据边界的观众需要模型。")
+        audience_needs = audience_model.get("needs")
+        if not isinstance(audience_needs, list) or len(audience_needs) < 3:
+            raise ToolError("AUDIENCE_NEED_MODEL_INCOMPLETE", "观众需要模型必须具体覆盖痛点／愿望与偏好／回报，不得使用单一空泛标签。")
+        need_rows: dict[str, dict[str, Any]] = {}
+        for need in audience_needs:
+            if not isinstance(need, dict):
+                raise ToolError("AUDIENCE_NEED_INVALID", "观众需要结构无效。")
+            need_id = need.get("needId")
+            need_type = need.get("needType")
+            basis_type = need.get("basisType")
+            confidence = need.get("confidence")
+            source_refs = need.get("sourceEvidenceRefs")
+            if (
+                not isinstance(need_id, str)
+                or not need_id.strip()
+                or need_id in need_rows
+                or need_type not in AUDIENCE_NEED_TYPES
+                or basis_type not in AUDIENCE_NEED_BASIS_TYPES
+                or confidence not in AUDIENCE_NEED_CONFIDENCE
+                or not meaningful(need.get("statement"))
+                or not meaningful(need.get("basisRef"))
+                or not isinstance(source_refs, list)
+            ):
+                raise ToolError("AUDIENCE_NEED_INVALID", "观众需要必须有唯一编号、类型、具体陈述、依据、置信度和证据列表。")
+            if basis_type == "source-supported":
+                anchor_pairs(source_refs, code="AUDIENCE_NEED_SOURCE_EVIDENCE_INVALID")
+            elif source_refs:
+                anchor_pairs(source_refs, code="AUDIENCE_NEED_SOURCE_EVIDENCE_INVALID")
+            if basis_type == "hypothesis" and confidence == "high":
+                raise ToolError("AUDIENCE_NEED_CONFIDENCE_INVALID", "未经确认的观众假设不得标为高置信度。")
+            need_rows[need_id] = need
+        need_types = {item["needType"] for item in need_rows.values()}
+        if not need_types.intersection({"pain", "desire"}) or not need_types.intersection({"preference", "payoff"}):
+            raise ToolError("AUDIENCE_NEED_MODEL_INCOMPLETE", "观众需要模型必须同时覆盖代入动因与内容偏好／回报。")
 
         seams = value.get("expansionSeams")
         if not isinstance(seams, list) or not seams:
@@ -947,15 +1205,24 @@ class VideoCopyDeconstruction:
             raise ToolError("ADAPTATION_PROFILES_INVALID", "三个通用改编档位必须完整且不重复。")
 
         directions = value.get("directions")
-        if not isinstance(directions, list) or len(directions) != 15:
-            raise ToolError("DIRECTION_COUNT_INVALID", "迁移方向必须为三档各5个、共15个。")
-        expected_ids = {
-            f"{prefix}{index}": adaptation_mode
-            for adaptation_mode, (prefix, _) in DIRECTION_MODES.items()
-            for index in range(1, 6)
-        }
+        if intent_mode == "exploratory_recommendation":
+            expected_ids = {
+                f"{DIRECTION_MODES[adaptation_mode][0]}{index}": adaptation_mode
+                for adaptation_mode in active_adaptation_modes
+                for index in range(1, 6)
+            }
+        else:
+            expected_ids = {
+                ("S1" if intent_mode == "scope_locked_migration" else "D1"): active_adaptation_modes[0]
+            }
+        if not isinstance(directions, list) or len(directions) != len(expected_ids):
+            raise ToolError(
+                "DIRECTION_COUNT_INVALID",
+                "开放探索必须按活动档位各输出5个方向；范围锁定和增量修订只能输出1张活动卡。",
+            )
         direction_rows: dict[str, dict[str, Any]] = {}
         engines: set[str] = set()
+        transfer_signatures: set[str] = set()
         for direction in directions:
             if not isinstance(direction, dict):
                 raise ToolError("DIRECTION_INVALID", "迁移方向结构无效。")
@@ -966,27 +1233,49 @@ class VideoCopyDeconstruction:
                 or expected_ids[direction_id] != adaptation_mode
                 or direction_id in direction_rows
             ):
-                raise ToolError("DIRECTION_ID_INVALID", "方向编号必须为 A1—A5、B1—B5、C1—C5，并匹配对应档位。")
-            if not meaningful(direction.get("title")) or not meaningful(direction.get("naturalExpansionRationale")):
-                raise ToolError("DIRECTION_INVALID", "每个方向必须有名称和从原文自然拓展的理由。")
+                raise ToolError("DIRECTION_ID_INVALID", "方向编号与当前意图模式或活动改编档位不匹配。")
+            if not meaningful(direction.get("title")) or not meaningful(direction.get("transferRationale")):
+                raise ToolError("DIRECTION_INVALID", "每个方向必须有名称和观众需要驱动的迁移理由。")
             if direction.get("genericTemplateRisk") is not False:
                 raise ToolError("DIRECTION_GENERIC_TEMPLATE_RISK", "检测到通用母版污染的方向不能冻结。")
+            transfer_mode = direction.get("transferMode")
+            if transfer_mode not in TRANSFER_MODES:
+                raise ToolError("DIRECTION_TRANSFER_MODE_INVALID", "迁移模式必须为自然延伸、功能平移或混合模式。")
+            primary_need_ids = direction.get("primaryAudienceNeedIds")
+            if (
+                not isinstance(primary_need_ids, list)
+                or not primary_need_ids
+                or any(not isinstance(need_id, str) for need_id in primary_need_ids)
+                or len(set(primary_need_ids)) != len(primary_need_ids)
+                or any(need_id not in need_rows for need_id in primary_need_ids)
+            ):
+                raise ToolError("DIRECTION_AUDIENCE_NEEDS_INVALID", "每个方向必须绑定已建模且不重复的主要观众需要。")
+            if not meaningful(direction.get("skinSelectionRationale")) or not meaningful(direction.get("audiencePayoffContinuity")):
+                raise ToolError("DIRECTION_SKIN_LOGIC_INVALID", "新表层设定必须说明观众依据、功能等价和回报连续性。")
+            if direction.get("templateContaminationCheck") != TEMPLATE_CONTAMINATION_CHECK:
+                raise ToolError("DIRECTION_TEMPLATE_CONTAMINATION", "方向不得从提示词示例、预设题材或历史母版注入未确认设定。")
             contract = direction.get("preservationContract")
             if contract != profile_rows[adaptation_mode]["preservationContract"]:
                 raise ToolError("DIRECTION_PRESERVATION_CONTRACT_MISMATCH", "方向必须使用所属档位冻结的保留契约。")
             anchors = anchor_pairs(direction.get("sourceAnchorRefs"), code="DIRECTION_SOURCE_ANCHORS_INVALID")
-            minimum_anchors = DIRECTION_MODES[adaptation_mode][1]
+            minimum_anchors = DIRECTION_MODES[adaptation_mode][1] if intent_mode == "exploratory_recommendation" else 1
             if len(anchors) < minimum_anchors:
                 raise ToolError(
                     "DIRECTION_SOURCE_ANCHORS_INSUFFICIENT",
                     "方向的来源事实锚点数量低于所属档位要求。",
                     details={"directionId": direction_id, "minimum": minimum_anchors, "actual": len(anchors)},
                 )
-            if mode == "compare" and {item[0] for item in anchors} != set(source_fact_ids):
+            if (
+                intent_mode == "exploratory_recommendation"
+                and mode == "compare"
+                and {item[0] for item in anchors} != set(source_fact_ids)
+            ):
                 raise ToolError("DIRECTION_SOURCE_COVERAGE_INCOMPLETE", "比较／融合方向必须引用每个成功来源的事实。")
             seam_ids = direction.get("expansionSeamIds")
-            if not isinstance(seam_ids, list) or not seam_ids or len(set(seam_ids)) != len(seam_ids):
-                raise ToolError("DIRECTION_EXPANSION_SEAM_INVALID", "每个方向必须绑定至少一个不重复的自然扩展缺口。")
+            if not isinstance(seam_ids, list) or len(set(seam_ids)) != len(seam_ids):
+                raise ToolError("DIRECTION_EXPANSION_SEAM_INVALID", "扩展缺口编号必须是无重复数组。")
+            if transfer_mode in {"natural-expansion", "hybrid"} and not seam_ids:
+                raise ToolError("DIRECTION_EXPANSION_SEAM_INVALID", "自然延伸与混合模式必须绑定至少一个扩展缺口。")
             if any(
                 seam_id not in seam_rows or adaptation_mode not in seam_rows[seam_id]["applicableModes"]
                 for seam_id in seam_ids
@@ -1010,9 +1299,57 @@ class VideoCopyDeconstruction:
                 fidelity_pairs.add(pair)
             if len(fidelity_pairs) < minimum_anchors:
                 raise ToolError("DIRECTION_FIDELITY_EVIDENCE_INSUFFICIENT", "来源贴合证据不得重复凑数。")
+            transfer_map = direction.get("functionalTransferMap")
+            minimum_mappings = (
+                FUNCTIONAL_TRANSFER_MINIMUMS[adaptation_mode]
+                if intent_mode == "exploratory_recommendation"
+                else 1
+            )
+            if not isinstance(transfer_map, list) or len(transfer_map) < minimum_mappings:
+                raise ToolError(
+                    "DIRECTION_FUNCTIONAL_TRANSFER_INCOMPLETE",
+                    "功能平移映射数量低于所属档位要求。",
+                    details={"directionId": direction_id, "minimum": minimum_mappings},
+                )
+            mapping_ids: set[str] = set()
+            mapped_anchors: set[tuple[str, str]] = set()
+            mapped_needs: set[str] = set()
+            for mapping in transfer_map:
+                if not isinstance(mapping, dict):
+                    raise ToolError("DIRECTION_FUNCTIONAL_TRANSFER_INVALID", "功能平移映射结构无效。")
+                mapping_id = mapping.get("mappingId")
+                audience_need_ids = mapping.get("audienceNeedIds")
+                if (
+                    not isinstance(mapping_id, str)
+                    or not mapping_id.strip()
+                    or mapping_id in mapping_ids
+                    or not meaningful(mapping.get("sourceFunction"))
+                    or not meaningful(mapping.get("newImplementation"))
+                    or not meaningful(mapping.get("causalFitRationale"))
+                    or not meaningful(mapping.get("preservedPayoff"))
+                    or not isinstance(audience_need_ids, list)
+                    or not audience_need_ids
+                    or any(not isinstance(need_id, str) for need_id in audience_need_ids)
+                    or len(set(audience_need_ids)) != len(audience_need_ids)
+                    or any(need_id not in need_rows for need_id in audience_need_ids)
+                ):
+                    raise ToolError("DIRECTION_FUNCTIONAL_TRANSFER_INVALID", "每行功能平移必须完整连接来源功能、观众需要、新实现、因果适配和保留回报。")
+                mapping_anchors = anchor_pairs(
+                    mapping.get("sourceAnchorRefs"), code="DIRECTION_FUNCTIONAL_TRANSFER_ANCHORS_INVALID"
+                )
+                if not mapping_anchors.issubset(anchors):
+                    raise ToolError("DIRECTION_FUNCTIONAL_TRANSFER_ANCHORS_INVALID", "功能平移只能使用本方向已经冻结的来源锚点。")
+                mapping_ids.add(mapping_id)
+                mapped_anchors.update(mapping_anchors)
+                mapped_needs.update(audience_need_ids)
+            if mapped_anchors != anchors:
+                raise ToolError("DIRECTION_FUNCTIONAL_TRANSFER_COVERAGE_INCOMPLETE", "功能平移映射必须覆盖本方向全部来源锚点。")
+            if not set(primary_need_ids).issubset(mapped_needs):
+                raise ToolError("DIRECTION_FUNCTIONAL_TRANSFER_COVERAGE_INCOMPLETE", "功能平移映射必须覆盖本方向全部主要观众需要。")
             causal_outline = direction.get("causalOutline")
-            if not isinstance(causal_outline, list) or len(causal_outline) < 4:
-                raise ToolError("DIRECTION_CAUSAL_OUTLINE_INCOMPLETE", "每个方向至少需要4个来源自适应因果阶段。")
+            minimum_stages = 4 if intent_mode == "exploratory_recommendation" else 1
+            if not isinstance(causal_outline, list) or len(causal_outline) < minimum_stages:
+                raise ToolError("DIRECTION_CAUSAL_OUTLINE_INCOMPLETE", "活动方案缺少当前意图所需的因果阶段说明。")
             for stage in causal_outline:
                 if not isinstance(stage, dict) or any(
                     not meaningful(stage.get(key)) for key in ("phase", "event", "causesNext", "sourceFunctionOrSeam")
@@ -1021,16 +1358,23 @@ class VideoCopyDeconstruction:
             if not meaningful(direction.get("nonCopyEvidence")):
                 raise ToolError("DIRECTION_NON_COPY_EVIDENCE_REQUIRED", "每个方向必须说明非换皮原创证据。")
             engine = str(direction.get("distinctiveEngine") or "").strip().casefold()
-            if not engine or engine in engines:
-                raise ToolError("DIRECTION_ENGINE_DUPLICATE", "15个方向必须使用实质不同的因果发动机，不能重复母版。")
+            if not engine or (intent_mode == "exploratory_recommendation" and engine in engines):
+                raise ToolError("DIRECTION_ENGINE_DUPLICATE", "开放探索方向必须使用实质不同的因果发动机。")
             engines.add(engine)
+            transfer_signature = str(direction.get("functionalTransferSignature") or "").strip().casefold()
+            if not transfer_signature or (
+                intent_mode == "exploratory_recommendation" and transfer_signature in transfer_signatures
+            ):
+                raise ToolError("DIRECTION_FUNCTIONAL_TRANSFER_DUPLICATE", "开放探索方向不得复用同一观众需要与功能平移母版。")
+            transfer_signatures.add(transfer_signature)
             direction_rows[direction_id] = direction
         if set(direction_rows) != set(expected_ids):
-            raise ToolError("DIRECTION_ID_INVALID", "15个方向编号必须完整且不重复。")
+            raise ToolError("DIRECTION_ID_INVALID", "当前意图要求的方向编号必须完整且不重复。")
 
         matrix = value.get("directionDistinctnessMatrix")
-        if not isinstance(matrix, list) or len(matrix) != 105:
-            raise ToolError("DIRECTION_DISTINCTNESS_MATRIX_INCOMPLETE", "15个方向必须保存105组两两去重结果。")
+        expected_matrix_count = len(expected_ids) * (len(expected_ids) - 1) // 2
+        if not isinstance(matrix, list) or len(matrix) != expected_matrix_count:
+            raise ToolError("DIRECTION_DISTINCTNESS_MATRIX_INCOMPLETE", "去重矩阵数量必须与当前开放探索方向数一致；单卡模式必须为空。")
         expected_pairs = {
             tuple(sorted((left, right)))
             for index, left in enumerate(sorted(expected_ids))
@@ -1055,7 +1399,7 @@ class VideoCopyDeconstruction:
                 raise ToolError("DIRECTION_DISTINCTNESS_MATRIX_INVALID", "每对方向至少在3个核心维度实质不同，并且不得共享同一母版。")
             actual_pairs.add(pair)
         if actual_pairs != expected_pairs:
-            raise ToolError("DIRECTION_DISTINCTNESS_MATRIX_INCOMPLETE", "方向去重矩阵没有覆盖全部105对方向。")
+            raise ToolError("DIRECTION_DISTINCTNESS_MATRIX_INCOMPLETE", "方向去重矩阵没有覆盖当前全部方向对。")
 
         selection = value.get("selection")
         if (
@@ -1064,12 +1408,19 @@ class VideoCopyDeconstruction:
             or selection.get("selectedDirectionId") not in (None, "")
         ):
             raise ToolError("DIRECTION_SELECTION_STATE_INVALID", "审核模式拆解完成后必须等待用户选择，不能预先选定方向。")
-        recommendations = selection.get("recommendedByTier")
-        if not isinstance(recommendations, dict) or set(recommendations) != set(DIRECTION_MODES):
-            raise ToolError("DIRECTION_RECOMMENDATIONS_INVALID", "必须分别给出三个档位的推荐方向。")
-        for adaptation_mode, direction_id in recommendations.items():
-            if expected_ids.get(direction_id) != adaptation_mode:
-                raise ToolError("DIRECTION_RECOMMENDATIONS_INVALID", "每档推荐必须来自本档5个方向。")
+        if intent_mode == "exploratory_recommendation":
+            recommendations = selection.get("recommendedByTier")
+            if not isinstance(recommendations, dict) or set(recommendations) != set(active_adaptation_modes):
+                raise ToolError("DIRECTION_RECOMMENDATIONS_INVALID", "开放探索必须为每个活动档位给出一个推荐方向。")
+            for adaptation_mode, direction_id in recommendations.items():
+                if expected_ids.get(direction_id) != adaptation_mode:
+                    raise ToolError("DIRECTION_RECOMMENDATIONS_INVALID", "每档推荐必须来自本档5个方向。")
+            if selection.get("proposedDirectionId") not in (None, ""):
+                raise ToolError("DIRECTION_RECOMMENDATIONS_INVALID", "开放探索不能伪装成单卡提案。")
+        else:
+            proposed_id = "S1" if intent_mode == "scope_locked_migration" else "D1"
+            if selection.get("proposedDirectionId") != proposed_id or selection.get("recommendedByTier") not in (None, {}):
+                raise ToolError("DIRECTION_RECOMMENDATIONS_INVALID", "范围锁定或增量修订只能提出当前单卡，不能继续推荐其他方向。")
         return json.loads(json.dumps(value, ensure_ascii=False))
 
     @staticmethod
@@ -1248,14 +1599,12 @@ class VideoCopyDeconstruction:
                 raise ToolError("DECONSTRUCTION_REVIEW_DOCUMENT_REQUIRED", "必须保存可直接查看的完整拆解报告，不能只冻结内部 JSON。")
             if not isinstance(transfer_directions, str) or len(transfer_directions.strip()) < 120:
                 raise ToolError("TRANSFER_DIRECTIONS_DOCUMENT_REQUIRED", "必须保存可直接查看的迁移方向文档。")
+            review_source_binding = {
+                "contractType": package["contractType"],
+                "contractId": package["id"],
+                "contentHash": package["contentHash"],
+            }
             try:
-                save_review_document(
-                    root,
-                    document_id="source-summary",
-                    content=_source_summary_markdown(plan),
-                    language="zh-CN",
-                    updated_at=created,
-                )
                 save_review_document(
                     root,
                     document_id="deconstruction-report",
@@ -1263,6 +1612,7 @@ class VideoCopyDeconstruction:
                     language="zh-CN",
                     updated_at=created,
                     minimum_characters=200,
+                    source_binding=review_source_binding,
                 )
                 save_review_document(
                     root,
@@ -1271,6 +1621,7 @@ class VideoCopyDeconstruction:
                     language="zh-CN",
                     updated_at=created,
                     minimum_characters=120,
+                    source_binding=review_source_binding,
                 )
             except ValueError as exc:
                 raise ToolError("CONTENT_REVIEW_DOCUMENT_INVALID", str(exc)) from exc
@@ -1383,7 +1734,7 @@ class VideoCopyDeconstruction:
         if self.analysis_kind == "content-deconstruction" and state.get("state") == "FROZEN":
             review_check = validate_review_documents(
                 root,
-                ("source-summary", "deconstruction-report", "transfer-directions"),
+                ("deconstruction-report", "transfer-directions"),
             )
             errors.extend(
                 {"documentId": item.get("documentId"), "issue": f"review-document-{item.get('issue')}"}

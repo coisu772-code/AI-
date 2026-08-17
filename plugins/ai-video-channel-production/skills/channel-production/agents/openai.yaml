@@ -1,7 +1,7 @@
 interface:
   display_name: "AI 视频频道生产系统"
-  short_description: "默认逐阶段确认频道蒸馏、内容生产、工坊制作与视频发布流程"
-  default_prompt: "使用 $channel-production 启动系统，并按默认逐阶段确认流程显示当前下一步。"
+  short_description: "先自由创作与确认文稿，明确制作后才绑定频道并进入工坊发布流程"
+  default_prompt: "使用 $channel-production 在无频道工作区按我的方式创作，等我说开始制作后再选择频道和生产设置。"
 
 policy:
   allow_implicit_invocation: true

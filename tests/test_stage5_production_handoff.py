@@ -568,9 +568,10 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         self._refresh_package_manifest(package_root)
 
         class FakeWorkshopBridge:
-            def __init__(self) -> None:
+            def __init__(self, isolation_root: Path) -> None:
                 self.start_calls = 0
                 self.status_value = "running"
+                self.isolation_root = isolation_root
 
             def import_package(self, _package_root, target_root, *, expected_project_id):
                 target_root.mkdir(parents=True, exist_ok=True)
@@ -607,7 +608,7 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
                     "message": "",
                 }
 
-        bridge = FakeWorkshopBridge()
+        bridge = FakeWorkshopBridge(self.root / "formal-routing-workshop")
         center = ProductionCenter(
             self.root / "formal-routing-center",
             voice_catalog_path=context.content.root / "voice-catalog.json",

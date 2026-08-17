@@ -354,6 +354,8 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
         self.assertIn('"descriptorCommandDirectToPython": True', cached_validator)
         self.assertIn('"powershellOrCmdProxy": False', cached_validator)
         self.assertIn('"AIVCP_EXPECTED_PRODUCT_VERSION"', cached_validator)
+        self.assertIn('"AIVCP_WORKSHOP_ISOLATION_ROOT": str(data_root / "workshop-isolation")', cached_validator)
+        self.assertNotIn('(data_root / "workshop-isolation").resolve()', cached_validator)
         self.assertIn('"workshopHealthCheckExecuted"', cached_validator)
         self.assertIn('"publisherReadOnlyConfigured"', cached_validator)
         self.assertIn('"publisherV2Configured"', cached_validator)

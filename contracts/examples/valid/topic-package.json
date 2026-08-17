@@ -6,14 +6,14 @@
   "createdAt": "2026-08-03T15:03:00Z",
   "hashAlgorithm": "SHA-256",
   "hashRule": "canonical-json-v1",
-  "contentHash": "15dbb01f714973c93a499e03d17159722148fdf647fd42f9096cc491295be52b",
+  "contentHash": "581b8c53718b3a60649d629063bf07deb693cb2b4ff003c151ff7535d6d897d2",
   "upstream": [
     {
       "targetContractType": "production-profile",
       "targetId": "production_profile_example_001",
       "targetVersion": "1.0.0",
       "targetSchemaVersion": "1.0.0",
-      "targetHash": "4454375d6f99a09f9d9992906defa9b607530aea315aaf511155fff719f56444"
+      "targetHash": "08a8883a96cb777f6ca811c32410b4eaac36b3196aec3b9ac1dc11e9f37c26ac"
     },
     {
       "targetContractType": "source-package",

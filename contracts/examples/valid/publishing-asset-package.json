@@ -6,14 +6,14 @@
   "createdAt": "2026-08-03T15:05:00Z",
   "hashAlgorithm": "SHA-256",
   "hashRule": "canonical-json-v1",
-  "contentHash": "f57f3a0157b5981c21166b0ad444ff12b37937846e8573335934c786a70e02e7",
+  "contentHash": "c5805f1f7a66e53dcb06868cccfe818eed7e66d9952d77fa5ada339d2eb08335",
   "upstream": [
     {
       "targetContractType": "manuscript-package",
       "targetId": "manuscript_package_example_001",
       "targetVersion": "1.0.0",
       "targetSchemaVersion": "1.0.0",
-      "targetHash": "8081b157c8b7091e147c61294c53f3ca5a3dd3bd442563cffb0505f8a94e343f"
+      "targetHash": "ef5770de8fbd99ae48dc21fe9dc3ce989aaf1671a70eb7678c2e2969c25d5bf3"
     }
   ],
   "publishingAssetPackageId": "publishing_asset_package_example_001",
@@ -27,7 +27,7 @@
       "targetId": "manuscript_package_example_001",
       "targetVersion": "1.0.0",
       "targetSchemaVersion": "1.0.0",
-      "targetHash": "8081b157c8b7091e147c61294c53f3ca5a3dd3bd442563cffb0505f8a94e343f"
+      "targetHash": "ef5770de8fbd99ae48dc21fe9dc3ce989aaf1671a70eb7678c2e2969c25d5bf3"
     },
     "targetScriptHash": "1212121212121212121212121212121212121212121212121212121212121212",
     "qualityGateHash": "5555555555555555555555555555555555555555555555555555555555555555"

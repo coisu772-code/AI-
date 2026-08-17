@@ -6,14 +6,14 @@
   "createdAt": "2026-08-03T15:04:00Z",
   "hashAlgorithm": "SHA-256",
   "hashRule": "canonical-json-v1",
-  "contentHash": "8081b157c8b7091e147c61294c53f3ca5a3dd3bd442563cffb0505f8a94e343f",
+  "contentHash": "ef5770de8fbd99ae48dc21fe9dc3ce989aaf1671a70eb7678c2e2969c25d5bf3",
   "upstream": [
     {
       "targetContractType": "topic-package",
       "targetId": "topic_package_example_001",
       "targetVersion": "1.0.0",
       "targetSchemaVersion": "1.0.0",
-      "targetHash": "15dbb01f714973c93a499e03d17159722148fdf647fd42f9096cc491295be52b"
+      "targetHash": "581b8c53718b3a60649d629063bf07deb693cb2b4ff003c151ff7535d6d897d2"
     }
   ],
   "manuscriptPackageId": "manuscript_package_example_001",

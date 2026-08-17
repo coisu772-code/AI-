@@ -159,6 +159,7 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
             channel_profile=channel,
             constraints_catalog_path=CATALOG,
             created_at=CREATED_AT,
+            allow_synthetic_fixture=True,
             **kwargs,
         )
 
@@ -197,8 +198,14 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
         self.assertEqual("CHINESE_FIRST_WITH_TARGET_LANGUAGE", card["displayMode"])
         self.assertEqual("G6_FINAL_CHINESE_UPLOAD_REVIEW", card["gate"])
         self.assertIn("storySummaryZh", card["chinesePrimary"])
+        self.assertIn("productionIntegrity", card["chinesePrimary"])
+        self.assertTrue(card["chinesePrimary"]["productionIntegrity"]["placeholderRunnerUsed"])
         self.assertIn("title", card["targetLanguageComparison"])
         self.assertTrue((ready / "FINAL_CHINESE_REVIEW_CARD.md").is_file())
+        self.assertEqual(
+            _sha(ready / "FINAL_CHINESE_REVIEW_CARD.md"),
+            first["final_chinese_review_card_sha256"],
+        )
         result, publishing, channel = self._source_copy()
         duplicate = assemble_publish_package_v2(
             production_result_root=result,
@@ -207,9 +214,24 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
             channel_profile=channel,
             constraints_catalog_path=CATALOG,
             created_at=CREATED_AT,
+            allow_synthetic_fixture=True,
         )
         self.assertTrue(duplicate["duplicate"])
         self.assertEqual(first["publish_intent_id"], duplicate["publish_intent_id"])
+
+    def test_synthetic_result_is_forbidden_without_explicit_fixture_mode(self) -> None:
+        result, publishing, channel = self._source_copy()
+        self.assert_publish_error(
+            "PUBLISH_SYNTHETIC_RESULT_FORBIDDEN",
+            lambda: assemble_publish_package_v2(
+                production_result_root=result,
+                publishing_asset_root=publishing,
+                inbox_root=self.root / "synthetic-forbidden",
+                channel_profile=channel,
+                constraints_catalog_path=CATALOG,
+                created_at=CREATED_AT,
+            ),
+        )
 
     def test_catalog_lock_ignores_line_endings_but_rejects_semantic_changes(self) -> None:
         self.assertEqual(CATALOG_SHA256, _catalog_sha(CATALOG))
@@ -230,7 +252,7 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
             lambda: validate_publish_package_v2(Path(exact["package_path"]), constraints_catalog_path=stale_catalog),
         )
 
-    def test_service_exposes_five_offline_stage6_tools(self) -> None:
+    def test_service_exposes_isolated_and_approved_formal_stage6_tools(self) -> None:
         definitions = {item["name"]: item for item in tool_definitions()}
         expected = {
             "assemble_publish_package_v2",
@@ -238,6 +260,9 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
             "import_publish_package_v2",
             "get_publication_status",
             "get_publication_receipt",
+            "handoff_publish_package_v2",
+            "get_live_publication_status",
+            "get_live_publication_receipt",
         }
         self.assertTrue(expected.issubset(definitions))
         for name in expected:
@@ -305,10 +330,24 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
             key: {"granted": True, "version": "1.0", "confirmed_at": "2026-08-04T03:00:00Z"}
             for key in ("workspace", "channel", "intent")
         }
+        grants["project"] = {
+            "granted": True,
+            "version": "G6_FINAL_CHINESE_REVIEW_V1",
+            "confirmed_at": "2026-08-04T03:00:00Z",
+            "source": "current_task_explicit",
+            "scope": "current_task_and_project_only",
+            "project_id": _read(self.result_root / "manifest.json")["projectId"],
+            "upload_policy": "AUTO",
+            "channel_serial": "01",
+            "privacy_status": "private",
+            "confirmation_ref": "task:stage6:auto-upload:current-project",
+            "revoked": False,
+        }
         auto_ready = self._assemble(policy="AUTO", name="auto-ready", authorization=grants)
-        self.assertEqual("WAITING_REVIEW", auto_ready["status"])
-        self.assertEqual(["FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED"], auto_ready["blockers"])
-        self.assertTrue(auto_ready["external_approval_required"])
+        self.assertEqual("READY_TO_UPLOAD", auto_ready["status"])
+        self.assertEqual([], auto_ready["blockers"])
+        self.assertFalse(auto_ready["external_approval_required"])
+        self.assertTrue(auto_ready["final_chinese_review_card"]["confirmation"]["autoAuthorized"])
         self.assertIsNone(auto_ready["youtube_video_id"])
 
     def test_publish_intent_id_changes_for_revision_video_or_channel_but_not_duplicate(self) -> None:
@@ -339,6 +378,7 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
             channel_profile=revised_channel,
             constraints_catalog_path=CATALOG,
             created_at=CREATED_AT,
+            allow_synthetic_fixture=True,
         )
         other_channel = self._assemble(name="channel", channel_suffix="-new")
         production_revision_result, production_revision_pub, production_revision_channel = self._source_copy()
@@ -353,6 +393,7 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
             channel_profile=production_revision_channel,
             constraints_catalog_path=CATALOG,
             created_at=CREATED_AT,
+            allow_synthetic_fixture=True,
         )
         self.assertNotEqual(base["publish_intent_id"], revised["publish_intent_id"])
         self.assertNotEqual(base["publish_intent_id"], other_channel["publish_intent_id"])
@@ -450,6 +491,7 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
                 channel_profile=channel,
                 constraints_catalog_path=CATALOG,
                 created_at=CREATED_AT,
+                allow_synthetic_fixture=True,
             ),
         )
 
@@ -487,6 +529,7 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
                 inbox_root=self.root / "source-hash",
                 channel_profile=channel,
                 constraints_catalog_path=CATALOG,
+                allow_synthetic_fixture=True,
             ),
         )
         result, publishing, channel = self._source_copy(channel_suffix="-project")
@@ -502,6 +545,7 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
                 inbox_root=self.root / "project",
                 channel_profile=channel,
                 constraints_catalog_path=CATALOG,
+                allow_synthetic_fixture=True,
             ),
         )
 

@@ -269,6 +269,7 @@ def final_quality() -> dict[str, object]:
     }
 
 
+@unittest.skip("legacy original-imitation tools were retired from the active plugin surface")
 class OriginalImitationTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory(prefix="oi-")

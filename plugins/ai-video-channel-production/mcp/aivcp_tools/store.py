@@ -25,6 +25,7 @@ MAX_ARCHIVE_UNCOMPRESSED_BYTES = 512 * 1024 * 1024 * 1024
 MAX_ARCHIVE_MANIFEST_BYTES = 10 * 1024 * 1024
 USER_DATA_DIRECTORIES = (
     "channels",
+    "content-workspaces",
     "backups",
     "exports",
     "imports",
@@ -178,6 +179,10 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any], prefix: str = ""
     for key, value in override.items():
         path = f"{prefix}.{key}" if prefix else key
         if key not in result:
+            if prefix == "videoGeneration" and key == "count":
+                result[key] = value
+                changed.append(path)
+                continue
             raise ToolError("INVALID_OVERRIDE", "本次覆盖包含未知字段。", details={"path": path})
         if isinstance(result[key], dict) and isinstance(value, dict):
             merged, nested = _deep_merge(result[key], value, path)
@@ -738,7 +743,7 @@ class ChannelStore:
         if not isinstance(override, dict):
             raise ToolError("INVALID_OVERRIDE", "本次覆盖必须是对象。")
         effective, changed = _deep_merge(profile["defaults"], override)
-        validate_defaults(effective)
+        effective = validate_defaults(effective)
         if changed:
             with self._channel_connection(channel_profile_id) as connection:
                 connection.execute(

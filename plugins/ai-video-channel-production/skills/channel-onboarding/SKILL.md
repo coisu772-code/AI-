@@ -28,19 +28,20 @@ description: 通过本地安全工具读取 YouTube 发布中心的真实频道�
 
 1. 调用 `system_voice_catalog`，只展示已安装的预扫描真实引擎和音色；不要启动工坊扫描或手写不存在的音色 ID。
 2. 音色目录不可用时，引导运行安装修复并停止建库写入。
-3. 第二张确认卡一次确认默认配音、`auto_by_topic` 篇幅范围、`auto_by_topic` 集数范围、制作方式和视频分镜范围；上传策略固定显示为 `REQUIRE_REVIEW`，不得持久化当前任务的自动执行或自动上传授权。
-4. 不得把“自动成片”擅自写成 `videoGeneration.enabled=false`；静态封面口播版必须由用户明确选择。用户选择动态分镜时写入 `videoGeneration.enabled=true`，并明确 `project_first_n_storyboards`、`episode_first_n_storyboards` 或 `all_storyboards`；显式视频生成默认 `fallbackPolicy=pause`。用户没有指定数量时，推荐“全项目前 6 镜”，但必须在卡片中可见。
-5. 用户确认后调用 `channel_onboarding_complete`，固定传 `executionMode=review`，并保持 `uploadPolicy=REQUIRE_REVIEW`。成功结果必须同时满足 `READY`、存在 Channel Profile、存在 Production Profile 和完整性检查通过。
-6. 创建失败时显示结构化错误和可恢复动作，不把半成品报告为成功。
+3. 第二张确认卡确认默认配音、`auto_by_topic` 篇幅范围、`auto_by_topic` 集数范围、制作方式和图片风格预选项。上传策略固定显示为 `REQUIRE_REVIEW`；这里保存的是频道预设，不是日常内容任务的生产确认，新任务只有明确开始制作后才在 `G5B_PRODUCTION` 卡中重新确认技术设置。
+4. 镜头视频生成不得保存为频道默认值，固定写入 `enabled=false`、`selectionMode=none`、`fallbackPolicy=pause`；以后只有用户在当前任务明确指定视频镜头范围时才临时开启。
+5. 上传策略必须保持 `REQUIRE_REVIEW`，不得把当前任务的自动执行或项目级自动上传授权持久化到频道预设。
+6. 用户确认后调用 `channel_onboarding_complete`，固定传 `executionMode=review`、`storyImageTextPolicy=forbid_visible_text`。成功结果必须同时满足 `READY`、存在 Channel Profile、存在 Production Profile 和完整性检查通过。
+7. 创建失败时显示结构化错误和可恢复动作，不把半成品报告为成功。
 
 ## 重新绑定与日常使用
 
 - 新任务先调用 `channel_list`。只有一个 READY 频道时仍显示确认卡；多个频道时让用户明确选择。
 - 调用 `channel_bind_task` 将当前任务绑定一个频道。一个任务已经绑定其他频道时，要求新建任务，不调用改绑或删除。
-- 调用 `channel_get` 读取频道档案与活动生产预设。
-- 仅本次修改调用 `channel_resolve_production` 并传 `overrides`；确认返回 `persistedDefaultsChanged=false`。
+- 调用 `channel_get` 读取频道档案与活动生产预设；内容阶段只读取地区、受众定位、语言和篇幅／集数策略，配音、宫格、图片／视频提示词和故事图片画风等制作预设延迟到开始制作时作为预选显示。
+- 仅本次修改调用 `channel_resolve_production` 并传 `overrides`；确认返回 `persistedDefaultsChanged=false`。视频生成只有当前任务明确指定镜头范围时才同时传 `videoGenerationAuthorization`，否则解析结果必须保持关闭。
 - 只有用户明确确认“以后本频道都这样”时才调用 `channel_update_defaults`，并传 `confirmation={"confirmed":true,"scope":"channel_default"}`。预设必须生成新版本，不改变已冻结项目。
-- 已有频道预设为 `videoGeneration.enabled=false`，但用户明确要求动态分镜或完整小说漫时，先显示旧值和建议新值，再通过 `channel_update_defaults` 创建新预设版本。已经冻结的 Production Package 不原地改写；用新预设重新组装新包版本。
+- 已有频道预设的 `videoGeneration.enabled=false` 不能持久化改为开启；用户明确要求动态分镜时只通过当前任务覆盖开启。已经冻结的 Production Package 不原地改写；用本次确认设置重新组装新包版本。
 - 频道预设不得从 `REQUIRE_REVIEW` 改为 `AUTO`；真实自动发布授权只由 YouTube 发布中心独立保存和执行，不能写回频道生产预设。
 
 ## 备份、恢复与迁移

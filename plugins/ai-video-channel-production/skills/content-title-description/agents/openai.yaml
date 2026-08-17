@@ -1,7 +1,7 @@
 interface:
-  display_name: "标题、简介与封面"
-  short_description: "按标题、简介与封面三个独立确认门完成YouTube视频包装"
-  default_prompt: "使用 $content-title-description 按标题、简介和封面三个阶段分别生成并等待确认。"
+  display_name: "标题简介与封面"
+  short_description: "按需独立生成标题、简介标签或封面并在工作区分别确认"
+  default_prompt: "使用 $content-title-description 只生成我本次要求的包装项目，不要自动补做其他项目。"
 
 policy:
   allow_implicit_invocation: false

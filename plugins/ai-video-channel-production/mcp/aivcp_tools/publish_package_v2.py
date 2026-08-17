@@ -37,7 +37,7 @@ PRIVACY = {"private", "unlisted", "public", "scheduled"}
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 HASHTAG_PATTERN = re.compile(r"^#[^#\s]{1,99}$")
 PRIVACY_ZH = {"private": "私享", "unlisted": "不公开", "public": "公开", "scheduled": "定时公开"}
-UPLOAD_POLICY_ZH = {"DO_NOT_UPLOAD": "只生成发布包，不上传", "REQUIRE_REVIEW": "人工确认后上传", "AUTO": "已授权自动上传（仍须本次最终中文验收）"}
+UPLOAD_POLICY_ZH = {"DO_NOT_UPLOAD": "只生成发布包，不上传", "REQUIRE_REVIEW": "人工确认后上传", "AUTO": "当前任务已明确授权自动上传（验收卡仅展示，不重复询问）"}
 
 
 class PublishPackageError(RuntimeError):
@@ -149,10 +149,39 @@ def _final_chinese_review_card(
     channel_profile: dict[str, Any],
     final_video: Path,
     final_thumbnail: Path,
+    technical_report: dict[str, Any],
+    technical_report_sha256: str,
+    auto_upload_authorized: bool,
 ) -> dict[str, Any]:
     review = _validate_chinese_review(publishing)
     policy = publishing["uploadPolicy"]
     privacy = publishing["privacyStatus"]
+    media_integrity = technical_report.get("mediaIntegrity")
+    if not isinstance(media_integrity, dict):
+        media_integrity = {
+            "status": "SYNTHETIC_FIXTURE_ONLY" if result.get("synthetic") else "MISSING",
+            "provenance": technical_report.get("provenance"),
+            "placeholderRunnerUsed": technical_report.get("placeholderRunnerUsed"),
+        }
+    production_integrity = {
+        "status": media_integrity.get("status"),
+        "provenance": media_integrity.get("provenance") or technical_report.get("provenance"),
+        "sourceZh": (
+            "真实新漫剧工坊"
+            if (media_integrity.get("provenance") or technical_report.get("provenance")) == "workshop"
+            else "合成测试夹具（禁止真实上传）"
+        ),
+        "placeholderRunnerUsed": bool(
+            media_integrity.get("placeholderRunnerUsed", technical_report.get("placeholderRunnerUsed"))
+        ),
+        "storyboardImageCount": media_integrity.get("totalStoryboardImages"),
+        "uniqueStoryboardImageCount": media_integrity.get("uniqueImageCount"),
+        "exactDuplicateRatio": media_integrity.get("exactDuplicateRatio"),
+        "frameSampleCount": media_integrity.get("sampleCount"),
+        "uniqueFrameCount": media_integrity.get("uniqueFrameCount"),
+        "durationSeconds": technical_report.get("durationSeconds"),
+        "sourceTechnicalReportSha256": technical_report_sha256,
+    }
     return {
         "schemaVersion": "1.0.0",
         "displayMode": "CHINESE_FIRST_WITH_TARGET_LANGUAGE",
@@ -175,7 +204,12 @@ def _final_chinese_review_card(
             },
             "privacyStatusZh": PRIVACY_ZH[privacy],
             "uploadPolicyZh": UPLOAD_POLICY_ZH[policy],
-            "decisionRequiredZh": "请集中核对故事、包装、配音、频道、隐私状态和上传策略；明确确认后才允许进入真实上传。",
+            "productionIntegrity": production_integrity,
+            "decisionRequiredZh": (
+                "请集中查看故事、包装、配音、频道、隐私状态和上传策略；当前任务已明确授权自动上传，本卡不再要求重复确认。"
+                if auto_upload_authorized
+                else "请集中核对故事、包装、配音、频道、隐私状态和上传策略；明确确认后才允许进入真实上传。"
+            ),
         },
         "targetLanguageComparison": {
             "labelZh": "目标语言对照",
@@ -191,9 +225,16 @@ def _final_chinese_review_card(
             "thumbnail": {"path": final_thumbnail.name, "sha256": _sha256_file(final_thumbnail), "sizeBytes": final_thumbnail.stat().st_size},
         },
         "confirmation": {
-            "required": policy != "DO_NOT_UPLOAD",
-            "status": "NOT_REQUESTED" if policy == "DO_NOT_UPLOAD" else "AWAITING_USER_CONFIRMATION",
+            "required": policy == "REQUIRE_REVIEW" or (policy == "AUTO" and not auto_upload_authorized),
+            "status": (
+                "NOT_REQUESTED"
+                if policy == "DO_NOT_UPLOAD"
+                else "AUTO_AUTHORIZED"
+                if auto_upload_authorized
+                else "AWAITING_USER_CONFIRMATION"
+            ),
             "confirmed": False,
+            "autoAuthorized": auto_upload_authorized,
         },
         "uploadUseOfChineseTranslations": False,
         "networkExecution": False,
@@ -228,8 +269,18 @@ def _render_final_chinese_review_markdown(card: dict[str, Any]) -> str:
         lines.append(
             f"| {voice['targetLanguageName']} ({voice['speakerId']}) | {voice['role']} | {voice['engine']} | {voice['voiceName']} | {voice['voiceId']} |"
         )
+    integrity = zh["productionIntegrity"]
     lines.extend(
         [
+            "",
+            "### 成片技术验收",
+            "",
+            f"- 来源：{integrity['sourceZh']}",
+            f"- 状态：{integrity['status']}",
+            f"- 分镜图片：{integrity['storyboardImageCount']} 张；唯一图片 {integrity['uniqueStoryboardImageCount']} 张；精确重复率 {integrity['exactDuplicateRatio']}",
+            f"- 成片抽帧：{integrity['frameSampleCount']} 帧；唯一画面 {integrity['uniqueFrameCount']} 帧",
+            f"- 成片时长：{integrity['durationSeconds']} 秒",
+            f"- 占位执行器：{'是（禁止真实上传）' if integrity['placeholderRunnerUsed'] else '否'}",
             "",
             f"## 二、目标语言对照（{target['language']}）",
             "",
@@ -320,7 +371,12 @@ def _validate_contract_hash(document: dict[str, Any], *, expected_type: str, sta
         raise PublishPackageError("PUBLISH_UPSTREAM_HASH_MISMATCH", f"Invalid canonical hash: {expected_type}")
 
 
-def _load_sources(production_result_root: Path, publishing_asset_root: Path) -> PackageSources:
+def _load_sources(
+    production_result_root: Path,
+    publishing_asset_root: Path,
+    *,
+    allow_synthetic_fixture: bool = False,
+) -> PackageSources:
     result_root = production_result_root.resolve(strict=True)
     publishing_root = publishing_asset_root.resolve(strict=True)
     if production_result_root.is_symlink() or publishing_asset_root.is_symlink():
@@ -406,6 +462,28 @@ def _load_sources(production_result_root: Path, publishing_asset_root: Path) -> 
         or technical_report.get("subtitlesSha256") != result["subtitles"]["sha256"]
     ):
         raise PublishPackageError("PUBLISH_TECHNICAL_REPORT_MISMATCH", "Production technical report does not bind the final video and subtitles")
+    if result.get("synthetic") is True:
+        if not allow_synthetic_fixture:
+            raise PublishPackageError(
+                "PUBLISH_SYNTHETIC_RESULT_FORBIDDEN",
+                "合成测试结果只能用于隔离测试，不能组装真实发布包。",
+            )
+    else:
+        media_integrity = result.get("mediaIntegrity")
+        if (
+            result.get("provenance") != "workshop"
+            or result.get("placeholderRunnerUsed") is not False
+            or technical_report.get("provenance") != "workshop"
+            or technical_report.get("placeholderRunnerUsed") is not False
+            or not isinstance(media_integrity, dict)
+            or media_integrity.get("status") != "PASSED"
+            or media_integrity.get("provenance") != "workshop"
+            or technical_report.get("mediaIntegrity") != media_integrity
+        ):
+            raise PublishPackageError(
+                "PUBLISH_REAL_MEDIA_PROVENANCE_INVALID",
+                "正式发布包只接受真实工坊来源且通过分镜唯一性与成片变化检查的结果。",
+            )
     publishing_actual = _actual_files(publishing_root)
     thumbnail_relative = thumbnail_asset["relativePath"]
     publishing_expected = {
@@ -673,13 +751,31 @@ def _grant_valid(value: Any, now: datetime) -> bool:
     return confirmed <= now
 
 
+def _project_auto_grant_valid(value: Any, now: datetime, upload_task: dict[str, Any]) -> bool:
+    if not _grant_valid(value, now):
+        return False
+    expected = {
+        "source": "current_task_explicit",
+        "scope": "current_task_and_project_only",
+        "project_id": upload_task.get("project_id"),
+        "upload_policy": "AUTO",
+        "channel_serial": upload_task.get("channel_serial"),
+        "privacy_status": upload_task.get("privacy_status"),
+        "revoked": False,
+    }
+    if any(value.get(key) != expected_value for key, expected_value in expected.items()):
+        return False
+    confirmation_ref = value.get("confirmation_ref")
+    return isinstance(confirmation_ref, str) and confirmation_ref.startswith("task:") and ":auto-upload:" in confirmation_ref
+
+
 def _determine_status(upload_task: dict[str, Any], *, now: datetime) -> tuple[str, list[str], bool]:
     policy = upload_task["upload_policy"]
     if policy == "DO_NOT_UPLOAD":
         return "PACKAGE_READY", [], False
     if policy == "REQUIRE_REVIEW":
         return "WAITING_REVIEW", ["FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED"], True
-    blockers: list[str] = ["FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED"]
+    blockers: list[str] = []
     if upload_task.get("schedule_conflict") is True:
         blockers.append("SCHEDULE_CONFLICT")
     if upload_task["privacy_status"] == "scheduled":
@@ -711,7 +807,9 @@ def _determine_status(upload_task: dict[str, Any], *, now: datetime) -> tuple[st
     ):
         if not _grant_valid(authorization.get(key), now):
             blockers.append(code)
-    return "WAITING_REVIEW", blockers, True
+    if not _project_auto_grant_valid(authorization.get("project"), now, upload_task):
+        blockers.append("PROJECT_AUTO_UPLOAD_AUTHORIZATION_MISSING")
+    return ("WAITING_REVIEW", blockers, True) if blockers else ("READY_TO_UPLOAD", [], False)
 
 
 def _validate_channel_profile(channel_profile: dict[str, Any], publishing: dict[str, Any]) -> None:
@@ -794,8 +892,13 @@ def assemble_publish_package_v2(
     timezone: str | None = None,
     created_at: str | None = None,
     ffprobe_path: str | None = None,
+    allow_synthetic_fixture: bool = False,
 ) -> dict[str, Any]:
-    sources = _load_sources(production_result_root, publishing_asset_root)
+    sources = _load_sources(
+        production_result_root,
+        publishing_asset_root,
+        allow_synthetic_fixture=allow_synthetic_fixture,
+    )
     _validate_channel_profile(channel_profile, sources.publishing_asset)
     catalog, catalog_hash = _load_catalog(constraints_catalog_path)
     rules = catalog["rules"]
@@ -894,6 +997,7 @@ def assemble_publish_package_v2(
             "workspace": provided_auth.get("workspace", empty_grant),
             "channel": provided_auth.get("channel", empty_grant),
             "intent": provided_auth.get("intent", empty_grant),
+            "project": provided_auth.get("project", empty_grant),
         },
         "limits": effective_limits,
         "constraints_catalog_version": catalog["catalog_version"],
@@ -908,6 +1012,13 @@ def assemble_publish_package_v2(
         channel_profile=channel_profile,
         final_video=final_video,
         final_thumbnail=final_thumbnail,
+        technical_report=_load_json(sources.production_result_root / "validation-report.json"),
+        technical_report_sha256=_sha256_file(sources.production_result_root / "validation-report.json"),
+        auto_upload_authorized=(
+            policy == "AUTO"
+            and all(_grant_valid(upload_task["authorization"].get(key), now) for key in ("workspace", "channel", "intent"))
+            and _project_auto_grant_valid(upload_task["authorization"].get("project"), now, upload_task)
+        ),
     )
     _write_json(creating / "final_chinese_review_card.json", final_review_card)
     (creating / "FINAL_CHINESE_REVIEW_CARD.md").write_text(
@@ -1269,6 +1380,7 @@ def validate_publish_package_v2(
         "thumbnail_sha256": _sha256_file(package_root / thumbnails[0]),
         "final_chinese_review_card": final_review_card,
         "final_chinese_review_card_path": str(package_root / "FINAL_CHINESE_REVIEW_CARD.md"),
+        "final_chinese_review_card_sha256": _sha256_file(package_root / "FINAL_CHINESE_REVIEW_CARD.md"),
         "constraints_catalog_sha256": catalog_hash,
         "ffprobe": probe,
         "network_execution": False,

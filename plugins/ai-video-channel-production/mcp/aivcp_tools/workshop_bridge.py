@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -32,6 +33,8 @@ _FORBIDDEN_COMMAND_FRAGMENTS = (
 _FORBIDDEN_STEP_FRAGMENTS = ("publish", "upload", "oauth", "receipt", "analytics", "learning")
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9_.:-]{1,160}$")
 _SAFE_STEP = re.compile(r"^[a-z][a-z0-9_]{0,79}$")
+_WORKSHOP_START_LEASE_SECONDS = 300
+_ACTIVE_WORKSHOP_TASK_STATES = frozenset({"running"})
 
 
 def _is_within(path: Path, root: Path) -> bool:
@@ -330,6 +333,59 @@ class WorkshopBridge:
             )
         return project
 
+    def _start_lease_path(self, project_path: Path) -> Path:
+        lease_root = self.isolation_root / ".workshop-bridge-launches"
+        lease_root.mkdir(parents=True, exist_ok=True)
+        key = hashlib.sha256(str(project_path.resolve()).casefold().encode("utf-8")).hexdigest()
+        return lease_root / f"{key}.json"
+
+    @staticmethod
+    def _read_start_lease(lease_path: Path) -> dict[str, Any] | None:
+        try:
+            value = json.loads(lease_path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        return value if isinstance(value, dict) else None
+
+    @staticmethod
+    def _start_response_from_lease(lease: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "success": True,
+            "requestId": str(lease.get("requestId") or ""),
+            "processId": int(lease.get("processId") or 0),
+            "forwarded": False,
+            "status": "start_pending",
+            "selectedStepIds": [str(item) for item in lease.get("selectedStepIds", [])],
+            "selectedEpisodeIds": [str(item) for item in lease.get("selectedEpisodeIds", [])],
+            "skipCompleted": bool(lease.get("skipCompleted", True)),
+            "joinedExisting": True,
+            "startConfirmed": False,
+            "boundary": "isolated_production_only",
+            "publishingTriggered": False,
+        }
+
+    def _claim_start_lease(
+        self,
+        lease_path: Path,
+        lease: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        for _attempt in range(2):
+            try:
+                descriptor = os.open(lease_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            except FileExistsError:
+                existing = self._read_start_lease(lease_path)
+                created_at = float((existing or {}).get("createdAtEpoch") or 0)
+                if existing and time.time() - created_at < _WORKSHOP_START_LEASE_SECONDS:
+                    return existing
+                lease_path.unlink(missing_ok=True)
+                continue
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                json.dump(lease, handle, ensure_ascii=False, sort_keys=True)
+                handle.write("\n")
+            return None
+        existing = self._read_start_lease(lease_path)
+        return existing or lease
+
     def start_production(
         self,
         project_path: Path,
@@ -355,7 +411,7 @@ class WorkshopBridge:
                 "只能启动位于本次隔离根目录中的工坊项目。",
                 details={"projectPath": str(project_path)},
             )
-        self._load_official_project(project_path, expected_project_id)
+        project = self._load_official_project(project_path, expected_project_id)
         steps = [str(item).strip() for item in selected_step_ids]
         episodes = [str(item).strip() for item in selected_episode_ids]
         if not steps or any(_SAFE_STEP.fullmatch(item) is None for item in steps):
@@ -375,6 +431,24 @@ class WorkshopBridge:
         if _SAFE_IDENTIFIER.fullmatch(request_id) is None:
             raise ToolError("WORKSHOP_REQUEST_ID_INVALID", "工坊请求 ID 无效。")
 
+        task = project.get("autoProductionTask")
+        if isinstance(task, dict) and str(task.get("status") or "").strip().lower() in _ACTIVE_WORKSHOP_TASK_STATES:
+            active_request_id = str(task.get("externalRequestId") or request_id).strip()
+            return {
+                "success": True,
+                "requestId": active_request_id,
+                "processId": 0,
+                "forwarded": True,
+                "status": "already_running",
+                "selectedStepIds": [str(item) for item in task.get("selectedStepIds", steps)],
+                "selectedEpisodeIds": [str(item) for item in task.get("selectedEpisodeIds", episodes)],
+                "skipCompleted": bool(skip_completed),
+                "joinedExisting": True,
+                "startConfirmed": True,
+                "boundary": "isolated_production_only",
+                "publishingTriggered": False,
+            }
+
         arguments = [
             str(project_path),
             "--request-id",
@@ -392,6 +466,20 @@ class WorkshopBridge:
         result_root = self.isolation_root / ".workshop-bridge-results"
         result_root.mkdir(parents=True, exist_ok=True)
         result_path = result_root / f"run-production-{uuid.uuid4().hex}.json"
+        lease_path = self._start_lease_path(project_path)
+        lease = {
+            "requestId": request_id,
+            "projectPath": str(project_path),
+            "processId": 0,
+            "resultPath": str(result_path),
+            "createdAtEpoch": time.time(),
+            "selectedStepIds": steps,
+            "selectedEpisodeIds": episodes,
+            "skipCompleted": bool(skip_completed),
+        }
+        existing_lease = self._claim_start_lease(lease_path, lease)
+        if existing_lease is not None:
+            return self._start_response_from_lease(existing_lease)
         argv = [
             str(self.executable),
             "run-production",
@@ -411,12 +499,17 @@ class WorkshopBridge:
                 creationflags=creation_flags,
             )
         except OSError as exc:
+            lease_path.unlink(missing_ok=True)
+            result_path.unlink(missing_ok=True)
             raise ToolError(
                 "WORKSHOP_COMMAND_START_FAILED",
                 "无法启动新漫剧工坊生产命令。",
                 retryable=True,
                 details={"command": "run-production", "error": str(exc)},
             ) from exc
+
+        lease["processId"] = process.pid
+        lease_path.write_text(json.dumps(lease, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
 
         deadline = time.monotonic() + max(1, int(startup_timeout_seconds))
         payload: dict[str, Any] | None = None
@@ -431,6 +524,7 @@ class WorkshopBridge:
                     pass
             return_code = process.poll()
             if return_code is not None:
+                lease_path.unlink(missing_ok=True)
                 result_path.unlink(missing_ok=True)
                 raise ToolError(
                     "WORKSHOP_COMMAND_START_FAILED",
@@ -439,14 +533,10 @@ class WorkshopBridge:
                     details={"command": "run-production", "exitCode": return_code},
                 )
             time.sleep(0.1)
-        result_path.unlink(missing_ok=True)
         if payload is None:
-            raise ToolError(
-                "WORKSHOP_START_TIMEOUT",
-                "工坊进程已启动，但在限定时间内没有返回任务登记结果。",
-                retryable=True,
-                details={"requestId": request_id},
-            )
+            return self._start_response_from_lease(lease)
+        result_path.unlink(missing_ok=True)
+        lease_path.unlink(missing_ok=True)
         if payload.get("success") is not True:
             safe_payload = redact(payload)
             raise ToolError(
@@ -464,6 +554,8 @@ class WorkshopBridge:
             "selectedStepIds": steps,
             "selectedEpisodeIds": episodes,
             "skipCompleted": bool(skip_completed),
+            "joinedExisting": False,
+            "startConfirmed": True,
             "boundary": "isolated_production_only",
             "publishingTriggered": False,
         }
@@ -519,6 +611,148 @@ class WorkshopBridge:
             "startedAt": task.get("startedAt"),
             "finishedAt": task.get("finishedAt"),
             "readOnly": True,
+        }
+
+    def production_artifacts(
+        self,
+        project_path: Path,
+        *,
+        expected_project_id: str,
+        expected_request_id: str,
+    ) -> dict[str, Any]:
+        """Return real completed Workshop artifacts without mutating the project.
+
+        Only paths below the isolated Workshop root are accepted.  This keeps
+        the production center from accidentally harvesting an unrelated old
+        project, desktop export, or user-selected file outside the task root.
+        """
+
+        project_path = project_path.resolve()
+        if not project_path.is_file() or not _is_within(project_path, self.isolation_root):
+            raise ToolError("WORKSHOP_PROJECT_NOT_ISOLATED", "只能回收隔离工坊项目的正式产物。")
+        project = self._load_official_project(project_path, expected_project_id)
+        task = project.get("autoProductionTask")
+        if not isinstance(task, dict) or str(task.get("status") or "").strip().lower() != "completed":
+            raise ToolError("WORKSHOP_PRODUCTION_NOT_COMPLETED", "工坊任务尚未完成，不能回收成片。")
+        if str(task.get("externalRequestId") or "") != expected_request_id:
+            raise ToolError("WORKSHOP_STATUS_TASK_MISMATCH", "完成的工坊任务不属于当前 Production Task。")
+
+        def resolve_artifact(value: Any, field: str, *, required: bool = True) -> Path | None:
+            text = str(value or "").strip()
+            if not text:
+                if required:
+                    raise ToolError("WORKSHOP_ARTIFACT_MISSING", f"工坊完成结果缺少 {field}。")
+                return None
+            candidate = Path(text)
+            if not candidate.is_absolute():
+                candidate = project_path.parent / candidate
+            candidate = candidate.resolve()
+            if not _is_within(candidate, self.isolation_root):
+                raise ToolError(
+                    "WORKSHOP_ARTIFACT_OUTSIDE_ISOLATION",
+                    f"工坊 {field} 超出当前隔离目录。",
+                    details={"field": field},
+                )
+            if required and not candidate.is_file():
+                raise ToolError("WORKSHOP_ARTIFACT_MISSING", f"工坊 {field} 文件不存在。")
+            return candidate
+
+        final_video = resolve_artifact(
+            project.get("lastFinalVideoPath")
+            or (project.get("publishing") or {}).get("finalVideoPath"),
+            "finalVideoPath",
+        )
+        upload_package_text = str(
+            project.get("lastUploadPackagePath")
+            or (project.get("publishing") or {}).get("uploadPackagePath")
+            or ""
+        ).strip()
+        upload_package = None
+        if upload_package_text:
+            upload_package = Path(upload_package_text)
+            if not upload_package.is_absolute():
+                upload_package = project_path.parent / upload_package
+            upload_package = upload_package.resolve()
+            if not upload_package.is_dir() or not _is_within(upload_package, self.isolation_root):
+                raise ToolError("WORKSHOP_ARTIFACT_OUTSIDE_ISOLATION", "工坊成片资料包不在当前隔离目录中。")
+        if upload_package is None:
+            raise ToolError("WORKSHOP_UPLOAD_PACKAGE_MISSING", "工坊完成状态缺少成片资料包。")
+        reports = sorted(upload_package.rglob("upload_package_report.json"))
+        if len(reports) != 1:
+            raise ToolError("WORKSHOP_UPLOAD_REPORT_INVALID", "工坊成片资料包必须且只能包含一份验收报告。")
+        try:
+            report = json.loads(reports[0].read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ToolError("WORKSHOP_UPLOAD_REPORT_INVALID", "工坊成片验收报告不可读。") from exc
+        if not isinstance(report, dict) or str(report.get("status") or "").lower() != "completed":
+            raise ToolError("WORKSHOP_UPLOAD_REPORT_INVALID", "工坊成片验收报告没有完成。")
+        subtitle = resolve_artifact(report.get("subtitlePath"), "subtitlePath")
+        report_video = resolve_artifact(report.get("videoPath"), "report.videoPath")
+        if report_video != final_video:
+            raise ToolError("WORKSHOP_FINAL_VIDEO_MISMATCH", "工坊项目与验收报告指向了不同成片。")
+
+        scene_values: list[dict[str, Any]] = []
+        for item in project.get("scenes", []):
+            if isinstance(item, dict):
+                scene_values.append(item)
+        twelve_grid = project.get("twelveGrid")
+        if isinstance(twelve_grid, dict):
+            scene_values.extend(item for item in twelve_grid.get("scenes", []) if isinstance(item, dict))
+        by_episode = project.get("twelveGridByEpisodeId")
+        if isinstance(by_episode, dict):
+            for grid in by_episode.values():
+                if isinstance(grid, dict):
+                    scene_values.extend(item for item in grid.get("scenes", []) if isinstance(item, dict))
+        images: list[dict[str, Any]] = []
+        seen_scene_keys: set[tuple[str, str]] = set()
+        for index, scene in enumerate(scene_values, 1):
+            image_value = scene.get("splitImagePath") or scene.get("imagePath")
+            if not str(image_value or "").strip():
+                continue
+            image = resolve_artifact(image_value, f"sceneImage[{index}]")
+            scene_id = str(scene.get("id") or scene.get("sceneIndex") or index)
+            key = (scene_id, str(image))
+            if key in seen_scene_keys:
+                continue
+            seen_scene_keys.add(key)
+            assert image is not None
+            images.append(
+                {
+                    "sceneId": scene_id,
+                    "path": str(image),
+                    "sizeBytes": image.stat().st_size,
+                    "sha256": hashlib.sha256(image.read_bytes()).hexdigest(),
+                }
+            )
+        if not images:
+            raise ToolError("WORKSHOP_STORYBOARD_IMAGES_MISSING", "正式工坊结果没有任何分镜图片。")
+
+        script_lines = []
+        for item in project.get("scriptLines", []):
+            if not isinstance(item, dict):
+                continue
+            script_lines.append(
+                {
+                    "lineId": str(item.get("id") or ""),
+                    "durationSeconds": float(item.get("durationSec") or item.get("estimatedDurationSec") or 0),
+                    "audioPath": str(item.get("audioPath") or ""),
+                }
+            )
+        return {
+            "success": True,
+            "projectId": expected_project_id,
+            "requestId": expected_request_id,
+            "projectPath": str(project_path),
+            "finalVideoPath": str(final_video),
+            "subtitlePath": str(subtitle),
+            "uploadPackagePath": str(upload_package),
+            "uploadReportPath": str(reports[0].resolve()),
+            "uploadReport": redact(report),
+            "storyboardImages": images,
+            "scriptLines": script_lines,
+            "provenance": "workshop",
+            "readOnly": True,
+            "publishingTriggered": False,
         }
 
 

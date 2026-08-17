@@ -6,7 +6,7 @@
   "createdAt": "2026-08-03T15:01:00Z",
   "hashAlgorithm": "SHA-256",
   "hashRule": "canonical-json-v1",
-  "contentHash": "4454375d6f99a09f9d9992906defa9b607530aea315aaf511155fff719f56444",
+  "contentHash": "08a8883a96cb777f6ca811c32410b4eaac36b3196aec3b9ac1dc11e9f37c26ac",
   "upstream": [
     {
       "targetContractType": "channel-profile",
@@ -37,6 +37,11 @@
       "minCount": 6,
       "maxCount": 12
     },
+    "imageStyle": {
+      "presetId": "visual_01",
+      "prompt": "现代二维电视动画正片风格，干净轮廓线，克制赛璐璐上色，统一人物比例与色彩。"
+    },
+    "storyImageTextPolicy": "forbid_visible_text",
     "deliveryMode": "auto_render",
     "videoGeneration": {
       "enabled": false,

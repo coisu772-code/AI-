@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import subprocess
 from pathlib import Path
@@ -37,7 +38,7 @@ def _within(root: Path, target: Path, *, field: str) -> None:
 
 
 class PublisherV2Bridge:
-    """Thin offline-only adapter for the isolated Go publisher v2 CLI."""
+    """Local adapter for isolated validation and approved formal publisher handoff."""
 
     def __init__(self, executable: Path):
         self.executable = executable
@@ -178,6 +179,84 @@ class PublisherV2Bridge:
             timeout=30,
         )
         return {"publisher": payload, "handoffMode": "isolated", "networkExecution": False}
+
+    def handoff_package(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        self.assert_offline(arguments)
+        package = _path(arguments.get("packagePath"), field="packagePath", file=False)
+        if not package.name.endswith(".ready"):
+            raise ToolError("PUBLISHER_PACKAGE_LIFECYCLE_INVALID", "正式交接只接受 .ready 发布包。")
+        approval = arguments.get("finalReviewApproval")
+        required = {
+            "confirmed",
+            "publishIntentId",
+            "confirmationRef",
+            "confirmedAt",
+            "reviewCardSha256",
+            "version",
+        }
+        if not isinstance(approval, dict) or approval.get("confirmed") is not True or not required.issubset(approval):
+            raise ToolError(
+                "FINAL_REVIEW_APPROVAL_REQUIRED",
+                "正式 AUTO 交接必须携带当前任务对最终中文验收卡的完整确认。",
+            )
+        if approval.get("approvalSource") == "PROJECT_AUTO_UPLOAD_AUTHORIZATION":
+            try:
+                upload_task = json.loads((package / "upload_task.json").read_text(encoding="utf-8-sig"))
+                review_card_path = package / "FINAL_CHINESE_REVIEW_CARD.md"
+                review_card_sha256 = hashlib.sha256(review_card_path.read_bytes()).hexdigest()
+            except (OSError, json.JSONDecodeError) as exc:
+                raise ToolError("PROJECT_AUTO_UPLOAD_AUTHORIZATION_INVALID", "无法读取自动上传授权所绑定的发布包。") from exc
+            project_grant = (upload_task.get("authorization") or {}).get("project") or {}
+            if (
+                upload_task.get("upload_policy") != "AUTO"
+                or project_grant.get("granted") is not True
+                or project_grant.get("source") != "current_task_explicit"
+                or project_grant.get("scope") != "current_task_and_project_only"
+                or project_grant.get("project_id") != upload_task.get("project_id")
+                or project_grant.get("confirmation_ref") != approval.get("confirmationRef")
+                or project_grant.get("confirmed_at") != approval.get("confirmedAt")
+                or project_grant.get("version") != approval.get("version")
+                or approval.get("projectId") != upload_task.get("project_id")
+                or approval.get("publishIntentId") != upload_task.get("publish_intent_id")
+                or approval.get("reviewCardSha256") != review_card_sha256
+                or project_grant.get("revoked") is not False
+            ):
+                raise ToolError(
+                    "PROJECT_AUTO_UPLOAD_AUTHORIZATION_INVALID",
+                    "当前任务的自动上传授权与项目、频道、发布包或最终中文验收卡不一致。",
+                )
+        command = [
+            "--package",
+            str(package),
+            "--final-review-confirmed",
+            "--publish-intent-id",
+            str(approval["publishIntentId"]),
+            "--confirmation-ref",
+            str(approval["confirmationRef"]),
+            "--confirmed-at",
+            str(approval["confirmedAt"]),
+            "--review-card-sha256",
+            str(approval["reviewCardSha256"]),
+            "--approval-version",
+            str(approval["version"]),
+        ]
+        publisher_data_path = arguments.get("publisherDataPath")
+        if publisher_data_path:
+            command.extend(["--data-dir", str(_path(publisher_data_path, field="publisherDataPath", file=False))])
+        payload = self._run("handoff", command, timeout=120)
+        return {"publisher": payload, "networkExecution": False}
+
+    def read_live_status(self, arguments: dict[str, Any], *, receipt: bool) -> dict[str, Any]:
+        self.assert_offline(arguments)
+        intent = arguments.get("publishIntentId")
+        if not isinstance(intent, str) or not intent:
+            raise ToolError("PUBLISHER_ARGUMENT_INVALID", "publishIntentId 是必填项。")
+        command = ["--publish-intent-id", intent]
+        publisher_data_path = arguments.get("publisherDataPath")
+        if publisher_data_path:
+            command.extend(["--data-dir", str(_path(publisher_data_path, field="publisherDataPath", file=False))])
+        payload = self._run("receipt-live" if receipt else "status-live", command, timeout=30)
+        return {"publisher": payload, "networkExecution": False}
 
     @staticmethod
     def _append_channel_source(command: list[str], arguments: dict[str, Any]) -> None:

@@ -1,7 +1,7 @@
 interface:
-  display_name: "仿写正文"
-  short_description: "按确认方向和来源锚点完成高贴合或多资料融合仿写初稿"
-  default_prompt: "Use `$content-rewrite` to create the complete draft from the approved direction, source anchors, expansion seams, and preservation contract."
+  display_name: "正文创作"
+  short_description: "在无频道工作区按本次大纲和临时提示词生成完整正文文档"
+  default_prompt: "使用 $content-rewrite 按我当前确认的大纲生成完整正文，并保存到本次自由创作工作区。"
 
 policy:
   allow_implicit_invocation: false

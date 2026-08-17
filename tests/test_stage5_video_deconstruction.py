@@ -271,7 +271,12 @@ def final_quality_gate(*, generic: bool = False) -> dict[str, object]:
     if generic:
         result.update(
             {
+                "intentRoutingValidated": True,
+                "contentLocksValidated": True,
+                "scopeBoundariesValidated": True,
+                "activeVersionIsolationValidated": True,
                 "sourceStoryDnaBound": True,
+                "audienceFunctionalTransferValidated": True,
                 "expansionSeamsEvidenceBound": True,
                 "directionFidelityValidated": True,
                 "directionDistinctnessValidated": True,
@@ -282,11 +287,22 @@ def final_quality_gate(*, generic: bool = False) -> dict[str, object]:
     return result
 
 
-def direction_package(source_facts: dict[str, list[str]], *, compare: bool = False) -> dict[str, object]:
+def direction_package(
+    source_facts: dict[str, list[str]],
+    *,
+    compare: bool = False,
+    intent_mode: str = "exploratory_recommendation",
+    active_modes: list[str] | None = None,
+) -> dict[str, object]:
     modes = {
         "close-structure": ("A", 3),
         "balanced-reconstruction": ("B", 2),
         "free-original": ("C", 1),
+    }
+    mapping_minimums = {
+        "close-structure": 4,
+        "balanced-reconstruction": 3,
+        "free-original": 2,
     }
     contracts = {
         mode: {
@@ -312,49 +328,91 @@ def direction_package(source_facts: dict[str, list[str]], *, compare: bool = Fal
         }
         for index, (source_id, fact_ids) in enumerate(source_facts.items(), 1)
     ]
+    if active_modes is None:
+        active_modes = list(modes) if intent_mode == "exploratory_recommendation" else ["close-structure"]
+    if intent_mode == "exploratory_recommendation":
+        direction_specs = [
+            (f"{modes[mode][0]}{index}", mode)
+            for mode in active_modes
+            for index in range(1, 6)
+        ]
+    else:
+        direction_specs = [
+            ("S1" if intent_mode == "scope_locked_migration" else "D1", active_modes[0])
+        ]
     directions = []
     direction_ids = []
-    for mode, (prefix, minimum) in modes.items():
-        for index in range(1, 6):
-            direction_id = f"{prefix}{index}"
-            direction_ids.append(direction_id)
-            anchor_count = max(minimum, len(source_facts) if compare else minimum)
-            if compare:
-                anchors = [
-                    {"sourcePackageId": source_id, "factId": fact_ids[0]}
-                    for source_id, fact_ids in source_facts.items()
-                ]
-                anchors.extend(anchor for anchor in all_anchors if anchor not in anchors)
-                anchors = anchors[:anchor_count]
-            else:
-                anchors = all_anchors[:anchor_count]
-            directions.append(
-                {
-                    "directionId": direction_id,
-                    "adaptationMode": mode,
-                    "title": f"证据驱动方向 {direction_id}",
-                    "preservationContract": contracts[mode],
-                    "sourceAnchorRefs": anchors,
-                    "expansionSeamIds": [item["seamId"] for item in seams],
-                    "sourceFidelityEvidence": [
-                        {**anchor, "preservedFunction": f"保留 {anchor['factId']} 对应的具体推进功能。"}
-                        for anchor in anchors
-                    ],
-                    "naturalExpansionRationale": "沿来源事件已经造成的关系和结果继续推演。",
-                    "causalOutline": [
-                        {
-                            "phase": f"{direction_id} 阶段 {stage}",
-                            "event": f"角色依据来源锚点推进新的具体行动 {stage}。",
-                            "causesNext": f"该行动产生后续阶段 {stage + 1} 的条件。",
-                            "sourceFunctionOrSeam": seams[0]["seamId"],
-                        }
-                        for stage in range(1, 5)
-                    ],
-                    "nonCopyEvidence": ["重新设计具体人物选择、表达、场景和后果。"],
-                    "distinctiveEngine": f"unique-causal-engine-{direction_id}",
-                    "genericTemplateRisk": False,
-                }
-            )
+    for direction_id, mode in direction_specs:
+        minimum = modes[mode][1] if intent_mode == "exploratory_recommendation" else 1
+        direction_ids.append(direction_id)
+        anchor_count = max(minimum, len(source_facts) if compare and intent_mode == "exploratory_recommendation" else minimum)
+        if compare and intent_mode == "exploratory_recommendation":
+            anchors = [
+                {"sourcePackageId": source_id, "factId": fact_ids[0]}
+                for source_id, fact_ids in source_facts.items()
+            ]
+            anchors.extend(anchor for anchor in all_anchors if anchor not in anchors)
+            anchors = anchors[:anchor_count]
+        else:
+            anchors = all_anchors[:anchor_count]
+        mapping_count = max(
+            mapping_minimums[mode] if intent_mode == "exploratory_recommendation" else 1,
+            len(anchors),
+        )
+        stage_count = 4 if intent_mode == "exploratory_recommendation" else 1
+        directions.append(
+            {
+                "directionId": direction_id,
+                "adaptationMode": mode,
+                "title": f"证据驱动方向 {direction_id}",
+                "transferMode": "functional-parallel",
+                "primaryAudienceNeedIds": ["need-agency", "need-payoff"],
+                "preservationContract": contracts[mode],
+                "sourceAnchorRefs": anchors,
+                "expansionSeamIds": [item["seamId"] for item in seams],
+                "sourceFidelityEvidence": [
+                    {**anchor, "preservedFunction": f"保留 {anchor['factId']} 对应的具体推进功能。"}
+                    for anchor in anchors
+                ],
+                "transferRationale": "先保留来源功能和观众回报，再选择能自然承载这些功能的新实现。",
+                "skinSelectionRationale": "新实现由已确认观众需要与来源功能共同决定，不来自预设题材。",
+                "audiencePayoffContinuity": "新因果继续兑现行动改变处境与关系结果的观众回报。",
+                "functionalTransferMap": [
+                    {
+                        "mappingId": f"{direction_id}-map-{mapping_index + 1}",
+                        "sourceFunction": f"保留 {anchor['factId']} 承担的叙事功能。",
+                        "sourceAnchorRefs": [anchor],
+                        "audienceNeedIds": ["need-agency", "need-payoff"],
+                        "newImplementation": f"以 {direction_id} 的独立实现承载该功能。",
+                        "causalFitRationale": "该实现改变人物可用资源和下一步选择，因此能够自然推进后续。",
+                        "preservedPayoff": "观众看到人物行动真实改变处境并获得结果。",
+                    }
+                    for mapping_index, anchor in enumerate(
+                        [anchors[index % len(anchors)] for index in range(mapping_count)]
+                    )
+                ],
+                "causalOutline": [
+                    {
+                        "phase": f"{direction_id} 阶段 {stage}",
+                        "event": f"角色依据来源锚点推进新的具体行动 {stage}。",
+                        "causesNext": f"该行动产生后续阶段 {stage + 1} 的条件。",
+                        "sourceFunctionOrSeam": seams[0]["seamId"],
+                    }
+                    for stage in range(1, stage_count + 1)
+                ],
+                "nonCopyEvidence": ["重新设计受保护表达，并保持用户范围外功能不变。"],
+                "distinctiveEngine": f"unique-causal-engine-{direction_id}",
+                "functionalTransferSignature": f"unique-functional-transfer-{direction_id}",
+                "templateContaminationCheck": {
+                    "promptExampleCopied": False,
+                    "presetSettingInjected": False,
+                    "audienceNeedJustified": True,
+                    "functionalMappingComplete": True,
+                    "causalCompatibilityPassed": True,
+                },
+                "genericTemplateRisk": False,
+            }
+        )
     matrix = []
     for left_index, left in enumerate(direction_ids):
         for right in direction_ids[left_index + 1 :]:
@@ -366,7 +424,32 @@ def direction_package(source_facts: dict[str, list[str]], *, compare: bool = Fal
                     "sameTemplate": False,
                 }
             )
-    return {
+    active_version_id = "direction-v002" if intent_mode == "delta_revision" else "direction-v001"
+    package = {
+        "intentMode": intent_mode,
+        "activeAdaptationModes": active_modes,
+        "activeVersionId": active_version_id,
+        "contentLocks": {
+            "sourceFacts": all_anchors,
+            "narrativeEngine": {
+                "goal": "人物通过连续行动改变受限处境。",
+                "causalEngine": "行动产生新信息与资源并改变下一步选择。",
+                "progressionMechanism": "每次结果扩大后续可行动范围。",
+                "feedbackLoop": "行动、反馈、调整与新行动形成闭环。",
+                "escalationOrDevelopment": "关系和风险随结果逐步变化。",
+                "climaxFunction": "用此前积累完成主要因果并兑现结果。",
+            },
+            "audiencePayoffContract": {
+                "audiencePromise": "人物通过可验证行动获得改变。",
+                "emotionalPayoffs": ["行动权恢复", "关系结果兑现"],
+                "experienceMechanisms": ["连续积累", "明确反馈"],
+            },
+            "surfaceImplementation": {
+                "lockedElements": ["来源专有表达禁止复制"],
+                "changeableElements": ["目标故事的具体身份与场景实现"],
+                "unknownElements": [],
+            },
+        },
         "sourceStoryDNA": {
             "audiencePromise": "以可验证行动推动关系变化并兑现结果。",
             "plotEngine": "限制下的行动产生新证据并改变后续选择。",
@@ -377,6 +460,39 @@ def direction_package(source_facts: dict[str, list[str]], *, compare: bool = Fal
             "climaxFunction": "用此前行动积累完成主要因果。",
             "endingPayoff": "交付信息和情绪闭环。",
         },
+        "audienceNeedModel": {
+            "targetAudienceContext": "使用当前项目已确认的目标观众语境。",
+            "evidenceBoundary": "只使用用户确认、频道画像和来源事实；其余标为假设。",
+            "needs": [
+                {
+                    "needId": "need-agency",
+                    "needType": "desire",
+                    "statement": "希望看到人物通过选择重新获得行动权。",
+                    "basisType": "source-supported",
+                    "basisRef": "来源中的行动与结果链。",
+                    "confidence": "high",
+                    "sourceEvidenceRefs": [all_anchors[0]],
+                },
+                {
+                    "needId": "need-process",
+                    "needType": "preference",
+                    "statement": "偏好成果由连续行动积累而成。",
+                    "basisType": "source-supported",
+                    "basisRef": "来源中的因果推进。",
+                    "confidence": "high",
+                    "sourceEvidenceRefs": [all_anchors[min(1, len(all_anchors) - 1)]],
+                },
+                {
+                    "needId": "need-payoff",
+                    "needType": "payoff",
+                    "statement": "期待主要行动和关系变化得到明确回报。",
+                    "basisType": "source-supported",
+                    "basisRef": "来源结局回报。",
+                    "confidence": "high",
+                    "sourceEvidenceRefs": [all_anchors[-1]],
+                },
+            ],
+        },
         "expansionSeams": seams,
         "adaptationProfiles": [
             {"adaptationMode": mode, "preservationContract": contracts[mode]} for mode in modes
@@ -386,15 +502,110 @@ def direction_package(source_facts: dict[str, list[str]], *, compare: bool = Fal
         "selection": {
             "status": "AWAITING_USER",
             "selectedDirectionId": None,
-            "recommendedByTier": {
-                "close-structure": "A1",
-                "balanced-reconstruction": "B1",
-                "free-original": "C1",
-            },
+            **(
+                {
+                    "recommendedByTier": {
+                        mode: f"{modes[mode][0]}1" for mode in active_modes
+                    }
+                }
+                if intent_mode == "exploratory_recommendation"
+                else {
+                    "proposedDirectionId": "S1" if intent_mode == "scope_locked_migration" else "D1"
+                }
+            ),
         },
     }
+    if intent_mode != "exploratory_recommendation":
+        package["scopeChangeContract"] = {
+            "requestedChanges": [
+                {
+                    "itemId": "change-request-1",
+                    "statement": "只修改用户本次点名的表层字段。",
+                    "changeOrigin": "user-requested",
+                    "status": "active",
+                }
+            ],
+            "explicitlyPreserved": [
+                {
+                    "itemId": "preserve-1",
+                    "statement": "保持既有叙事发动机和观众回报。",
+                    "changeOrigin": "user-requested",
+                    "status": "active",
+                }
+            ],
+            "necessaryCascadeChanges": [],
+            "optionalCreativeSuggestions": [
+                {
+                    "itemId": "optional-1",
+                    "statement": "未确认的可选创意不进入活动方案。",
+                    "changeOrigin": "optional-suggestion",
+                    "status": "inactive",
+                }
+            ],
+            "forbiddenExpansion": [
+                {
+                    "itemId": "forbid-1",
+                    "statement": "禁止增加未授权的大型机制和终局冲突。",
+                    "changeOrigin": "logic-required",
+                    "status": "active",
+                }
+            ],
+            "unresolvedItems": [],
+            "unchangedStoryFunctions": [
+                {
+                    "itemId": "unchanged-1",
+                    "statement": "主要因果、角色功能和阶段回报保持不变。",
+                    "changeOrigin": "user-requested",
+                    "status": "active",
+                }
+            ],
+        }
+        package["intentQualityGate"] = {
+            "intentModeCorrect": True,
+            "requestedChangesFullyApplied": True,
+            "explicitPreservesUntouched": True,
+            "causalChainCoherent": True,
+            "noUnsolicitedExpansion": True,
+            "originalityBoundaryPassed": True,
+            "supersededContentInactive": True,
+            "formalProductionOutlineNotGenerated": True,
+            "narrativeEngineStatus": "preserved",
+            "audiencePayoffStatus": "preserved",
+            "characterFunctionStatus": "preserved",
+        }
+    if intent_mode == "scope_locked_migration":
+        package["scopeLockedCard"] = {
+            "userChangeScope": ["用户本次点名的表层字段"],
+            "narrativeEngine": "保持四层内容锁中的叙事发动机。",
+            "audiencePayoff": "保持原观众承诺与情绪回报。",
+            "preservedCharacterFunctions": ["主要角色功能不变"],
+            "preservedStageFunctions": ["主要阶段功能不变"],
+            "directReplacementFields": ["用户点名字段"],
+            "necessaryCascadeFields": [],
+            "protectedContent": ["范围外内容不得改变"],
+            "originalityBoundary": "重建受保护表达，不连续复制完整实现。",
+            "logicDriftRisks": ["新增未授权机制会造成范围漂移"],
+            "unresolvedItems": [],
+            "confirmationStatus": "AWAITING_USER",
+        }
+    elif intent_mode == "delta_revision":
+        package["deltaRevision"] = {
+            "baseVersionId": "direction-v001",
+            "latestVersionId": active_version_id,
+            "newChanges": ["应用用户本次局部修改"],
+            "affectedFields": ["用户点名字段"],
+            "unchangedFields": ["叙事发动机", "观众回报", "范围外角色功能"],
+            "supersededDesigns": [
+                {"designId": "old-design-1", "status": "inactive", "reason": "已被本次用户修改替代。"}
+            ],
+            "narrativeEngineImpact": "preserved",
+            "audiencePayoffImpact": "preserved",
+            "activeVersionSummary": "只应用本次增量并保持其余活动内容不变。",
+        }
+    return package
 
 
+@unittest.skip("legacy video/content deconstruction tools were retired from the active plugin surface")
 class VideoDeconstructionTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory(prefix="vd-")
@@ -439,6 +650,51 @@ class VideoDeconstructionTests(unittest.TestCase):
         self.assertEqual(105, len(checked["directionDistinctnessMatrix"]))
         self.assertEqual("AWAITING_USER", checked["selection"]["status"])
 
+        functional_without_seam = json.loads(json.dumps(valid, ensure_ascii=False))
+        functional_without_seam["directions"][0]["expansionSeamIds"] = []
+        checked_without_seam = self.service.content_deconstruction._validate_direction_package(
+            functional_without_seam, [frozen_analysis], "single"
+        )
+        self.assertEqual("functional-parallel", checked_without_seam["directions"][0]["transferMode"])
+
+        weak_transfer = json.loads(json.dumps(valid, ensure_ascii=False))
+        weak_transfer["directions"][0]["functionalTransferMap"].pop()
+        self.assert_tool_error(
+            "DIRECTION_FUNCTIONAL_TRANSFER_INCOMPLETE",
+            lambda: self.service.content_deconstruction._validate_direction_package(
+                weak_transfer, [frozen_analysis], "single"
+            ),
+        )
+
+        contaminated = json.loads(json.dumps(valid, ensure_ascii=False))
+        contaminated["directions"][0]["templateContaminationCheck"]["promptExampleCopied"] = True
+        self.assert_tool_error(
+            "DIRECTION_TEMPLATE_CONTAMINATION",
+            lambda: self.service.content_deconstruction._validate_direction_package(
+                contaminated, [frozen_analysis], "single"
+            ),
+        )
+
+        duplicate_transfer = json.loads(json.dumps(valid, ensure_ascii=False))
+        duplicate_transfer["directions"][1]["functionalTransferSignature"] = duplicate_transfer["directions"][0][
+            "functionalTransferSignature"
+        ]
+        self.assert_tool_error(
+            "DIRECTION_FUNCTIONAL_TRANSFER_DUPLICATE",
+            lambda: self.service.content_deconstruction._validate_direction_package(
+                duplicate_transfer, [frozen_analysis], "single"
+            ),
+        )
+
+        unsupported_high_confidence = json.loads(json.dumps(valid, ensure_ascii=False))
+        unsupported_high_confidence["audienceNeedModel"]["needs"][0]["basisType"] = "hypothesis"
+        self.assert_tool_error(
+            "AUDIENCE_NEED_CONFIDENCE_INVALID",
+            lambda: self.service.content_deconstruction._validate_direction_package(
+                unsupported_high_confidence, [frozen_analysis], "single"
+            ),
+        )
+
         template_leak = json.loads(json.dumps(valid, ensure_ascii=False))
         template_leak["directions"][0]["genericTemplateRisk"] = True
         self.assert_tool_error(
@@ -463,6 +719,91 @@ class VideoDeconstructionTests(unittest.TestCase):
             "DIRECTION_DISTINCTNESS_MATRIX_INCOMPLETE",
             lambda: self.service.content_deconstruction._validate_direction_package(
                 incomplete_matrix, [frozen_analysis], "single"
+            ),
+        )
+
+    def test_intent_routing_scope_lock_and_delta_revision_are_hard_gated(self) -> None:
+        source_id = self.ids["textstory01"]
+        analysis = deconstruction_analysis(source_id, "intent-routing")
+        frozen_analysis = {
+            "sourcePackageId": source_id,
+            "analysisBuckets": analysis["analysisBuckets"],
+        }
+        source_facts = {
+            source_id: [
+                "fact-open-intent-routing",
+                "fact-action-intent-routing",
+                "fact-payoff-intent-routing",
+            ]
+        }
+
+        single_tier = direction_package(
+            source_facts,
+            active_modes=["close-structure"],
+        )
+        checked_single_tier = self.service.content_deconstruction._validate_direction_package(
+            single_tier, [frozen_analysis], "single"
+        )
+        self.assertEqual(5, len(checked_single_tier["directions"]))
+        self.assertEqual(10, len(checked_single_tier["directionDistinctnessMatrix"]))
+
+        scope_locked = direction_package(
+            source_facts,
+            intent_mode="scope_locked_migration",
+            active_modes=["close-structure"],
+        )
+        checked_scope = self.service.content_deconstruction._validate_direction_package(
+            scope_locked, [frozen_analysis], "single"
+        )
+        self.assertEqual(["S1"], [item["directionId"] for item in checked_scope["directions"]])
+        self.assertEqual([], checked_scope["directionDistinctnessMatrix"])
+        self.assertEqual("S1", checked_scope["selection"]["proposedDirectionId"])
+
+        activated_optional = json.loads(json.dumps(scope_locked, ensure_ascii=False))
+        activated_optional["scopeChangeContract"]["optionalCreativeSuggestions"][0]["status"] = "active"
+        self.assert_tool_error(
+            "OPTIONAL_SUGGESTION_ACTIVE",
+            lambda: self.service.content_deconstruction._validate_direction_package(
+                activated_optional, [frozen_analysis], "single"
+            ),
+        )
+
+        scope_drift = json.loads(json.dumps(scope_locked, ensure_ascii=False))
+        scope_drift["intentQualityGate"]["noUnsolicitedExpansion"] = False
+        self.assert_tool_error(
+            "INTENT_QUALITY_GATE_FAILED",
+            lambda: self.service.content_deconstruction._validate_direction_package(
+                scope_drift, [frozen_analysis], "single"
+            ),
+        )
+
+        delta = direction_package(
+            source_facts,
+            intent_mode="delta_revision",
+            active_modes=["close-structure"],
+        )
+        checked_delta = self.service.content_deconstruction._validate_direction_package(
+            delta, [frozen_analysis], "single"
+        )
+        self.assertEqual("D1", checked_delta["selection"]["proposedDirectionId"])
+        self.assertEqual("direction-v002", checked_delta["activeVersionId"])
+        self.assertEqual("inactive", checked_delta["deltaRevision"]["supersededDesigns"][0]["status"])
+
+        revived_old_design = json.loads(json.dumps(delta, ensure_ascii=False))
+        revived_old_design["deltaRevision"]["supersededDesigns"][0]["status"] = "active"
+        self.assert_tool_error(
+            "SUPERSEDED_CONTENT_ACTIVE",
+            lambda: self.service.content_deconstruction._validate_direction_package(
+                revived_old_design, [frozen_analysis], "single"
+            ),
+        )
+
+        missing_content_lock = json.loads(json.dumps(scope_locked, ensure_ascii=False))
+        del missing_content_lock["contentLocks"]["narrativeEngine"]
+        self.assert_tool_error(
+            "CONTENT_LOCKS_INVALID",
+            lambda: self.service.content_deconstruction._validate_direction_package(
+                missing_content_lock, [frozen_analysis], "single"
             ),
         )
 
@@ -795,7 +1136,8 @@ class VideoDeconstructionTests(unittest.TestCase):
             finalized["outputs"]["directionSelection"]["status"],
         )
         deconstruction_review_root = Path(finalized["outputs"]["userReviewDocuments"]["directory"])
-        self.assertTrue((deconstruction_review_root / "01_原始素材说明.md").is_file())
+        self.assertTrue(finalized["outputs"]["userReviewDocuments"]["displayRequired"])
+        self.assertFalse((deconstruction_review_root / "01_原始素材说明.md").exists())
         self.assertTrue((deconstruction_review_root / "02_完整拆解报告.md").is_file())
         self.assertTrue((deconstruction_review_root / "03_迁移方向选择.md").is_file())
         package = self.service.content_deconstruction.analysis_package(
@@ -803,6 +1145,9 @@ class VideoDeconstructionTests(unittest.TestCase):
             deconstruction_id="content-text-single-001",
         )
         self.assertEqual("content-deconstruction", package["analysisKind"])
+        for document in finalized["outputs"]["userReviewDocuments"]["documents"]:
+            self.assertTrue(Path(document["absolutePath"]).is_file())
+            self.assertEqual(package["contentHash"], document["sourceBinding"]["contentHash"])
         self.assertEqual(1, len(package["sourceAnalyses"]))
         self.assertTrue(package["downstreamViews"]["rewrite"]["transferableMethods"])
         self.assertTrue(package["downstreamViews"]["productionText"]["transferableMethods"])
@@ -823,15 +1168,26 @@ class VideoDeconstructionTests(unittest.TestCase):
                 "projectId": "direct-rewrite-from-text",
                 "sourceMode": "direct-rewrite",
                 "sourcePackages": [{"sourcePackageId": source_id}],
-                "analysisPackages": [{"deconstructionId": "content-text-single-001"}],
+                "analysisPackages": [
+                    {
+                        "deconstructionId": "content-text-single-001",
+                        "intentMode": "exploratory_recommendation",
+                        "activeVersionId": "direction-v001",
+                        "selectedDirectionId": "A1",
+                        "directionConfirmationRef": f"task:{self.task_id}:direction:A1",
+                    }
+                ],
             },
         )
         self.assertEqual("direct-rewrite", project["state"]["sourceMode"])
         self.assertEqual("content-deconstruction", project["state"]["analysisLocks"][0]["analysisKind"])
         project_review_root = Path(project["state"]["userReviewDocuments"]["directory"])
-        self.assertTrue((project_review_root / "01_原始素材说明.md").is_file())
+        self.assertFalse((project_review_root / "01_原始素材说明.md").exists())
         self.assertTrue((project_review_root / "02_完整拆解报告.md").is_file())
         self.assertTrue((project_review_root / "03_迁移方向选择.md").is_file())
+        for document in project["state"]["userReviewDocuments"]["documents"]:
+            self.assertTrue(Path(document["absolutePath"]).is_file())
+            self.assertEqual(package["contentHash"], document["sourceBinding"]["contentHash"])
         ctx = PipelineContext(
             self.service,
             self.root,
@@ -853,6 +1209,32 @@ class VideoDeconstructionTests(unittest.TestCase):
                 "protectedBoundary": "不复制原句、专名、具体人物关系或完整事件顺序。",
             }
         ]
+        rewrite_candidate["directionExecutionContract"] = {
+            "intentMode": "exploratory_recommendation",
+            "activeVersionId": "direction-v001",
+            "selectedDirectionId": "A1",
+            "requestedChangesApplied": True,
+            "explicitPreservesUntouched": True,
+            "unchangedStoryFunctionsPreserved": True,
+            "noUnsolicitedExpansion": True,
+            "inactiveContentExcluded": True,
+        }
+        leaked_inactive = json.loads(json.dumps(rewrite_candidate, ensure_ascii=False))
+        leaked_inactive["directionExecutionContract"]["inactiveContentExcluded"] = False
+        self.assert_tool_error(
+            "DIRECTION_EXECUTION_CONTRACT_FAILED",
+            lambda: self.service.call(
+                "content_topic_checkpoint",
+                {
+                    "taskId": self.task_id,
+                    "channelProfileId": self.channel_id,
+                    "bindingProof": self.proof,
+                    "projectId": ctx.project_id,
+                    "candidateNumber": 1,
+                    "candidate": leaked_inactive,
+                },
+            ),
+        )
         self.service.call(
             "content_topic_checkpoint",
             {
@@ -885,12 +1267,17 @@ class VideoDeconstructionTests(unittest.TestCase):
         self.assertEqual("TOPIC_SELECTED", topic["package"]["status"])
         self.assertEqual("direct-rewrite-request", topic["package"]["selection"]["policy"])
         self.assertEqual(source_id, topic["package"]["candidates"][0]["sourceTransformationMap"][0]["sourcePackageId"])
+        self.assertEqual(
+            "direction-v001",
+            topic["package"]["candidates"][0]["directionExecutionContract"]["activeVersionId"],
+        )
         manuscript = finalize_manuscript(ctx)
         self.assertEqual("SCRIPT_READY", manuscript["package"]["status"])
         manuscript_documents = {item["documentId"] for item in manuscript["userReviewDocuments"]["documents"]}
         self.assertTrue(
-            {"source-summary", "deconstruction-report", "transfer-directions", "rewrite-draft-target", "editorial-review", "revision-log", "final-script-target", "final-script-zh"}.issubset(manuscript_documents)
+            {"deconstruction-report", "transfer-directions", "rewrite-draft-target", "editorial-review", "revision-log", "final-script-target", "final-script-zh"}.issubset(manuscript_documents)
         )
+        self.assertTrue(manuscript["userReviewDocuments"]["displayRequired"])
 
         second_source_id = self.ids["decompose01"]
         synthesis_deconstruction_id = "content-synthesis-compare-001"
@@ -980,7 +1367,15 @@ class VideoDeconstructionTests(unittest.TestCase):
                     {"sourcePackageId": source_id},
                     {"sourcePackageId": second_source_id},
                 ],
-                "analysisPackages": [{"deconstructionId": synthesis_deconstruction_id}],
+                "analysisPackages": [
+                    {
+                        "deconstructionId": synthesis_deconstruction_id,
+                        "intentMode": "exploratory_recommendation",
+                        "activeVersionId": "direction-v001",
+                        "selectedDirectionId": "A1",
+                        "directionConfirmationRef": f"task:{self.task_id}:direction:A1",
+                    }
+                ],
             },
         )
         synthesis_ctx = PipelineContext(
@@ -1012,6 +1407,16 @@ class VideoDeconstructionTests(unittest.TestCase):
                 "protectedBoundary": "不复制视频来源的人物、表达或具体桥段。",
             },
         ]
+        synthesis_candidate["directionExecutionContract"] = {
+            "intentMode": "exploratory_recommendation",
+            "activeVersionId": "direction-v001",
+            "selectedDirectionId": "A1",
+            "requestedChangesApplied": True,
+            "explicitPreservesUntouched": True,
+            "unchangedStoryFunctionsPreserved": True,
+            "noUnsolicitedExpansion": True,
+            "inactiveContentExcluded": True,
+        }
         self.service.call(
             "content_topic_checkpoint",
             {

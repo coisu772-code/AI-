@@ -77,23 +77,39 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "sourceStoryDNA", "expansionSeams", "adaptationProfiles", "directions",
+        "intentMode", "activeAdaptationModes", "activeVersionId", "contentLocks",
+        "sourceStoryDNA", "audienceNeedModel", "expansionSeams", "adaptationProfiles", "directions",
         "directionDistinctnessMatrix", "selection"
       ],
       "properties": {
+        "intentMode": {
+          "enum": ["exploratory_recommendation", "scope_locked_migration", "delta_revision"]
+        },
+        "activeAdaptationModes": {
+          "type": "array", "minItems": 1, "maxItems": 3, "uniqueItems": true,
+          "items": { "enum": ["close-structure", "balanced-reconstruction", "free-original"] }
+        },
+        "activeVersionId": { "type": "string", "minLength": 3, "maxLength": 128 },
+        "contentLocks": { "type": "object", "minProperties": 4 },
+        "scopeChangeContract": { "type": "object" },
+        "deltaRevision": { "type": "object" },
+        "scopeLockedCard": { "type": "object" },
+        "intentQualityGate": { "type": "object" },
         "sourceStoryDNA": { "type": "object", "minProperties": 8 },
+        "audienceNeedModel": { "type": "object", "minProperties": 3 },
         "expansionSeams": { "type": "array", "minItems": 1, "items": { "type": "object" } },
         "adaptationProfiles": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "object" } },
-        "directions": { "type": "array", "minItems": 15, "maxItems": 15, "items": { "type": "object" } },
-        "directionDistinctnessMatrix": { "type": "array", "minItems": 105, "maxItems": 105, "items": { "type": "object" } },
+        "directions": { "type": "array", "minItems": 1, "maxItems": 15, "items": { "type": "object" } },
+        "directionDistinctnessMatrix": { "type": "array", "minItems": 0, "maxItems": 105, "items": { "type": "object" } },
         "selection": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["status", "selectedDirectionId", "recommendedByTier"],
+          "required": ["status", "selectedDirectionId"],
           "properties": {
             "status": { "const": "AWAITING_USER" },
             "selectedDirectionId": { "type": ["string", "null"] },
-            "recommendedByTier": { "type": "object", "minProperties": 3, "maxProperties": 3 }
+            "recommendedByTier": { "type": "object", "minProperties": 1, "maxProperties": 3 },
+            "proposedDirectionId": { "type": ["string", "null"] }
           }
         }
       }

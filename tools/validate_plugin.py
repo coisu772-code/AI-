@@ -15,13 +15,12 @@ PLUGIN_NAME = "ai-video-channel-production"
 MARKETPLACE_NAME = "novel-manga-production"
 PLUGIN_ROOT = ROOT / "plugins" / PLUGIN_NAME
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-CURRENT_PRODUCT_VERSION = "0.11.0-rc.4"
+CURRENT_PRODUCT_VERSION = "0.12.0-rc.1"
 
 EXPECTED_SKILLS = {
     "channel-production",
     "channel-onboarding",
     "content-source",
-    "content-deconstruct",
     "content-rewrite",
     "content-review-edit",
     "content-title-description",
@@ -39,17 +38,16 @@ EXPECTED_SOURCE_TOOLS = {
     "source_job_resume",
     "source_integrity_check",
 }
-EXPECTED_CONTENT_DECONSTRUCTION_TOOLS = {
-    "content_deconstruction_capabilities",
-    "content_deconstruction_prepare",
-    "content_deconstruction_read_source",
-    "content_deconstruction_checkpoint",
-    "content_deconstruction_finalize",
-    "content_deconstruction_get",
-    "content_deconstruction_integrity_check",
-}
 EXPECTED_CONTENT_TOOLS = {
     "content_capabilities",
+    "content_workspace_start",
+    "content_workspace_prompt_register",
+    "content_workspace_document_save",
+    "content_workspace_document_confirm",
+    "content_workspace_auto_upload_authorize",
+    "content_workspace_bind_production",
+    "content_workspace_narration_prepare",
+    "content_workspace_get",
     "content_project_start",
     "content_topic_checkpoint",
     "content_topic_finalize",
@@ -61,26 +59,11 @@ EXPECTED_CONTENT_TOOLS = {
     "content_integrity_check",
     "content_handoff_check",
 }
-EXPECTED_VIDEO_ANALYSIS_TOOLS = {
-    "video_deconstruction_capabilities",
-    "video_deconstruction_prepare",
-    "video_deconstruction_read_source",
-    "video_deconstruction_checkpoint",
-    "video_deconstruction_finalize",
-    "video_deconstruction_get",
-    "video_deconstruction_integrity_check",
-}
-EXPECTED_ORIGINAL_IMITATION_TOOLS = {
-    "original_imitation_capabilities",
-    "original_imitation_prepare",
-    "original_imitation_read_source",
-    "original_imitation_source_checkpoint",
-    "original_imitation_direction_checkpoint",
-    "original_imitation_directions_finalize",
-    "original_imitation_confirm",
-    "original_imitation_get",
-    "original_imitation_integrity_check",
-}
+RETIRED_CONTENT_TOOL_PREFIXES = (
+    "video_deconstruction_",
+    "content_deconstruction_",
+    "original_imitation_",
+)
 EXPECTED_PRODUCTION_TOOLS = {
     "production_capabilities",
     "production_package_assemble",
@@ -234,10 +217,11 @@ def validate_plugin() -> list[str]:
     router_text = skill_texts.get("channel-production", "")
     for marker in (
         "$content-source",
-        "$content-deconstruct",
         "$content-rewrite",
         "$content-review-edit",
         "$content-title-description",
+        "provided-outline",
+        "旧拆解",
         "content-thumbnail",
         "Title/Description/Thumbnail Assets",
     ):
@@ -256,47 +240,20 @@ def validate_plugin() -> list[str]:
         "CONTENT_READY",
         "PARTIAL",
         "content.txt",
-        "$content-deconstruct",
+        "旧拆解和仿写方向能力已经移除",
     ):
         if marker not in source_text:
             errors.append(f"content-source is missing required marker: {marker}")
 
-    deconstruction_text = skill_texts.get("content-deconstruct", "")
-    for marker in (
-        *sorted(EXPECTED_CONTENT_DECONSTRUCTION_TOOLS),
-        "originalFacts",
-        "analysisConclusions",
-        "transferableMethods",
-        "prohibitedCopy",
-        "unknowns",
-        "close-structure",
-        "balanced-reconstruction",
-        "free-original",
-        "preservationContract",
-        "directionDistinctnessMatrix",
-        "共 15 个",
-        "$content-rewrite",
-    ):
-        if marker not in deconstruction_text:
-            errors.append(f"content-deconstruct is missing required marker: {marker}")
-
     rewrite_text = skill_texts.get("content-rewrite", "")
     for marker in (
-        "direct-rewrite",
-        "synthesis-rewrite",
-        "sourceTransformationMap",
-        "adaptationMode",
-        "mustPreserve",
-        "mustRebuild",
-        "sourceFidelityEvidence",
-        "nonCopyEvidence",
-        "content_project_start",
-        "content_topic_checkpoint",
-        "content_topic_finalize",
-        "content_review_document_save",
-        "content_integrity_check",
+        "旧拆解与方向能力已移除",
+        "content_workspace_get",
+        "content_workspace_document_save",
+        "content_workspace_document_confirm",
+        "不得调用 `channel_list`",
         "$content-review-edit",
-        "04_仿写初稿_目标语言.txt",
+        "不少于 80 字",
     ):
         if marker not in rewrite_text:
             errors.append(f"content-rewrite is missing required marker: {marker}")
@@ -304,15 +261,11 @@ def validate_plugin() -> list[str]:
     manuscript_text = skill_texts.get("content-review-edit", "")
     for marker in (
         "目标语言正式文本",
-        "唯一事实源",
         "lineId",
-        "content_manuscript_finalize",
-        "content_review_documents_get",
-        "05_编辑审核报告.md",
-        "06_修改记录与前后对照.md",
-        "07_正式稿_目标语言.txt",
-        "08_正式稿_中文版.txt",
-        "SCRIPT_READY",
+        "content_workspace_get",
+        "content_workspace_document_save",
+        "content_workspace_document_confirm",
+        "唯一制作来源",
         "$content-title-description",
         "P0",
         "P1",
@@ -330,7 +283,9 @@ def validate_plugin() -> list[str]:
         "content-description",
         "content-thumbnail",
         "thumbnail-asset-v1",
-        "SCRIPT_READY",
+        "content_workspace_get",
+        "content_workspace_document_save",
+        "content_workspace_document_confirm",
         "8–12",
         "中文翻译",
         "中文含义",
@@ -363,17 +318,12 @@ def validate_plugin() -> list[str]:
     prompt_manifest_path = PLUGIN_ROOT / "assets" / "content-prompt-bundles.json"
     try:
         prompt_manifest = load_json(prompt_manifest_path)
-        expected_sequence = [
-            "content-deconstruct",
-            "content-rewrite",
-            "content-review-edit",
-            "content-title-description",
-        ]
+        expected_sequence = ["content-review-edit", "content-title-description"]
         if prompt_manifest.get("sequence") != expected_sequence:
             errors.append("content prompt bundle sequence is invalid")
         bundles = prompt_manifest.get("bundles", [])
         if [item.get("skillId") for item in bundles] != expected_sequence:
-            errors.append("content prompt bundle Skills do not match the four-stage sequence")
+            errors.append("content prompt bundle Skills do not match the active review/packaging sequence")
         for item in bundles:
             relative = item.get("bundledPath")
             if not isinstance(relative, str):
@@ -405,10 +355,9 @@ def validate_plugin() -> list[str]:
         "thumbnail-asset-v1",
         "16:9",
         "SHA-256",
-        "content_publishing_finalize",
-        "09_标题简介标签_双语审核.md",
-        "10_封面候选与选择结果.md",
-        "content_handoff_check",
+        "content_workspace_get",
+        "productionHandoffPath",
+        "已复用项／本次补齐项／仍缺失项",
         "不在本 Skill 启动工坊",
     ):
         if marker not in publishing_text:
@@ -416,10 +365,11 @@ def validate_plugin() -> list[str]:
     production_text = skill_texts.get("production-handoff", "")
     for marker in (
         "Production Package v2.1",
-        "Production Task v1",
+        "content_workspace_bind_production",
+        "content_workspace_narration_prepare",
         "P0–P11",
         "production_package_assemble",
-        "11_完整生产资料总览.md",
+        "完整生产资料总览",
         "production_task_start",
         "production_task_get",
         "production_task_run",
@@ -458,16 +408,19 @@ def validate_plugin() -> list[str]:
     ):
         if marker not in data_text:
             errors.append(f"data-center is missing required marker: {marker}")
-    if len(EXPECTED_CONTENT_TOOLS | EXPECTED_PRODUCTION_TOOLS | EXPECTED_PUBLISH_TOOLS | EXPECTED_DATA_TOOLS) != 34:
-        errors.append("health tool subset must contain exactly 34 tools")
+    if len(EXPECTED_CONTENT_TOOLS | EXPECTED_PRODUCTION_TOOLS | EXPECTED_PUBLISH_TOOLS | EXPECTED_DATA_TOOLS) != 42:
+        errors.append("health tool subset must contain exactly 42 tools")
     service_text = (PLUGIN_ROOT / "mcp" / "aivcp_tools" / "service.py").read_text(encoding="utf-8")
     missing_tools = sorted(
         tool
-        for tool in EXPECTED_VIDEO_ANALYSIS_TOOLS | EXPECTED_ORIGINAL_IMITATION_TOOLS | EXPECTED_PRODUCTION_TOOLS | EXPECTED_PUBLISH_TOOLS | EXPECTED_DATA_TOOLS
+        for tool in EXPECTED_PRODUCTION_TOOLS | EXPECTED_PUBLISH_TOOLS | EXPECTED_DATA_TOOLS
         if tool not in service_text
     )
     if missing_tools:
         errors.append(f"local service is missing Stage5-7 tools: {missing_tools}")
+    for marker in ("RETIRED_CONTENT_TOOL_PREFIXES", "if not name.startswith(RETIRED_CONTENT_TOOL_PREFIXES)"):
+        if marker not in service_text:
+            errors.append(f"local service does not enforce retired content tool filtering: {marker}")
     return errors
 
 

@@ -154,6 +154,7 @@ def generate(output_root: Path) -> dict[str, Any]:
             channel_profile=channel_profile,
             constraints_catalog_path=CATALOG,
             created_at="2026-08-04T06:00:00Z",
+            allow_synthetic_fixture=True,
         )
         publish_idempotent = (
             publish_again["package_hash"] == stage6_summary["markets"][language]["package_hash"]

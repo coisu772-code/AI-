@@ -1,7 +1,7 @@
 interface:
-  display_name: "编辑审核与修改"
-  short_description: "对仿写正文逐章审稿、深度修改、全文一致性复查并冻结正式母稿"
-  default_prompt: "Use `$content-review-edit` to review, revise, recheck, and freeze the production-ready manuscript."
+  display_name: "编辑审核"
+  short_description: "审核并修改当前工作区正文，保存报告、对照和正式稿版本"
+  default_prompt: "使用 $content-review-edit 审核并修改我当前点名的文稿，展示修改结果后等待我确认。"
 
 policy:
   allow_implicit_invocation: false

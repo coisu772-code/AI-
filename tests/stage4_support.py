@@ -178,6 +178,11 @@ def create_service(root: Path, language: str, *, plugin_root: Path, local_tool_s
                 "voice": {"engineId": "fixture-tts", "voiceId": f"fixture-{market['key']}-001"},
                 "manuscript": {"mode": "auto_by_topic", "preferredCharacters": 200, "minCharacters": 20, "maxCharacters": 1000},
                 "episodes": {"mode": "auto_by_topic", "preferredCount": 2, "minCount": 1, "maxCount": 4},
+                "imageStyle": {
+                    "presetId": "visual_01",
+                    "prompt": "现代商业电视动画风格，干净线稿，稳定赛璐璐上色。",
+                },
+                "storyImageTextPolicy": "forbid_visible_text",
                 "deliveryMode": "auto_render",
                 "videoGeneration": {"enabled": False, "selectionMode": "none", "fallbackPolicy": "pause"},
                 "uploadPolicy": "REQUIRE_REVIEW",
@@ -453,6 +458,11 @@ def manuscript_payload(ctx: PipelineContext) -> dict[str, Any]:
             }
         ),
         "rewriteDraftText": "\n".join(f"初稿 {line['lineId']} {line['speakerId']}：{line['text']}" for line in target_lines),
+        "rewriteDraftZhText": (
+            "\n".join(f"初稿 {line['lineId']} {line['speakerId']}：{line['text']}" for line in audit_lines)
+            if audit_lines is not None
+            else None
+        ),
         "editorialReviewMarkdown": (
             "# 编辑审核报告\n\n本合成稿已逐集检查事实、结构、人物、因果、情绪、节奏、语言和目标市场适配。"
             "未发现 P0 阻断项；P1 项为补强证据取得过程和结尾回报，已在正式稿中完成定向修复并复查通过。"
@@ -467,11 +477,16 @@ def manuscript_payload(ctx: PipelineContext) -> dict[str, Any]:
 
 def finalize_manuscript(ctx: PipelineContext, *, mutate_audit: bool = False) -> dict[str, Any]:
     payload = manuscript_payload(ctx)
-    for document_type, payload_key in (
-        ("rewrite-draft-target", "rewriteDraftText"),
-        ("editorial-review", "editorialReviewMarkdown"),
-        ("revision-log", "revisionLogMarkdown"),
-    ):
+    documents = [("rewrite-draft-target", "rewriteDraftText")]
+    if payload.get("rewriteDraftZhText") is not None:
+        documents.append(("rewrite-draft-zh", "rewriteDraftZhText"))
+    documents.extend(
+        [
+            ("editorial-review", "editorialReviewMarkdown"),
+            ("revision-log", "revisionLogMarkdown"),
+        ]
+    )
+    for document_type, payload_key in documents:
         ctx.service.call(
             "content_review_document_save",
             {

@@ -36,6 +36,11 @@ def production_config(
         "width": 640,
         "height": 360,
         "frameRate": 24,
+        "imageStyle": {
+            "presetId": "visual_01",
+            "prompt": "现代二维电视动画正片风格，干净轮廓线，克制赛璐璐上色，统一人物比例与色彩。",
+        },
+        "storyImageTextPolicy": "forbid_visible_text",
         "videoGeneration": video,
         "concurrency": {"image": 1, "video": 1, "tts": 1},
         "retryLimit": 2,

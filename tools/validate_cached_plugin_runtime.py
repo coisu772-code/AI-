@@ -12,6 +12,14 @@ PRODUCT_ID = "ai-video-channel-production"
 REQUIRED_TOOLS = (
     "system_capabilities",
     "content_capabilities",
+    "content_workspace_start",
+    "content_workspace_narration_prepare",
+    "production_capabilities",
+    "data_center_capabilities",
+)
+CAPABILITY_TOOLS = (
+    "system_capabilities",
+    "content_capabilities",
     "production_capabilities",
     "data_center_capabilities",
 )
@@ -98,7 +106,11 @@ def main() -> int:
             json.loads((expected_install / "current" / "install-state.json").read_text(encoding="utf-8-sig")).get("releaseManifestSha256", "")
         ),
         "AIVCP_WORKSHOP_EXECUTABLE": str((active_root / "apps/workshop/Z 漫剧工坊.exe").resolve()),
-        "AIVCP_WORKSHOP_ISOLATION_ROOT": str((data_root / "workshop-isolation").resolve()),
+        # Keep the installation-owned public isolation path lexical.  It may be a
+        # deliberate junction to the actual production directory; resolving the
+        # junction here would incorrectly reject the descriptor written by the
+        # installer even though both paths identify the same isolated storage.
+        "AIVCP_WORKSHOP_ISOLATION_ROOT": str(data_root / "workshop-isolation"),
         "AIVCP_FFMPEG_PATH": str((active_root / "apps/workshop/tools/ffmpeg/bin/ffmpeg.exe").resolve()),
         "AIVCP_FFPROBE_PATH": str((active_root / "apps/workshop/tools/ffmpeg/bin/ffprobe.exe").resolve()),
         "AIVCP_PUBLISHER_CHANNEL_LIST_EXE": str((active_root / "apps/publisher/channel-list.exe").resolve()),
@@ -165,7 +177,7 @@ def main() -> int:
 
     capability_status: dict[str, str] = {}
     component_integration: dict[str, object] = {}
-    for request_id, tool_name in enumerate(REQUIRED_TOOLS, start=2):
+    for request_id, tool_name in enumerate(CAPABILITY_TOOLS, start=2):
         response = invoke_cached_plugin(
             command,
             arguments,

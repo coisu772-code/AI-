@@ -1,7 +1,7 @@
 interface:
   display_name: "发布中心"
-  short_description: "安全组装发布包、隔离导入并核验上传资格状态与真实回执"
-  default_prompt: "Use $publish-video to prepare a VIDEO_READY result for safe local publisher import and report its upload status without network execution."
+  short_description: "按当前项目上传授权展示最终验收卡并安全交接正式发布中心"
+  default_prompt: "使用 $publish-video 组装发布包；当前项目已明确授权自动上传时不要重复询问。"
 
 policy:
   allow_implicit_invocation: true

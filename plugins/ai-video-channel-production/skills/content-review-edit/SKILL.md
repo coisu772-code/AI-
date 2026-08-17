@@ -1,16 +1,16 @@
 ---
 name: content-review-edit
-description: 审查 content-rewrite 生成的仿写初稿或用户提供的完整叙事正文，逐章检查事实、结构、人物、因果、情绪、节奏、对话、语言和目标市场适配，并在授权范围内直接修改、复查和冻结可制作正式母稿。用户说“审稿”“审核并修改”“深度编辑”“检查后直接改好”或要求继续四阶段流程时使用。
+description: 审查 content-rewrite 依据确认大纲生成的初稿或用户提供的完整叙事正文，逐章检查事实、结构、人物、因果、情绪、节奏、对话、语言和目标市场适配，并在授权范围内直接修改、复查和冻结可制作正式母稿。用户说“审稿”“审核并修改”“深度编辑”或“检查后直接改好”时使用；不读取已退役拆解或仿写方向。
 ---
 
 # 编辑审核与修改
 
-这是四阶段内容主链的第三步。执行前必须完整阅读 [逐阶段确认契约](../channel-production/references/manual-stage-confirmations.md)、[references/prompt-v4.1.txt](references/prompt-v4.1.txt) 和 [用户审核文档规范](../channel-production/references/user-review-documents.md)。逐阶段确认契约优先于提示词中关于“不等待确认”或“直接修改后继续”的旧描述；项目规则、用户本次明确要求和已冻结故事事实优先。
+本 Skill 可以是自由创作工作区中的任意一步，不要求前面必须运行固定写作流程，也不会自动进入包装。执行前读取 [逐阶段确认契约](../channel-production/references/manual-stage-confirmations.md)、[references/prompt-v4.1.txt](references/prompt-v4.1.txt) 和 [用户审核文档规范](../channel-production/references/user-review-documents.md)。
 
 ## 进入
 
-1. 读取 `$content-rewrite` 生成的最新 `rewrite-draft-vNNN`、Topic Package v1、拆书包、故事事实和来源转换表。
-2. 调用 `content_project_get` 核对项目、频道、目标语言、版本和 SHA-256。
+1. 读取当前工作区用户点名或已确认的待审文本、当前任务大纲和故事事实；不得读取旧拆书包、迁移方向、旧 8 方向记录或其他项目。
+2. 调用 `content_workspace_get` 核对当前任务、项目、文档版本和 SHA-256；创作阶段不核对或绑定频道。
 3. 默认使用 L2 深度编辑和模式 B“审稿后直接修改”；只有用户明确要求大改、重构或 L3 时才改变核心结构。用户明确要求只审稿时使用模式 A。
 4. 用户直接上传待审文本时也可执行本 Skill；若要进入后续制作包，必须先通过 `$content-source` 建立可追溯项目和来源锁。
 
@@ -26,15 +26,14 @@ description: 审查 content-rewrite 生成的仿写初稿或用户提供的完�
 ## 复查与冻结
 
 1. 完成修改后，按提示词重新检查事实一致性、因果、人物、节奏、情绪、语言和授权边界；修复审稿引入的新问题。
-2. 先调用 `content_review_document_save` 保存完整 `editorial-review`，生成 `05_编辑审核报告.md`；报告至少包含问题位置、级别、证据、影响和修改建议。
-3. 再调用 `content_review_document_save` 保存完整 `revision-log`，生成 `06_修改记录与前后对照.md`；必须列明修改前、修改后、修改原因、影响范围和是否改变锁定事实。
+2. 调用 `content_workspace_document_save` 分别保存完整审核报告、修改记录和修改后全文；报告至少包含问题位置、级别、证据、影响和修改建议，修改记录必须列明修改前后及原因。
 4. 非中文目标语言生成严格逐行中文审核映射；中文稿直接复用，不二次创作。
 5. 非中文目标语言必须在创作稿完成后另开独立二次审校批次，执行外语质量保险门。创作批次 ID 与审校批次 ID 不得相同；每集必须以中文记录语法、地区自然度、姓名与术语、习语搭配、翻译腔、文化称谓、TTS 可读性和中文回译一致性八项结论，失败项定向修订不超过三轮。中文目标稿明确登记 `NOT_APPLICABLE`，不得伪造外语审校。
-6. 调用 `content_manuscript_finalize` 时同时提交 `qualityGate` 与 `foreignLanguageQualityGate`，冻结 Manuscript Package v1。工具同时生成 `07_正式稿_目标语言.txt`、`08_正式稿_中文版.txt` 和机器可核验的 `foreign-language-quality-gate.json`；中文版仅供用户审核，不进入配音、字幕或分镜。
-7. G4 确认卡先展示中文正式稿路径、中文质量结论和外语保险门结论，再展示目标语言正式稿路径与哈希；调用 `content_review_documents_get` 展示 04–08 文档路径、版本与 SHA-256，再调用 `content_integrity_check`。
-8. 只有两道质量门均通过、文档哈希有效并返回 `SCRIPT_READY` 时，才称为可用于配音、字幕、分镜和工坊的唯一事实源。
+6. 把修改后的目标语言全文保存为正式稿候选；非中文项目同时保存完整中文版和外语质量保险记录。中文版仅供审核，不进入配音、字幕或分镜。
+7. 确认卡先展示中文版路径和质量结论，再展示目标语言正式稿路径、版本与 SHA-256；用户确认后调用 `content_workspace_document_confirm` 冻结当前正式稿版本。
+8. 只有质量门通过且用户已确认的正式稿，才能在用户明确开始制作后被 `content_workspace_bind_production` 选择为唯一制作来源。
 
-审核模式完成后展示 05–08 文档并停在 `D5_FINAL_MANUSCRIPT`；用户确认正式稿后才交给 `$content-title-description`。只有当前任务已有明确自动授权时才可连续进入包装。
+审核模式完成后展示本次实际生成的审核、修改和正式稿文档并等待确认。用户没有要求包装时到此结束；只有明确要求标题、简介或封面时才交给 `$content-title-description`。
 
 ## 边界
 

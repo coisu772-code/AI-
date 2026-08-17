@@ -1,7 +1,7 @@
 interface:
-  display_name: "内容来源"
-  short_description: "接收视频链接、用户文本和本地资料，形成统一可追溯的规范正文"
-  default_prompt: "Use `$content-source` to acquire this video link or uploaded text as a canonical source."
+  display_name: "内容来源取得"
+  short_description: "取得视频字幕、用户文本与联网资料，整理为完整可追溯来源包"
+  default_prompt: "使用 $content-source 取得我提供的链接或文件内容，只完成来源整理。"
 
 policy:
   allow_implicit_invocation: false
