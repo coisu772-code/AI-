@@ -1,6 +1,6 @@
 ---
 name: production-handoff
-description: 用户明确说开始制作后，把无频道自由创作工作区绑定到用户选择的发布频道，确认制作设置，整理唯一配音稿，复用已确认包装素材并只补齐缺失项，再组装 Production Package v2.1 移交新漫剧工坊。管理制作、恢复、重试和成片验收；只到 VIDEO_READY，不负责上传。
+description: 用户明确说开始制作后，把无频道自由创作工作区绑定到用户选择的发布频道，确认制作设置，整理唯一配音稿，只复用用户已明确要求并确认的可选包装素材，再组装 Production Package v2.1 移交新漫剧工坊。简介、Hashtags 与自定义封面缺失时保持省略，不自动补齐。管理制作、恢复、重试和成片验收；只到 VIDEO_READY，不负责上传。
 ---
 
 # 制作中心
@@ -15,9 +15,9 @@ description: 用户明确说开始制作后，把无频道自由创作工作区�
 4. 故事图片画风使用独立 `S` 编号组，分组但完整列出 `visual_01`–`visual_36` 全部预设的编号和名称，并提供自定义入口；可以标注一个有理由的推荐项，但不得只显示推荐项。频道预设和旧项目只作为预选，不能代替当前项目确认。审核模式停在 `G5B_PRODUCTION` 等待确认；即使当前任务已授权自动完成，如果自动授权语句没有逐项给出本卡设置，也必须等待本次确认。
 5. 把“视频提示词”和“实际生成镜头视频”显示为两个独立的是／否或范围项。未明确要求视频提示词时固定关闭；未明确要求实际视频及具体镜头范围时固定 `enabled=false`、`selectionMode=none`、`count=0`。仅确认视频提示词不得开启实际视频生成。图片或视频提示词一旦开启，作者固定为 Codex；工坊旧提示词生成器不再重写。
    视频输入模式默认 `first_frame`。只有用户在本次制作卡明确选择首尾帧时才使用 `first_last_frame`，且不能借此自动开启上述两个独立开关。首尾帧模式为已选分镜独立生成同镜头尾帧，并提交首帧、尾帧和该分镜的明确视频提示词；缺少任一输入或模型不支持时暂停，不得静默退回仅首帧。
-6. 用户确认制作设置后先调用 `content_workspace_bind_production`，再调用 `content_workspace_narration_prepare` 整理正式配音稿。默认不朗读“第一章／Chapter 1”等结构标题；只有本次制作卡明确允许时才保留。然后调用 `$publishing-assets` 复用已确认标题、简介、Hashtags 和封面，只生成缺失项。全部就绪后，Codex 按 [视觉方案合同](references/codex-visual-plan.md) 基于唯一正式配音稿、角色关系与已选画风，先规划开篇钩子、人物关系、核心矛盾、铺垫／反转／回报、复杂度自适应页数与连续性圣经，再生成漫画角色设计、逐镜表演和已开启的图片／视频提示词，作为 `productionConfig.codexVisualPlan` 交给 `production_package_assemble`。重要情绪必须用特写或破格构图和至少两个可见信号表达，相邻镜头不得重复同一种情绪爆点；不得用画面文字代替表演。每镜先分段分析再压缩合并，图片提示词不超过 600 字符，视频提示词不超过 500 字符。这个过程不新增强制确认门；组装工具会生成用户可查看文档。生产配置必须明确：
+6. 用户确认制作设置后先调用 `content_workspace_bind_production`，再调用 `content_workspace_narration_prepare`，提交并冻结正式口播稿标题、中文标题对照和正式配音稿。标题只作为发布元数据，不进入配音文本；正文默认不朗读“第一章／Chapter 1”等结构标题，只有本次制作卡明确允许时才保留。然后调用 `$publishing-assets`：发布标题默认精确继承该口播稿标题，不生成候选；只复用用户已明确要求并确认的简介、Hashtags 和自定义封面。未请求项保持空值，自定义封面缺失时使用 YouTube 自动缩略图，绝不为了制作或发布自动生成。只有用户明确要求生成／优化标题时才进入六候选标题流程。全部就绪后，Codex 按 [视觉方案合同](references/codex-visual-plan.md) 基于唯一正式配音稿、角色关系与已选画风，先规划开篇钩子、人物关系、核心矛盾、铺垫／反转／回报、复杂度自适应页数与连续性圣经，再生成漫画角色设计、逐镜表演和已开启的图片／视频提示词，作为 `productionConfig.codexVisualPlan` 交给 `production_package_assemble`。重要情绪必须用特写或破格构图和至少两个可见信号表达，相邻镜头不得重复同一种情绪爆点；不得用画面文字代替表演。每镜先分段分析再压缩合并，图片提示词不超过 600 字符，视频提示词不超过 500 字符。这个过程不新增强制确认门；组装工具会生成用户可查看文档。生产配置必须明确：
    - `imageStyle.presetId` 与 `imageStyle.prompt`：每个新任务都由用户从当前 `visual_01`–`visual_36` 预设或自定义画风中选择或确认，提示词不得为空；已退役预设不得进入新包；
-   - `storyImageTextPolicy=forbid_visible_text`：只约束角色图、分镜图和宫格图，正式封面文字继续使用已确认封面资产；
+   - `storyImageTextPolicy=forbid_visible_text`：只约束角色图、分镜图和宫格图；只有用户明确要求并确认自定义封面时，才存在独立封面资产；
    - `codexVisualPlan`：图片或视频提示词任一开启时必填，使用 schema 1.1，角色参考固定 `identity_only`，逐镜完整且仅覆盖正式稿行；必须绑定故事节拍、镜头合同、可见情绪信号、地点／服装／道具连续性和长度预算，工坊不得覆盖已锁定提示词；
    - `deliveryMode`：`auto_render` 或 `jianying_refine`；
    - `videoGeneration.selectionMode`：`none`、`project_first_n_storyboards`、`episode_first_n_storyboards` 或 `all_storyboards`；
@@ -26,7 +26,7 @@ description: 用户明确说开始制作后，把无频道自由创作工作区�
    - 开启视频生成时必须存在绑定当前 `taskId` 的确认记录，且只选择用户明确范围内的分镜；
    - 显式视频生成默认 `fallbackPolicy=pause`；只有用户已经明确允许时使用 `use_static_image`；
    - 工坊兼容接口必须为 `2.1`。
-7. 组装工具必须验证 `content_workspace_narration_prepare` 的来源正式稿版本／哈希与 `script_lines.json` 一致，并确认中文版禁止生产。随后生成完整生产资料总览，列出唯一配音稿、中文审核稿、各自路径与 SHA-256，以及角色、音色、制作方式、视频范围、标题、封面、简介和标签。
+7. 组装工具必须验证 `content_workspace_narration_prepare` 的来源正式稿版本／哈希与 `script_lines.json` 一致，并确认中文版禁止生产。随后生成完整生产资料总览，列出唯一配音稿、中文审核稿、各自路径与 SHA-256，以及角色、音色、制作方式、视频范围和标题；简介、Hashtags、自定义封面仅在存在时列出，否则记录为空／YouTube 自动缩略图。
 8. `Production Package v2.1` 仍是机器读取包：生产正文只包含目标语言正式稿，并保留角色、音色、视觉锚点、制作配置和既有工坊界面所需的 `titleZhTranslation`；中文版长稿、中文简介／标签审核译文、拆解报告和审稿报告不得混入机器输入。
 9. 只有组装工具返回完整、无敏感字段的标准包后，调用 `production_task_start`。相同项目与包版本已经有活动任务时，继续原任务，不新建第二个活动任务。
 

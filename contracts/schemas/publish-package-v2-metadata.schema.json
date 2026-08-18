@@ -11,11 +11,16 @@
     "project_id": {"type": "string", "minLength": 3},
     "target_language": {"type": "string", "pattern": "^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$"},
     "title": {"type": "string", "minLength": 1, "maxLength": 100, "pattern": "^[^<>]+$"},
-    "description_body": {"type": "string", "minLength": 1},
-    "hashtags": {"type": "array", "minItems": 8, "maxItems": 12, "uniqueItems": true, "items": {"type": "string", "pattern": "^#[^#\\s]{1,99}$"}},
-    "description_for_youtube": {"type": "string", "minLength": 1},
+    "description_body": {"type": "string", "minLength": 0},
+    "hashtags": {
+      "oneOf": [
+        {"type": "array", "maxItems": 0},
+        {"type": "array", "minItems": 8, "maxItems": 12, "uniqueItems": true, "items": {"type": "string", "pattern": "^#[^#\\s]{1,99}$"}}
+      ]
+    },
+    "description_for_youtube": {"type": "string", "minLength": 0},
     "backend_tags": {"type": "array", "maxItems": 0},
-    "thumbnail_path": {"type": "string", "pattern": "^thumbnail\\.(?:png|jpg)$"},
+    "thumbnail_path": {"type": "string", "pattern": "^(?:|thumbnail\\.(?:png|jpg))$"},
     "subtitle_path": {"type": "string", "pattern": "^subtitles\\.(?:srt|vtt)$"}
   }
 }

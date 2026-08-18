@@ -29,7 +29,7 @@ PRODUCTION_CENTER_VERSION = "1.0.0"
 PRODUCTION_PACKAGE_SCHEMA_VERSION = "2.1"
 PRODUCTION_TASK_SCHEMA_VERSION = "1.0.0"
 PRODUCTION_RESULT_SCHEMA_VERSION = "1.0.0"
-PRODUCTION_PACKAGE_FILES = {
+PRODUCTION_PACKAGE_REQUIRED_FILES = {
     "project.json",
     "characters.json",
     "episodes.json",
@@ -37,9 +37,10 @@ PRODUCTION_PACKAGE_FILES = {
     "production_config.json",
     "target_script_quality_gate.json",
     "publishing.json",
-    "confirmed_thumbnail.png",
     "source_lock.json",
 }
+PRODUCTION_PACKAGE_OPTIONAL_FILES = {"confirmed_thumbnail.png"}
+PRODUCTION_PACKAGE_FILES = PRODUCTION_PACKAGE_REQUIRED_FILES | PRODUCTION_PACKAGE_OPTIONAL_FILES
 ACTIVE_TASK_STATES = {
     "PREFLIGHT",
     "READY_TO_PRODUCE",
@@ -106,6 +107,30 @@ CODEX_PERFORMANCE_FIELDS = (
     "interactionTarget",
     "changeFromPrevious",
 )
+def _character_reference_prompt_risk(prompt: str) -> str | None:
+    value = prompt.strip().lower()
+    multi_view_terms = (
+        "三视图", "四视图", "六视图", "多视图", "多视角", "多角度", "三分之二侧面",
+        "正侧背", "转面设定", "turnaround", "model sheet", "character sheet", "reference sheet",
+        "拼图", "分栏", "宫格", "多画面", "重复人物",
+    )
+    for term in multi_view_terms:
+        if term in value:
+            return f"包含多视角或多画面指令：{term}"
+    front_requested = "正面" in value or "front view" in value
+    side_or_back_requested = any(term in value for term in ("侧面", "背面", "side view", "back view"))
+    if front_requested and side_or_back_requested:
+        return "同时要求正面与侧面/背面"
+    multi_outfit_terms = (
+        "两套服装", "两种服装", "多套服装", "多种服装", "多款服装", "不同服装", "服装对比", "换装",
+        "alternate outfit", "multiple outfit", "outfit variant",
+    )
+    for term in multi_outfit_terms:
+        if term in value:
+            return f"包含多套服装指令：{term}"
+    return None
+
+
 CODEX_NARRATIVE_FUNCTIONS = {
     "hook",
     "relationship",
@@ -273,12 +298,23 @@ def _normalize_codex_visual_plan(
                 f"characterDesigns[{index}].fixedFeatures 必须包含 3–12 个身份固定特征。",
             )
         fixed_features = [_non_empty_text(entry, f"characterDesigns[{index}].fixedFeatures", maximum=180) for entry in fixed_features]
+        reference_sheet_prompt = _non_empty_text(
+            item.get("referenceSheetPromptZh"),
+            f"characterDesigns[{index}].referenceSheetPromptZh",
+        )
+        reference_risk = _character_reference_prompt_risk(reference_sheet_prompt)
+        if reference_risk:
+            raise ToolError(
+                "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                f"characterDesigns[{index}].referenceSheetPromptZh 必须是单画布、单角色、单视角、单套主服装：{reference_risk}。",
+                details={"characterId": character_id, "risk": reference_risk},
+            )
         normalized_designs.append(
             {
                 "characterId": character_id,
                 "designIntentZh": _non_empty_text(item.get("designIntentZh"), f"characterDesigns[{index}].designIntentZh"),
                 "identityAnchorPromptZh": _non_empty_text(item.get("identityAnchorPromptZh"), f"characterDesigns[{index}].identityAnchorPromptZh"),
-                "referenceSheetPromptZh": _non_empty_text(item.get("referenceSheetPromptZh"), f"characterDesigns[{index}].referenceSheetPromptZh"),
+                "referenceSheetPromptZh": reference_sheet_prompt,
                 "storyboardIdentityPromptZh": _non_empty_text(item.get("storyboardIdentityPromptZh"), f"characterDesigns[{index}].storyboardIdentityPromptZh"),
                 "fixedFeatures": fixed_features,
                 "referenceUsage": CODEX_REFERENCE_USAGE,
@@ -924,7 +960,11 @@ def _production_overview_markdown(
             "- `episodes.json`：分集与正式文稿行映射。",
             "- `production_config.json`：画幅、分辨率、并发、视频范围和失败策略。",
             "- `publishing.json`：目标语言标题、简介、Hashtags、频道和上传策略。",
-            "- `confirmed_thumbnail.png`：唯一确认的 16:9 正式封面。",
+            (
+                "- `confirmed_thumbnail.png`：用户明确要求并确认的 16:9 自定义封面。"
+                if publishing.get("thumbnail", {}).get("mode") == "real_file"
+                else "- 自定义封面：未请求；生产包不生成封面，上传时使用 YouTube 自动缩略图。"
+            ),
             "",
             "## 发布信息",
             "",
@@ -1194,19 +1234,18 @@ class ProductionCenter:
         except ValueError as exc:
             raise ToolError("PRODUCTION_TARGET_SCRIPT_INVALID", str(exc)) from exc
         review_view = review_documents_view(user_project_root)
-        required_review_documents = tuple(
-            dict.fromkeys(
-                [item["documentId"] for item in review_view["documents"]]
-                + [
+        required_ids = [
             "rewrite-draft-target",
             "editorial-review",
             "revision-log",
             "final-script-target",
             "final-script-zh",
             "packaging-bilingual",
-            "thumbnail-review",
-                ]
-            )
+        ]
+        if publishing.get("thumbnail", {}).get("mode") != "youtube_auto":
+            required_ids.append("thumbnail-review")
+        required_review_documents = tuple(
+            dict.fromkeys([item["documentId"] for item in review_view["documents"]] + required_ids)
         )
         review_validation = validate_review_documents(user_project_root, required_review_documents)
         if review_validation["status"] != "PASS":
@@ -1253,11 +1292,12 @@ class ProductionCenter:
                     "sourceContractId": publishing["id"],
                     "sourceContentHash": publishing["contentHash"],
                 },
-                "thumbnail-review": {
-                    "sourceContractType": publishing["contractType"],
-                    "sourceContractId": publishing["id"],
-                    "sourceContentHash": publishing["contentHash"],
-                },
+            }
+        if publishing.get("thumbnail", {}).get("mode") != "youtube_auto":
+            review_binding_expectations["thumbnail-review"] = {
+                "sourceContractType": publishing["contractType"],
+                "sourceContractId": publishing["id"],
+                "sourceContentHash": publishing["contentHash"],
             }
         review_binding = validate_review_document_bindings(user_project_root, review_binding_expectations)
         if review_binding["status"] != "PASS":
@@ -1293,13 +1333,18 @@ class ProductionCenter:
                 raise ToolError("PRODUCTION_CHINESE_AUDIT_ASSET_INVALID", "中文审核机器资产与逐行映射不一致。")
         review_by_id = {item["documentId"]: item for item in review_view["documents"]}
         thumbnail = publishing.get("thumbnail", {})
-        if thumbnail.get("mode") != "real_file" or not isinstance(thumbnail.get("asset"), dict):
-            raise ToolError("PRODUCTION_THUMBNAIL_INVALID", "必须锁定真实 16:9 封面。")
-        thumbnail_path = _validate_descriptor(
-            publishing_root, thumbnail["asset"], code="PRODUCTION_THUMBNAIL_INVALID"
-        )
-        if thumbnail.get("aspectRatio") != "16:9" or not thumbnail.get("hashVerified"):
-            raise ToolError("PRODUCTION_THUMBNAIL_INVALID", "封面比例或哈希确认无效。")
+        thumbnail_mode = thumbnail.get("mode")
+        thumbnail_path: Path | None = None
+        if thumbnail_mode == "real_file":
+            if not isinstance(thumbnail.get("asset"), dict):
+                raise ToolError("PRODUCTION_THUMBNAIL_INVALID", "自定义封面缺少真实文件资产。")
+            thumbnail_path = _validate_descriptor(
+                publishing_root, thumbnail["asset"], code="PRODUCTION_THUMBNAIL_INVALID"
+            )
+            if thumbnail.get("aspectRatio") != "16:9" or not thumbnail.get("hashVerified"):
+                raise ToolError("PRODUCTION_THUMBNAIL_INVALID", "自定义封面比例或哈希确认无效。")
+        elif thumbnail_mode != "youtube_auto":
+            raise ToolError("PRODUCTION_THUMBNAIL_INVALID", "用户要求的自定义封面尚未完成。")
         if not self.voice_catalog_path or not self.voice_catalog_path.is_file():
             raise ToolError("PRODUCTION_VOICE_CATALOG_UNAVAILABLE", "没有可用的版本化音色目录。")
         catalog, catalog_version, catalog_hash = _voice_catalog_document(self.voice_catalog_path)
@@ -1438,7 +1483,8 @@ class ProductionCenter:
                 "titleZhTranslation": publishing.get("titleZhTranslation", ""),
                 "descriptionBody": publishing["descriptionBody"],
                 "hashtags": publishing["hashtags"],
-                "thumbnail": "confirmed_thumbnail.png",
+                "thumbnail": "confirmed_thumbnail.png" if thumbnail_path else "",
+                "thumbnailMode": "custom" if thumbnail_path else "youtube_auto",
                 "targetChannel": publishing.get("targetChannel", {}),
                 "uploadPolicy": publishing.get("uploadPolicy", "REQUIRE_REVIEW"),
             }
@@ -1474,7 +1520,8 @@ class ProductionCenter:
                 if contains_sensitive_material(document):
                     raise ToolError("PRODUCTION_PACKAGE_SENSITIVE", "标准生产包包含敏感字段。")
                 _atomic_json(package_root / name, document)
-            _write_copy(thumbnail_path, package_root / "confirmed_thumbnail.png")
+            if thumbnail_path is not None:
+                _write_copy(thumbnail_path, package_root / "confirmed_thumbnail.png")
             manifest = {
                 "schemaVersion": "2.1",
                 "packageType": "production-package-v2",
@@ -1709,9 +1756,14 @@ class ProductionCenter:
             if not path.is_file() or path.stat().st_size != descriptor.get("sizeBytes") or _sha256_file(path) != descriptor.get("sha256"):
                 raise ToolError("PRODUCTION_PACKAGE_FILE_HASH_MISMATCH", "生产包文件缺失、大小或哈希不一致。", details={"path": normalized})
         actual = {path.relative_to(package_root).as_posix() for path in package_root.rglob("*") if path.is_file() and path.name != "manifest.json"}
-        if listed != PRODUCTION_PACKAGE_FILES or actual != PRODUCTION_PACKAGE_FILES:
+        allowed_files = PRODUCTION_PACKAGE_FILES
+        if (
+            listed != actual
+            or not PRODUCTION_PACKAGE_REQUIRED_FILES.issubset(listed)
+            or not listed.issubset(allowed_files)
+        ):
             extras = sorted((listed | actual) - PRODUCTION_PACKAGE_FILES)
-            missing = sorted(PRODUCTION_PACKAGE_FILES - (listed & actual))
+            missing = sorted(PRODUCTION_PACKAGE_REQUIRED_FILES - (listed & actual))
             code = "PRODUCTION_AUDIT_SCRIPT_FORBIDDEN" if any("chinese-audit" in value for value in extras) else "PRODUCTION_PACKAGE_FILE_SET_INVALID"
             raise ToolError(code, "生产包只能包含冻结的 2.1 文件集合。", details={"extra": extras, "missing": missing})
         if production_package_hash(manifest) != manifest.get("packageHash"):
@@ -1750,9 +1802,17 @@ class ProductionCenter:
         ):
             raise ToolError("PRODUCTION_QUALITY_GATE_INVALID", "生产包质量门无效。")
         self._validate_production_config({key: value for key, value in config.items() if key != "schemaVersion"})
-        thumbnail = package_root / publishing.get("thumbnail", "")
-        if thumbnail != package_root / "confirmed_thumbnail.png" or not thumbnail.is_file():
-            raise ToolError("PRODUCTION_THUMBNAIL_INVALID", "发布素材没有引用包内确认封面。")
+        thumbnail_mode = publishing.get("thumbnailMode")
+        thumbnail_name = publishing.get("thumbnail", "")
+        if thumbnail_mode == "custom":
+            thumbnail = package_root / thumbnail_name
+            if thumbnail != package_root / "confirmed_thumbnail.png" or not thumbnail.is_file():
+                raise ToolError("PRODUCTION_THUMBNAIL_INVALID", "自定义封面模式没有引用包内确认封面。")
+        elif thumbnail_mode == "youtube_auto":
+            if thumbnail_name or (package_root / "confirmed_thumbnail.png").exists():
+                raise ToolError("PRODUCTION_THUMBNAIL_INVALID", "YouTube 自动缩略图模式不得夹带自定义封面。")
+        else:
+            raise ToolError("PRODUCTION_THUMBNAIL_INVALID", "publishing.json 缺少有效 thumbnailMode。")
         return manifest
 
     def _task_path(self, task_id: str) -> Path:
@@ -2984,7 +3044,12 @@ class ProductionCenter:
         publishing_reference = {
             "schemaVersion": "1.0.0",
             "title": documents["publishing.json"]["title"],
-            "thumbnailSha256": _sha256_file(Path(task["packagePath"]) / "confirmed_thumbnail.png"),
+            "thumbnailMode": documents["publishing.json"].get("thumbnailMode", "custom"),
+            "thumbnailSha256": (
+                _sha256_file(Path(task["packagePath"]) / "confirmed_thumbnail.png")
+                if (Path(task["packagePath"]) / "confirmed_thumbnail.png").is_file()
+                else None
+            ),
             "publishingAssetPackage": documents["source_lock.json"]["publishingAssetPackage"],
             "publishPackageCreated": False,
         }

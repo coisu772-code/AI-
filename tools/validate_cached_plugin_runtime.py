@@ -184,13 +184,36 @@ def main() -> int:
         environment,
     )
     responses.append(list_response)
-    tool_names = {str(tool["name"]) for tool in list_response["result"]["tools"]}
+    tool_definitions = {str(tool["name"]): tool for tool in list_response["result"]["tools"]}
+    tool_names = set(tool_definitions)
     missing = set(REQUIRED_TOOLS) - tool_names
     if missing:
         raise SystemExit(f"Cached plugin MCP tools/list is missing: {sorted(missing)}")
+    narration_schema = tool_definitions["content_workspace_narration_prepare"].get("inputSchema", {})
+    narration_required = narration_schema.get("required", [])
+    if "narrationTitle" not in narration_required or "narrationTitleChinese" in narration_required:
+        raise SystemExit("Cached plugin narration title schema is not using the conditional Chinese-review contract.")
+    publishing_tool = tool_definitions.get("content_publishing_finalize")
+    if publishing_tool is None:
+        raise SystemExit("Cached plugin MCP tools/list is missing content_publishing_finalize.")
+    publishing_schema = publishing_tool.get("inputSchema", {})
+    publishing_required = publishing_schema.get("required", [])
+    publishing_properties = publishing_schema.get("properties", {})
+    title_candidates_schema = publishing_properties.get("titleCandidates", {})
+    title_source_schema = publishing_properties.get("titleSource", {})
+    if (
+        "titleCandidates" in publishing_required
+        or title_candidates_schema.get("minItems") != 1
+        or title_candidates_schema.get("maxItems") != 6
+        or title_source_schema.get("enum") != ["confirmed_narration", "user_confirmed", "generated_candidates"]
+    ):
+        raise SystemExit("Cached plugin publishing title schema still forces generated title candidates.")
 
     capability_status: dict[str, str] = {}
     component_integration: dict[str, object] = {}
+    component_integration["narrationTitleRequired"] = True
+    component_integration["narrationTitleChineseConditional"] = True
+    component_integration["generatedTitleCandidatesOptional"] = True
     for request_id, tool_name in enumerate(CAPABILITY_TOOLS, start=2):
         response = invoke_cached_plugin(
             command,

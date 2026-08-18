@@ -114,10 +114,13 @@ def _validate_chinese_review(publishing: dict[str, Any]) -> dict[str, Any]:
         raise PublishPackageError("PUBLISH_CHINESE_REVIEW_REQUIRED", "Publishing asset package is missing the Chinese review data")
     if review.get("displayMode") != "CHINESE_FIRST_WITH_TARGET_LANGUAGE" or review.get("uploadUseAllowed") is not False:
         raise PublishPackageError("PUBLISH_CHINESE_REVIEW_INVALID", "Chinese review data has an invalid display or production-use boundary")
-    for field in ("storySummaryZh", "titleZh", "descriptionZh", "thumbnailTextZh"):
+    for field in ("storySummaryZh", "titleZh"):
         value = review.get(field)
         if not isinstance(value, str) or not value.strip():
             raise PublishPackageError("PUBLISH_CHINESE_REVIEW_INVALID", f"Chinese review field is missing: {field}")
+    for field in ("descriptionZh", "thumbnailTextZh"):
+        if not isinstance(review.get(field), str):
+            raise PublishPackageError("PUBLISH_CHINESE_REVIEW_INVALID", f"Chinese review field must be text: {field}")
     if review.get("titleZh") != publishing.get("titleZhTranslation"):
         raise PublishPackageError("PUBLISH_CHINESE_REVIEW_INVALID", "Chinese review title does not match the frozen title translation")
     translations = review.get("hashtagTranslations")
@@ -148,7 +151,7 @@ def _final_chinese_review_card(
     publishing: dict[str, Any],
     channel_profile: dict[str, Any],
     final_video: Path,
-    final_thumbnail: Path,
+    final_thumbnail: Path | None,
     technical_report: dict[str, Any],
     technical_report_sha256: str,
     auto_upload_authorized: bool,
@@ -192,9 +195,9 @@ def _final_chinese_review_card(
         "chinesePrimary": {
             "titleZh": review["titleZh"],
             "storySummaryZh": review["storySummaryZh"],
-            "descriptionZh": review["descriptionZh"],
-            "hashtagsZh": [item["chinese"] for item in review["hashtagTranslations"]],
-            "thumbnailTextZh": review["thumbnailTextZh"],
+            "descriptionZh": review["descriptionZh"] or "未提供（用户未要求生成简介）",
+            "hashtagsZh": [item["chinese"] for item in review["hashtagTranslations"]] or ["未提供（用户未要求生成 Hashtags）"],
+            "thumbnailTextZh": review["thumbnailTextZh"] or "未提供（用户未要求生成自定义封面）",
             "voices": review["voiceSummary"],
             "channel": {
                 "channelProfileId": channel_profile["channel_profile_id"],
@@ -218,11 +221,19 @@ def _final_chinese_review_card(
             "title": publishing["title"],
             "description": publishing["descriptionBody"],
             "hashtags": publishing["hashtags"],
-            "thumbnailText": publishing["thumbnailStrategy"]["targetLanguageText"],
+            "thumbnailText": (
+                publishing["thumbnailStrategy"]["targetLanguageText"]
+                if isinstance(publishing.get("thumbnailStrategy"), dict)
+                else ""
+            ),
         },
         "finalAssets": {
             "video": {"path": final_video.name, "sha256": _sha256_file(final_video), "sizeBytes": final_video.stat().st_size},
-            "thumbnail": {"path": final_thumbnail.name, "sha256": _sha256_file(final_thumbnail), "sizeBytes": final_thumbnail.stat().st_size},
+            "thumbnail": (
+                {"mode": "custom", "path": final_thumbnail.name, "sha256": _sha256_file(final_thumbnail), "sizeBytes": final_thumbnail.stat().st_size}
+                if final_thumbnail is not None
+                else {"mode": "youtube_auto", "path": ""}
+            ),
         },
         "confirmation": {
             "required": policy == "REQUIRE_REVIEW" or (policy == "AUTO" and not auto_upload_authorized),
@@ -417,18 +428,19 @@ def _load_sources(
         )
 
     thumbnail = publishing.get("thumbnail")
-    if not isinstance(thumbnail, dict) or thumbnail.get("mode") != "real_file":
-        raise PublishPackageError("PUBLISH_THUMBNAIL_MISSING", "Publishing asset package must contain one real thumbnail")
-    thumbnail_asset = thumbnail.get("asset")
-    if not isinstance(thumbnail_asset, dict):
-        raise PublishPackageError("PUBLISH_THUMBNAIL_MISSING", "Publishing thumbnail asset is missing")
-    thumbnail_path = _resolve_member(
-        publishing_root,
-        thumbnail_asset.get("relativePath"),
-        field="publishing.thumbnail.asset.relativePath",
-    )
-    if thumbnail_path.stat().st_size != thumbnail_asset.get("sizeBytes") or _sha256_file(thumbnail_path) != thumbnail_asset.get("sha256"):
-        raise PublishPackageError("PUBLISH_THUMBNAIL_HASH_MISMATCH", "Publishing thumbnail hash or size does not match")
+    if not isinstance(thumbnail, dict) or thumbnail.get("mode") not in {"real_file", "youtube_auto"}:
+        raise PublishPackageError("PUBLISH_THUMBNAIL_INVALID", "Publishing thumbnail must be a confirmed custom image or youtube_auto")
+    thumbnail_asset = thumbnail.get("asset") if thumbnail.get("mode") == "real_file" else None
+    if thumbnail.get("mode") == "real_file":
+        if not isinstance(thumbnail_asset, dict):
+            raise PublishPackageError("PUBLISH_THUMBNAIL_MISSING", "Publishing thumbnail asset is missing")
+        thumbnail_path = _resolve_member(
+            publishing_root,
+            thumbnail_asset.get("relativePath"),
+            field="publishing.thumbnail.asset.relativePath",
+        )
+        if thumbnail_path.stat().st_size != thumbnail_asset.get("sizeBytes") or _sha256_file(thumbnail_path) != thumbnail_asset.get("sha256"):
+            raise PublishPackageError("PUBLISH_THUMBNAIL_HASH_MISMATCH", "Publishing thumbnail hash or size does not match")
 
     if result.get("projectId") != publishing.get("projectId"):
         raise PublishPackageError("PUBLISH_PROJECT_MISMATCH", "Production result and publishing asset project IDs differ")
@@ -485,11 +497,12 @@ def _load_sources(
                 "正式发布包只接受真实工坊来源且通过分镜唯一性与成片变化检查的结果。",
             )
     publishing_actual = _actual_files(publishing_root)
-    thumbnail_relative = thumbnail_asset["relativePath"]
-    publishing_expected = {
-        "manifest.json", "publishing.json", "thumbnail-strategy.json", "thumbnail-selection.json",
-        "ctr-review.json", "description-hashtags.txt", "source-lock.json", thumbnail_relative,
-    }
+    thumbnail_relative = thumbnail_asset["relativePath"] if isinstance(thumbnail_asset, dict) else None
+    publishing_expected = {"manifest.json", "publishing.json", "description-hashtags.txt", "source-lock.json"}
+    if thumbnail_relative:
+        publishing_expected.update(
+            {"thumbnail-strategy.json", "thumbnail-selection.json", "ctr-review.json", thumbnail_relative}
+        )
     if publishing_actual != publishing_expected:
         raise PublishPackageError(
             "PUBLISH_ASSET_PACKAGE_FILESET_INVALID",
@@ -502,7 +515,7 @@ def _load_sources(
         "descriptionBody": publishing["descriptionBody"],
         "hashtags": publishing["hashtags"],
         "thumbnail": thumbnail_relative,
-        "thumbnailMode": "real",
+        "thumbnailMode": "real" if thumbnail_relative else "youtube_auto",
         "targetChannel": publishing["targetChannel"],
         "uploadPolicy": publishing["uploadPolicy"],
         "privacyStatus": publishing["privacyStatus"],
@@ -547,13 +560,15 @@ def _validate_metadata(metadata: dict[str, Any], rules: dict[str, Any]) -> None:
     body = metadata.get("description_body")
     hashtags = metadata.get("hashtags")
     combined = metadata.get("description_for_youtube")
-    if not isinstance(body, str) or not body.strip():
-        raise PublishPackageError("PUBLISH_DESCRIPTION_INVALID", "description_body is required")
-    if not isinstance(hashtags, list) or not rules["package_hashtags_min"] <= len(hashtags) <= rules["package_hashtags_max"]:
-        raise PublishPackageError("PUBLISH_HASHTAGS_INVALID", "Exactly 8-12 hashtags are required")
+    if not isinstance(body, str):
+        raise PublishPackageError("PUBLISH_DESCRIPTION_INVALID", "description_body must be text")
+    if not isinstance(hashtags, list) or (len(hashtags) != 0 and not rules["package_hashtags_min"] <= len(hashtags) <= rules["package_hashtags_max"]):
+        raise PublishPackageError("PUBLISH_HASHTAGS_INVALID", "Hashtags may be omitted; when provided, exactly 8-12 are required")
     if len(set(hashtags)) != len(hashtags) or any(not isinstance(item, str) or not HASHTAG_PATTERN.fullmatch(item) for item in hashtags):
         raise PublishPackageError("PUBLISH_HASHTAGS_INVALID", "Hashtags must be unique #tokens without whitespace")
-    expected = body.rstrip() + "\n\n" + " ".join(hashtags)
+    expected = body.rstrip()
+    if hashtags:
+        expected = (expected + "\n\n" if expected else "") + " ".join(hashtags)
     if combined != expected:
         raise PublishPackageError("PUBLISH_DESCRIPTION_MISMATCH", "description_for_youtube must equal body, blank line, and public hashtags")
     if len(combined.encode("utf-8")) > rules["description_max_bytes"]:
@@ -710,7 +725,7 @@ def _probe_video(path: Path, ffprobe_path: str | None = None) -> dict[str, Any]:
 
 def _validate_media(
     video_path: Path,
-    thumbnail_path: Path,
+    thumbnail_path: Path | None,
     subtitle_path: Path,
     *,
     target_language: str,
@@ -725,7 +740,7 @@ def _validate_media(
         raise PublishPackageError("PUBLISH_VIDEO_ENCODING_INVALID", "Video must be MP4 with H.264 video and AAC audio")
     if abs(probe["width"] / probe["height"] - 16 / 9) > 0.02:
         raise PublishPackageError("PUBLISH_VIDEO_ASPECT_INVALID", "Final video must be 16:9")
-    thumbnail = _validate_thumbnail(thumbnail_path, rules)
+    thumbnail = _validate_thumbnail(thumbnail_path, rules) if thumbnail_path is not None else {"mode": "youtube_auto"}
     if subtitle_path.stat().st_size > rules["caption_max_bytes"]:
         raise PublishPackageError("PUBLISH_SUBTITLE_TOO_LARGE", "Subtitle exceeds captions.insert limit")
     cues, visible = _parse_subtitles(subtitle_path)
@@ -924,20 +939,29 @@ def assemble_publish_package_v2(
     now = _parse_iso(now_text)
     result_video = _resolve_member(sources.production_result_root, result["finalVideo"]["relativePath"], field="finalVideo")
     result_subtitle = _resolve_member(sources.production_result_root, result["subtitles"]["relativePath"], field="subtitles")
-    thumbnail_asset = publishing["thumbnail"]["asset"]
-    source_thumbnail = _resolve_member(sources.publishing_asset_root, thumbnail_asset["relativePath"], field="thumbnail")
-    thumbnail_suffix = source_thumbnail.suffix.lower()
-    if thumbnail_suffix not in {".png", ".jpg", ".jpeg"}:
-        raise PublishPackageError("PUBLISH_THUMBNAIL_INVALID", "Thumbnail extension is unsupported")
+    thumbnail_contract = publishing["thumbnail"]
+    source_thumbnail: Path | None = None
+    thumbnail_suffix = ""
+    if thumbnail_contract.get("mode") == "real_file":
+        thumbnail_asset = thumbnail_contract["asset"]
+        source_thumbnail = _resolve_member(sources.publishing_asset_root, thumbnail_asset["relativePath"], field="thumbnail")
+        thumbnail_suffix = source_thumbnail.suffix.lower()
+        if thumbnail_suffix not in {".png", ".jpg", ".jpeg"}:
+            raise PublishPackageError("PUBLISH_THUMBNAIL_INVALID", "Thumbnail extension is unsupported")
     subtitle_suffix = result_subtitle.suffix.lower()
     if subtitle_suffix not in {".srt", ".vtt"}:
         raise PublishPackageError("PUBLISH_SUBTITLE_INVALID", "Subtitle extension is unsupported")
 
     final_video = creating / "final.mp4"
-    final_thumbnail = creating / ("thumbnail.jpg" if thumbnail_suffix in {".jpg", ".jpeg"} else f"thumbnail{thumbnail_suffix}")
+    final_thumbnail = (
+        creating / ("thumbnail.jpg" if thumbnail_suffix in {".jpg", ".jpeg"} else f"thumbnail{thumbnail_suffix}")
+        if source_thumbnail is not None
+        else None
+    )
     final_subtitle = creating / f"subtitles{subtitle_suffix}"
     _copy_asset(result_video, final_video)
-    _copy_asset(source_thumbnail, final_thumbnail)
+    if source_thumbnail is not None and final_thumbnail is not None:
+        _copy_asset(source_thumbnail, final_thumbnail)
     _copy_asset(result_subtitle, final_subtitle)
 
     probe, thumbnail_probe, subtitle_probe = _validate_media(
@@ -956,9 +980,12 @@ def assemble_publish_package_v2(
         "title": publishing["title"],
         "description_body": publishing["descriptionBody"],
         "hashtags": publishing["hashtags"],
-        "description_for_youtube": publishing["descriptionBody"].rstrip() + "\n\n" + " ".join(publishing["hashtags"]),
+        "description_for_youtube": (
+            publishing["descriptionBody"].rstrip()
+            + (("\n\n" if publishing["descriptionBody"].rstrip() else "") + " ".join(publishing["hashtags"]) if publishing["hashtags"] else "")
+        ),
         "backend_tags": [],
-        "thumbnail_path": final_thumbnail.name,
+        "thumbnail_path": final_thumbnail.name if final_thumbnail is not None else "",
         "subtitle_path": final_subtitle.name,
     }
     _validate_metadata(metadata, rules)
@@ -1041,13 +1068,13 @@ def assemble_publish_package_v2(
             {"code": code, "status": "PASS"}
             for code in (
                 "production_result_contract_and_all_declared_files",
-                "publishing_asset_contract_and_thumbnail",
+                "publishing_asset_contract_and_optional_thumbnail",
                 "project_channel_version_hash_binding",
                 "package_relative_paths_and_no_symlinks",
                 "ffprobe_mp4_h264_aac_16_9",
-                "thumbnail_api_surface",
+                "optional_thumbnail_api_surface",
                 "subtitle_utf8_timeline_and_target_language",
-                "metadata_description_hashtags_and_empty_backend_tags",
+                "optional_description_hashtags_and_empty_backend_tags",
                 "channel_identity_schedule_limits_and_authorization",
                 "network_execution_forced_false",
             )
@@ -1121,7 +1148,6 @@ def assemble_publish_package_v2(
         "production_binding.json": "production_binding",
         "upload_status.json": "upload_status",
         final_video.name: "final_video",
-        final_thumbnail.name: "thumbnail",
         final_subtitle.name: "subtitle",
     }
     media_types = {
@@ -1133,9 +1159,11 @@ def assemble_publish_package_v2(
         "production_binding.json": "application/json",
         "upload_status.json": "application/json",
         final_video.name: "video/mp4",
-        final_thumbnail.name: thumbnail_probe["media_type"],
         final_subtitle.name: "text/vtt" if subtitle_suffix == ".vtt" else "application/x-subrip",
     }
+    if final_thumbnail is not None:
+        role_map[final_thumbnail.name] = "thumbnail"
+        media_types[final_thumbnail.name] = thumbnail_probe["media_type"]
     files = [
         _file_entry(creating / name, creating, role=role_map[name], media_type=media_types[name])
         for name in sorted(role_map)
@@ -1198,8 +1226,8 @@ def validate_publish_package_v2(
 
     declared: set[str] = set()
     files = manifest.get("files")
-    if not isinstance(files, list) or len(files) != 10:
-        raise PublishPackageError("PUBLISH_MANIFEST_INVALID", "v2 manifest must declare exactly ten files besides itself")
+    if not isinstance(files, list) or len(files) not in {9, 10}:
+        raise PublishPackageError("PUBLISH_MANIFEST_INVALID", "v2 manifest must declare nine files, plus one optional custom thumbnail")
     for index, item in enumerate(files):
         if not isinstance(item, dict):
             raise PublishPackageError("PUBLISH_MANIFEST_INVALID", "Manifest file records must be objects")
@@ -1231,8 +1259,8 @@ def validate_publish_package_v2(
         raise PublishPackageError("PUBLISH_MANIFEST_INVALID", "Required v2 files are missing")
     thumbnails = [path for path in declared if re.fullmatch(r"thumbnail\.(?:png|jpg)", path)]
     subtitles = [path for path in declared if re.fullmatch(r"subtitles\.(?:srt|vtt)", path)]
-    if len(thumbnails) != 1 or len(subtitles) != 1:
-        raise PublishPackageError("PUBLISH_MANIFEST_INVALID", "Package must contain exactly one thumbnail and one subtitle file")
+    if len(thumbnails) > 1 or len(subtitles) != 1:
+        raise PublishPackageError("PUBLISH_MANIFEST_INVALID", "Package must contain one subtitle and at most one custom thumbnail")
     calculated_content_hash = _sha256_bytes(_canonical_bytes({"files": files}))
     if manifest.get("content_hash") != calculated_content_hash:
         raise PublishPackageError("PUBLISH_PACKAGE_HASH_MISMATCH", "Manifest content_hash does not match canonical files array")
@@ -1258,7 +1286,8 @@ def validate_publish_package_v2(
     if package_root.name not in {f"{intent_id}.ready", f"{intent_id}.creating"}:
         raise PublishPackageError("PUBLISH_INTENT_ID_MISMATCH", "Directory name does not match publish_intent_id")
     _validate_metadata(metadata, catalog["rules"])
-    if metadata.get("thumbnail_path") != thumbnails[0] or metadata.get("subtitle_path") != subtitles[0]:
+    expected_thumbnail_path = thumbnails[0] if thumbnails else ""
+    if metadata.get("thumbnail_path") != expected_thumbnail_path or metadata.get("subtitle_path") != subtitles[0]:
         raise PublishPackageError("PUBLISH_METADATA_PATH_MISMATCH", "Metadata paths do not match package assets")
     if upload_task.get("constraints_catalog_version") != catalog["catalog_version"] or upload_task.get("network_execution") is not False:
         raise PublishPackageError("PUBLISH_UPLOAD_TASK_INVALID", "Upload task catalog or network safety flag is invalid")
@@ -1278,7 +1307,7 @@ def validate_publish_package_v2(
         raise PublishPackageError("PUBLISH_VALIDATION_INVALID", "A PACKAGE_READY v2 validation record must contain ten distinct PASS checks")
     probe, _, _ = _validate_media(
         package_root / "final.mp4",
-        package_root / thumbnails[0],
+        package_root / thumbnails[0] if thumbnails else None,
         package_root / subtitles[0],
         target_language=metadata.get("target_language"),
         rules=catalog["rules"],
@@ -1350,15 +1379,21 @@ def validate_publish_package_v2(
     ):
         raise PublishPackageError("PUBLISH_FINAL_CHINESE_REVIEW_INVALID", "Final Chinese review card does not match frozen upload data")
     review_assets = final_review_card.get("finalAssets") or {}
+    expected_review_thumbnail = (
+        {
+            "mode": "custom",
+            "path": thumbnails[0],
+            "sha256": _sha256_file(package_root / thumbnails[0]),
+            "sizeBytes": (package_root / thumbnails[0]).stat().st_size,
+        }
+        if thumbnails
+        else {"mode": "youtube_auto", "path": ""}
+    )
     if review_assets.get("video") != {
         "path": "final.mp4",
         "sha256": _sha256_file(package_root / "final.mp4"),
         "sizeBytes": (package_root / "final.mp4").stat().st_size,
-    } or review_assets.get("thumbnail") != {
-        "path": thumbnails[0],
-        "sha256": _sha256_file(package_root / thumbnails[0]),
-        "sizeBytes": (package_root / thumbnails[0]).stat().st_size,
-    }:
+    } or review_assets.get("thumbnail") != expected_review_thumbnail:
         raise PublishPackageError("PUBLISH_FINAL_CHINESE_REVIEW_INVALID", "Final Chinese review card asset binding is invalid")
     expected_markdown = _render_final_chinese_review_markdown(final_review_card)
     try:
@@ -1377,7 +1412,7 @@ def validate_publish_package_v2(
         "package_hash": manifest["content_hash"],
         "video_sha256": binding["final_video"]["sha256"],
         "subtitle_sha256": binding["subtitle"]["sha256"],
-        "thumbnail_sha256": _sha256_file(package_root / thumbnails[0]),
+        "thumbnail_sha256": _sha256_file(package_root / thumbnails[0]) if thumbnails else None,
         "final_chinese_review_card": final_review_card,
         "final_chinese_review_card_path": str(package_root / "FINAL_CHINESE_REVIEW_CARD.md"),
         "final_chinese_review_card_sha256": _sha256_file(package_root / "FINAL_CHINESE_REVIEW_CARD.md"),

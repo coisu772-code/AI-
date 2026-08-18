@@ -1,7 +1,7 @@
 interface:
   display_name: "发布素材汇总"
-  short_description: "制作门后复用本项目已确认包装素材并只列出真正缺失项"
-  default_prompt: "使用 $publishing-assets 汇总当前工作区已确认的发布素材，只补齐真正缺失的内容。"
+  short_description: "继承口播稿标题，可选复用简介标签与自定义封面"
+  default_prompt: "使用 $publishing-assets 直接继承正式口播稿标题，只汇总当前工作区中本次明确要求且已确认的其他发布素材；不要自动补齐未请求的简介、Hashtags 或自定义封面。"
 
 policy:
   allow_implicit_invocation: false

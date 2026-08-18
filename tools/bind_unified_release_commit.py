@@ -26,7 +26,7 @@ def main() -> int:
     if args.metadata_commit and not re.fullmatch(r"[0-9a-f]{40}", args.metadata_commit):
         raise SystemExit("metadata commit must be 40 lowercase hexadecimal characters")
     root = args.asset_root.resolve()
-    manifest_path = root / "unified-release-v0.12.0-rc.3.json"
+    manifest_path = root / "unified-release-v0.12.0-rc.4.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     bound_assets = 0
     changed = 0

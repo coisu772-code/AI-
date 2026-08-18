@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.12.0-rc.3"
+VERSION = "0.12.0-rc.4"
 PYTHON_VERSION = "3.12.13"
 PYTHON_BUILD = "20260610"
 FIXED_TIME = (2026, 8, 18, 0, 0, 0)
@@ -30,21 +30,21 @@ BOOTSTRAP_FILES = (
     "installer/Start-AIVideoChannelProductionInstall.ps1",
     "installer/install.cmd",
 )
-WORKSHOP_VERSION = "2.5.0-rc.3"
-WORKSHOP_NAME = "Z-Manga-Workshop-2.5.0-rc.3-for-AIVCP-0.12.0-rc.3-windows-x64-portable.zip"
-WORKSHOP_SHA = "c0cfc4e99cded633c1df9739c9b15a29f59c74d01d1b1be1df906a217d1337d3"
-WORKSHOP_SIZE = 157490577
-WORKSHOP_ROOT = "Z-Manga-Workshop-2.5.0-rc.3-for-AIVCP-0.12.0-rc.3-windows-x64-portable"
-WORKSHOP_SOURCE_COMMIT = "ce7884cc2fa9c06d8733014db5d6ba4dca156819"
-PUBLISHER_VERSION = "0.9.0-rc.2"
-PUBLISHER_NAME = "youtube-publisher-center-v0.9.0-rc.2-windows-amd64.zip"
-PUBLISHER_SHA = "ef85eb6edaee360f6d404695e53b0cce0f12a8b9de53fd161beb239f89a4e810"
-PUBLISHER_SIZE = 32682677
-PUBLISHER_ROOT = "youtube-publisher-center-v0.9.0-rc.2-windows-amd64"
-PUBLISHER_SOURCE_COMMIT = "00adafe9fa6b358991616793d545e0ef0def9ee9"
-PUBLISHER_SOURCE_SNAPSHOT_SHA = "fc7afcd4ca1b053d36363c22f11130383c35e4422eab270b06ed1fb736c50c98"
-PUBLISHER_COMPONENT_MANIFEST_NAME = "publisher-component-manifest-v0.9.0-rc.2.json"
-PUBLISHER_COMPONENT_MANIFEST_SHA = "f72626579dc4fd4cd3e8a52a75266209469d99cdf37b2f9b815f25c9ada36748"
+WORKSHOP_VERSION = "2.5.0-rc.4"
+WORKSHOP_NAME = "Z-Manga-Workshop-2.5.0-rc.4-for-AIVCP-0.12.0-rc.4-windows-x64-portable.zip"
+WORKSHOP_SHA = "4c0d48a83ee42f96edc2ca827a979acbec1007329efc29503892adf2e1bdac17"
+WORKSHOP_SIZE = 157155339
+WORKSHOP_ROOT = "Z-Manga-Workshop-2.5.0-rc.4-for-AIVCP-0.12.0-rc.4-windows-x64-portable"
+WORKSHOP_SOURCE_COMMIT = "b274d0edcebfb35406fb5edf0dc85c6a537b62aa"
+PUBLISHER_VERSION = "0.9.0-rc.3"
+PUBLISHER_NAME = "youtube-publisher-center-v0.9.0-rc.3-windows-amd64.zip"
+PUBLISHER_SHA = "0cbc58dd7d2cee6b8e8f4bbba84d3d626bbdf17ba50e10dbf47f20b33b412d37"
+PUBLISHER_SIZE = 32691503
+PUBLISHER_ROOT = "youtube-publisher-center-v0.9.0-rc.3-windows-amd64"
+PUBLISHER_SOURCE_COMMIT = "af41da145d684745bae2eb62d8afc0d6426e6c79"
+PUBLISHER_SOURCE_SNAPSHOT_SHA = "2b1fc7716010ac98b6000e8aa4e3f87f3aad99377b27fc739b5cb4ca0978813b"
+PUBLISHER_COMPONENT_MANIFEST_NAME = "publisher-component-manifest-v0.9.0-rc.3.json"
+PUBLISHER_COMPONENT_MANIFEST_SHA = "5477fadd35be10aa3b0217baa75acec5c25b229e408cdb35ac7c21a5ecf8fa92"
 PUBLISHER_CONSTRAINTS_SHA = "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a"
 KOKORO_VARIANTS = ("cpu", "nvidia", "nvidia-blackwell")
 KOKORO_REUSE_VERSION = "0.10.0-rc.1"

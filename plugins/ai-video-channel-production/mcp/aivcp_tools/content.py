@@ -357,7 +357,7 @@ def _packaging_review_markdown(
     lines = [
         "# 标题、简介与 Hashtags 双语审核",
         "",
-        "## 标题候选",
+        "## 正式标题记录" if len(title_candidates) == 1 else "## 标题候选",
         "",
         "| 选择 | 目标语言标题 | 中文翻译 | 评分 | 事实依据 | 承诺兑现 | 原句复制 |",
         "|---|---|---|---:|---|---|---|",
@@ -379,19 +379,21 @@ def _packaging_review_markdown(
             "",
             "## YouTube 简介（目标语言）",
             "",
-            description_body.rstrip(),
+            description_body.rstrip() or "未提供（用户未要求生成简介）。",
             "",
             "## YouTube 简介（中文翻译，仅供审核）",
             "",
-            description_chinese.rstrip(),
+            description_chinese.rstrip() or "未提供（没有正式简介需要翻译）。",
             "",
             "## Hashtags 双语对照",
             "",
-            "| 正式 Hashtag | 中文含义 |",
-            "|---|---|",
         ]
     )
-    lines.extend(f"| {_markdown_cell(item['hashtag'])} | {_markdown_cell(item['chinese'])} |" for item in hashtag_translations)
+    if hashtag_translations:
+        lines.extend(["| 正式 Hashtag | 中文含义 |", "|---|---|"])
+        lines.extend(f"| {_markdown_cell(item['hashtag'])} | {_markdown_cell(item['chinese'])} |" for item in hashtag_translations)
+    else:
+        lines.append("未提供（用户未要求生成 Hashtags）。")
     lines.extend(["", "> 中文翻译只供用户审核，不进入 YouTube 发布字段。", ""])
     return "\n".join(lines)
 
@@ -2249,6 +2251,7 @@ class ContentLoop:
         project_id: Any,
         title: Any,
         title_chinese: Any,
+        title_source: Any = None,
         title_candidates: Any,
         description_body: Any,
         description_chinese: Any,
@@ -2282,16 +2285,41 @@ class ContentLoop:
             or manuscript.get("foreignLanguageQualityGateHash") != foreign_quality.get("contentHash")
         ):
             raise ToolError("FOREIGN_LANGUAGE_QUALITY_GATE_REQUIRED", "正式稿缺少有效且绑定当前母稿的外语质量保险门。")
-        for field, value, maximum in (("title", title, 100), ("descriptionBody", description_body, 5000)):
-            if not isinstance(value, str) or not value.strip() or len(value) > maximum:
-                raise ToolError("PUBLISHING_TEXT_INVALID", f"{field} 为空或超过长度限制。")
+        if not isinstance(title, str) or not title.strip() or len(title) > 100:
+            raise ToolError("PUBLISHING_TEXT_INVALID", "title 为空或超过长度限制。")
         if not isinstance(title_chinese, str) or not title_chinese.strip():
             raise ToolError("PUBLISHING_TEXT_INVALID", "标题必须附中文翻译供审核。")
+        if title_source is None:
+            title_source = "confirmed_narration" if title_candidates in (None, []) else "generated_candidates" if isinstance(title_candidates, list) and len(title_candidates) == 6 else "user_confirmed"
+        if title_source not in {"confirmed_narration", "user_confirmed", "generated_candidates"}:
+            raise ToolError("TITLE_SOURCE_INVALID", "标题来源必须是已确认口播稿、用户明确标题或主动生成候选。")
+        if title_source in {"confirmed_narration", "user_confirmed"} and title_candidates in (None, []):
+            selected_id = "narration-title" if title_source == "confirmed_narration" else "user-confirmed-title"
+            basis = (
+                "正式标题直接继承已确认口播稿标题，未执行额外标题生成。"
+                if title_source == "confirmed_narration"
+                else "正式标题由用户明确提供并确认，未执行额外标题生成。"
+            )
+            title_candidates = [
+                {
+                    "titleId": selected_id,
+                    "text": title.strip(),
+                    "zhTranslation": title_chinese.strip(),
+                    "audienceFit": 10,
+                    "factBasis": basis,
+                    "promiseFulfilled": True,
+                    "sampleWordingCopied": False,
+                }
+            ]
         title_candidate_fields = {
             "titleId", "text", "zhTranslation", "audienceFit", "factBasis", "promiseFulfilled", "sampleWordingCopied"
         }
-        if not isinstance(title_candidates, list) or len(title_candidates) != 6:
-            raise ToolError("TITLE_CANDIDATES_REQUIRED", "必须保存六个目标语言标题候选及其中文翻译。")
+        if not isinstance(title_candidates, list) or not 1 <= len(title_candidates) <= 6:
+            raise ToolError("TITLE_CANDIDATES_REQUIRED", "标题记录必须包含 1–6 个带中文对照的有效标题。")
+        if title_source == "generated_candidates" and len(title_candidates) != 6:
+            raise ToolError("TITLE_CANDIDATES_REQUIRED", "只有用户明确要求优化标题时才进入六候选模式；该模式必须保存六个候选。")
+        if title_source != "generated_candidates" and len(title_candidates) != 1:
+            raise ToolError("TITLE_CANDIDATES_REQUIRED", "直接使用口播稿标题或用户标题时只能保存一个正式标题，不得额外生成候选。")
         clean_title_candidates: list[dict[str, Any]] = []
         title_ids: set[str] = set()
         for item in title_candidates:
@@ -2315,18 +2343,32 @@ class ContentLoop:
             None,
         )
         if selected_title is None:
-            raise ToolError("TITLE_SELECTION_INVALID", "唯一正式标题及中文翻译必须来自六个已审核候选。")
+            raise ToolError("TITLE_SELECTION_INVALID", "唯一正式标题及中文翻译必须与当前标题记录一致。")
         selected_title_id = selected_title["titleId"]
-        if not isinstance(description_chinese, str) or not description_chinese.strip() or len(description_chinese) > 5000:
-            raise ToolError("PUBLISHING_TEXT_INVALID", "YouTube 简介必须附完整中文翻译供审核。")
+        if description_body is None:
+            description_body = ""
+        if not isinstance(description_body, str) or len(description_body) > 5000:
+            raise ToolError("PUBLISHING_TEXT_INVALID", "descriptionBody 必须是最多 5000 字符的文本。")
+        if description_chinese is None:
+            description_chinese = ""
+        if not isinstance(description_chinese, str) or len(description_chinese) > 5000:
+            raise ToolError("PUBLISHING_TEXT_INVALID", "descriptionChinese 必须是最多 5000 字符的文本。")
+        if description_body.strip() and not description_chinese.strip():
+            raise ToolError("PUBLISHING_TEXT_INVALID", "用户提供或明确生成了 YouTube 简介时，必须附完整中文翻译供审核。")
+        if not description_body.strip() and description_chinese.strip():
+            raise ToolError("PUBLISHING_TEXT_INVALID", "没有正式 YouTube 简介时不得单独保存简介翻译。")
         if not isinstance(story_summary_chinese, str) or len(story_summary_chinese.strip()) < 20 or len(story_summary_chinese) > 5000:
             raise ToolError("STORY_SUMMARY_CHINESE_REQUIRED", "上传前中文验收卡必须包含完整、可理解的中文故事摘要。")
-        if not isinstance(hashtags, list) or not 8 <= len(hashtags) <= 12 or len(set(hashtags)) != len(hashtags):
-            raise ToolError("HASHTAG_COUNT_INVALID", "Hashtags 必须是 8–12 个互不重复的目标语言标签。")
+        if hashtags is None:
+            hashtags = []
+        if not isinstance(hashtags, list) or (len(hashtags) != 0 and not 8 <= len(hashtags) <= 12) or len(set(hashtags)) != len(hashtags):
+            raise ToolError("HASHTAG_COUNT_INVALID", "Hashtags 可以不提供；一旦提供，必须是 8–12 个互不重复的目标语言标签。")
         if any(not isinstance(item, str) or not re.fullmatch(r"#[^#\s]{1,99}", item) for item in hashtags):
             raise ToolError("HASHTAG_FORMAT_INVALID", "Hashtag 必须以 # 开头且不包含空白。")
+        if hashtag_translations is None:
+            hashtag_translations = []
         if not isinstance(hashtag_translations, list) or len(hashtag_translations) != len(hashtags):
-            raise ToolError("HASHTAG_TRANSLATIONS_REQUIRED", "每个正式 Hashtag 都必须有中文含义供审核。")
+            raise ToolError("HASHTAG_TRANSLATIONS_REQUIRED", "用户提供 Hashtags 时，每个正式标签都必须有中文含义供审核。")
         clean_hashtag_translations: list[dict[str, str]] = []
         for expected_hashtag, item in zip(hashtags, hashtag_translations, strict=True):
             if (
@@ -2336,26 +2378,39 @@ class ContentLoop:
             ):
                 raise ToolError("HASHTAG_TRANSLATIONS_INVALID", "Hashtags 中文对照必须与正式标签逐项同序对应。")
             clean_hashtag_translations.append({"hashtag": expected_hashtag, "chinese": item["chinese"].strip()})
-        if not isinstance(thumbnail_provider, dict) or not thumbnail_provider:
-            raise ToolError("THUMBNAIL_PROVIDER_REQUIRED", "必须冻结图片供应商接口状态与版本。")
-        if not isinstance(thumbnail_strategy, dict) or not thumbnail_strategy:
-            raise ToolError("THUMBNAIL_STRATEGY_REQUIRED", "必须先冻结 16:9 封面策略。")
-        if not isinstance(thumbnail_text_chinese, str) or not thumbnail_text_chinese.strip():
-            raise ToolError("THUMBNAIL_TEXT_TRANSLATION_REQUIRED", "封面目标语言短文案必须附中文含义供审核。")
-        if not isinstance(thumbnail_candidates, list) or len(thumbnail_candidates) != 5:
-            raise ToolError("THUMBNAIL_CANDIDATES_REQUIRED", "必须保留恰好 5 个构图实质不同的封面候选与内部评分。")
-        candidate_ids = [item.get("candidateId") for item in thumbnail_candidates if isinstance(item, dict)]
-        if len(candidate_ids) != len(thumbnail_candidates) or len(set(candidate_ids)) != len(candidate_ids) or selected_thumbnail_id not in candidate_ids:
-            raise ToolError("THUMBNAIL_SELECTION_INVALID", "封面候选 ID 或唯一正式选择无效。")
-        if not isinstance(ctr_review, dict) or ctr_review.get("status") != "PASSED" or ctr_review.get("factsConsistent") is not True:
-            raise ToolError("CTR_REVIEW_FAILED", "唯一标题与封面未通过事实一致性和 CTR 联评。")
+        if thumbnail is None:
+            thumbnail = {"mode": "youtube_auto"}
+        if not isinstance(thumbnail, dict) or thumbnail.get("mode") not in {"real", "prompt_only", "youtube_auto"}:
+            raise ToolError("THUMBNAIL_INVALID", "封面模式必须是 real、prompt_only 或 youtube_auto。")
+        thumbnail_mode = thumbnail["mode"]
+        if thumbnail_mode == "youtube_auto":
+            thumbnail_provider = None
+            thumbnail_strategy = None
+            thumbnail_candidates = []
+            selected_thumbnail_id = None
+            thumbnail_text_chinese = ""
+            ctr_review = {
+                "status": "NOT_APPLICABLE",
+                "conclusion": "用户未要求生成自定义封面；上传时不调用 thumbnails.set，由 YouTube 使用自动缩略图。",
+            }
+        else:
+            if not isinstance(thumbnail_provider, dict) or not thumbnail_provider:
+                raise ToolError("THUMBNAIL_PROVIDER_REQUIRED", "用户明确要求自定义封面后，必须冻结图片供应商接口状态与版本。")
+            if not isinstance(thumbnail_strategy, dict) or not thumbnail_strategy:
+                raise ToolError("THUMBNAIL_STRATEGY_REQUIRED", "用户明确要求自定义封面后，必须先冻结 16:9 封面策略。")
+            if not isinstance(thumbnail_text_chinese, str) or not thumbnail_text_chinese.strip():
+                raise ToolError("THUMBNAIL_TEXT_TRANSLATION_REQUIRED", "封面目标语言短文案必须附中文含义供审核。")
+            if not isinstance(thumbnail_candidates, list) or len(thumbnail_candidates) != 5:
+                raise ToolError("THUMBNAIL_CANDIDATES_REQUIRED", "自定义封面流程必须保留恰好 5 个构图实质不同的候选与内部评分。")
+            candidate_ids = [item.get("candidateId") for item in thumbnail_candidates if isinstance(item, dict)]
+            if len(candidate_ids) != len(thumbnail_candidates) or len(set(candidate_ids)) != len(candidate_ids) or selected_thumbnail_id not in candidate_ids:
+                raise ToolError("THUMBNAIL_SELECTION_INVALID", "封面候选 ID 或唯一正式选择无效。")
+            if not isinstance(ctr_review, dict) or ctr_review.get("status") != "PASSED" or ctr_review.get("factsConsistent") is not True:
+                raise ToolError("CTR_REVIEW_FAILED", "用户明确要求的唯一标题与封面未通过事实一致性和 CTR 联评。")
         if not isinstance(confirmation, dict) or confirmation.get("confirmed") is not True:
             state["state"] = "AWAITING_PUBLISHING_CONFIRMATION"
             self._save_state(state)
             raise ToolError("PUBLISHING_CONFIRMATION_REQUIRED", "G5 未联合确认，不能冻结 Publishing Asset Package v1。")
-        if not isinstance(thumbnail, dict) or thumbnail.get("mode") not in {"real", "prompt_only"}:
-            raise ToolError("THUMBNAIL_INVALID", "封面必须明确标记 real 或 prompt_only。")
-
         project_root = self._project_root(channel_profile_id, project_id)
         required_review_documents = [
             "rewrite-draft-target", "editorial-review", "revision-log", "final-script-target", "final-script-zh"
@@ -2401,14 +2456,14 @@ class ContentLoop:
             shutil.copyfile(source, destination)
             dimensions = {"width": width, "height": height, "aspectRatio": "16:9"}
             thumbnail_asset = _asset(destination, root, "confirmed-thumbnail", "image/png")
-        else:
+        elif thumbnail_mode == "prompt_only":
             thumbnail_prompt = thumbnail.get("prompt")
             if not isinstance(thumbnail_prompt, str) or not thumbnail_prompt.strip():
                 raise ToolError("THUMBNAIL_PROMPT_REQUIRED", "prompt_only 必须保存清楚的图片提示词。")
         channel = self.store.get_channel(channel_profile_id)["channelProfile"]
         production = self.store.get_channel(channel_profile_id)["productionProfile"]
         created = utc_now()
-        status = "PUBLISHING_ASSETS_READY" if thumbnail_mode == "real" else "AWAITING_THUMBNAIL"
+        status = "PUBLISHING_ASSETS_READY" if thumbnail_mode in {"real", "youtube_auto"} else "AWAITING_THUMBNAIL"
         if thumbnail_mode == "real":
             thumbnail_contract = {
                 "mode": "real_file",
@@ -2419,11 +2474,16 @@ class ContentLoop:
                 "fileReadable": True,
                 "hashVerified": True,
             }
-        else:
+        elif thumbnail_mode == "prompt_only":
             thumbnail_contract = {
                 "mode": "prompt_only",
                 "prompt": thumbnail_prompt,
                 "providerStatus": thumbnail.get("providerStatus", "not_requested"),
+            }
+        else:
+            thumbnail_contract = {
+                "mode": "youtube_auto",
+                "reason": "user-did-not-request-custom-thumbnail",
             }
         contract_thumbnail_candidates = json.loads(json.dumps(thumbnail_candidates, ensure_ascii=False))
         if thumbnail_asset:
@@ -2432,9 +2492,9 @@ class ContentLoop:
                     item["asset"] = thumbnail_asset
                     item["renderStatus"] = "GENERATED"
         production_handoff = {
-            "eligible": thumbnail_mode == "real",
+            "eligible": thumbnail_mode in {"real", "youtube_auto"},
             "assessedAt": created,
-            "blockers": [] if thumbnail_mode == "real" else ["real-thumbnail-required"],
+            "blockers": [] if thumbnail_mode in {"real", "youtube_auto"} else ["requested-custom-thumbnail-not-ready"],
         }
         characters_by_id = {item["characterId"]: item for item in manuscript.get("characters", [])}
         voice_summary = [
@@ -2493,10 +2553,14 @@ class ContentLoop:
                 "thumbnailProvider": thumbnail_provider,
                 "thumbnailStrategy": thumbnail_strategy,
                 "thumbnailCandidates": contract_thumbnail_candidates,
-                "thumbnailSelection": {
-                    "selectedCandidateId": selected_thumbnail_id,
-                    "reason": ctr_review.get("conclusion", "综合评分最高且事实一致。"),
-                },
+                "thumbnailSelection": (
+                    {
+                        "selectedCandidateId": selected_thumbnail_id,
+                        "reason": ctr_review.get("conclusion", "综合评分最高且事实一致。"),
+                    }
+                    if thumbnail_mode != "youtube_auto"
+                    else None
+                ),
                 "thumbnail": thumbnail_contract,
                 "ctrReview": ctr_review,
                 "targetChannel": {
@@ -2523,10 +2587,14 @@ class ContentLoop:
             "uploadPolicy": contract["uploadPolicy"],
             "privacyStatus": contract["privacyStatus"],
         })
-        _atomic_json(root / "thumbnail-strategy.json", thumbnail_strategy)
-        _atomic_json(root / "thumbnail-selection.json", {"candidates": contract_thumbnail_candidates, "selectedThumbnailId": selected_thumbnail_id})
-        _atomic_json(root / "ctr-review.json", ctr_review)
-        _atomic_bytes(root / "description-hashtags.txt", (description_body.rstrip() + "\n\n" + " ".join(hashtags) + "\n").encode("utf-8"))
+        if thumbnail_mode != "youtube_auto":
+            _atomic_json(root / "thumbnail-strategy.json", thumbnail_strategy)
+            _atomic_json(root / "thumbnail-selection.json", {"candidates": contract_thumbnail_candidates, "selectedThumbnailId": selected_thumbnail_id})
+            _atomic_json(root / "ctr-review.json", ctr_review)
+        public_description = description_body.rstrip()
+        if hashtags:
+            public_description = (public_description + "\n\n" if public_description else "") + " ".join(hashtags)
+        _atomic_bytes(root / "description-hashtags.txt", (public_description + ("\n" if public_description else "")).encode("utf-8"))
         _atomic_json(root / "source-lock.json", {"manuscriptPackage": _contract_ref(manuscript)})
         try:
             publishing_review_binding = {
@@ -2549,21 +2617,22 @@ class ContentLoop:
                 minimum_characters=80,
                 source_binding=publishing_review_binding,
             )
-            save_review_document(
-                project_root,
-                document_id="thumbnail-review",
-                content=_thumbnail_review_markdown(
-                    strategy=thumbnail_strategy,
-                    candidates=contract_thumbnail_candidates,
-                    selected_thumbnail_id=selected_thumbnail_id,
-                    thumbnail_text_chinese=thumbnail_text_chinese,
-                    ctr_review=ctr_review,
-                ),
-                language="zh-CN",
-                updated_at=created,
-                minimum_characters=80,
-                source_binding=publishing_review_binding,
-            )
+            if thumbnail_mode != "youtube_auto":
+                save_review_document(
+                    project_root,
+                    document_id="thumbnail-review",
+                    content=_thumbnail_review_markdown(
+                        strategy=thumbnail_strategy,
+                        candidates=contract_thumbnail_candidates,
+                        selected_thumbnail_id=selected_thumbnail_id,
+                        thumbnail_text_chinese=thumbnail_text_chinese,
+                        ctr_review=ctr_review,
+                    ),
+                    language="zh-CN",
+                    updated_at=created,
+                    minimum_characters=80,
+                    source_binding=publishing_review_binding,
+                )
         except ValueError as exc:
             raise ToolError("CONTENT_REVIEW_DOCUMENT_INVALID", str(exc)) from exc
         state["activePackages"]["publishing"] = {"id": publishing_id, "version": version, "hash": contract["contentHash"], "path": str(root / "manifest.json")}
@@ -2581,21 +2650,21 @@ class ContentLoop:
                 chinese_primary={
                     "storySummaryZh": chinese_review["storySummaryZh"],
                     "titleZh": chinese_review["titleZh"],
-                    "descriptionZh": chinese_review["descriptionZh"],
-                    "hashtagsZh": [item["chinese"] for item in clean_hashtag_translations],
-                    "thumbnailTextZh": chinese_review["thumbnailTextZh"],
+                    "descriptionZh": chinese_review["descriptionZh"] or "未提供（用户未要求生成简介）",
+                    "hashtagsZh": [item["chinese"] for item in clean_hashtag_translations] or ["未提供（用户未要求生成 Hashtags）"],
+                    "thumbnailTextZh": chinese_review["thumbnailTextZh"] or "未提供（用户未要求生成自定义封面）",
                     "decisionRequiredZh": "发布素材已确认；制作完成后仍须查看上传前最终中文验收卡。",
                 },
                 target_language_comparison={
                     "title": title,
                     "description": description_body,
                     "hashtags": hashtags,
-                    "thumbnailText": thumbnail_strategy["targetLanguageText"],
+                    "thumbnailText": thumbnail_strategy["targetLanguageText"] if thumbnail_strategy else "",
                 },
                 confirmed=True,
                 technical={"thumbnailMode": thumbnail_mode, "selectedThumbnailId": selected_thumbnail_id},
             ),
-            "productionHandoffEligible": thumbnail_mode == "real",
+            "productionHandoffEligible": thumbnail_mode in {"real", "youtube_auto"},
             "userReviewDocuments": state["userReviewDocuments"],
         }
 
@@ -2717,7 +2786,10 @@ class ContentLoop:
             if "analysis" in prompt_stages:
                 required_review_documents.append("source-analysis")
         if state["activePackages"].get("publishing"):
-            required_review_documents.extend(("packaging-bilingual", "thumbnail-review"))
+            required_review_documents.append("packaging-bilingual")
+            active_publishing = contracts.get("publishing")
+            if active_publishing and active_publishing.get("thumbnail", {}).get("mode") != "youtube_auto":
+                required_review_documents.append("thumbnail-review")
         review_check = None
         review_binding_check = None
         if required_review_documents:
@@ -2791,7 +2863,10 @@ class ContentLoop:
                     }
             if "publishing" in contracts:
                 publishing = contracts["publishing"]
-                for document_id in ("packaging-bilingual", "thumbnail-review"):
+                publishing_review_ids = ["packaging-bilingual"]
+                if publishing.get("thumbnail", {}).get("mode") != "youtube_auto":
+                    publishing_review_ids.append("thumbnail-review")
+                for document_id in publishing_review_ids:
                     if document_id in present_review_documents:
                         binding_expectations[document_id] = {
                             "sourceContractType": publishing["contractType"],
@@ -2826,10 +2901,14 @@ class ContentLoop:
         if missing:
             raise ToolError("CONTENT_CONFIRMATION_CHAIN_INCOMPLETE", "未确认的内容链不得移交制作。", details={"missing": missing})
         publishing = _read_contract(Path(state["activePackages"]["publishing"]["path"]), "publishing-asset-package")
-        if integrity["status"] != "PASS" or publishing.get("status") != "PUBLISHING_ASSETS_READY" or publishing.get("thumbnail", {}).get("mode") != "real_file":
+        if (
+            integrity["status"] != "PASS"
+            or publishing.get("status") != "PUBLISHING_ASSETS_READY"
+            or publishing.get("thumbnail", {}).get("mode") not in {"real_file", "youtube_auto"}
+        ):
             raise ToolError(
                 "CONTENT_HANDOFF_BLOCKED",
-                "内容包完整性、联合确认或真实 16:9 封面未满足；不会进入制作中心。",
+                "内容包完整性或联合确认未满足；用户明确要求的自定义封面尚未完成时也不会进入制作中心。",
                 details={"integrity": integrity["status"], "publishingStatus": publishing.get("status")},
             )
         return {

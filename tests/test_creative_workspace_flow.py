@@ -169,9 +169,15 @@ class CreativeWorkspaceFlowTests(unittest.TestCase):
             binding_proof=self.proof,
             source_document_id="formal-manuscript",
             language="ja-JP",
+            narration_title="図書館の記憶",
+            narration_title_chinese="图书馆的记忆",
             narration_content="制作に使うナレーション本文です。",
         )["narration"]
         self.assertTrue(narration["productionUseAllowed"])
+        self.assertEqual("図書館の記憶", narration["title"])
+        self.assertEqual("图书馆的记忆", narration["titleZhTranslation"])
+        self.assertEqual("confirmed_narration", narration["titleSource"])
+        self.assertFalse(narration["titleGenerationRequired"])
 
     def test_unapproved_spoken_chapter_heading_is_blocked(self) -> None:
         self.test_production_binding_requires_explicit_channel_and_gate_then_narration()
@@ -182,9 +188,24 @@ class CreativeWorkspaceFlowTests(unittest.TestCase):
                 binding_proof=self.proof,
                 source_document_id="formal-manuscript",
                 language="zh-CN",
+                narration_title="图书馆的记忆",
                 narration_content="第一章\n这是正文。",
             )
         self.assertEqual("NARRATION_SPOKEN_HEADING_FOUND", caught.exception.code)
+
+    def test_non_chinese_narration_title_requires_chinese_review_translation(self) -> None:
+        self.test_production_binding_requires_explicit_channel_and_gate_then_narration()
+        with self.assertRaises(ToolError) as caught:
+            self.workspace.prepare_narration(
+                task_id="task-free-001",
+                workspace_id=self.workspace_id,
+                binding_proof=self.proof,
+                source_document_id="formal-manuscript",
+                language="ja-JP",
+                narration_title="図書館の記憶",
+                narration_content="制作に使うナレーション本文です。",
+            )
+        self.assertEqual("NARRATION_TITLE_CHINESE_REQUIRED", caught.exception.code)
 
     def test_default_tool_surface_exposes_free_workspace_before_legacy_project(self) -> None:
         definitions = {item["name"]: item for item in tool_definitions()}
@@ -192,6 +213,9 @@ class CreativeWorkspaceFlowTests(unittest.TestCase):
         self.assertNotIn("channelProfileId", definitions["content_workspace_start"]["inputSchema"]["required"])
         self.assertIn("content_workspace_narration_prepare", definitions)
         self.assertIn("content_workspace_document_reject", definitions)
+        narration_schema = definitions["content_workspace_narration_prepare"]["inputSchema"]
+        self.assertIn("narrationTitle", narration_schema["required"])
+        self.assertNotIn("narrationTitleChinese", narration_schema["required"])
 
 
 if __name__ == "__main__":

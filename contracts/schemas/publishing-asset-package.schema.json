@@ -9,6 +9,61 @@
     {
       "if": {
         "properties": {
+          "thumbnail": {
+            "properties": {
+              "mode": { "const": "youtube_auto" }
+            },
+            "required": ["mode"]
+          }
+        },
+        "required": ["thumbnail"]
+      },
+      "then": {
+        "properties": {
+          "thumbnailProvider": { "type": "null" },
+          "thumbnailStrategy": { "type": "null" },
+          "thumbnailCandidates": { "maxItems": 0 },
+          "thumbnailSelection": { "type": "null" },
+          "ctrReview": {
+            "properties": {
+              "status": { "const": "NOT_APPLICABLE" }
+            }
+          },
+          "productionHandoff": {
+            "properties": {
+              "eligible": { "const": true },
+              "blockers": { "maxItems": 0 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "thumbnail": {
+            "properties": {
+              "mode": { "const": "real_file" }
+            },
+            "required": ["mode"]
+          }
+        },
+        "required": ["thumbnail"]
+      },
+      "then": {
+        "properties": {
+          "thumbnailCandidates": { "minItems": 5 },
+          "ctrReview": {
+            "properties": {
+              "status": { "const": "PASSED" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
           "status": {
             "enum": [
               "PUBLISHING_ASSETS_READY",
@@ -25,14 +80,20 @@
           "thumbnail": {
             "properties": {
               "mode": {
-                "const": "real_file"
+                "enum": [
+                  "real_file",
+                  "youtube_auto"
+                ]
               }
             }
           },
           "ctrReview": {
             "properties": {
               "status": {
-                "const": "PASSED"
+                "enum": [
+                  "PASSED",
+                  "NOT_APPLICABLE"
+                ]
               }
             }
           },
@@ -213,51 +274,70 @@
     },
     "descriptionBody": {
       "type": "string",
-      "minLength": 1,
+      "minLength": 0,
       "maxLength": 5000
     },
     "hashtags": {
-      "type": "array",
-      "minItems": 8,
-      "maxItems": 12,
-      "uniqueItems": true,
-      "items": {
-        "type": "string",
-        "pattern": "^#[^#\\s]{1,99}$"
-      }
+      "oneOf": [
+        {
+          "type": "array",
+          "maxItems": 0
+        },
+        {
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 12,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^#[^#\\s]{1,99}$"
+          }
+        }
+      ]
     },
     "thumbnailProvider": {
-      "$ref": "#/$defs/imageProvider"
+      "oneOf": [
+        { "$ref": "#/$defs/imageProvider" },
+        { "type": "null" }
+      ]
     },
     "thumbnailStrategy": {
-      "$ref": "#/$defs/thumbnailStrategy"
+      "oneOf": [
+        { "$ref": "#/$defs/thumbnailStrategy" },
+        { "type": "null" }
+      ]
     },
     "thumbnailCandidates": {
       "type": "array",
-      "minItems": 5,
       "maxItems": 5,
       "items": {
         "$ref": "#/$defs/thumbnailCandidate"
       }
     },
     "thumbnailSelection": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "selectedCandidateId",
-        "reason"
-      ],
-      "properties": {
-        "selectedCandidateId": {
-          "type": "string",
-          "minLength": 3,
-          "maxLength": 128
-        },
-        "reason": {
-          "type": "string",
-          "minLength": 1
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "selectedCandidateId",
+            "reason"
+          ],
+          "properties": {
+            "selectedCandidateId": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 128
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
         }
-      }
+        ,
+        { "type": "null" }
+      ]
     },
     "thumbnail": {
       "$ref": "#/$defs/thumbnail"
@@ -326,22 +406,30 @@
         "uploadUseAllowed": { "const": false },
         "storySummaryZh": { "type": "string", "minLength": 20, "maxLength": 5000 },
         "titleZh": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "descriptionZh": { "type": "string", "minLength": 1, "maxLength": 5000 },
+        "descriptionZh": { "type": "string", "minLength": 0, "maxLength": 5000 },
         "hashtagTranslations": {
-          "type": "array",
-          "minItems": 8,
-          "maxItems": 12,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["hashtag", "chinese"],
-            "properties": {
-              "hashtag": { "type": "string", "pattern": "^#[^#\\s]{1,99}$" },
-              "chinese": { "type": "string", "minLength": 1, "maxLength": 200 }
+          "oneOf": [
+            {
+              "type": "array",
+              "maxItems": 0
+            },
+            {
+              "type": "array",
+              "minItems": 8,
+              "maxItems": 12,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["hashtag", "chinese"],
+                "properties": {
+                  "hashtag": { "type": "string", "pattern": "^#[^#\\s]{1,99}$" },
+                  "chinese": { "type": "string", "minLength": 1, "maxLength": 200 }
+                }
+              }
             }
-          }
+          ]
         },
-        "thumbnailTextZh": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "thumbnailTextZh": { "type": "string", "minLength": 0, "maxLength": 200 },
         "voiceSummary": {
           "type": "array",
           "minItems": 1,
@@ -642,6 +730,9 @@
         },
         {
           "$ref": "#/$defs/promptOnlyThumbnail"
+        },
+        {
+          "$ref": "#/$defs/youtubeAutoThumbnail"
         }
       ]
     },
@@ -724,66 +815,100 @@
         }
       }
     },
-    "ctrReview": {
+    "youtubeAutoThumbnail": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "status",
-        "score",
-        "titleHookVisualized",
-        "textComplementsTitle",
-        "mobileReadable",
-        "factsConsistent",
-        "conclusion"
+        "mode",
+        "reason"
       ],
       "properties": {
-        "status": {
+        "mode": {
+          "const": "youtube_auto"
+        },
+        "reason": {
           "type": "string",
-          "enum": [
-            "PASSED",
-            "FAILED"
+          "minLength": 1,
+          "maxLength": 200
+        }
+      }
+    },
+    "ctrReview": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "score",
+            "titleHookVisualized",
+            "textComplementsTitle",
+            "mobileReadable",
+            "factsConsistent",
+            "conclusion"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "PASSED",
+                "FAILED"
+              ]
+            },
+            "score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10
+            },
+            "titleHookVisualized": {
+              "type": "boolean"
+            },
+            "textComplementsTitle": {
+              "type": "boolean"
+            },
+            "mobileReadable": {
+              "type": "boolean"
+            },
+            "factsConsistent": {
+              "type": "boolean"
+            },
+            "conclusion": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "status": {
+                    "const": "PASSED"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "titleHookVisualized": { "const": true },
+                  "textComplementsTitle": { "const": true },
+                  "mobileReadable": { "const": true },
+                  "factsConsistent": { "const": true }
+                }
+              }
+            }
           ]
         },
-        "score": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 10
-        },
-        "titleHookVisualized": {
-          "type": "boolean"
-        },
-        "textComplementsTitle": {
-          "type": "boolean"
-        },
-        "mobileReadable": {
-          "type": "boolean"
-        },
-        "factsConsistent": {
-          "type": "boolean"
-        },
-        "conclusion": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "allOf": [
         {
-          "if": {
-            "properties": {
-              "status": {
-                "const": "PASSED"
-              }
-            },
-            "required": [
-              "status"
-            ]
-          },
-          "then": {
-            "properties": {
-              "titleHookVisualized": { "const": true },
-              "textComplementsTitle": { "const": true },
-              "mobileReadable": { "const": true },
-              "factsConsistent": { "const": true }
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "conclusion"],
+          "properties": {
+            "status": { "const": "NOT_APPLICABLE" },
+            "conclusion": {
+              "type": "string",
+              "minLength": 1
             }
           }
         }

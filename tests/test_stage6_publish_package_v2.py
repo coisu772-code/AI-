@@ -96,7 +96,14 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
         self.assertEqual(code, caught.exception.code)
         return caught.exception
 
-    def _source_copy(self, *, policy: str = "REQUIRE_REVIEW", privacy: str = "private", channel_suffix: str = "") -> tuple[Path, Path, dict]:
+    def _source_copy(
+        self,
+        *,
+        policy: str = "REQUIRE_REVIEW",
+        privacy: str = "private",
+        channel_suffix: str = "",
+        omit_optional_publishing_assets: bool = False,
+    ) -> tuple[Path, Path, dict]:
         self._source_counter += 1
         result = self.root / f"result-{self._source_counter}-{policy.lower()}-{privacy}-{channel_suffix or 'default'}"
         publishing = self.root / f"publishing-{self._source_counter}-{policy.lower()}-{privacy}-{channel_suffix or 'default'}"
@@ -110,6 +117,35 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
             pub["targetChannel"]["publisherProfileId"] += channel_suffix
             pub["targetChannel"]["channelSerial"] = "02"
             pub["targetChannel"]["youtubeChannelId"] += channel_suffix
+        if omit_optional_publishing_assets:
+            pub["descriptionBody"] = ""
+            pub["hashtags"] = []
+            pub["thumbnailProvider"] = None
+            pub["thumbnailStrategy"] = None
+            pub["thumbnailCandidates"] = []
+            pub["thumbnailSelection"] = None
+            pub["thumbnail"] = {
+                "mode": "youtube_auto",
+                "reason": "user-did-not-request-custom-thumbnail",
+            }
+            pub["ctrReview"] = {
+                "status": "NOT_APPLICABLE",
+                "conclusion": "No custom thumbnail was requested.",
+            }
+            if isinstance(pub.get("chineseReview"), dict):
+                pub["chineseReview"]["descriptionZh"] = ""
+                pub["chineseReview"]["hashtagTranslations"] = []
+                pub["chineseReview"]["thumbnailTextZh"] = ""
+            for optional_name in (
+                "confirmed-thumbnail.png",
+                "thumbnail-strategy.json",
+                "thumbnail-selection.json",
+                "ctr-review.json",
+            ):
+                optional_path = publishing / optional_name
+                if optional_path.exists():
+                    optional_path.unlink()
+            (publishing / "description-hashtags.txt").write_text("", encoding="utf-8")
         pub["contentHash"] = canonical_hash(pub)
         _write(publishing / "manifest.json", pub)
         publishing_json = _read(publishing / "publishing.json")
@@ -123,6 +159,9 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
                 "privacyStatus": pub["privacyStatus"],
             }
         )
+        if omit_optional_publishing_assets:
+            publishing_json["thumbnail"] = None
+            publishing_json["thumbnailMode"] = "youtube_auto"
         _write(publishing / "publishing.json", publishing_json)
 
         result_manifest = _read(result / "manifest.json")
@@ -151,7 +190,12 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
         return result, publishing, channel
 
     def _assemble(self, *, policy: str = "REQUIRE_REVIEW", privacy: str = "private", name: str = "inbox", **kwargs):
-        result, publishing, channel = self._source_copy(policy=policy, privacy=privacy, channel_suffix=kwargs.pop("channel_suffix", ""))
+        result, publishing, channel = self._source_copy(
+            policy=policy,
+            privacy=privacy,
+            channel_suffix=kwargs.pop("channel_suffix", ""),
+            omit_optional_publishing_assets=kwargs.pop("omit_optional_publishing_assets", False),
+        )
         return assemble_publish_package_v2(
             production_result_root=result,
             publishing_asset_root=publishing,
@@ -319,6 +363,21 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
         self.assertGreaterEqual(len(metadata["hashtags"]), 8)
         self.assertLessEqual(len(metadata["hashtags"]), 12)
         self.assertEqual(metadata["description_body"].rstrip() + "\n\n" + " ".join(metadata["hashtags"]), metadata["description_for_youtube"])
+
+    def test_description_hashtags_and_custom_thumbnail_may_be_omitted(self) -> None:
+        result = self._assemble(omit_optional_publishing_assets=True)
+        package = Path(result["package_path"])
+        metadata = _read(package / "metadata.json")
+        manifest = _read(package / "manifest.json")
+        self.assertEqual("", metadata["description_body"])
+        self.assertEqual([], metadata["hashtags"])
+        self.assertEqual("", metadata["description_for_youtube"])
+        self.assertEqual("", metadata["thumbnail_path"])
+        self.assertFalse(any(item["role"] == "thumbnail" for item in manifest["files"]))
+        self.assertFalse(any(path.name.startswith("thumbnail.") for path in package.iterdir()))
+        card = _read(package / "final_chinese_review_card.json")
+        self.assertEqual({"mode": "youtube_auto", "path": ""}, card["finalAssets"]["thumbnail"])
+        self.assertTrue(validate_publish_package_v2(package, constraints_catalog_path=CATALOG, ffprobe_path=None)["valid"])
 
     def test_three_policies_stop_at_local_states(self) -> None:
         do_not = self._assemble(policy="DO_NOT_UPLOAD", name="do-not")

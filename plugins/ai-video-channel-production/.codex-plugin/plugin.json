@@ -1,6 +1,6 @@
 {
   "name": "ai-video-channel-production",
-  "version": "0.12.0-rc.3",
+  "version": "0.12.0-rc.4",
   "description": "AI 视频频道生产系统：热点研究、视频或文本取材、当前任务提示词编排、直接成稿或按确认方案写作、编辑包装、工坊、发布准备与数据复盘。",
   "author": {
     "name": "coisu772-code",

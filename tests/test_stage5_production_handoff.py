@@ -148,7 +148,7 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
                     "characterId": item["characterId"],
                     "designIntentZh": "从人物身份与性格建立漫画轮廓记忆点和近景记忆点。",
                     "identityAnchorPromptZh": "漫画人物比例，独特脸型与眼型，分层发束，固定服装轮廓与配色。",
-                    "referenceSheetPromptZh": "单角色漫画设定图，清楚服装层次与固定配饰，无剧情背景和可读文字。",
+                    "referenceSheetPromptZh": "单画布中一个角色只出现一次，单一正面略偏四分之三视角，只穿一套主服装，清楚服装层次与固定配饰，无剧情背景和可读文字。",
                     "storyboardIdentityPromptZh": "保留脸型、眼型、发型、服装轮廓、配色和固定配饰。",
                     "fixedFeatures": ["独特眼型", "分层发束", "固定服装轮廓"],
                 }
@@ -311,6 +311,17 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
                 synthetic=False,
             ),
         )
+        invalid_character_reference = json.loads(json.dumps(plan, ensure_ascii=False))
+        invalid_character_reference["characterDesigns"][0]["referenceSheetPromptZh"] = "多视角角色设定页：正面、三分之二侧面、侧面、全身，并展示两套服装。"
+        self.assert_tool_error(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            lambda: _normalize_codex_visual_plan(
+                invalid_character_reference,
+                manuscript=manuscript,
+                production_config=config,
+                synthetic=False,
+            ),
+        )
         repeated_emotion = json.loads(json.dumps(plan, ensure_ascii=False))
         repeated_emotion["scenePlans"][1]["emotionalBeat"] = {
             "category": "shock",
@@ -468,6 +479,20 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
             bridge.target.parts[-3:],
         )
         self.assertTrue(os.path.samefile(isolation_root, bridge.target.parents[2]))
+
+    def test_package_v21_allows_empty_description_hashtags_and_no_custom_thumbnail(self) -> None:
+        context = self.context(omit_optional_publishing_assets=True)
+        package_root = Path(context.package["packagePath"])
+        manifest = context.content.service.production.validate_package(package_root)
+        publishing = json.loads((package_root / "publishing.json").read_text(encoding="utf-8"))
+        self.assertEqual(8, len(manifest["files"]))
+        self.assertEqual("", publishing["descriptionBody"])
+        self.assertEqual([], publishing["hashtags"])
+        self.assertEqual("", publishing["thumbnail"])
+        self.assertEqual("youtube_auto", publishing["thumbnailMode"])
+        self.assertFalse((package_root / "confirmed_thumbnail.png").exists())
+        imported = context.content.service.production.import_package(package_root)
+        self.assertTrue(imported["roundTripValidated"])
 
     def test_package_assembly_rejects_user_visible_script_that_differs_from_machine_master(self) -> None:
         context = self.context()

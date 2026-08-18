@@ -26,10 +26,10 @@ def current_manifest_path() -> Path:
 
 def validate_release_manifest(manifest_path: Path | None = None) -> list[str]:
     plugin = load_json(ROOT / "plugins" / "ai-video-channel-production" / ".codex-plugin" / "plugin.json")
-    if plugin.get("version") == "0.12.0-rc.3" and manifest_path is None:
-        selected = ROOT / "release-manifests" / "unified-release-v0.12.0-rc.3.json"
+    if plugin.get("version") == "0.12.0-rc.4" and manifest_path is None:
+        selected = ROOT / "release-manifests" / "unified-release-v0.12.0-rc.4.json"
         if not selected.is_file():
-            return ["unified-release-v0.12.0-rc.3.json is missing"]
+            return ["unified-release-v0.12.0-rc.4.json is missing"]
         manifest = load_json(selected)
         schema = load_json(ROOT / "release-manifests" / "unified-release-manifest.schema.json")
         errors = []
@@ -49,7 +49,7 @@ def validate_release_manifest(manifest_path: Path | None = None) -> list[str]:
             errors.append("publisher source commit is not locked to the final candidate")
         component_attestation = source.get("componentManifest", {})
         if (
-            component_attestation.get("fileName") != "publisher-component-manifest-v0.9.0-rc.2.json"
+            component_attestation.get("fileName") != "publisher-component-manifest-v0.9.0-rc.3.json"
             or component_attestation.get("sha256") != "f72626579dc4fd4cd3e8a52a75266209469d99cdf37b2f9b815f25c9ada36748"
         ):
             errors.append("publisher component reuse attestation is not locked")

@@ -543,6 +543,7 @@ def publishing_payload(ctx: PipelineContext, thumbnail_path: Path, *, hashtags: 
     return {
         "title": ctx.market["title"],
         "titleChinese": ctx.market["titleZh"],
+        "titleSource": "generated_candidates",
         "titleCandidates": title_candidates,
         "descriptionBody": ctx.market["description"],
         "descriptionChinese": ctx.market["description"] if ctx.market["key"] == "cn" else "这是对应目标语言简介的完整中文审核翻译，仅供用户检查，不进入发布字段。故事围绕期限、证据与社区重新开始展开。",

@@ -580,7 +580,9 @@ class CreativeWorkspace:
         binding_proof: Any,
         source_document_id: Any,
         language: Any,
+        narration_title: Any,
         narration_content: Any,
+        narration_title_chinese: Any = None,
         spoken_section_headings: Any = False,
         cleanup_report: Any = None,
     ) -> dict[str, Any]:
@@ -596,6 +598,15 @@ class CreativeWorkspace:
             raise ToolError("NARRATION_SOURCE_MISMATCH", "配音稿来源与制作门选择的正式文稿不一致。")
         if not isinstance(language, str) or not language.strip():
             raise ToolError("NARRATION_LANGUAGE_REQUIRED", "配音稿语言不能为空。")
+        if not isinstance(narration_title, str) or not narration_title.strip() or len(narration_title.strip()) > 100:
+            raise ToolError("NARRATION_TITLE_REQUIRED", "口播稿必须带有一个不超过 100 字符的正式标题。")
+        clean_title = narration_title.strip()
+        if language.strip().lower().startswith("zh"):
+            clean_title_chinese = narration_title_chinese.strip() if isinstance(narration_title_chinese, str) and narration_title_chinese.strip() else clean_title
+        elif not isinstance(narration_title_chinese, str) or not narration_title_chinese.strip() or len(narration_title_chinese.strip()) > 200:
+            raise ToolError("NARRATION_TITLE_CHINESE_REQUIRED", "非中文口播稿标题必须附中文对照供用户审核。")
+        else:
+            clean_title_chinese = narration_title_chinese.strip()
         if not isinstance(narration_content, str) or not narration_content.strip():
             raise ToolError("NARRATION_CONTENT_EMPTY", "配音稿不能为空。")
         if not isinstance(spoken_section_headings, bool):
@@ -621,7 +632,12 @@ class CreativeWorkspace:
             "sourceDocumentId": source_document_id,
             "sourceDocumentVersion": source["version"],
             "sourceDocumentSha256": source["sha256"],
+            "sourceDocumentTitle": source["title"],
             "language": language.strip(),
+            "title": clean_title,
+            "titleZhTranslation": clean_title_chinese,
+            "titleSource": "confirmed_narration",
+            "titleGenerationRequired": False,
             "spokenSectionHeadings": spoken_section_headings,
             "absolutePath": str(target),
             "sha256": _sha256_file(target),
@@ -638,7 +654,7 @@ class CreativeWorkspace:
         })
         return {
             "narration": record,
-            "next": "复用已确认的标题、简介、Hashtags 和封面；只生成尚未确认的缺失素材，再移交工坊。",
+            "next": "正式发布标题默认直接使用本口播稿标题；只补齐尚未确认的简介、Hashtags 和封面，再移交工坊。",
         }
 
     def get(self, *, workspace_id: Any) -> dict[str, Any]:

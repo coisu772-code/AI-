@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$ManifestPath,
-    [string]$ManifestUrl = "https://github.com/coisu772-code/AI-/releases/download/v0.12.0-rc.3/unified-release-v0.12.0-rc.3.json",
+    [string]$ManifestUrl = "https://github.com/coisu772-code/AI-/releases/download/v0.12.0-rc.4/unified-release-v0.12.0-rc.4.json",
     [string]$AssetRoot = $PSScriptRoot,
     [string]$DownloadBaseUrl,
     [ValidateSet("Auto", "Offline", "Online")]
@@ -29,23 +29,23 @@ try {
 $assetFull = Resolve-AivcpFullPath $AssetRoot
 $installFull = Test-AivcpSafeRoot $InstallRoot "InstallRoot"
 $null = Assert-AivcpPathBudget (Join-Path $installFull "current\runtime\python\Lib\site-packages\lxml\isoschematron\resources\xsl\iso-schematron-xslt1\iso_schematron_skeleton_for_xslt1.xsl") "known longest bundled runtime path"
-$null = Assert-AivcpPathBudget (Join-Path $installFull "downloads\manifest-cache\unified-release-v0.12.0-rc.3.json") "locked manifest cache"
+$null = Assert-AivcpPathBudget (Join-Path $installFull "downloads\manifest-cache\unified-release-v0.12.0-rc.4.json") "locked manifest cache"
 $dataFull = Resolve-AivcpDataRoot -InstallRoot $installFull -RequestedDataRoot $DataRoot
 $locatorSnapshot = Get-AivcpFileSnapshot (Get-AivcpRuntimeLocatorPath)
 if ([string]::IsNullOrWhiteSpace($ManifestPath)) {
-    $localManifest = Join-Path $assetFull "unified-release-v0.12.0-rc.3.json"
+    $localManifest = Join-Path $assetFull "unified-release-v0.12.0-rc.4.json"
     if (Test-Path -LiteralPath $localManifest -PathType Leaf) {
         $ManifestPath = $localManifest
     }
     else {
-        if ($InstallMode -eq "Offline") { throw "Offline installation requires unified-release-v0.12.0-rc.3.json beside install.cmd." }
+        if ($InstallMode -eq "Offline") { throw "Offline installation requires unified-release-v0.12.0-rc.4.json beside install.cmd." }
         $manifestUri = [System.Uri]::new($ManifestUrl)
         if ($manifestUri.Scheme -ne "https" -and -not ($AllowInsecureTestTransport -and $manifestUri.IsLoopback)) {
             throw "Manifest download must use HTTPS. Only an explicit loopback test transport may use HTTP."
         }
         $manifestCache = Join-Path $installFull "downloads\manifest-cache"
         New-Item -ItemType Directory -Path $manifestCache -Force | Out-Null
-        $ManifestPath = Join-Path $manifestCache "unified-release-v0.12.0-rc.3.json"
+        $ManifestPath = Join-Path $manifestCache "unified-release-v0.12.0-rc.4.json"
         Invoke-WebRequest -Uri $manifestUri.AbsoluteUri -OutFile $ManifestPath -UseBasicParsing
     }
 }
@@ -55,8 +55,8 @@ $manifest = Get-Content -LiteralPath $manifestFull -Raw -Encoding UTF8 | Convert
 if ([string]$manifest.schemaVersion -ne "2.0.0" -or [string]$manifest.productId -ne $script:AivcpProductId) {
     throw "Unsupported or incorrect unified release manifest."
 }
-if ([string]$manifest.productVersion -ne "0.12.0-rc.3" -or @($manifest.assets).Count -ne 5 -or $null -eq $manifest.runtime -or $null -eq $manifest.safetyBoundaries) {
-    throw "The downloaded manifest does not match the locked v0.12.0-rc.3 schema and product version."
+if ([string]$manifest.productVersion -ne "0.12.0-rc.4" -or @($manifest.assets).Count -ne 5 -or $null -eq $manifest.runtime -or $null -eq $manifest.safetyBoundaries) {
+    throw "The downloaded manifest does not match the locked v0.12.0-rc.4 schema and product version."
 }
 if ([string]$manifest.releaseStatus -ne "candidate") { throw "Only a candidate locked manifest can be installed by this RC entry point." }
 if ([string]$manifest.hashAlgorithm -ne "SHA-256") { throw "Unsupported release hash algorithm." }

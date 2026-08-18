@@ -114,6 +114,28 @@ class Stage4ContentLoopTests(unittest.TestCase):
         )
         self.assertIn("foreignLanguageQualityGate", definitions["content_manuscript_finalize"]["inputSchema"]["required"])
         self.assertIn("storySummaryChinese", definitions["content_publishing_finalize"]["inputSchema"]["required"])
+        publishing_schema = definitions["content_publishing_finalize"]["inputSchema"]
+        self.assertNotIn("titleCandidates", publishing_schema["required"])
+        for optional_field in (
+            "descriptionBody",
+            "descriptionChinese",
+            "hashtags",
+            "hashtagTranslations",
+            "thumbnailProvider",
+            "thumbnailStrategy",
+            "thumbnailCandidates",
+            "selectedThumbnailId",
+            "thumbnail",
+            "thumbnailTextChinese",
+            "ctrReview",
+        ):
+            self.assertNotIn(optional_field, publishing_schema["required"])
+        self.assertEqual(1, publishing_schema["properties"]["titleCandidates"]["minItems"])
+        self.assertEqual(6, publishing_schema["properties"]["titleCandidates"]["maxItems"])
+        self.assertEqual(
+            ["confirmed_narration", "user_confirmed", "generated_candidates"],
+            publishing_schema["properties"]["titleSource"]["enum"],
+        )
         service, _, _, _ = create_service(
             self.root / "surface", "en-US", plugin_root=PLUGIN_ROOT,
             local_tool_service=LocalToolService, service_config=ServiceConfig,
@@ -901,6 +923,76 @@ class Stage4ContentLoopTests(unittest.TestCase):
         square = self.root / "square-synthetic.png"
         write_png(square, 100, 100)
         self.assert_tool_error("THUMBNAIL_ASPECT_RATIO_INVALID", lambda: finalize_publishing(ctx, square))
+
+    def test_confirmed_narration_title_freezes_without_generated_candidates(self) -> None:
+        ctx = self.context("ja-JP")
+        finalize_topic(ctx)
+        finalize_manuscript(ctx)
+        payload = publishing_payload(ctx, SYNTHETIC_THUMBNAIL)
+        payload.pop("titleCandidates")
+        payload["titleSource"] = "confirmed_narration"
+        result = ctx.service.call(
+            "content_publishing_finalize",
+            {
+                "taskId": ctx.task_id,
+                "channelProfileId": ctx.channel_id,
+                "bindingProof": ctx.proof,
+                "projectId": ctx.project_id,
+                **payload,
+            },
+        )
+        manifest = json.loads((Path(result["packagePath"]) / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(ctx.market["title"], manifest["title"])
+        self.assertEqual("narration-title", manifest["titleSelection"]["selectedTitleId"])
+        self.assertEqual(1, len(manifest["titleSelection"]["candidates"]))
+        review_entry = next(
+            item
+            for item in result["userReviewDocuments"]["documents"]
+            if item["documentId"] == "packaging-bilingual"
+        )
+        review_path = Path(review_entry["absolutePath"])
+        self.assertIn("未执行额外标题生成", review_path.read_text(encoding="utf-8"))
+
+    def test_description_hashtags_and_custom_thumbnail_are_not_generated_by_default(self) -> None:
+        ctx = self.context("ja-JP")
+        finalize_topic(ctx)
+        finalize_manuscript(ctx)
+        result = ctx.service.call(
+            "content_publishing_finalize",
+            {
+                "taskId": ctx.task_id,
+                "channelProfileId": ctx.channel_id,
+                "bindingProof": ctx.proof,
+                "projectId": ctx.project_id,
+                "title": ctx.market["title"],
+                "titleChinese": ctx.market["titleZh"],
+                "titleSource": "confirmed_narration",
+                "storySummaryChinese": "社区共同空间面临关闭，主角寻找记录并联合居民核验证据，最终让场所重新开放。",
+                "confirmation": {
+                    "confirmed": True,
+                    "mode": "review",
+                    "confirmedBy": "synthetic-fixture-user",
+                    "confirmedAt": "2026-08-04T03:00:00Z",
+                },
+            },
+        )
+        package_root = Path(result["packagePath"])
+        manifest = json.loads((package_root / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual("", manifest["descriptionBody"])
+        self.assertEqual([], manifest["hashtags"])
+        self.assertEqual("youtube_auto", manifest["thumbnail"]["mode"])
+        self.assertTrue(manifest["productionHandoff"]["eligible"])
+        self.assertEqual(b"", (package_root / "description-hashtags.txt").read_bytes())
+        self.assertFalse((package_root / "confirmed-thumbnail.png").exists())
+        review_ids = {item["documentId"] for item in result["userReviewDocuments"]["documents"]}
+        self.assertIn("packaging-bilingual", review_ids)
+        self.assertNotIn("thumbnail-review", review_ids)
+        handoff = ctx.service.call(
+            "content_handoff_check",
+            {"channelProfileId": ctx.channel_id, "projectId": ctx.project_id},
+        )
+        self.assertTrue(handoff["eligible"])
+        self.assertEqual("production", handoff["nextCenter"])
 
 
 if __name__ == "__main__":

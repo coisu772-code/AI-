@@ -37,7 +37,7 @@ validation.json
 production_binding.json
 upload_status.json
 final.mp4
-thumbnail.png|jpg
+[thumbnail.png|jpg]  # 仅在用户明确要求并确认自定义封面时存在
 subtitles.srt|vtt
 ```
 
@@ -49,9 +49,10 @@ subtitles.srt|vtt
 
 `metadata.json` 分别保存：
 
-- `description_body`：不含 Hashtags 的目标语言简介正文；
-- `hashtags`：8–12 个公开 Hashtags；
-- `description_for_youtube`：正文、空行和 Hashtags 的可上传组合；
+- `description_body`：可选；用户未要求简介时为空字符串；
+- `hashtags`：可选；用户未要求时为空数组，已提供时为 8–12 个公开 Hashtags；
+- `description_for_youtube`：只组合实际提供的简介正文和 Hashtags，两者都未提供时为空字符串；
+- `thumbnail_path`：可选；为空时发布中心不调用 `thumbnails.set`，由 YouTube 使用自动缩略图；
 - 后台 Tags：默认空或无，不得用 `tags` 冒充 Hashtags。
 
 频道身份只来自只读 CLI 的九字段非敏感输出：`publisherProfileId`、`channelSerial`、`youtubeChannelId`、`channelName`、`enabled`、`authorizationStatus`、`defaultPrivacy`、`timezone`、`uploadPolicy`。`publisher_list_channels` 只可把其中三个显示字段规范为 `displayName`、`privacyStatus`、`timeZone`，不得补造其他频道事实。按 `channelSerial` 唯一匹配，并核对预期不可变 `youtubeChannelId`。缺失、重复、停用或不匹配时失败；不得按语言、地区、题材或标题猜频道。

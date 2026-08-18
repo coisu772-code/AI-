@@ -39,7 +39,7 @@ RETIRED_CONTENT_TOOL_PREFIXES = (
 
 
 LOCAL_TOOL_PROTOCOL_VERSION = "1.0.0"
-SERVICE_VERSION = "0.12.0-rc.3"
+SERVICE_VERSION = "0.12.0-rc.4"
 
 
 def default_data_root(plugin_root: Path | None = None) -> Path:
@@ -910,6 +910,8 @@ class LocalToolService:
                 binding_proof=args.get("workspaceBindingProof"),
                 source_document_id=args.get("sourceDocumentId"),
                 language=args.get("language"),
+                narration_title=args.get("narrationTitle"),
+                narration_title_chinese=args.get("narrationTitleChinese"),
                 narration_content=args.get("narrationContent"),
                 spoken_section_headings=args.get("spokenSectionHeadings", False),
                 cleanup_report=args.get("cleanupReport"),
@@ -1049,6 +1051,7 @@ class LocalToolService:
                 project_id=args.get("projectId"),
                 title=args.get("title"),
                 title_chinese=args.get("titleChinese"),
+                title_source=args.get("titleSource"),
                 title_candidates=args.get("titleCandidates"),
                 description_body=args.get("descriptionBody"),
                 description_chinese=args.get("descriptionChinese"),
@@ -1843,16 +1846,18 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "content_workspace_narration_prepare",
-            "制作绑定完成后，把用户确认的正式稿整理为可直接配音的版本；章节标题是否朗读必须使用本次制作设置，不能从旧项目继承。",
+            "制作绑定完成后，把用户确认的正式稿整理为可直接配音的版本，并冻结一个默认直接用于发布的口播稿标题；不自动生成另一套标题。章节标题是否朗读必须使用本次制作设置，不能从旧项目继承。",
             {
                 **workspace_binding_properties,
                 "sourceDocumentId": {"type": "string", "minLength": 1, "maxLength": 128},
                 "language": {"type": "string", "minLength": 1, "maxLength": 32},
+                "narrationTitle": {"type": "string", "minLength": 1, "maxLength": 100},
+                "narrationTitleChinese": {"type": "string", "minLength": 1, "maxLength": 200},
                 "narrationContent": {"type": "string", "minLength": 1},
                 "spokenSectionHeadings": {"type": "boolean"},
                 "cleanupReport": {"type": "object"},
             },
-            ["taskId", "workspaceId", "workspaceBindingProof", "sourceDocumentId", "language", "narrationContent"],
+            ["taskId", "workspaceId", "workspaceBindingProof", "sourceDocumentId", "language", "narrationTitle", "narrationContent"],
         ),
         (
             "content_workspace_get",
@@ -1945,9 +1950,9 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "content_publishing_finalize",
-            "只读取确认母稿，校验唯一标题、简介、8–12 个 Hashtags、封面与 CTR 联评后冻结 Publishing Asset Package v1。",
-            {**binding_properties, "projectId": {"type": "string"}, "title": {"type": "string"}, "titleChinese": {"type": "string"}, "titleCandidates": {"type": "array", "minItems": 6, "maxItems": 6}, "descriptionBody": {"type": "string"}, "descriptionChinese": {"type": "string"}, "storySummaryChinese": {"type": "string"}, "hashtags": {"type": "array"}, "hashtagTranslations": {"type": "array"}, "thumbnailProvider": {"type": "object"}, "thumbnailStrategy": {"type": "object"}, "thumbnailCandidates": {"type": "array", "minItems": 5, "maxItems": 5}, "selectedThumbnailId": {"type": "string"}, "thumbnail": {"type": "object"}, "thumbnailTextChinese": {"type": "string"}, "ctrReview": {"type": "object"}, "confirmation": {"type": "object"}},
-            ["taskId", "channelProfileId", "bindingProof", "projectId", "title", "titleChinese", "titleCandidates", "descriptionBody", "descriptionChinese", "storySummaryChinese", "hashtags", "hashtagTranslations", "thumbnailProvider", "thumbnailStrategy", "thumbnailCandidates", "selectedThumbnailId", "thumbnail", "thumbnailTextChinese", "ctrReview", "confirmation"],
+            "只读取确认母稿并默认继承口播稿标题。简介、Hashtags 和自定义封面全部可选：只有用户明确提供或要求生成时才接收；未要求自定义封面时冻结 youtube_auto，不调用封面生成或 thumbnails.set。",
+            {**binding_properties, "projectId": {"type": "string"}, "title": {"type": "string"}, "titleChinese": {"type": "string"}, "titleSource": {"type": "string", "enum": ["confirmed_narration", "user_confirmed", "generated_candidates"]}, "titleCandidates": {"type": "array", "minItems": 1, "maxItems": 6}, "descriptionBody": {"type": "string"}, "descriptionChinese": {"type": "string"}, "storySummaryChinese": {"type": "string"}, "hashtags": {"type": "array"}, "hashtagTranslations": {"type": "array"}, "thumbnailProvider": {"type": "object"}, "thumbnailStrategy": {"type": "object"}, "thumbnailCandidates": {"type": "array", "minItems": 5, "maxItems": 5}, "selectedThumbnailId": {"type": "string"}, "thumbnail": {"type": "object"}, "thumbnailTextChinese": {"type": "string"}, "ctrReview": {"type": "object"}, "confirmation": {"type": "object"}},
+            ["taskId", "channelProfileId", "bindingProof", "projectId", "title", "titleChinese", "storySummaryChinese", "confirmation"],
         ),
         (
             "content_project_get",
