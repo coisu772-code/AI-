@@ -32,19 +32,19 @@ BOOTSTRAP_FILES = (
 )
 WORKSHOP_VERSION = "2.5.0-rc.4"
 WORKSHOP_NAME = "Z-Manga-Workshop-2.5.0-rc.4-for-AIVCP-0.12.0-rc.4-windows-x64-portable.zip"
-WORKSHOP_SHA = "4c0d48a83ee42f96edc2ca827a979acbec1007329efc29503892adf2e1bdac17"
-WORKSHOP_SIZE = 157155339
+WORKSHOP_SHA = "ae9862ce75687bf4c3d0a57fb142d68021589e7b225668c2c094754a520d122d"
+WORKSHOP_SIZE = 157489975
 WORKSHOP_ROOT = "Z-Manga-Workshop-2.5.0-rc.4-for-AIVCP-0.12.0-rc.4-windows-x64-portable"
 WORKSHOP_SOURCE_COMMIT = "b274d0edcebfb35406fb5edf0dc85c6a537b62aa"
 PUBLISHER_VERSION = "0.9.0-rc.3"
 PUBLISHER_NAME = "youtube-publisher-center-v0.9.0-rc.3-windows-amd64.zip"
-PUBLISHER_SHA = "0cbc58dd7d2cee6b8e8f4bbba84d3d626bbdf17ba50e10dbf47f20b33b412d37"
-PUBLISHER_SIZE = 32691503
+PUBLISHER_SHA = "a472ab385915f146448dc2a99e168ec4073916852c963fdfbf8d6dc39b4d465b"
+PUBLISHER_SIZE = 33022006
 PUBLISHER_ROOT = "youtube-publisher-center-v0.9.0-rc.3-windows-amd64"
-PUBLISHER_SOURCE_COMMIT = "af41da145d684745bae2eb62d8afc0d6426e6c79"
-PUBLISHER_SOURCE_SNAPSHOT_SHA = "2b1fc7716010ac98b6000e8aa4e3f87f3aad99377b27fc739b5cb4ca0978813b"
+PUBLISHER_SOURCE_COMMIT = "606a5e6592ad20a747cd5494a9dde54fdaec6fb0"
+PUBLISHER_SOURCE_SNAPSHOT_SHA = "b9d1c52e98d79154c1c3c809c1178d570d67891b289682fb79c9ac345f714295"
 PUBLISHER_COMPONENT_MANIFEST_NAME = "publisher-component-manifest-v0.9.0-rc.3.json"
-PUBLISHER_COMPONENT_MANIFEST_SHA = "5477fadd35be10aa3b0217baa75acec5c25b229e408cdb35ac7c21a5ecf8fa92"
+PUBLISHER_COMPONENT_MANIFEST_SHA = "ada2fb31fd4c47c2f5888a127de7fcf2b992e3a6076d6d542def651f013bc95e"
 PUBLISHER_CONSTRAINTS_SHA = "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a"
 KOKORO_VARIANTS = ("cpu", "nvidia", "nvidia-blackwell")
 KOKORO_REUSE_VERSION = "0.10.0-rc.1"
@@ -522,8 +522,8 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
     shutil.copy2(publisher_source, publisher_target)
     kokoro_packages = reuse_kokoro_packages()
     assets = [
-        asset_record("unified-installer", bootstrap, version=VERSION, compatibleProductVersions=[VERSION], install=False, archiveRoot=f"AI-Video-Channel-Production-Unified-Installer-v{VERSION}", installSubpath="", license={"expression":"LicenseRef-AI-Video-Channel-Production-1.0","source":"LICENSE.md","reviewStatus":"product-license-applies"}, source={"repository":"https://github.com/coisu772-code/AI-/","commit":"LOCAL_COMMIT_TO_BE_RECORDED"}),
-        asset_record("core", core, version=VERSION, compatibleProductVersions=[VERSION], install=True, archiveRoot="ai-video-channel-production-core", installSubpath="", license={"expression":"LicenseRef-AI-Video-Channel-Production-1.0","source":"LICENSE.md","reviewStatus":"product-license-applies"}, source={"repository":"https://github.com/coisu772-code/AI-/","commit":"LOCAL_COMMIT_TO_BE_RECORDED"}),
+        asset_record("unified-installer", bootstrap, version=VERSION, compatibleProductVersions=[VERSION], install=False, archiveRoot=f"AI-Video-Channel-Production-Unified-Installer-v{VERSION}", installSubpath="", license={"expression":"LicenseRef-AI-Video-Channel-Production-1.0","source":"LICENSE.md","reviewStatus":"product-license-applies"}, source={"repository":"https://github.com/coisu772-code/AI-/","commit":"1a1a84460fa8c658368aeb02f52d41ed186b01b3"}),
+        asset_record("core", core, version=VERSION, compatibleProductVersions=[VERSION], install=True, archiveRoot="ai-video-channel-production-core", installSubpath="", license={"expression":"LicenseRef-AI-Video-Channel-Production-1.0","source":"LICENSE.md","reviewStatus":"product-license-applies"}, source={"repository":"https://github.com/coisu772-code/AI-/","commit":"1a1a84460fa8c658368aeb02f52d41ed186b01b3"}),
         asset_record("python-runtime", runtime, version=PYTHON_VERSION, compatibleProductVersions=[VERSION], install=True, archiveRoot=f"aivcp-python-runtime-{PYTHON_VERSION}", installSubpath="runtime/python", license={"expression":"PSF-2.0 AND bundled-third-party-licenses AND MIT","source":f"LICENSE.txt plus {EXPECTED_RUNTIME_LICENSE_ENTRIES} license entries covering {len(EXPECTED_RUNTIME_PACKAGE_NAMES)} packages and the bundled Deno runtime","reviewStatus":"technical-inventory-validated-release-owner-approval-required"}, source={"url":"https://github.com/astral-sh/python-build-standalone","build":PYTHON_BUILD,"technicalLicenseInventory":runtime["technicalLicenseInventory"],"bundledTools":runtime["bundledTools"]}),
         {"assetId":"workshop","fileName":WORKSHOP_NAME,"sizeBytes":WORKSHOP_SIZE,"sha256":WORKSHOP_SHA,"version":WORKSHOP_VERSION,"compatibleProductVersions":[VERSION],"install":True,"archiveRoot":WORKSHOP_ROOT,"installSubpath":"apps/workshop","license":{"expression":"LicenseRef-AIVCP-Workshop AND GPL-3.0-only","source":"licenses/application/LICENSE.md, licenses/ffmpeg/COPYING.GPLv3 and FFMPEG-PROVENANCE.txt inside archive","reviewStatus":"technical-inventory-validated-release-owner-approval-required"},"source":{"commit":WORKSHOP_SOURCE_COMMIT,"acceptanceStatus":"LOCAL_MERGED_ACCEPTANCE_PASS"}},
         {"assetId":"publisher-center","fileName":PUBLISHER_NAME,"sizeBytes":PUBLISHER_SIZE,"sha256":PUBLISHER_SHA,"version":PUBLISHER_VERSION,"compatibleProductVersions":[VERSION],"install":True,"archiveRoot":PUBLISHER_ROOT,"installSubpath":"apps/publisher","license":{"expression":"LicenseRef-AI-Video-Channel-Production-1.0 AND bundled-third-party-licenses","source":"LICENSE.md, THIRD-PARTY-NOTICES.json/.md and 101 third-party license texts inside archive","reviewStatus":"technical-inventory-validated-release-owner-approval-required"},"source":{"commit":PUBLISHER_SOURCE_COMMIT,"snapshotSha256":PUBLISHER_SOURCE_SNAPSHOT_SHA,"acceptanceStatus":"LOCAL_FORMAL_HANDOFF_AND_OFFLINE_SAFETY_PASS","componentManifest":{"fileName":PUBLISHER_COMPONENT_MANIFEST_NAME,"sha256":PUBLISHER_COMPONENT_MANIFEST_SHA},"constraintsCatalog":{"version":"2026.08.04.1","sha256":PUBLISHER_CONSTRAINTS_SHA,"normalization":"CRLF_AND_CR_TO_LF_BEFORE_SHA256"},"fileEntries":publisher_manifest["release_asset"]["file_entries"],"licenseReviewRequired":publisher_manifest["legal_inventory"]["review_required"]}},
