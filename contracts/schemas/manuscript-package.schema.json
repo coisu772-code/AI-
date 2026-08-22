@@ -487,7 +487,8 @@
           "type": "string",
           "enum": [
             "narration",
-            "dialogue"
+            "dialogue",
+            "sound_effect"
           ]
         },
         "emotion": {
@@ -498,8 +499,57 @@
         "text": {
           "type": "string",
           "minLength": 1
+        },
+        "soundPrompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "durationSeconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 5
+        },
+        "audioEngine": {
+          "const": "seed_audio"
+        },
+        "visualGenerationAllowed": {
+          "const": false
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "lineType": {
+                "const": "sound_effect"
+              }
+            },
+            "required": [
+              "lineType"
+            ]
+          },
+          "then": {
+            "required": [
+              "soundPrompt",
+              "durationSeconds",
+              "audioEngine",
+              "visualGenerationAllowed"
+            ],
+            "properties": {
+              "speakerId": {
+                "const": "sfx"
+              },
+              "emotion": {
+                "const": "sound_effect"
+              },
+              "text": {
+                "pattern": "^【sound：.+；时长[0-9]+(?:\\.[0-9]+)?秒】$"
+              }
+            }
+          }
+        }
+      ]
     },
     "targetScript": {
       "type": "object",
@@ -702,7 +752,8 @@
                 "type": "string",
                 "enum": [
                   "narration",
-                  "dialogue"
+                  "dialogue",
+                  "sound_effect"
                 ]
               },
               "emotion": {

@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from aivcp_tools.contracts import with_hash  # noqa: E402
 from aivcp_tools.errors import ToolError  # noqa: E402
-from aivcp_tools.production import ProductionCenter, production_package_hash  # noqa: E402
+from aivcp_tools.production import ProductionCenter, _normalize_codex_visual_plan, production_package_hash  # noqa: E402
 from aivcp_tools.review_documents import save_review_document  # noqa: E402
 from aivcp_tools.service import LocalToolService, ServiceConfig, tool_definitions  # noqa: E402
 from stage5_support import (  # noqa: E402
@@ -125,6 +125,476 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         self.assertEqual([f"P{index}" for index in range(12)], capabilities["steps"])
         self.assertFalse(capabilities["boundaries"]["readyPackage"])
         self.assertFalse(capabilities["boundaries"]["upload"])
+        self.assertEqual("1.3", capabilities["codexVisualPlan"]["schemaVersion"])
+        self.assertEqual("identity_only", capabilities["codexVisualPlan"]["referenceUsage"])
+        self.assertTrue(capabilities["codexVisualPlan"]["mangaImpactDirection"])
+        self.assertTrue(capabilities["codexVisualPlan"]["singleVisualFocus"])
+        self.assertTrue(capabilities["codexVisualPlan"]["exaggeratedFacialActing"])
+        self.assertTrue(capabilities["codexVisualPlan"]["semanticSceneGrouping"])
+        self.assertTrue(capabilities["codexVisualPlan"]["fullSeriesContext"])
+        self.assertTrue(capabilities["codexVisualPlan"]["visualSequencePlanning"])
+        self.assertTrue(capabilities["codexVisualPlan"]["continuityStateChain"])
+        self.assertTrue(capabilities["codexVisualPlan"]["temporalSequenceInSingleImageForbidden"])
+        self.assertEqual("failed_scene_only", capabilities["codexVisualPlan"]["failedPromptRepairScope"])
+        self.assertTrue(capabilities["codexVisualPlan"]["atomicImageReplacement"])
+        self.assertFalse(capabilities["codexVisualPlan"]["speechDurationMaySplitStoryboard"])
+        self.assertFalse(capabilities["codexVisualPlan"]["soundEffectStandaloneStoryboard"])
+        self.assertTrue(capabilities["audioRouting"]["humanVoiceEngineSelectedByUser"])
+        self.assertEqual("seed_audio", capabilities["audioRouting"]["soundEffectEngine"])
+        self.assertEqual(5.0, capabilities["audioRouting"]["soundEffectMaxDurationSeconds"])
+        self.assertFalse(capabilities["codexVisualPlan"]["workshopMayRewriteLockedPrompts"])
+        self.assertFalse(capabilities["codexVisualPlan"]["postGenerationVisualAudit"])
+
+        sound_lines = context.content.service.content._validate_lines(
+            [
+                {"lineId": "E01-L001", "episodeNumber": 1, "sequence": 1, "speakerId": "narrator", "lineType": "narration", "emotion": "紧张", "text": "她停在门前。"},
+                {"lineId": "E01-SFX01", "episodeNumber": 1, "sequence": 2, "speakerId": "sfx", "lineType": "sound_effect", "text": "【sound：门锁突然崩断；时长1.2秒】"},
+            ],
+            1,
+            field="targetScript",
+        )
+        self.assertEqual("seed_audio", sound_lines[1]["audioEngine"])
+        self.assertEqual(1.2, sound_lines[1]["durationSeconds"])
+        self.assertFalse(sound_lines[1]["visualGenerationAllowed"])
+        self.assert_tool_error(
+            "SCRIPT_SOUND_EFFECT_INVALID",
+            lambda: context.content.service.content._validate_lines(
+                [
+                    {"lineId": "E01-L001", "episodeNumber": 1, "sequence": 1, "speakerId": "narrator", "lineType": "narration", "emotion": "紧张", "text": "她停在门前。"},
+                    {"lineId": "E01-SFX01", "episodeNumber": 1, "sequence": 2, "speakerId": "sfx", "lineType": "sound_effect", "text": "【sound：过长的风声；时长6秒】"},
+                ],
+                1,
+                field="targetScript",
+            ),
+        )
+
+    def test_no_probe_voicevox_is_selectable_from_installed_catalog(self) -> None:
+        catalog = {
+            "engines": [
+                {
+                    "engineId": "voicevox_external",
+                    "displayName": "VOICEVOX 本地配音",
+                    "installed": True,
+                    "voices": [{"voiceId": "1"}, {"voiceId": "2"}],
+                },
+                {
+                    "engineId": "edge_tts",
+                    "displayName": "Edge TTS 在线配音",
+                    "installed": True,
+                    "voices": [{"voiceId": "ja-JP-KeitaNeural"}],
+                },
+                {
+                    "engineId": "seed_audio",
+                    "displayName": "Seed Audio",
+                    "installed": True,
+                    "voices": [{"voiceId": "seed-ja-01"}],
+                },
+            ]
+        }
+        workshop = {
+            "externalServiceProbeExecuted": False,
+            "voiceEngines": [
+                {"engine": "voicevox_external", "configured": True, "available": False},
+                {"engine": "edge_tts", "configured": True, "available": True},
+                {"engine": "seed_audio", "configured": True, "available": True},
+            ],
+        }
+        view = LocalToolService._production_voice_selection_view(catalog, workshop)
+        by_id = {item["engineId"]: item for item in view["humanVoiceEngines"]}
+        self.assertEqual("not_probed_is_not_unavailable", view["availabilityRule"])
+        self.assertTrue(by_id["voicevox_external"]["humanVoiceSelectable"])
+        self.assertEqual("not_probed", by_id["voicevox_external"]["runtimeStatus"])
+        self.assertEqual("configured_runtime_check_deferred", by_id["voicevox_external"]["selectionStatus"])
+        self.assertTrue(by_id["edge_tts"]["humanVoiceSelectable"])
+        self.assertFalse(by_id["seed_audio"]["humanVoiceSelectable"])
+        self.assertEqual("reserved_for_sound_effects", by_id["seed_audio"]["selectionStatus"])
+
+    def test_probed_unavailable_voice_engine_is_not_selectable(self) -> None:
+        catalog = {
+            "engines": [
+                {
+                    "engineId": "voicevox_external",
+                    "displayName": "VOICEVOX 本地配音",
+                    "installed": True,
+                    "voices": [{"voiceId": "1"}],
+                }
+            ]
+        }
+        workshop = {
+            "externalServiceProbeExecuted": True,
+            "voiceEngines": [{"engine": "voicevox_external", "configured": True, "available": False}],
+        }
+        view = LocalToolService._production_voice_selection_view(catalog, workshop)
+        choice = view["humanVoiceEngines"][0]
+        self.assertFalse(choice["humanVoiceSelectable"])
+        self.assertEqual("unavailable", choice["runtimeStatus"])
+        self.assertEqual("runtime_unavailable", choice["selectionStatus"])
+
+    def test_codex_visual_plan_locks_manga_design_and_scene_performance(self) -> None:
+        context = self.context()
+        manuscript_path, _ = self._upstream_paths(context)
+        manuscript = json.loads(manuscript_path.read_text(encoding="utf-8"))
+        config = context.content.service.production._validate_production_config(
+            {
+                **context.production_config,
+                "promptGeneration": {"image": True, "video": True},
+            }
+        )
+        visual_characters = [item for item in manuscript["characters"] if item.get("visualConsistencyRequired")]
+        plan = {
+            "schemaVersion": "1.3",
+            "author": "codex",
+            "visualDirection": {
+                "mode": "manga_impact",
+                "panelMode": "single_panel",
+                "singleFocalPoint": True,
+                "expressionMode": "exaggerated_story_driven",
+                "backgroundSimplification": "impact_adaptive",
+                "compositionMode": "story_driven",
+                "mangaDeviceLimit": 3,
+            },
+            "characterDesigns": [
+                {
+                    "characterId": item["characterId"],
+                    "designIntentZh": "从人物身份与性格建立漫画轮廓记忆点和近景记忆点。",
+                    "identityAnchorPromptZh": "漫画人物比例，独特脸型与眼型，分层发束，固定服装轮廓与配色。",
+                    "referenceSheetPromptZh": "单画布中一个角色只出现一次，单一正面略偏四分之三视角，只穿一套主服装，清楚服装层次与固定配饰，无剧情背景和可读文字。",
+                    "storyboardIdentityPromptZh": "保留脸型、眼型、发型、服装轮廓、配色和固定配饰。",
+                    "fixedFeatures": ["独特眼型", "分层发束", "固定服装轮廓"],
+                }
+                for item in visual_characters
+            ],
+            "continuityBible": {
+                "locations": [{"locationId": "LOC-01", "nameZh": "主要场景", "fixedFeatures": ["空间结构与主色固定"]}],
+                "costumes": [
+                    {"costumeId": f"CST-{index:02d}", "characterId": item["characterId"], "nameZh": "常服", "fixedFeatures": ["轮廓和配色固定"]}
+                    for index, item in enumerate(visual_characters, start=1)
+                ],
+                "props": [{"propId": "PROP-01", "nameZh": "剧情关键物", "fixedFeatures": ["外形和颜色固定"]}],
+            },
+            "seriesVisualPlan": {
+                "planningMode": "full_series_then_sequence_then_shot",
+                "allEpisodesRead": True,
+                "episodeNumbers": list(dict.fromkeys(line["episodeNumber"] for line in manuscript["targetScript"]["lines"])),
+                "timelineSummaryZh": "完整读取全部集数，按正式稿顺序冻结事件、伏笔与回收关系。",
+                "crossEpisodeContinuityZh": "跨集保持角色身份、服装、道具、地点与情绪结果连续。",
+            },
+            "scenePlans": [],
+        }
+        visual_ids = {item["characterId"] for item in visual_characters}
+        costume_by_character = {item["characterId"]: f"CST-{index:02d}" for index, item in enumerate(visual_characters, start=1)}
+        all_lines = manuscript["targetScript"]["lines"]
+        previous_scene_by_episode: dict[int, str] = {}
+        previous_exit_state_by_episode: dict[int, str] = {}
+        for index, line in enumerate(manuscript["targetScript"]["lines"], start=1):
+            visible = [line["speakerId"]] if line["speakerId"] in visual_ids else []
+            beat_id = "BEAT-HOOK" if index == 1 else "BEAT-REL" if index == 2 else "BEAT-CONFLICT"
+            narrative_function = "hook" if index == 1 else "relationship" if index == 2 else "conflict"
+            shot_scale = ("close_up", "wide", "medium")[(index - 1) % 3]
+            shot_view = ("three_quarter", "back_view", "over_the_shoulder")[(index - 1) % 3]
+            episode_number = line["episodeNumber"]
+            scene_id = f"CVP-E{episode_number:02d}-S{index:03d}"
+            sequence_id = f"SEQ-E{episode_number:02d}-01"
+            entry_state_id = previous_exit_state_by_episode.get(episode_number, f"STATE-E{episode_number:02d}-START")
+            exit_state_id = f"STATE-E{episode_number:02d}-S{index:03d}-OUT"
+            plan["scenePlans"].append(
+                {
+                    "sceneId": scene_id,
+                    "episodeNumber": episode_number,
+                    "sequenceId": sequence_id,
+                    "shotRole": "climax" if index == 1 else "reaction" if index == 2 else "action",
+                    "scriptLineIds": [line["lineId"]],
+                    "visibleCharacterIds": visible,
+                    "primaryCharacterId": visible[0] if visible else "",
+                    "complexityScore": 4,
+                    "impactLevel": 5 if index == 1 else 3,
+                    "expressionExaggeration": 5 if index == 1 and visible else 3 if visible else 1,
+                    "narrativeFunction": narrative_function,
+                    "storyBeatIds": [beat_id],
+                    "shot": {
+                        "scale": shot_scale,
+                        "angle": "dutch_angle" if index == 1 else "eye_level",
+                        "view": shot_view,
+                        "dialogueStaging": "reaction" if index == 1 else "action",
+                        "breakingComposition": index == 1,
+                        "breakingCompositionZh": "首镜斜切画框" if index == 1 else "常规画框内保持强焦点",
+                        "focalPointZh": "人物眼神与关键动作",
+                        "depthCompositionZh": "前景关键物、主体人物、后景关系对象形成三层",
+                        "posterCompositionZh": "明确单一焦点、冲突方向和有意义留白",
+                    },
+                    "visualReadability": {
+                        "storyInformationZh": "人物的动作与环境变化交代当前事件",
+                        "relationshipCueZh": "人物距离与朝向交代关系",
+                        "conflictOrCauseEffectCueZh": "关键物与反应动作交代因果",
+                        "withoutDialogueReadable": True,
+                    },
+                    "continuity": {
+                        "locationId": "LOC-01",
+                        "costumeIdsByCharacter": {character_id: costume_by_character[character_id] for character_id in visible},
+                        "propIds": ["PROP-01"],
+                        "changeJustificationZh": "延续同一场景、服装和关键物状态",
+                    },
+                    "continuityState": {
+                        "entryStateId": entry_state_id,
+                        "entryStateZh": "人物位置、朝向、视线、道具和环境状态承接上一镜。",
+                        "exitStateId": exit_state_id,
+                        "exitStateZh": "当前唯一动作完成后留下可供下一镜继承的状态。",
+                        "characterBlockingZh": "主角位于画面右侧，互动对象位于左侧，人物距离与力量方向明确。",
+                        "screenDirectionZh": "人物运动和压力方向保持由左向右，不无故跳轴。",
+                        "eyelineZh": "主角视线指向左侧互动对象或关键物。",
+                        "propStateZh": "关键物由当前持有人保持在因果视线方向。",
+                        "lightingStateZh": "同一场景主光方向、冷暖和明暗关系保持连续。",
+                        "carryOverFromSceneId": previous_scene_by_episode.get(episode_number, ""),
+                    },
+                    "emotionalBeat": {
+                        "category": "shock" if index == 1 else "none",
+                        "visualSignals": ["pupil_constriction", "step_back", "light_color_shift"] if index == 1 else [],
+                    },
+                    "performance": {
+                        "internalEmotion": "正在压住真实情绪",
+                        "visibleEmotion": "眼神由迟疑转为坚定",
+                        "intensity": 3,
+                        "gaze": "看向当前互动对象",
+                        "eyes": "虹膜高光收紧",
+                        "brows": "眉心轻收",
+                        "mouth": "嘴角绷紧",
+                        "headPose": "下巴略抬",
+                        "bodyPose": "重心从后脚移向前脚",
+                        "handGesture": "手指缓慢收紧",
+                        "interactionTarget": "当前对话对象",
+                        "changeFromPrevious": "从防御姿态转为主动回应",
+                    },
+                    "mangaComposition": {
+                        "coreMomentZh": "当前正式稿对应的唯一剧情瞬间",
+                        "singleVisualFocusZh": "主要角色骤变的眼神" if visible else "环境中突然出现的关键物",
+                        "primaryActionZh": "主要角色完成一个清晰动作" if visible else "关键物改变环境状态",
+                        "interactionZh": "主要角色与关系对象形成明确力量方向" if visible else "环境变化预示即将发生的冲突",
+                        "shotDesignZh": "单幅漫画分镜，以强透视和有意义留白保持单一焦点",
+                        "backgroundMode": "abstract_impact" if index == 1 else "selective_detail",
+                        "backgroundTreatmentZh": "高冲击镜头把背景压缩为抽象冲击线" if index == 1 else "只保留解释地点所需的空间特征",
+                        "continuityEssentialsZh": "保留当前地点、服装和关键物的固定特征",
+                        "clutterControlZh": "移除无关人物、装饰和不承担因果的道具",
+                        "mangaDevices": ["impact_burst", "heavy_shadow"] if index == 1 else [],
+                    },
+                    "facialActing": {
+                        "eyeShapeZh": "眼睑随情绪强度明显张开",
+                        "pupilZh": "瞳孔收紧并锁定互动对象",
+                        "browZh": "眉形产生不对称挤压",
+                        "mouthJawZh": "嘴角绷紧、下颌发力",
+                        "faceTensionZh": "眼下与嘴角肌肉出现可见张力",
+                        "exaggerationTechniqueZh": "以眼口比例和面部线条变化放大剧情冲击",
+                    } if visible else {},
+                    "bodyActing": {
+                        "lineOfActionZh": "身体形成指向互动对象的明确动作线",
+                        "centerOfGravityZh": "重心随情绪从后脚移向前脚",
+                        "shoulderSpineZh": "肩背从防御收缩转为主动展开",
+                        "handTensionZh": "手指由松弛转为明显收紧",
+                        "secondaryMotionZh": "头发和衣角沿动作方向产生次级运动",
+                    } if visible else {},
+                    "promptComponents": {
+                        "subjectActionZh": "主体完成与当前正式稿对应的明确动作",
+                        "visualStoryZh": "用人物距离、动作与关键物呈现事件因果",
+                        "performanceZh": "表情、视线、手势和身体重心可见",
+                        "cameraCompositionZh": "使用当前镜头合同形成焦点和空间层次",
+                        "continuityEnvironmentZh": "保持地点、服装和关键物连续",
+                        "lightingColorZh": "光色辅助当前情绪而不代替表演",
+                        "keyObjectZh": "关键物位于因果视线方向",
+                    },
+                    "imagePromptZh": "漫画分镜静态关键瞬间，人物表情与姿态服从当前剧情，无可读文字。",
+                    "videoPromptZh": "人物完成一次明确的表情与重心变化，镜头缓慢推进后停稳。",
+                }
+            )
+            previous_scene_by_episode[episode_number] = scene_id
+            previous_exit_state_by_episode[episode_number] = exit_state_id
+        first_scene_id = plan["scenePlans"][0]["sceneId"]
+        second_scene_id = plan["scenePlans"][1]["sceneId"]
+        remaining_scene_ids = [item["sceneId"] for item in plan["scenePlans"][2:]] or [second_scene_id]
+        plan["storyVisualPlan"] = {
+            "openingHookSceneId": first_scene_id,
+            "relationshipConflictSceneIds": [second_scene_id, remaining_scene_ids[0]],
+            "complexityLevel": 4,
+            "pageCountMode": "complexity_adaptive",
+            "plannedPageCount": len(plan["scenePlans"]),
+            "pageCountRationaleZh": "复杂关系、冲突与情绪节点一行一镜，保证画面因果清楚。",
+            "storyBeats": [
+                {"beatId": "BEAT-HOOK", "type": "hook", "summaryZh": "首镜建立观看钩子", "sourceLineIds": [all_lines[0]["lineId"]], "sceneIds": [first_scene_id]},
+                {"beatId": "BEAT-REL", "type": "relationship", "summaryZh": "交代人物关系", "sourceLineIds": [all_lines[1]["lineId"]], "sceneIds": [second_scene_id]},
+                {"beatId": "BEAT-CONFLICT", "type": "conflict", "summaryZh": "呈现核心冲突与推进", "sourceLineIds": [line["lineId"] for line in all_lines[2:]] or [all_lines[1]["lineId"]], "sceneIds": remaining_scene_ids},
+            ],
+            "visualSequences": [
+                {
+                    "sequenceId": f"SEQ-E{episode_number:02d}-01",
+                    "episodeNumber": episode_number,
+                    "sceneIds": [scene["sceneId"] for scene in plan["scenePlans"] if scene["episodeNumber"] == episode_number],
+                    "locationId": "LOC-01",
+                    "timeLightingZh": "同一时段，主光方向和环境明暗保持连续。",
+                    "paletteContrastZh": "环境综合色调固定，冲击镜头只提高局部明暗反差。",
+                    "spatialAxisZh": "主角保持画面右侧、互动对象保持左侧，运动方向不跳轴。",
+                    "openingStateId": next(scene for scene in plan["scenePlans"] if scene["episodeNumber"] == episode_number)["continuityState"]["entryStateId"],
+                    "closingStateId": [scene for scene in plan["scenePlans"] if scene["episodeNumber"] == episode_number][-1]["continuityState"]["exitStateId"],
+                    "continuityFromPreviousZh": "本集首个连续场景承接全剧时间线中的人物、服装与道具状态。",
+                    "shotLadder": [scene["shotRole"] for scene in plan["scenePlans"] if scene["episodeNumber"] == episode_number],
+                    "impactArc": [scene["impactLevel"] for scene in plan["scenePlans"] if scene["episodeNumber"] == episode_number],
+                }
+                for episode_number in list(dict.fromkeys(scene["episodeNumber"] for scene in plan["scenePlans"]))
+            ],
+            "promptCompiler": {
+                "mode": "manga_structured_budgeted_merge",
+                "imagePromptMaxChars": 600,
+                "imagePromptSoftMinChars": 280,
+                "imagePromptSoftMaxChars": 450,
+                "videoPromptMaxChars": 500,
+                "globalStyleRepeatedPerScene": False,
+                "identityFullProfileRepeatedPerScene": False,
+                "singlePanelDirectiveRequired": True,
+                "singleFocalPointRequired": True,
+                "clutterControlRequired": True,
+                "fullSeriesContextRequired": True,
+                "sequencePlanRequired": True,
+                "continuityStateRequired": True,
+                "temporalSequenceForbidden": True,
+                "shotRoleRequired": True,
+                "failureRepairScope": "failed_scene_only",
+            },
+        }
+        normalized = _normalize_codex_visual_plan(
+            plan,
+            manuscript=manuscript,
+            production_config=config,
+            synthetic=False,
+        )
+        self.assertEqual("identity_only", normalized["referenceUsage"])
+        self.assertEqual("manga_impact", normalized["visualDirection"]["mode"])
+        self.assertFalse(normalized["locks"]["workshopMayRewritePrompts"])
+        self.assertTrue(normalized["locks"]["singleVisualFocusRequired"])
+        self.assertTrue(normalized["locks"]["sequenceContinuityRequired"])
+        self.assertEqual("failed_scene_only", normalized["locks"]["failedPromptRepairScope"])
+        self.assertEqual(
+            [line["lineId"] for line in manuscript["targetScript"]["lines"]],
+            [line_id for scene in normalized["scenePlans"] for line_id in scene["scriptLineIds"]],
+        )
+        self.assertEqual(
+            ["expression", "gaze", "headPose", "bodyPose", "handGesture", "framing", "lighting", "background"],
+            normalized["characterDesigns"][0]["flexibleFeatures"],
+        )
+        _, publishing_path = self._upstream_paths(context)
+        assembled = context.content.service.production.assemble_package(
+            manuscript_path=manuscript_path,
+            publishing_path=publishing_path,
+            production_config={
+                **context.production_config,
+                "promptGeneration": {"image": True, "video": True},
+                "codexVisualPlan": plan,
+            },
+            production_preset={"id": "synthetic-codex-visual", "version": "1.0.0", "hash": "1" * 64, "targetRegion": "Japan"},
+            workshop_compatibility={"interfaceVersion": "2.1", "workshopVersion": "0.5.0-stage5"},
+            synthetic=True,
+        )
+        package_root = Path(assembled["packagePath"])
+        package_config = json.loads((package_root / "production_config.json").read_text(encoding="utf-8"))
+        package_characters = json.loads((package_root / "characters.json").read_text(encoding="utf-8"))["characters"]
+        self.assertEqual("codex", package_config["codexVisualPlan"]["author"])
+        self.assertEqual(
+            normalized["characterDesigns"][0]["referenceSheetPromptZh"],
+            next(item for item in package_characters if item["characterId"] == normalized["characterDesigns"][0]["characterId"])["referenceSheetPromptZh"],
+        )
+        visual_review = Path(assembled["userReviewDocuments"]["directory"]) / "11B_Codex角色设计与分镜提示词方案.md"
+        self.assertTrue(visual_review.is_file())
+        self.assertIn("只锁身份，不锁表情", visual_review.read_text(encoding="utf-8"))
+        invalid = json.loads(json.dumps(plan, ensure_ascii=False))
+        invalid["scenePlans"] = invalid["scenePlans"][:-1]
+        self.assert_tool_error(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            lambda: _normalize_codex_visual_plan(
+                invalid,
+                manuscript=manuscript,
+                production_config=config,
+                synthetic=False,
+            ),
+        )
+        invalid_character_reference = json.loads(json.dumps(plan, ensure_ascii=False))
+        invalid_character_reference["characterDesigns"][0]["referenceSheetPromptZh"] = "多视角角色设定页：正面、三分之二侧面、侧面、全身，并展示两套服装。"
+        self.assert_tool_error(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            lambda: _normalize_codex_visual_plan(
+                invalid_character_reference,
+                manuscript=manuscript,
+                production_config=config,
+                synthetic=False,
+            ),
+        )
+        repeated_emotion = json.loads(json.dumps(plan, ensure_ascii=False))
+        repeated_emotion["scenePlans"][1]["emotionalBeat"] = {
+            "category": "shock",
+            "visualSignals": ["gaze_change", "clenched_hand"],
+        }
+        repeated_emotion["scenePlans"][1]["shot"]["scale"] = "close_up"
+        repeated_emotion["scenePlans"][1]["shot"]["breakingComposition"] = True
+        self.assert_tool_error(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            lambda: _normalize_codex_visual_plan(
+                repeated_emotion,
+                manuscript=manuscript,
+                production_config=config,
+                synthetic=False,
+            ),
+        )
+        prompt_over_budget = json.loads(json.dumps(plan, ensure_ascii=False))
+        prompt_over_budget["scenePlans"][0]["imagePromptZh"] = "画" * 601
+        self.assert_tool_error(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            lambda: _normalize_codex_visual_plan(
+                prompt_over_budget,
+                manuscript=manuscript,
+                production_config=config,
+                synthetic=False,
+            ),
+        )
+        temporal_sequence = json.loads(json.dumps(plan, ensure_ascii=False))
+        temporal_sequence["scenePlans"][0]["imagePromptZh"] = "角色先走近石台，然后伸手触碰，随后光芒爆发。"
+        self.assert_tool_error(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            lambda: _normalize_codex_visual_plan(
+                temporal_sequence,
+                manuscript=manuscript,
+                production_config=config,
+                synthetic=False,
+            ),
+        )
+        broken_state_chain = json.loads(json.dumps(plan, ensure_ascii=False))
+        broken_state_chain["scenePlans"][1]["continuityState"]["entryStateId"] = "STATE-BROKEN"
+        self.assert_tool_error(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            lambda: _normalize_codex_visual_plan(
+                broken_state_chain,
+                manuscript=manuscript,
+                production_config=config,
+                synthetic=False,
+            ),
+        )
+        cluttered = json.loads(json.dumps(plan, ensure_ascii=False))
+        cluttered["scenePlans"][0]["mangaComposition"]["clutterControlZh"] = ""
+        self.assert_tool_error(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            lambda: _normalize_codex_visual_plan(
+                cluttered,
+                manuscript=manuscript,
+                production_config=config,
+                synthetic=False,
+            ),
+        )
+        flat_high_impact = json.loads(json.dumps(plan, ensure_ascii=False))
+        flat_high_impact["scenePlans"][0]["expressionExaggeration"] = 2
+        if flat_high_impact["scenePlans"][0]["visibleCharacterIds"]:
+            self.assert_tool_error(
+                "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                lambda: _normalize_codex_visual_plan(
+                    flat_high_impact,
+                    manuscript=manuscript,
+                    production_config=config,
+                    synthetic=False,
+                ),
+            )
 
     def test_real_package_video_scope_requires_current_task_authorization_and_retired_style_is_rejected(self) -> None:
         context = self.context(selection_mode="project_first_n_storyboards", count=1)
@@ -196,6 +666,20 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         )
         self.assertTrue(assembled_again["idempotent"])
         self.assertEqual(manifest["packageHash"], assembled_again["manifest"]["packageHash"])
+
+    def test_package_v21_allows_empty_description_hashtags_and_no_custom_thumbnail(self) -> None:
+        context = self.context(omit_optional_publishing_assets=True)
+        package_root = Path(context.package["packagePath"])
+        manifest = context.content.service.production.validate_package(package_root)
+        publishing = json.loads((package_root / "publishing.json").read_text(encoding="utf-8"))
+        self.assertEqual(8, len(manifest["files"]))
+        self.assertEqual("", publishing["descriptionBody"])
+        self.assertEqual([], publishing["hashtags"])
+        self.assertEqual("", publishing["thumbnail"])
+        self.assertEqual("youtube_auto", publishing["thumbnailMode"])
+        self.assertFalse((package_root / "confirmed_thumbnail.png").exists())
+        imported = context.content.service.production.import_package(package_root)
+        self.assertTrue(imported["roundTripValidated"])
 
     def test_package_assembly_rejects_user_visible_script_that_differs_from_machine_master(self) -> None:
         context = self.context()

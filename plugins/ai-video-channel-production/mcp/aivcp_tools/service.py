@@ -8,6 +8,7 @@ from typing import Any
 
 from .content import CONTENT_LOOP_VERSION, SOURCE_MODES, ContentLoop
 from .content_analysis import CONTENT_ANALYSIS_VERSION, ChannelDistillation
+from .creative_workspace import CREATIVE_WORKSPACE_VERSION, DOCUMENT_STAGES, PROMPT_STAGES, CreativeWorkspace
 from .data_center import DATA_CENTER_VERSION, DataCenter
 from .errors import ToolError
 from .original_imitation import ORIGINAL_IMITATION_VERSION, OriginalImitationWriting
@@ -24,13 +25,21 @@ from .confirmation_cards import normalize_confirmation_cards
 from .security import redact
 from .source_library import SOURCE_LIBRARY_VERSION, SourceLibrary
 from .store import ARCHIVE_FORMAT_VERSION, CHANNEL_SCHEMA_VERSION, SYSTEM_SCHEMA_VERSION, ChannelStore
+from .task_prompts import TASK_PROMPT_CONTRACT_VERSION, TASK_PROMPT_STAGES, TaskPromptRegistry
 from .video_deconstruction import VIDEO_DECONSTRUCTION_VERSION, VideoCopyDeconstruction
 from .voices import VoiceCatalog
 from .workshop_bridge import WorkshopBridge
 
 
+RETIRED_CONTENT_TOOL_PREFIXES = (
+    "video_deconstruction_",
+    "content_deconstruction_",
+    "original_imitation_",
+)
+
+
 LOCAL_TOOL_PROTOCOL_VERSION = "1.0.0"
-SERVICE_VERSION = "0.8.0-rc.2"
+SERVICE_VERSION = "0.12.0-rc.3"
 
 
 def default_data_root(plugin_root: Path | None = None) -> Path:
@@ -92,6 +101,8 @@ class LocalToolService:
         self.publisher = publisher_provider or provider_from_environment(config.data_root)
         self.voices = VoiceCatalog(config.voice_catalog_path)
         self.store = ChannelStore(config.data_root)
+        self.creative_workspace = CreativeWorkspace(self.store)
+        self.task_prompts = TaskPromptRegistry(self.store)
         self.sources = SourceLibrary(self.store)
         self.analysis = ChannelDistillation(self.store, self.sources, plugin_root=config.plugin_root)
         self.video_analysis = VideoCopyDeconstruction(
@@ -123,6 +134,7 @@ class LocalToolService:
             video_analyses=self.video_analysis,
             content_analyses=self.content_deconstruction,
             style_provider=self.original_imitation,
+            task_prompt_registry=self.task_prompts,
         )
         bridge = None
         if config.workshop_executable and config.workshop_isolation_root:
@@ -144,6 +156,22 @@ class LocalToolService:
             and publisher_v2_path.name.lower() == "publish-package-v2.exe"
         )
         publisher_capabilities = self.publisher.capabilities()
+        publisher_v2_capabilities: dict[str, Any] = {
+            "configured": publisher_v2_configured,
+            "formalHandoff": False,
+            "liveStatus": False,
+            "liveReceipt": False,
+            "networkExecution": False,
+        }
+        if publisher_v2_configured and publisher_v2_path is not None:
+            try:
+                publisher_v2_capabilities = PublisherV2Bridge(publisher_v2_path).capabilities()
+            except ToolError as exc:
+                publisher_v2_capabilities["reasonCode"] = exc.code
+        publisher_upload_available = bool(
+            publisher_capabilities.get("available", False)
+            and publisher_v2_capabilities.get("formalHandoff", False)
+        )
         configured_workshop_root = (self.config.workshop_isolation_root or (self.config.data_root / "workshop-isolation")).resolve()
         resolved_data_root = self.config.data_root.resolve()
         large_assets_under_data_root = (
@@ -154,10 +182,7 @@ class LocalToolService:
             "serviceVersion": SERVICE_VERSION,
             "protocolVersion": LOCAL_TOOL_PROTOCOL_VERSION,
             "publisherInterface": publisher_capabilities,
-            "publisherV2Bridge": {
-                "configured": publisher_v2_configured,
-                "networkExecution": False,
-            },
+            "publisherV2Bridge": publisher_v2_capabilities,
             "voiceCatalog": self.voices.capabilities(),
             "schemas": {
                 "systemDatabase": SYSTEM_SCHEMA_VERSION,
@@ -186,10 +211,13 @@ class LocalToolService:
                 "channelStrategyReport": "1.0.0",
                 "recommendationCard": "1.0.0",
                 "userReviewDocumentIndex": REVIEW_DOCUMENT_SCHEMA_VERSION,
+                "taskPromptContract": TASK_PROMPT_CONTRACT_VERSION,
+                "creativeWorkspace": CREATIVE_WORKSPACE_VERSION,
             },
             "storage": {
                 "userDataRoot": str(self.config.data_root),
                 "channelsRoot": str(self.config.data_root / "channels"),
+                "contentWorkspacesRoot": str(self.config.data_root / "content-workspaces"),
                 "productionRoot": str(self.config.data_root / "production"),
                 "workshopIsolationRoot": str(configured_workshop_root),
                 "backupsRoot": str(self.config.data_root / "backups"),
@@ -212,12 +240,15 @@ class LocalToolService:
                 "sourceIncrementalUpdate": True,
                 "sourceTaskRecovery": True,
                 "contentProduction": True,
+                "channelFreeCreativeWorkspace": True,
+                "productionBindingOnlyAfterExplicitStart": True,
+                "projectScopedAutoUploadAuthorization": True,
                 "channelDistillation": True,
-                "videoCopyDeconstruction": True,
-                "contentDeconstruction": True,
-                "directRewrite": True,
-                "synthesisRewrite": True,
-                "originalImitationWriting": True,
+                "videoCopyDeconstruction": False,
+                "contentDeconstruction": False,
+                "directRewrite": False,
+                "synthesisRewrite": False,
+                "originalImitationWriting": False,
                 "canonicalContentAnalysis": True,
                 "contentPackageHandoffCheck": True,
                 "userReadableReviewDocuments": True,
@@ -227,8 +258,15 @@ class LocalToolService:
                 "publishPackageAssembly": True,
                 "publishPackageValidation": True,
                 "publisherIsolatedImport": True,
+                "publisherFormalHandoff": publisher_v2_capabilities.get("formalHandoff", False),
+                "publisherLiveStatus": publisher_v2_capabilities.get("liveStatus", False),
                 "workshop": self.production.workshop_bridge is not None,
-                "upload": False,
+                "upload": publisher_upload_available,
+                "directUploadFromCodex": False,
+                "directNetworkUpload": False,
+                "formalPublisherHandoff": publisher_v2_capabilities.get("formalHandoff", False),
+                "publisherLiveReceipt": publisher_v2_capabilities.get("liveReceipt", False),
+                "publisherManagedUpload": publisher_v2_capabilities.get("formalHandoff", False),
                 "analytics": False,
                 "analyticsOwnerAuthorizationAvailable": False,
                 "dataCenter": True,
@@ -272,10 +310,126 @@ class LocalToolService:
         channel = matches[0]
         return channel
 
+    @staticmethod
+    def _assert_persistent_video_generation_disabled(defaults: Any) -> None:
+        video = defaults.get("videoGeneration") if isinstance(defaults, dict) else None
+        if isinstance(video, dict) and (video.get("enabled") is True or video.get("selectionMode") != "none"):
+            raise ToolError(
+                "PERSISTENT_VIDEO_GENERATION_NOT_ALLOWED",
+                "镜头视频生成不能保存为频道默认值；新项目固定为 enabled=false、selectionMode=none，只有当前任务明确指定镜头后才能临时开启。",
+            )
+
+    @staticmethod
+    def _assert_current_image_style_selected(defaults: Any) -> None:
+        image_style = defaults.get("imageStyle") if isinstance(defaults, dict) else None
+        if not isinstance(image_style, dict):
+            raise ToolError("IMAGE_STYLE_SELECTION_REQUIRED", "新频道必须明确选择当前图片风格预设或自定义画风。")
+        preset_id = image_style.get("presetId")
+        prompt = image_style.get("prompt")
+        current_builtin = preset_id in {f"visual_{index:02d}" for index in range(1, 37)}
+        custom = preset_id == "custom"
+        if not (current_builtin or custom) or not isinstance(prompt, str) or not prompt.strip():
+            raise ToolError("IMAGE_STYLE_SELECTION_REQUIRED", "图片风格必须使用 visual_01–visual_36 或非空自定义画风。")
+
+    @staticmethod
+    def _validate_task_video_generation_authorization(*, task_id: Any, overrides: Any, authorization: Any) -> None:
+        video = overrides.get("videoGeneration") if isinstance(overrides, dict) else None
+        if not isinstance(video, dict) or video.get("enabled") is not True:
+            return
+        expected = {"confirmed": True, "scope": "current_task", "taskId": task_id}
+        if not isinstance(authorization, dict) or any(authorization.get(key) != value for key, value in expected.items()):
+            raise ToolError(
+                "VIDEO_GENERATION_AUTHORIZATION_REQUIRED",
+                "只有用户在当前任务明确指定生成视频的镜头或范围后，才能临时开启视频生成。",
+            )
+        confirmation_ref = authorization.get("confirmationRef")
+        if not isinstance(confirmation_ref, str) or not confirmation_ref.startswith(f"task:{task_id}:"):
+            raise ToolError("VIDEO_GENERATION_AUTHORIZATION_REF_INVALID", "视频生成授权必须绑定当前任务。")
+
+    @staticmethod
+    def _production_voice_selection_view(
+        catalog: dict[str, Any], workshop_capabilities: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Build human-voice choices without treating a no-probe result as failure."""
+        workshop_engines = {
+            str(item.get("engine") or ""): item
+            for item in workshop_capabilities.get("voiceEngines", [])
+            if isinstance(item, dict) and str(item.get("engine") or "")
+        }
+        probe_executed = workshop_capabilities.get("externalServiceProbeExecuted") is True
+        choices: list[dict[str, Any]] = []
+        for engine in catalog.get("engines", []):
+            if not isinstance(engine, dict):
+                continue
+            engine_id = str(engine.get("engineId") or "")
+            if not engine_id:
+                continue
+            workshop = workshop_engines.get(engine_id, {})
+            installed = engine.get("installed") is True
+            configured = workshop.get("configured") is True
+            catalog_voice_count = len(engine.get("voices", [])) if isinstance(engine.get("voices"), list) else 0
+            catalog_ready = installed and catalog_voice_count > 0
+            reserved_for_sound_effects = engine_id == "seed_audio"
+            available_now: bool | None = bool(workshop.get("available")) if probe_executed else None
+            if not configured:
+                selection_status = "workshop_not_configured"
+            elif probe_executed and available_now is not True:
+                selection_status = "runtime_unavailable"
+            elif probe_executed:
+                selection_status = "ready"
+            else:
+                selection_status = "configured_runtime_check_deferred"
+            choices.append(
+                {
+                    "engineId": engine_id,
+                    "displayName": engine.get("displayName", engine_id),
+                    "catalogInstalled": installed,
+                    "catalogVoiceCount": catalog_voice_count,
+                    "workshopConfigured": configured,
+                    "runtimeStatus": (
+                        "available"
+                        if available_now is True
+                        else "unavailable"
+                        if available_now is False
+                        else "not_probed"
+                    ),
+                    "availableNow": available_now,
+                    "runtimeCheckDeferredToProductionStart": not probe_executed,
+                    "startupMode": (
+                        "workshop_managed_on_demand"
+                        if engine_id in {"voicevox_external", "kokoro"}
+                        else "provider_preflight_at_production_start"
+                    ),
+                    "humanVoiceSelectable": bool(
+                        catalog_ready
+                        and configured
+                        and not reserved_for_sound_effects
+                        and (not probe_executed or available_now is True)
+                    ),
+                    "reservedForSoundEffects": reserved_for_sound_effects,
+                    "selectionStatus": (
+                        "reserved_for_sound_effects" if reserved_for_sound_effects else selection_status
+                    ),
+                }
+            )
+        return {
+            "selectionAuthority": "pre_scanned_catalog_plus_workshop_configuration",
+            "catalogTool": "system_voice_catalog",
+            "externalServiceProbeExecuted": probe_executed,
+            "availabilityRule": "not_probed_is_not_unavailable",
+            "humanVoiceEngines": choices,
+        }
+
     def call(self, name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
         args = arguments or {}
         if not isinstance(args, dict):
             raise ToolError("INVALID_ARGUMENT", "工具参数必须是对象。")
+        if name.startswith(RETIRED_CONTENT_TOOL_PREFIXES):
+            raise ToolError(
+                "RETIRED_CONTENT_SKILL",
+                "旧拆解与旧仿写方向能力已经移除；新任务不会执行或恢复这些工具。",
+                details={"tool": name},
+            )
         if name == "system_capabilities":
             result = self.capabilities()
         elif name == "publisher_list_channels":
@@ -324,12 +478,14 @@ class LocalToolService:
             ):
                 raise ToolError("PUBLISHER_BINDING_CHANGED", "发布中心身份映射已变化，禁止完成建库。")
             requested_defaults = args.get("defaults")
+            self._assert_persistent_video_generation_disabled(requested_defaults)
+            self._assert_current_image_style_selected(requested_defaults)
             voice = requested_defaults.get("voice") if isinstance(requested_defaults, dict) else {}
             self.voices.validate_selection(voice.get("engineId"), voice.get("voiceId"))
             if requested_defaults.get("uploadPolicy") == "AUTO":
                 raise ToolError(
                     "AUTO_UPLOAD_NOT_AVAILABLE_STAGE2",
-                    "首次建库不能自动授权真实上传；阶段2只允许 DO_NOT_UPLOAD 或 REQUIRE_REVIEW。",
+                    "频道预设不能持久化自动上传；自动上传授权只允许绑定当前任务和当前项目。",
                 )
             if args.get("executionMode", "review") != "review":
                 raise ToolError(
@@ -352,18 +508,42 @@ class LocalToolService:
                 task_id=args.get("taskId"), channel_profile_id=args.get("channelProfileId")
             )
         elif name == "channel_resolve_production":
+            overrides = args.get("overrides")
+            if overrides is None:
+                overrides = {}
+            if not isinstance(overrides, dict):
+                raise ToolError("INVALID_OVERRIDE", "本次覆盖必须是对象。")
+            self._validate_task_video_generation_authorization(
+                task_id=args.get("taskId"),
+                overrides=overrides,
+                authorization=args.get("videoGenerationAuthorization"),
+            )
+            if not (
+                isinstance(overrides.get("videoGeneration"), dict)
+                and overrides["videoGeneration"].get("enabled") is True
+            ):
+                overrides = {
+                    **overrides,
+                    "videoGeneration": {
+                        "enabled": False,
+                        "selectionMode": "none",
+                        "fallbackPolicy": "pause",
+                    },
+                }
             result = self.store.resolve_production(
                 task_id=args.get("taskId"),
                 channel_profile_id=args.get("channelProfileId"),
                 binding_proof=args.get("bindingProof"),
-                overrides=args.get("overrides"),
+                overrides=overrides,
             )
         elif name == "channel_update_defaults":
             requested_defaults = args.get("defaults")
+            self._assert_persistent_video_generation_disabled(requested_defaults)
+            self._assert_current_image_style_selected(requested_defaults)
             if isinstance(requested_defaults, dict) and requested_defaults.get("uploadPolicy") == "AUTO":
                 raise ToolError(
                     "AUTO_UPLOAD_NOT_AVAILABLE_STAGE2",
-                    "阶段2不能把频道默认值改为自动上传；必须等待真实上传授权链。",
+                    "频道预设不能持久化自动上传；自动上传授权只允许绑定当前任务和当前项目。",
                 )
             result = self.store.update_defaults(
                 task_id=args.get("taskId"),
@@ -722,7 +902,134 @@ class LocalToolService:
             )
         elif name == "content_capabilities":
             result = self.content.capabilities()
+            result["creativeWorkspace"] = {
+                "version": CREATIVE_WORKSPACE_VERSION,
+                "defaultBeforeProduction": True,
+                "channelRequired": False,
+                "channelListLookupAllowed": False,
+                "productionBindingTrigger": "explicit-user-start-production",
+                "draftingRoutes": ["direct-draft", "provided-outline"],
+            }
+        elif name == "content_workspace_start":
+            result = self.creative_workspace.start(
+                task_id=args.get("taskId"),
+                project_id=args.get("projectId"),
+                workspace_id=args.get("workspaceId"),
+            )
+        elif name == "content_workspace_prompt_register":
+            result = self.creative_workspace.register_prompt(
+                task_id=args.get("taskId"),
+                workspace_id=args.get("workspaceId"),
+                binding_proof=args.get("workspaceBindingProof"),
+                prompt_id=args.get("promptId"),
+                prompt_path=args.get("promptPath"),
+                stage=args.get("stage"),
+                purpose=args.get("purpose"),
+                execution_order=args.get("executionOrder"),
+                field_mappings=args.get("fieldMappings"),
+                input_bindings=args.get("inputBindings"),
+            )
+        elif name == "content_workspace_document_save":
+            result = self.creative_workspace.save_document(
+                task_id=args.get("taskId"),
+                workspace_id=args.get("workspaceId"),
+                binding_proof=args.get("workspaceBindingProof"),
+                document_id=args.get("documentId"),
+                title=args.get("title"),
+                stage=args.get("stage"),
+                purpose=args.get("purpose"),
+                language=args.get("language"),
+                content=args.get("content"),
+                media_type=args.get("mediaType", "text/markdown"),
+                source_refs=args.get("sourceRefs"),
+            )
+        elif name == "content_workspace_document_confirm":
+            result = self.creative_workspace.confirm_document(
+                task_id=args.get("taskId"),
+                workspace_id=args.get("workspaceId"),
+                binding_proof=args.get("workspaceBindingProof"),
+                document_id=args.get("documentId"),
+                confirmation=args.get("confirmation"),
+            )
+        elif name == "content_workspace_document_reject":
+            result = self.creative_workspace.reject_document(
+                task_id=args.get("taskId"),
+                workspace_id=args.get("workspaceId"),
+                binding_proof=args.get("workspaceBindingProof"),
+                document_id=args.get("documentId"),
+                rejection=args.get("rejection"),
+            )
+        elif name == "content_workspace_auto_upload_authorize":
+            result = self.creative_workspace.authorize_auto_upload(
+                task_id=args.get("taskId"),
+                workspace_id=args.get("workspaceId"),
+                binding_proof=args.get("workspaceBindingProof"),
+                authorization=args.get("authorization"),
+            )
+        elif name == "content_workspace_bind_production":
+            result = self.creative_workspace.bind_for_production(
+                task_id=args.get("taskId"),
+                workspace_id=args.get("workspaceId"),
+                binding_proof=args.get("workspaceBindingProof"),
+                channel_profile_id=args.get("channelProfileId"),
+                channel_binding_proof=args.get("channelBindingProof"),
+                production_source_document_id=args.get("productionSourceDocumentId"),
+                production_config=args.get("productionConfig"),
+                confirmation=args.get("confirmation"),
+            )
+        elif name == "content_workspace_narration_prepare":
+            result = self.creative_workspace.prepare_narration(
+                task_id=args.get("taskId"),
+                workspace_id=args.get("workspaceId"),
+                binding_proof=args.get("workspaceBindingProof"),
+                source_document_id=args.get("sourceDocumentId"),
+                language=args.get("language"),
+                narration_title=args.get("narrationTitle"),
+                narration_title_chinese=args.get("narrationTitleChinese"),
+                narration_content=args.get("narrationContent"),
+                spoken_section_headings=args.get("spokenSectionHeadings", False),
+                cleanup_report=args.get("cleanupReport"),
+            )
+        elif name == "content_workspace_get":
+            result = self.creative_workspace.get(workspace_id=args.get("workspaceId"))
+        elif name == "content_task_prompt_register":
+            result = self.task_prompts.register(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                project_id=args.get("projectId"),
+                prompt_id=args.get("promptId"),
+                prompt_path=args.get("promptPath"),
+                stage=args.get("stage"),
+                purpose=args.get("purpose"),
+                execution_order=args.get("executionOrder"),
+                field_mappings=args.get("fieldMappings"),
+                input_bindings=args.get("inputBindings"),
+            )
+        elif name == "content_task_prompts_get":
+            self.store.assert_binding(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+            )
+            contracts = self.task_prompts.get_many(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                project_id=args.get("projectId"),
+                prompt_ids=args.get("promptIds"),
+            )
+            result = {
+                "contracts": contracts,
+                "promptReadPaths": [item["promptFile"]["absolutePath"] for item in contracts],
+                "scope": "current_task_only",
+                "skillInstalled": False,
+            }
         elif name == "content_project_start":
+            self.creative_workspace.assert_legacy_project_start_allowed(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                production_handoff_path=args.get("creativeWorkspaceProductionHandoffPath"),
+            )
             result = self.content.start_project(
                 task_id=args.get("taskId"),
                 channel_profile_id=args.get("channelProfileId"),
@@ -736,6 +1043,7 @@ class LocalToolService:
                 learning_snapshot=args.get("learningSnapshot"),
                 one_time_modifications=args.get("oneTimeModifications"),
                 long_term_learning=args.get("longTermLearning"),
+                task_prompt_contract_ids=args.get("taskPromptContractIds"),
                 resume_existing_project=args.get("resumeExistingProject", False),
                 resume_confirmation_ref=args.get("resumeConfirmationRef"),
             )
@@ -747,6 +1055,16 @@ class LocalToolService:
                 project_id=args.get("projectId"),
                 candidate_number=args.get("candidateNumber"),
                 candidate=args.get("candidate"),
+                planning_confirmation=args.get("planningConfirmation"),
+            )
+        elif name == "content_planning_document_save":
+            result = self.content.save_planning_document(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                project_id=args.get("projectId"),
+                document_type=args.get("documentType"),
+                content=args.get("content"),
             )
         elif name == "content_topic_finalize":
             result = self.content.finalize_topic(
@@ -767,6 +1085,17 @@ class LocalToolService:
                 project_id=args.get("projectId"),
                 document_type=args.get("documentType"),
                 content=args.get("content"),
+            )
+        elif name == "content_revision_begin":
+            result = self.content.begin_revision(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                project_id=args.get("projectId"),
+                scope=args.get("scope"),
+                reason=args.get("reason"),
+                requested_changes=args.get("requestedChanges"),
+                confirmation=args.get("confirmation"),
             )
         elif name == "content_review_documents_get":
             result = self.content.get_review_documents(
@@ -796,6 +1125,7 @@ class LocalToolService:
                 project_id=args.get("projectId"),
                 title=args.get("title"),
                 title_chinese=args.get("titleChinese"),
+                title_source=args.get("titleSource"),
                 title_candidates=args.get("titleCandidates"),
                 description_body=args.get("descriptionBody"),
                 description_chinese=args.get("descriptionChinese"),
@@ -830,13 +1160,28 @@ class LocalToolService:
             result = self.production.capabilities()
             if self.production.workshop_bridge is not None:
                 result["workshopHealth"] = self.production.workshop_bridge.health_check()
-                result["workshopCapabilities"] = self.production.workshop_bridge.capabilities()
+                workshop_capabilities = self.production.workshop_bridge.capabilities()
+                result["workshopCapabilities"] = workshop_capabilities
+                result["voiceSelection"] = self._production_voice_selection_view(
+                    self.voices.read(), workshop_capabilities
+                )
         elif name == "production_package_assemble":
             self.store.assert_binding(
                 task_id=args.get("taskId"),
                 channel_profile_id=args.get("channelProfileId"),
                 binding_proof=args.get("bindingProof"),
             )
+            production_config = args.get("productionConfig")
+            if not bool(args.get("synthetic", False)):
+                self._validate_task_video_generation_authorization(
+                    task_id=args.get("taskId"),
+                    overrides={
+                        "videoGeneration": production_config.get("videoGeneration")
+                        if isinstance(production_config, dict)
+                        else None
+                    },
+                    authorization=args.get("videoGenerationAuthorization"),
+                )
             state = self.content.get_project(
                 channel_profile_id=args.get("channelProfileId"),
                 project_id=args.get("projectId"),
@@ -848,7 +1193,7 @@ class LocalToolService:
             result = self.production.assemble_package(
                 manuscript_path=Path(manuscript_ref["path"]),
                 publishing_path=Path(publishing_ref["path"]),
-                production_config=args.get("productionConfig"),
+                production_config=production_config,
                 production_preset=args.get("productionPreset"),
                 workshop_compatibility=args.get("workshopCompatibility"),
                 synthetic=bool(args.get("synthetic", False)),
@@ -919,15 +1264,30 @@ class LocalToolService:
             }
             authorization = args.get("authorization")
             if isinstance(authorization, dict):
-                authorization = {
-                    key: {
-                        "granted": bool(value.get("granted", False)),
+                normalized_authorization: dict[str, dict[str, Any]] = {}
+                for key, value in authorization.items():
+                    if key not in {"workspace", "channel", "intent", "project"} or not isinstance(value, dict):
+                        continue
+                    normalized = {
+                        "granted": bool(value.get("granted", value.get("authorized", False))),
                         "version": value.get("version", ""),
-                        "confirmed_at": value.get("confirmedAt", ""),
+                        "confirmed_at": value.get("confirmedAt", value.get("confirmed_at", "")),
                     }
-                    for key, value in authorization.items()
-                    if key in {"workspace", "channel", "intent"} and isinstance(value, dict)
-                }
+                    if key == "project":
+                        normalized.update(
+                            {
+                                "source": value.get("source"),
+                                "scope": value.get("scope"),
+                                "project_id": value.get("projectId", value.get("project_id")),
+                                "upload_policy": value.get("uploadPolicy", value.get("upload_policy")),
+                                "channel_serial": value.get("channelSerial", value.get("channel_serial")),
+                                "privacy_status": value.get("privacyStatus", value.get("privacy_status")),
+                                "confirmation_ref": value.get("confirmationRef", value.get("confirmation_ref")),
+                                "revoked": value.get("revoked", False),
+                            }
+                        )
+                    normalized_authorization[key] = normalized
+                authorization = normalized_authorization
             try:
                 result = assemble_publish_package_v2(
                     production_result_root=Path(args.get("productionResultPath", "")),
@@ -957,10 +1317,16 @@ class LocalToolService:
                 raise ToolError(exc.code, str(exc), details=exc.details) from exc
         elif name == "import_publish_package_v2":
             result = PublisherV2Bridge.from_arguments(args).import_package(args)
+        elif name == "handoff_publish_package_v2":
+            result = PublisherV2Bridge.from_arguments(args).handoff_package(args)
         elif name == "get_publication_status":
             result = PublisherV2Bridge.from_arguments(args).read_status(args, receipt=False)
         elif name == "get_publication_receipt":
             result = PublisherV2Bridge.from_arguments(args).read_status(args, receipt=True)
+        elif name == "get_live_publication_status":
+            result = PublisherV2Bridge.from_arguments(args).read_live_status(args, receipt=False)
+        elif name == "get_live_publication_receipt":
+            result = PublisherV2Bridge.from_arguments(args).read_live_status(args, receipt=True)
         elif name == "data_center_capabilities":
             result = self.data_center.capabilities(
                 existing_channel_database_path=args.get("existingChannelDatabasePath")
@@ -996,6 +1362,11 @@ def tool_definitions() -> list[dict[str, Any]]:
         "taskId": {"type": "string", "minLength": 1, "maxLength": 160},
         "channelProfileId": {"type": "string", "minLength": 3, "maxLength": 160},
         "bindingProof": {"type": "string", "minLength": 20, "maxLength": 256},
+    }
+    workspace_binding_properties = {
+        "taskId": {"type": "string", "minLength": 1, "maxLength": 160},
+        "workspaceId": {"type": "string", "minLength": 3, "maxLength": 160},
+        "workspaceBindingProof": {"type": "string", "minLength": 20, "maxLength": 256},
     }
     definitions = [
         ("system_capabilities", "读取本地工具、协议、Schema、安全和阶段能力状态。", {}, []),
@@ -1039,14 +1410,22 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "channel_resolve_production",
-            "读取长期默认并合并仅本次覆盖；不修改频道默认值。",
-            {**binding_properties, "overrides": {"type": "object"}},
+            "读取长期默认并合并仅本次覆盖；镜头视频默认关闭，只有当前任务明确授权并指定范围后才临时开启。",
+            {
+                **binding_properties,
+                "overrides": {"type": "object"},
+                "videoGenerationAuthorization": {"type": "object"},
+            },
             ["taskId", "channelProfileId", "bindingProof"],
         ),
         (
             "channel_update_defaults",
             "在明确频道级确认后生成新的生产预设版本，不改旧项目快照。",
-            {**binding_properties, "defaults": {"type": "object"}, "confirmation": {"type": "object"}},
+            {
+                **binding_properties,
+                "defaults": {"type": "object"},
+                "confirmation": {"type": "object"},
+            },
             ["taskId", "channelProfileId", "bindingProof", "defaults", "confirmation"],
         ),
         (
@@ -1432,14 +1811,141 @@ def tool_definitions() -> list[dict[str, Any]]:
             ["channelProfileId", "imitationId"],
         ),
         (
+            "content_task_prompt_register",
+            "仅供已进入生产绑定的兼容项目登记外部提示词；自由创作阶段改用 content_workspace_prompt_register，避免提前绑定频道。",
+            {
+                **binding_properties,
+                "projectId": {"type": "string"},
+                "promptId": {"type": "string"},
+                "promptPath": {"type": "string"},
+                "stage": {"type": "string", "enum": sorted(TASK_PROMPT_STAGES)},
+                "purpose": {"type": "string", "minLength": 1, "maxLength": 240},
+                "executionOrder": {"type": "integer", "minimum": 1, "maximum": 1000},
+                "fieldMappings": {"type": "object", "additionalProperties": {"type": "string"}},
+                "inputBindings": {"type": "array", "items": {"type": "string"}},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "projectId", "promptId", "promptPath", "stage", "purpose", "executionOrder"],
+        ),
+        (
+            "content_task_prompts_get",
+            "按当前任务和项目读取临时提示词执行顺序、字段映射与原始文件路径；不返回其他任务合同，也不安装 Skill。",
+            {
+                **binding_properties,
+                "projectId": {"type": "string"},
+                "promptIds": {"type": "array", "items": {"type": "string"}},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "projectId"],
+        ),
+        (
             "content_capabilities",
-            "只读列出阶段4内容路线、可插拔接口、资料门和禁止触发的下游边界。",
+            "只读列出无频道自由创作、制作入口、阶段4内容路线及下游边界。",
             {},
             [],
         ),
         (
+            "content_workspace_start",
+            "为当前任务新建不绑定频道的自由创作工作区；不得读取频道列表、旧项目、旧频道学习或旧发布素材。",
+            {
+                "taskId": {"type": "string", "minLength": 1, "maxLength": 160},
+                "projectId": {"type": "string", "minLength": 1, "maxLength": 160},
+                "workspaceId": {"type": "string", "minLength": 3, "maxLength": 160},
+            },
+            ["taskId", "projectId"],
+        ),
+        (
+            "content_workspace_prompt_register",
+            "在无频道工作区登记用户本次临时提示词的路径、SHA-256、用途、顺序和映射；不复制正文、不安装 Skill。",
+            {
+                **workspace_binding_properties,
+                "promptId": {"type": "string", "minLength": 1, "maxLength": 128},
+                "promptPath": {"type": "string", "minLength": 1},
+                "stage": {"type": "string", "enum": sorted(PROMPT_STAGES)},
+                "purpose": {"type": "string", "minLength": 1, "maxLength": 240},
+                "executionOrder": {"type": "integer", "minimum": 1, "maximum": 1000},
+                "fieldMappings": {"type": "object", "additionalProperties": {"type": "string"}},
+                "inputBindings": {"type": "array", "items": {"type": "string"}},
+            },
+            ["taskId", "workspaceId", "workspaceBindingProof", "promptId", "promptPath", "stage", "purpose", "executionOrder"],
+        ),
+        (
+            "content_workspace_document_save",
+            "按用户任意创作顺序保存版本化可查看文档；新版本默认未确认，不自动进入下一阶段或制作。",
+            {
+                **workspace_binding_properties,
+                "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+                "title": {"type": "string", "minLength": 1, "maxLength": 240},
+                "stage": {"type": "string", "enum": sorted(DOCUMENT_STAGES)},
+                "purpose": {"type": "string", "minLength": 1, "maxLength": 500},
+                "language": {"type": "string", "minLength": 1, "maxLength": 32},
+                "content": {"type": "string", "minLength": 1},
+                "mediaType": {"type": "string", "enum": ["text/plain", "text/markdown", "application/json"]},
+                "sourceRefs": {"type": "array", "items": {"type": "string"}},
+            },
+            ["taskId", "workspaceId", "workspaceBindingProof", "documentId", "title", "stage", "purpose", "language", "content"],
+        ),
+        (
+            "content_workspace_document_confirm",
+            "只确认当前工作区某一文档的当前版本与 SHA-256；不会自动开始制作。",
+            {
+                **workspace_binding_properties,
+                "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+                "confirmation": {"type": "object"},
+            },
+            ["taskId", "workspaceId", "workspaceBindingProof", "documentId", "confirmation"],
+        ),
+        (
+            "content_workspace_document_reject",
+            "把用户在当前任务明确否决的当前文档版本永久标记为不可复用；新写作必须保存真正的新版本。",
+            {
+                **workspace_binding_properties,
+                "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+                "rejection": {"type": "object"},
+            },
+            ["taskId", "workspaceId", "workspaceBindingProof", "documentId", "rejection"],
+        ),
+        (
+            "content_workspace_auto_upload_authorize",
+            "记录用户在当前任务对当前项目明确说出的自动上传授权；最终中文验收卡仍展示，但不重复等待确认。",
+            {**workspace_binding_properties, "authorization": {"type": "object"}},
+            ["taskId", "workspaceId", "workspaceBindingProof", "authorization"],
+        ),
+        (
+            "content_workspace_bind_production",
+            "仅在用户明确开始制作并确认频道号、正式文稿和生产配置后，将无频道工作区一次性绑定到目标频道并生成生产交接清单。",
+            {
+                **workspace_binding_properties,
+                "channelProfileId": {"type": "string", "minLength": 3, "maxLength": 160},
+                "channelBindingProof": {"type": "string", "minLength": 20, "maxLength": 256},
+                "productionSourceDocumentId": {"type": "string", "minLength": 1, "maxLength": 128},
+                "productionConfig": {"type": "object"},
+                "confirmation": {"type": "object"},
+            },
+            ["taskId", "workspaceId", "workspaceBindingProof", "channelProfileId", "channelBindingProof", "productionSourceDocumentId", "productionConfig", "confirmation"],
+        ),
+        (
+            "content_workspace_narration_prepare",
+            "制作绑定完成后，把用户确认的正式稿整理为可直接配音的版本，并冻结一个默认直接用于发布的口播稿标题；不自动生成另一套标题。每集必须以匹配开场剧情的纯音效起播；其余音效必须放在触发它的完整旁白或对白之后，不能抢句或打断人声。章节标题是否朗读必须使用本次制作设置，不能从旧项目继承。",
+            {
+                **workspace_binding_properties,
+                "sourceDocumentId": {"type": "string", "minLength": 1, "maxLength": 128},
+                "language": {"type": "string", "minLength": 1, "maxLength": 32},
+                "narrationTitle": {"type": "string", "minLength": 1, "maxLength": 100},
+                "narrationTitleChinese": {"type": "string", "minLength": 1, "maxLength": 200},
+                "narrationContent": {"type": "string", "minLength": 1},
+                "spokenSectionHeadings": {"type": "boolean"},
+                "cleanupReport": {"type": "object"},
+            },
+            ["taskId", "workspaceId", "workspaceBindingProof", "sourceDocumentId", "language", "narrationTitle", "narrationContent"],
+        ),
+        (
+            "content_workspace_get",
+            "只读查看无频道自由创作工作区、已确认文档、自动上传授权和制作绑定状态。",
+            {"workspaceId": {"type": "string", "minLength": 3, "maxLength": 160}},
+            ["workspaceId"],
+        ),
+        (
             "content_project_start",
-            "冻结阶段2频道上下文与阶段3资料版本，建立阶段4内容项目和 G2 确认卡。",
+            "生产阶段兼容入口：只能在无频道工作区完成制作绑定后，用已确认内容建立频道内机器生产项目；自由创作阶段不得调用。",
             {
                 **binding_properties,
                 "projectId": {"type": "string"},
@@ -1447,19 +1953,32 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "sourcePackages": {"type": "array"},
                 "analysisPackages": {"type": "array"},
                 "writingStyleContracts": {"type": "array"},
+                "taskPromptContractIds": {"type": "array", "items": {"type": "string"}},
                 "providedOutline": {"type": "string"},
                 "learningSnapshot": {"type": "object"},
                 "oneTimeModifications": {"type": "array", "items": {"type": "string"}},
                 "longTermLearning": {},
                 "resumeExistingProject": {"type": "boolean"},
                 "resumeConfirmationRef": {"type": "string"},
+                "creativeWorkspaceProductionHandoffPath": {"type": "string"},
             },
             ["taskId", "channelProfileId", "bindingProof", "projectId", "sourceMode"],
         ),
         (
+            "content_planning_document_save",
+            "在 Topic Package 冻结前保存 01B 内容分析或 02 创作方案；任务级提示词正文仍留在用户文件中，不进入 Skill。",
+            {
+                **binding_properties,
+                "projectId": {"type": "string"},
+                "documentType": {"type": "string", "enum": ["source-analysis", "creative-plan"]},
+                "content": {"type": "string", "minLength": 80},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "projectId", "documentType", "content"],
+        ),
+        (
             "content_topic_checkpoint",
             "逐个保存一个真实完整候选；频道路线按 1/10 到 10/10 严格递增，不伪造检查点。",
-            {**binding_properties, "projectId": {"type": "string"}, "candidateNumber": {"type": "integer", "minimum": 1, "maximum": 10}, "candidate": {"type": "object"}},
+            {**binding_properties, "projectId": {"type": "string"}, "candidateNumber": {"type": "integer", "minimum": 1, "maximum": 10}, "candidate": {"type": "object"}, "planningConfirmation": {"type": "object"}},
             ["taskId", "channelProfileId", "bindingProof", "projectId", "candidateNumber", "candidate"],
         ),
         (
@@ -1469,6 +1988,19 @@ def tool_definitions() -> list[dict[str, Any]]:
             ["taskId", "channelProfileId", "bindingProof", "projectId", "ranking", "selectedCandidateId", "selectionReasons", "confirmation"],
         ),
         (
+            "content_revision_begin",
+            "仅在当前任务获得针对本项目和修改范围的明确确认后开启增量修订；保留旧版本供追溯，并使受影响的下游包失效。",
+            {
+                **binding_properties,
+                "projectId": {"type": "string"},
+                "scope": {"type": "string", "enum": ["creative-plan", "topic", "manuscript", "publishing"]},
+                "reason": {"type": "string", "minLength": 1},
+                "requestedChanges": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+                "confirmation": {"type": "object"},
+            },
+            ["taskId", "channelProfileId", "bindingProof", "projectId", "scope", "reason", "requestedChanges", "confirmation"],
+        ),
+        (
             "content_review_document_save",
             "把完整仿写初稿、编辑审核报告或修改前后对照立即保存为用户可直接查看的版本化文档。",
             {
@@ -1476,7 +2008,7 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "projectId": {"type": "string"},
                 "documentType": {
                     "type": "string",
-                    "enum": ["rewrite-draft-target", "editorial-review", "revision-log"],
+                    "enum": ["rewrite-draft-target", "rewrite-draft-zh", "editorial-review", "revision-log"],
                 },
                 "content": {"type": "string", "minLength": 40},
             },
@@ -1484,21 +2016,21 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "content_review_documents_get",
-            "只读列出项目的用户审核文档、当前版本、路径和 SHA-256，不改变项目进度。",
+            "只读列出项目的用户审核文档、当前版本、可点击绝对路径、SHA-256、用途边界和来源合同绑定；自动模式也必须向用户展示新增文档。",
             {"channelProfileId": {"type": "string"}, "projectId": {"type": "string"}},
             ["channelProfileId", "projectId"],
         ),
         (
             "content_manuscript_finalize",
-            "校验目标语言原生母稿、逐行中文审核映射、角色音色、合并质量门和独立外语质量保险门后冻结 Manuscript Package v1。",
+            "校验目标语言正式配音稿、逐行中文审核映射、角色音色、合并质量门和独立外语质量保险门后冻结 Manuscript Package v1，并生成绑定该包的 07 正式口播稿与 08 中文审核稿。旁白与对白不设固定时长硬上限；每集第一行必须是匹配开场的纯音效，其余纯音效必须紧跟触发它的完整人声，独占一行并严格写成【sound：具体描述；时长1.2秒】，最长5秒、speakerId=sfx、固定 Seed Audio、禁止独立画面且禁止生成字幕。",
             {**binding_properties, "projectId": {"type": "string"}, "storyBible": {"type": "object"}, "characters": {"type": "array"}, "targetScript": {"type": "array"}, "chineseAuditScript": {"type": ["array", "null"]}, "qualityGate": {"type": "object"}, "foreignLanguageQualityGate": {"type": "object"}, "confirmation": {"type": "object"}, "authoringMode": {"type": "string"}},
             ["taskId", "channelProfileId", "bindingProof", "projectId", "storyBible", "characters", "targetScript", "qualityGate", "foreignLanguageQualityGate", "confirmation"],
         ),
         (
             "content_publishing_finalize",
-            "只读取确认母稿，校验唯一标题、简介、8–12 个 Hashtags、封面与 CTR 联评后冻结 Publishing Asset Package v1。",
-            {**binding_properties, "projectId": {"type": "string"}, "title": {"type": "string"}, "titleChinese": {"type": "string"}, "titleCandidates": {"type": "array", "minItems": 6, "maxItems": 6}, "descriptionBody": {"type": "string"}, "descriptionChinese": {"type": "string"}, "storySummaryChinese": {"type": "string"}, "hashtags": {"type": "array"}, "hashtagTranslations": {"type": "array"}, "thumbnailProvider": {"type": "object"}, "thumbnailStrategy": {"type": "object"}, "thumbnailCandidates": {"type": "array", "minItems": 5, "maxItems": 5}, "selectedThumbnailId": {"type": "string"}, "thumbnail": {"type": "object"}, "thumbnailTextChinese": {"type": "string"}, "ctrReview": {"type": "object"}, "confirmation": {"type": "object"}},
-            ["taskId", "channelProfileId", "bindingProof", "projectId", "title", "titleChinese", "titleCandidates", "descriptionBody", "descriptionChinese", "storySummaryChinese", "hashtags", "hashtagTranslations", "thumbnailProvider", "thumbnailStrategy", "thumbnailCandidates", "selectedThumbnailId", "thumbnail", "thumbnailTextChinese", "ctrReview", "confirmation"],
+            "只读取确认母稿并默认继承口播稿标题。简介、Hashtags 和自定义封面全部可选：只有用户明确提供或要求生成时才接收；未要求自定义封面时冻结 youtube_auto，不调用封面生成或 thumbnails.set。",
+            {**binding_properties, "projectId": {"type": "string"}, "title": {"type": "string"}, "titleChinese": {"type": "string"}, "titleSource": {"type": "string", "enum": ["confirmed_narration", "user_confirmed", "generated_candidates"]}, "titleCandidates": {"type": "array", "minItems": 1, "maxItems": 6}, "descriptionBody": {"type": "string"}, "descriptionChinese": {"type": "string"}, "storySummaryChinese": {"type": "string"}, "hashtags": {"type": "array"}, "hashtagTranslations": {"type": "array"}, "thumbnailProvider": {"type": "object"}, "thumbnailStrategy": {"type": "object"}, "thumbnailCandidates": {"type": "array", "minItems": 5, "maxItems": 5}, "selectedThumbnailId": {"type": "string"}, "thumbnail": {"type": "object"}, "thumbnailTextChinese": {"type": "string"}, "ctrReview": {"type": "object"}, "confirmation": {"type": "object"}},
+            ["taskId", "channelProfileId", "bindingProof", "projectId", "title", "titleChinese", "storySummaryChinese", "confirmation"],
         ),
         (
             "content_project_get",
@@ -1520,19 +2052,20 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "production_capabilities",
-            "只读检查标准生产包、制作任务、FFmpeg、工坊桥和发布隔离边界。",
+            "只读检查标准生产包、制作任务、FFmpeg、工坊桥和发布隔离边界。人物配音必须以 voiceSelection.humanVoiceEngines 为可选依据；externalServiceProbeExecuted=false 时，旧 available=false 只表示未探测，不能判定引擎不可用。",
             {},
             [],
         ),
         (
             "production_package_assemble",
-            "从已确认的 Manuscript 与 Publishing Asset 组装并硬门校验 Production Package v2.1。",
+            "从已确认的 Manuscript 与 Publishing Asset 组装 Production Package v2.1。productionConfig 必须保存用户本次选择的人物配音引擎，角色音色只能从该引擎推荐并在当前项目锁定；每集开场必须有 Seed Audio，其他音效只能在触发人声完整结束后播放、与触发句共用分镜、不得生成字幕或独立画面。开启图片或视频提示词时，codexVisualPlan 必须按同一视觉时刻细分分镜，单镜最多三条同一视觉时刻的人声，并在动作、视线、情绪或因果变化处继续拆分；同时执行生图安全预检，工坊不得重写。",
             {
                 **binding_properties,
                 "projectId": {"type": "string"},
                 "productionConfig": {"type": "object"},
                 "productionPreset": {"type": "object"},
                 "workshopCompatibility": {"type": "object"},
+                "videoGenerationAuthorization": {"type": "object"},
                 "synthetic": {"type": "boolean"},
             },
             ["taskId", "channelProfileId", "bindingProof", "projectId", "productionConfig", "productionPreset", "workshopCompatibility"],
@@ -1631,10 +2164,12 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "import_publish_package_v2",
-            "通过隔离发布中心 CLI 导入 .ready 包；强制 networkExecution=false，不触碰正式数据库。",
+            "把真实 .ready 包本地移交正式发布中心，或在显式测试模式导入隔离数据库；本调用不执行网络上传。",
             {
                 "publisherCliPath": {"type": "string"},
                 "packagePath": {"type": "string"},
+                "handoffMode": {"type": "string", "enum": ["formal", "isolated"]},
+                "publisherDataDir": {"type": "string"},
                 "inboxPath": {"type": "string"},
                 "databasePath": {"type": "string"},
                 "isolationRoot": {"type": "string"},
@@ -1644,31 +2179,69 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "ffprobePath": {"type": "string"},
                 "networkExecution": {"const": False},
             },
-            ["publisherCliPath", "packagePath", "inboxPath", "databasePath", "isolationRoot", "networkExecution"],
+            ["publisherCliPath", "packagePath", "networkExecution"],
+        ),
+        (
+            "handoff_publish_package_v2",
+            "在当前任务完成 G6 最终中文验收后，把 AUTO 发布包正式交接给发布中心；本工具只写本地 READY 状态，不直接执行网络上传。",
+            {
+                "publisherCliPath": {"type": "string"},
+                "publisherDataPath": {"type": "string"},
+                "packagePath": {"type": "string"},
+                "finalReviewApproval": {"type": "object"},
+                "networkExecution": {"const": False},
+            },
+            ["publisherCliPath", "packagePath", "finalReviewApproval", "networkExecution"],
         ),
         (
             "get_publication_status",
             "从隔离发布中心 SQLite 只读查询本地或真实状态，不推进任务。",
             {
                 "publisherCliPath": {"type": "string"},
+                "handoffMode": {"type": "string", "enum": ["formal", "isolated"]},
+                "publisherDataDir": {"type": "string"},
                 "databasePath": {"type": "string"},
                 "isolationRoot": {"type": "string"},
                 "publishIntentId": {"type": "string"},
                 "networkExecution": {"const": False},
             },
-            ["publisherCliPath", "databasePath", "isolationRoot", "publishIntentId", "networkExecution"],
+            ["publisherCliPath", "publishIntentId", "networkExecution"],
+        ),
+        (
+            "get_live_publication_status",
+            "从正式发布中心只读查询真实任务状态，不推进任务。",
+            {
+                "publisherCliPath": {"type": "string"},
+                "publisherDataPath": {"type": "string"},
+                "publishIntentId": {"type": "string"},
+                "networkExecution": {"const": False},
+            },
+            ["publisherCliPath", "publishIntentId", "networkExecution"],
+        ),
+        (
+            "get_live_publication_receipt",
+            "从正式发布中心只读获取真实 YouTube 回执；没有 video ID 时返回 not_available。",
+            {
+                "publisherCliPath": {"type": "string"},
+                "publisherDataPath": {"type": "string"},
+                "publishIntentId": {"type": "string"},
+                "networkExecution": {"const": False},
+            },
+            ["publisherCliPath", "publishIntentId", "networkExecution"],
         ),
         (
             "get_publication_receipt",
             "只读获取真实发布回执；没有真实 YouTube video ID 时明确返回 not_available。",
             {
                 "publisherCliPath": {"type": "string"},
+                "handoffMode": {"type": "string", "enum": ["formal", "isolated"]},
+                "publisherDataDir": {"type": "string"},
                 "databasePath": {"type": "string"},
                 "isolationRoot": {"type": "string"},
                 "publishIntentId": {"type": "string"},
                 "networkExecution": {"const": False},
             },
-            ["publisherCliPath", "databasePath", "isolationRoot", "publishIntentId", "networkExecution"],
+            ["publisherCliPath", "publishIntentId", "networkExecution"],
         ),
         (
             "data_center_capabilities",
@@ -1750,4 +2323,5 @@ def tool_definitions() -> list[dict[str, Any]]:
             "inputSchema": {**object_schema, "properties": properties, "required": required},
         }
         for name, description, properties, required in definitions
+        if not name.startswith(RETIRED_CONTENT_TOOL_PREFIXES)
     ]

@@ -12,6 +12,14 @@ PRODUCT_ID = "ai-video-channel-production"
 REQUIRED_TOOLS = (
     "system_capabilities",
     "content_capabilities",
+    "content_workspace_start",
+    "content_workspace_narration_prepare",
+    "production_capabilities",
+    "data_center_capabilities",
+)
+CAPABILITY_TOOLS = (
+    "system_capabilities",
+    "content_capabilities",
     "production_capabilities",
     "data_center_capabilities",
 )
@@ -98,7 +106,11 @@ def main() -> int:
             json.loads((expected_install / "current" / "install-state.json").read_text(encoding="utf-8-sig")).get("releaseManifestSha256", "")
         ),
         "AIVCP_WORKSHOP_EXECUTABLE": str((active_root / "apps/workshop/Z 漫剧工坊.exe").resolve()),
-        "AIVCP_WORKSHOP_ISOLATION_ROOT": str((data_root / "workshop-isolation").resolve()),
+        # Keep the installation-owned public isolation path lexical.  It may be a
+        # deliberate junction to the actual production directory; resolving the
+        # junction here would incorrectly reject the descriptor written by the
+        # installer even though both paths identify the same isolated storage.
+        "AIVCP_WORKSHOP_ISOLATION_ROOT": str(data_root / "workshop-isolation"),
         "AIVCP_FFMPEG_PATH": str((active_root / "apps/workshop/tools/ffmpeg/bin/ffmpeg.exe").resolve()),
         "AIVCP_FFPROBE_PATH": str((active_root / "apps/workshop/tools/ffmpeg/bin/ffprobe.exe").resolve()),
         "AIVCP_PUBLISHER_CHANNEL_LIST_EXE": str((active_root / "apps/publisher/channel-list.exe").resolve()),
@@ -109,6 +121,19 @@ def main() -> int:
         "AIVCP_PUBLISHER_NETWORK_EXECUTION": "false",
         "PYTHONUTF8": "1",
         "PYTHONDONTWRITEBYTECODE": "1",
+        "AIVCP_YT_DLP_COMMAND_JSON": json.dumps(
+            [
+                str(runtime_python),
+                "-m",
+                "yt_dlp",
+                "--js-runtimes",
+                f"deno:{active_root / 'runtime/python/tools/deno.exe'}",
+                "--ffmpeg-location",
+                str(active_root / "apps/workshop/tools/ffmpeg/bin"),
+            ],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ),
     }
     if server.get("type") != "stdio" or server.get("cwd") != ".":
         raise SystemExit("Cached plugin MCP descriptor is not locked stdio with cache-relative cwd.")
@@ -149,14 +174,37 @@ def main() -> int:
         environment,
     )
     responses.append(list_response)
-    tool_names = {str(tool["name"]) for tool in list_response["result"]["tools"]}
+    tool_definitions = {str(tool["name"]): tool for tool in list_response["result"]["tools"]}
+    tool_names = set(tool_definitions)
     missing = set(REQUIRED_TOOLS) - tool_names
     if missing:
         raise SystemExit(f"Cached plugin MCP tools/list is missing: {sorted(missing)}")
+    narration_schema = tool_definitions["content_workspace_narration_prepare"].get("inputSchema", {})
+    narration_required = narration_schema.get("required", [])
+    if "narrationTitle" not in narration_required or "narrationTitleChinese" in narration_required:
+        raise SystemExit("Cached plugin narration title schema is not using the conditional Chinese-review contract.")
+    publishing_tool = tool_definitions.get("content_publishing_finalize")
+    if publishing_tool is None:
+        raise SystemExit("Cached plugin MCP tools/list is missing content_publishing_finalize.")
+    publishing_schema = publishing_tool.get("inputSchema", {})
+    publishing_required = publishing_schema.get("required", [])
+    publishing_properties = publishing_schema.get("properties", {})
+    title_candidates_schema = publishing_properties.get("titleCandidates", {})
+    title_source_schema = publishing_properties.get("titleSource", {})
+    if (
+        "titleCandidates" in publishing_required
+        or title_candidates_schema.get("minItems") != 1
+        or title_candidates_schema.get("maxItems") != 6
+        or title_source_schema.get("enum") != ["confirmed_narration", "user_confirmed", "generated_candidates"]
+    ):
+        raise SystemExit("Cached plugin publishing title schema still forces generated title candidates.")
 
     capability_status: dict[str, str] = {}
     component_integration: dict[str, object] = {}
-    for request_id, tool_name in enumerate(REQUIRED_TOOLS, start=2):
+    component_integration["narrationTitleRequired"] = True
+    component_integration["narrationTitleChineseConditional"] = True
+    component_integration["generatedTitleCandidatesOptional"] = True
+    for request_id, tool_name in enumerate(CAPABILITY_TOOLS, start=2):
         response = invoke_cached_plugin(
             command,
             arguments,
@@ -192,6 +240,7 @@ def main() -> int:
         if tool_name == "production_capabilities":
             workshop_health = result.get("workshopHealth", {})
             workshop_capabilities = result.get("workshopCapabilities", {})
+            codex_visual_plan = result.get("codexVisualPlan", {})
             voice_catalog = json.loads(Path(expected_environment["AIVCP_VOICE_CATALOG"]).read_text(encoding="utf-8-sig"))
             covered_voice_engines = {
                 str(item.get("engineId"))
@@ -215,6 +264,31 @@ def main() -> int:
                 or "2.1" not in workshop_capabilities.get("supportedPackageVersions", [])
                 or workshop_capabilities.get("externalServiceProbeExecuted") is not False
                 or not reported_voice_engines.issubset(covered_voice_engines)
+                or codex_visual_plan.get("schemaVersion") != "1.3"
+                or codex_visual_plan.get("storyVisualPlanning") is not True
+                or codex_visual_plan.get("complexityAdaptivePageCount") is not True
+                or codex_visual_plan.get("criticalEmotionVisualSignals") is not True
+                or codex_visual_plan.get("continuityBible") is not True
+                or codex_visual_plan.get("mangaImpactDirection") is not True
+                or codex_visual_plan.get("singlePanel") is not True
+                or codex_visual_plan.get("singleVisualFocus") is not True
+                or codex_visual_plan.get("exaggeratedFacialActing") is not True
+                or codex_visual_plan.get("bodyLineOfAction") is not True
+                or codex_visual_plan.get("adaptiveBackgroundSimplification") is not True
+                or codex_visual_plan.get("clutterControl") is not True
+                or codex_visual_plan.get("fullSeriesContext") is not True
+                or codex_visual_plan.get("visualSequencePlanning") is not True
+                or codex_visual_plan.get("continuityStateChain") is not True
+                or codex_visual_plan.get("temporalSequenceInSingleImageForbidden") is not True
+                or codex_visual_plan.get("failedPromptRepairScope") != "failed_scene_only"
+                or codex_visual_plan.get("atomicImageReplacement") is not True
+                or codex_visual_plan.get("mangaDeviceLimit") != 3
+                or codex_visual_plan.get("promptBudgets") != {
+                    "imageSoftMinChars": 280,
+                    "imageSoftMaxChars": 450,
+                    "imageMaxChars": 600,
+                    "videoMaxChars": 500,
+                }
             ):
                 raise SystemExit("Cached plugin workshop bridge or voice-engine catalog coverage is incomplete.")
             component_integration["workshopHealthCheckExecuted"] = True
@@ -224,6 +298,16 @@ def main() -> int:
             component_integration["ffprobeAvailable"] = True
             component_integration["externalServiceProbeExecuted"] = False
             component_integration["workshopVoiceEnginesCovered"] = sorted(reported_voice_engines)
+            component_integration["codexVisualPlanSchema"] = "1.3"
+            component_integration["fullSeriesContext"] = True
+            component_integration["visualSequencePlanning"] = True
+            component_integration["continuityStateChain"] = True
+            component_integration["failedPromptRepairScope"] = "failed_scene_only"
+            component_integration["atomicImageReplacement"] = True
+            component_integration["criticalEmotionVisualSignals"] = True
+            component_integration["mangaImpactDirection"] = True
+            component_integration["singleVisualFocus"] = True
+            component_integration["exaggeratedFacialActing"] = True
         capability_status[tool_name] = "PASS"
 
     report = {

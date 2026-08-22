@@ -5,7 +5,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from stage4_support import MARKETS, PipelineContext, StaticPublisherProvider, build_complete_pipeline, start_topic_context
+from stage4_support import (
+    MARKETS,
+    PipelineContext,
+    StaticPublisherProvider,
+    build_complete_pipeline,
+    finalize_manuscript,
+    finalize_topic,
+    start_topic_context,
+)
 
 
 @dataclass
@@ -36,6 +44,27 @@ def production_config(
         "width": 640,
         "height": 360,
         "frameRate": 24,
+        "imageStyle": {
+            "presetId": "visual_01",
+            "prompt": "现代二维电视动画正片风格，干净轮廓线，克制赛璐璐上色，统一人物比例与色彩。",
+        },
+        "storyImageTextPolicy": "forbid_visible_text",
+        "voiceTtsProfile": {
+            "selectionSource": "user",
+            "engineId": "fixture-tts",
+            "recommendVoicesFromSelectedEngineOnly": True,
+            "lockScope": "current_project",
+        },
+        "soundEffects": {
+            "enabled": False,
+            "engineId": "seed_audio",
+            "modelId": "seed-audio-1.0",
+            "requireExplicitDuration": True,
+            "maxDurationSeconds": 5.0,
+            "standaloneStoryboard": False,
+            "mixWithAdjacentSpeech": True,
+            "backgroundMusicEnabled": False,
+        },
         "videoGeneration": video,
         "concurrency": {"image": 1, "video": 1, "tts": 1},
         "retryLimit": 2,
@@ -55,6 +84,7 @@ def build_stage5_context(
     selection_mode: str = "none",
     count: int | None = None,
     fallback_policy: str = "pause",
+    omit_optional_publishing_assets: bool = False,
 ) -> Stage5Context:
     content = start_topic_context(
         root,
@@ -63,7 +93,30 @@ def build_stage5_context(
         local_tool_service=local_tool_service,
         service_config=service_config,
     )
-    build_complete_pipeline(content, thumbnail_path)
+    if omit_optional_publishing_assets:
+        finalize_topic(content)
+        finalize_manuscript(content)
+        content.service.call(
+            "content_publishing_finalize",
+            {
+                "taskId": content.task_id,
+                "channelProfileId": content.channel_id,
+                "bindingProof": content.proof,
+                "projectId": content.project_id,
+                "title": content.market["title"],
+                "titleChinese": content.market["titleZh"],
+                "titleSource": "confirmed_narration",
+                "storySummaryChinese": "社区共同空间面临关闭，主角寻找记录并联合居民核验证据，最终让场所重新开放。",
+                "confirmation": {
+                    "confirmed": True,
+                    "mode": "review",
+                    "confirmedBy": "synthetic-fixture-user",
+                    "confirmedAt": "2026-08-04T03:00:00Z",
+                },
+            },
+        )
+    else:
+        build_complete_pipeline(content, thumbnail_path)
     config = production_config(
         delivery_mode=delivery_mode,
         selection_mode=selection_mode,
