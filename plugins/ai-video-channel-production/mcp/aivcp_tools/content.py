@@ -32,6 +32,8 @@ from .review_documents import (
 
 CONTENT_LOOP_VERSION = "1.0.0"
 PACKAGE_SCHEMA_VERSION = "1.0.0"
+SOUND_EFFECT_MAX_DURATION_SECONDS = 5.0
+SOUND_EFFECT_LINE_PATTERN = re.compile(r"^【sound：(.+?)；时长([0-9]+(?:\.[0-9]+)?)秒】$")
 SCORE_KEYS = (
     "audienceFit",
     "clickPotential",
@@ -1539,7 +1541,7 @@ class ContentLoop:
         per_episode: dict[int, int] = {index: 1 for index in range(1, episode_count + 1)}
         normalized: list[dict[str, Any]] = []
         for line in lines:
-            if not isinstance(line, dict) or "lineId" not in line or "emotion" not in line or "text" not in line:
+            if not isinstance(line, dict) or "lineId" not in line or "text" not in line:
                 raise ToolError("SCRIPT_LINES_INVALID", f"{field} 行字段不完整。")
             line_id = _safe_identifier(line["lineId"], "lineId")
             episode = line.get("episodeNumber", line.get("episode"))
@@ -1550,26 +1552,48 @@ class ContentLoop:
                 raise ToolError("SCRIPT_LINES_INVALID", f"{field} 行 ID 重复或集号无效。")
             if sequence != per_episode[episode] or line.get("globalOrder", expected_global) != expected_global:
                 raise ToolError("SCRIPT_ORDER_INVALID", f"{field} 的集内或全局顺序不连续。")
-            if line_type not in {"narration", "dialogue"} or not isinstance(speaker_id, str) or not speaker_id or not all(
-                isinstance(line[key], str) and line[key].strip() for key in ("emotion", "text")
-            ):
+            if line_type not in {"narration", "dialogue", "sound_effect"} or not isinstance(speaker_id, str) or not speaker_id or not isinstance(line["text"], str) or not line["text"].strip():
                 raise ToolError("SCRIPT_LINES_INVALID", f"{field} 的说话人、类型、情绪或文本无效。")
+            normalized_line: dict[str, Any] = {
+                "lineId": line_id,
+                "episodeNumber": episode,
+                "sequence": sequence,
+                "speakerId": speaker_id,
+                "lineType": line_type,
+                "emotion": line.get("emotion", "sound_effect"),
+                "text": line["text"].strip(),
+            }
+            if line_type == "sound_effect":
+                marker = SOUND_EFFECT_LINE_PATTERN.fullmatch(line["text"].strip())
+                if speaker_id != "sfx" or marker is None:
+                    raise ToolError(
+                        "SCRIPT_SOUND_EFFECT_INVALID",
+                        f"{field} 的纯音效必须独占一行并严格写成【sound：具体描述；时长1.2秒】，speakerId 必须为 sfx。",
+                    )
+                sound_prompt = marker.group(1).strip()
+                duration_seconds = float(marker.group(2))
+                if not sound_prompt or not 0 < duration_seconds <= SOUND_EFFECT_MAX_DURATION_SECONDS:
+                    raise ToolError("SCRIPT_SOUND_EFFECT_INVALID", f"{field} 的纯音效时长必须大于0且不超过5秒。")
+                normalized_line.update(
+                    {
+                        "emotion": "sound_effect",
+                        "soundPrompt": sound_prompt,
+                        "durationSeconds": duration_seconds,
+                        "audioEngine": "seed_audio",
+                        "visualGenerationAllowed": False,
+                    }
+                )
+            elif not isinstance(line.get("emotion"), str) or not line["emotion"].strip():
+                raise ToolError("SCRIPT_LINES_INVALID", f"{field} 的旁白或对白必须提供有效情绪。")
             seen.add(line_id)
             per_episode[episode] += 1
             expected_global += 1
-            normalized.append(
-                {
-                    "lineId": line_id,
-                    "episodeNumber": episode,
-                    "sequence": sequence,
-                    "speakerId": speaker_id,
-                    "lineType": line_type,
-                    "emotion": line["emotion"],
-                    "text": line["text"],
-                }
-            )
+            normalized.append(normalized_line)
         if set(line["episodeNumber"] for line in normalized) != set(range(1, episode_count + 1)):
             raise ToolError("SCRIPT_EPISODE_MISSING", f"{field} 没有覆盖全部分集。")
+        for episode in range(1, episode_count + 1):
+            if not any(line["episodeNumber"] == episode and line["lineType"] in {"narration", "dialogue"} for line in normalized):
+                raise ToolError("SCRIPT_EPISODE_SPEECH_MISSING", f"{field} 第 {episode} 集不能只有纯音效。")
         return normalized
 
     def save_planning_document(
@@ -1988,6 +2012,11 @@ class ContentLoop:
             for target, audit in zip(target_lines, audit_lines, strict=True):
                 if any(target[key] != audit[key] for key in mapping_keys):
                     raise ToolError("SCRIPT_MAPPING_MISMATCH", "行 ID、集、顺序、说话人、类型或情绪映射错误。", details={"lineId": target["lineId"]})
+                if target["lineType"] == "sound_effect" and any(
+                    target[key] != audit[key]
+                    for key in ("durationSeconds", "audioEngine", "visualGenerationAllowed")
+                ):
+                    raise ToolError("SCRIPT_MAPPING_MISMATCH", "纯音效行的时长、生成引擎或画面禁用映射错误。", details={"lineId": target["lineId"]})
             audit_mode = "LINE_BY_LINE_BACKTRANSLATION"
         target_script_hash = _json_hash(target_lines)
         foreign_quality_contract = _foreign_language_quality_contract(
@@ -2007,7 +2036,7 @@ class ContentLoop:
                 raise ToolError("MANUSCRIPT_QUALITY_GATE_INVALID", "分集质量门顺序或状态无效。")
             if set(checks) != QUALITY_CHECKS or not all(checks.values()) or not 0 <= gate.get("revisionCount", 0) <= 3:
                 raise ToolError("MANUSCRIPT_QUALITY_GATE_INVALID", "质量门硬项不完整、未通过或定向优化超过三轮。")
-        actual_characters = sum(len(line["text"]) for line in target_lines)
+        actual_characters = sum(len(line["text"]) for line in target_lines if line["lineType"] != "sound_effect")
         target_characters = topic["productionRecommendation"]["targetCharacters"]
         tolerance = max(1, round(target_characters * 0.05))
         if abs(actual_characters - target_characters) > tolerance:

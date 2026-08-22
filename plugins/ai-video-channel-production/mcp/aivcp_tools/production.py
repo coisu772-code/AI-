@@ -80,9 +80,18 @@ VIDEO_SELECTION_MODES = {
     "all_storyboards",
 }
 
-CODEX_VISUAL_PLAN_SCHEMA_VERSION = "1.1"
+CODEX_VISUAL_PLAN_SCHEMA_VERSION = "1.3"
 CODEX_VISUAL_PLAN_AUTHOR = "codex"
 CODEX_REFERENCE_USAGE = "identity_only"
+CODEX_VISUAL_DIRECTION = {
+    "mode": "manga_impact",
+    "panelMode": "single_panel",
+    "singleFocalPoint": True,
+    "expressionMode": "exaggerated_story_driven",
+    "backgroundSimplification": "impact_adaptive",
+    "compositionMode": "story_driven",
+    "mangaDeviceLimit": 3,
+}
 CODEX_REFERENCE_FLEXIBLE_FEATURES = (
     "expression",
     "gaze",
@@ -107,6 +116,8 @@ CODEX_PERFORMANCE_FIELDS = (
     "interactionTarget",
     "changeFromPrevious",
 )
+
+
 def _character_reference_prompt_risk(prompt: str) -> str | None:
     value = prompt.strip().lower()
     multi_view_terms = (
@@ -129,8 +140,6 @@ def _character_reference_prompt_risk(prompt: str) -> str | None:
         if term in value:
             return f"包含多套服装指令：{term}"
     return None
-
-
 CODEX_NARRATIVE_FUNCTIONS = {
     "hook",
     "relationship",
@@ -151,6 +160,17 @@ CODEX_DIALOGUE_STAGING = {
     "evidence_insert",
     "environment",
     "half_body_dialogue",
+}
+CODEX_SHOT_ROLES = {
+    "establishing",
+    "action",
+    "reaction",
+    "emotion_closeup",
+    "evidence_insert",
+    "consequence",
+    "transition",
+    "climax",
+    "aftermath",
 }
 CODEX_CRITICAL_EMOTIONS = {
     "none",
@@ -189,9 +209,51 @@ CODEX_PROMPT_COMPONENT_FIELDS = (
     "lightingColorZh",
     "keyObjectZh",
 )
+CODEX_MANGA_COMPOSITION_TEXT_FIELDS = (
+    "coreMomentZh",
+    "singleVisualFocusZh",
+    "primaryActionZh",
+    "interactionZh",
+    "shotDesignZh",
+    "backgroundTreatmentZh",
+    "continuityEssentialsZh",
+    "clutterControlZh",
+)
+CODEX_FACIAL_ACTING_FIELDS = (
+    "eyeShapeZh",
+    "pupilZh",
+    "browZh",
+    "mouthJawZh",
+    "faceTensionZh",
+    "exaggerationTechniqueZh",
+)
+CODEX_BODY_ACTING_FIELDS = (
+    "lineOfActionZh",
+    "centerOfGravityZh",
+    "shoulderSpineZh",
+    "handTensionZh",
+    "secondaryMotionZh",
+)
+CODEX_MANGA_DEVICES = {
+    "speed_lines",
+    "impact_burst",
+    "extreme_foreshortening",
+    "dutch_angle",
+    "frame_breaking",
+    "heavy_shadow",
+    "high_contrast_silhouette",
+    "abstract_background",
+    "foreground_occlusion",
+}
+CODEX_BACKGROUND_MODES = {"detailed_context", "selective_detail", "simplified", "abstract_impact"}
 CODEX_IMAGE_PROMPT_MAXIMUM = 600
+CODEX_IMAGE_PROMPT_SOFT_MINIMUM = 280
+CODEX_IMAGE_PROMPT_SOFT_MAXIMUM = 450
 CODEX_VIDEO_PROMPT_MAXIMUM = 500
-CODEX_MINIMUM_SCENE_RATIOS = {1: 0.50, 2: 0.55, 3: 0.65, 4: 0.80, 5: 0.90}
+CODEX_COMPLEXITY_LEVELS = {1, 2, 3, 4, 5}
+CODEX_SERIES_PLANNING_MODE = "full_series_then_sequence_then_shot"
+CODEX_FAILURE_REPAIR_SCOPE = "failed_scene_only"
+SOUND_EFFECT_MAX_DURATION_SECONDS = 5.0
 
 
 def _json_bytes(value: Any) -> bytes:
@@ -247,6 +309,28 @@ def _non_empty_text(value: Any, field: str, *, maximum: int = 2000) -> str:
     return normalized
 
 
+def _image_prompt_temporal_sequence_risk(prompt: str) -> str | None:
+    value = re.sub(r"\s+", "", prompt)
+    for term in ("随后", "接着", "然后", "之后又", "紧接着"):
+        if term in value:
+            return f"包含时间序列连接词“{term}”"
+    if re.search(r"先.{0,48}(?:再|然后|接着)", value):
+        return "同时描述了动作起点、过程或结果"
+    return None
+
+
+def _generic_scene_language_risk(*values: str) -> str | None:
+    combined = "\n".join(values)
+    for phrase in (
+        "身体重心稳定并与动作一致",
+        "视线落在互动对象或关键物件",
+        "改变景别以避免重复",
+    ):
+        if phrase in combined:
+            return phrase
+    return None
+
+
 def _normalize_codex_visual_plan(
     value: Any,
     *,
@@ -268,7 +352,16 @@ def _normalize_codex_visual_plan(
     if value.get("schemaVersion") != CODEX_VISUAL_PLAN_SCHEMA_VERSION or value.get("author") != CODEX_VISUAL_PLAN_AUTHOR:
         raise ToolError(
             "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
-            "codexVisualPlan 必须声明 schemaVersion=1.1、author=codex。",
+            "codexVisualPlan 必须声明 schemaVersion=1.3、author=codex。",
+        )
+    visual_direction = value.get("visualDirection")
+    if not isinstance(visual_direction, dict) or any(
+        visual_direction.get(field) != expected
+        for field, expected in CODEX_VISUAL_DIRECTION.items()
+    ):
+        raise ToolError(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            "visualDirection 必须使用单幅、单焦点、剧情驱动的 manga_impact 导演合同。",
         )
 
     characters = manuscript.get("characters", [])
@@ -376,6 +469,31 @@ def _normalize_codex_visual_plan(
         if isinstance(item, dict) and isinstance(item.get("lineId"), str)
     }
     expected_line_ids = [item.get("lineId") for item in target_lines]
+    expected_episode_numbers = list(dict.fromkeys(
+        item.get("episodeNumber")
+        for item in target_lines
+        if isinstance(item.get("episodeNumber"), int) and not isinstance(item.get("episodeNumber"), bool)
+    ))
+    series_visual_plan = value.get("seriesVisualPlan")
+    if not isinstance(series_visual_plan, dict):
+        raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "seriesVisualPlan 缺失，必须先读取全剧再规划连续场景。")
+    series_episode_numbers = series_visual_plan.get("episodeNumbers")
+    if (
+        series_visual_plan.get("planningMode") != CODEX_SERIES_PLANNING_MODE
+        or series_visual_plan.get("allEpisodesRead") is not True
+        or series_episode_numbers != expected_episode_numbers
+    ):
+        raise ToolError(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            "seriesVisualPlan 必须按全剧→连续场景→单镜顺序规划，并完整声明全部正式稿集数。",
+        )
+    normalized_series_visual_plan = {
+        "planningMode": CODEX_SERIES_PLANNING_MODE,
+        "allEpisodesRead": True,
+        "episodeNumbers": expected_episode_numbers,
+        "timelineSummaryZh": _non_empty_text(series_visual_plan.get("timelineSummaryZh"), "seriesVisualPlan.timelineSummaryZh", maximum=800),
+        "crossEpisodeContinuityZh": _non_empty_text(series_visual_plan.get("crossEpisodeContinuityZh"), "seriesVisualPlan.crossEpisodeContinuityZh", maximum=800),
+    }
     normalized_scenes: list[dict[str, Any]] = []
     covered_line_ids: list[str] = []
     seen_scene_ids: set[str] = set()
@@ -388,16 +506,30 @@ def _normalize_codex_visual_plan(
             raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].sceneId 重复。")
         seen_scene_ids.add(scene_id)
         line_ids = item.get("scriptLineIds")
-        if not isinstance(line_ids, list) or not 1 <= len(line_ids) <= 2:
-            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].scriptLineIds 必须包含 1–2 行。")
+        if not isinstance(line_ids, list) or not line_ids:
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].scriptLineIds 必须包含至少一行。")
         if any(line_id not in line_by_id for line_id in line_ids) or len(set(line_ids)) != len(line_ids):
             raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}] 引用了无效或重复的正式稿行。")
+        if not any(line_by_id[line_id].get("lineType") in {"narration", "dialogue"} for line_id in line_ids):
+            raise ToolError(
+                "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                f"scenePlans[{index}] 不能由纯音效单独形成画面，必须与相邻旁白或对白共用分镜。",
+            )
         episode_numbers = {line_by_id[line_id].get("episodeNumber") for line_id in line_ids}
         if episode_numbers != {item.get("episodeNumber")}:
             raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}] 不能跨集或错绑集数。")
+        sequence_id = _non_empty_text(item.get("sequenceId"), f"scenePlans[{index}].sequenceId", maximum=160)
+        shot_role = item.get("shotRole")
+        if shot_role not in CODEX_SHOT_ROLES:
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].shotRole 无效。")
         visible_ids = item.get("visibleCharacterIds", [])
         if not isinstance(visible_ids, list) or any(character_id not in character_by_id for character_id in visible_ids):
             raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].visibleCharacterIds 无效。")
+        if visible_ids and item.get("primaryCharacterId") not in visible_ids:
+            raise ToolError(
+                "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                f"scenePlans[{index}].primaryCharacterId 必须指定本镜唯一主要角色。",
+            )
         performance = item.get("performance")
         if not isinstance(performance, dict):
             raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].performance 缺失。")
@@ -412,6 +544,71 @@ def _normalize_codex_visual_plan(
                 normalized_performance[field] = _non_empty_text(
                     performance.get(field), f"scenePlans[{index}].performance.{field}", maximum=260
                 )
+        generic_performance_risk = _generic_scene_language_risk(
+            *[str(normalized_performance[field]) for field in CODEX_PERFORMANCE_FIELDS if field != "intensity"]
+        )
+        if generic_performance_risk:
+            raise ToolError(
+                "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                f"scenePlans[{index}].performance 使用了不可复用的通用套话：{generic_performance_risk}。",
+            )
+
+        impact_level = item.get("impactLevel")
+        if not isinstance(impact_level, int) or isinstance(impact_level, bool) or not 1 <= impact_level <= 5:
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].impactLevel 必须为 1–5。")
+        expression_exaggeration = item.get("expressionExaggeration")
+        if not isinstance(expression_exaggeration, int) or isinstance(expression_exaggeration, bool) or not 1 <= expression_exaggeration <= 5:
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].expressionExaggeration 必须为 1–5。")
+
+        manga_composition = item.get("mangaComposition")
+        if not isinstance(manga_composition, dict):
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].mangaComposition 缺失。")
+        normalized_manga_composition = {
+            field: _non_empty_text(
+                manga_composition.get(field), f"scenePlans[{index}].mangaComposition.{field}", maximum=260
+            )
+            for field in CODEX_MANGA_COMPOSITION_TEXT_FIELDS
+        }
+        background_mode = manga_composition.get("backgroundMode")
+        if background_mode not in CODEX_BACKGROUND_MODES:
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].mangaComposition.backgroundMode 无效。")
+        manga_devices = manga_composition.get("mangaDevices")
+        if (
+            not isinstance(manga_devices, list)
+            or len(manga_devices) > CODEX_VISUAL_DIRECTION["mangaDeviceLimit"]
+            or any(device not in CODEX_MANGA_DEVICES for device in manga_devices)
+        ):
+            raise ToolError(
+                "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                f"scenePlans[{index}].mangaComposition.mangaDevices 最多使用三个受支持的漫画冲击手法。",
+            )
+        normalized_manga_composition["backgroundMode"] = background_mode
+        normalized_manga_composition["mangaDevices"] = list(dict.fromkeys(manga_devices))
+
+        facial_acting = item.get("facialActing")
+        body_acting = item.get("bodyActing")
+        if visible_ids:
+            if not isinstance(facial_acting, dict) or not isinstance(body_acting, dict):
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"scenePlans[{index}] 有角色出镜时必须提供 facialActing 与 bodyActing。",
+                )
+            normalized_facial_acting = {
+                field: _non_empty_text(facial_acting.get(field), f"scenePlans[{index}].facialActing.{field}", maximum=220)
+                for field in CODEX_FACIAL_ACTING_FIELDS
+            }
+            normalized_body_acting = {
+                field: _non_empty_text(body_acting.get(field), f"scenePlans[{index}].bodyActing.{field}", maximum=220)
+                for field in CODEX_BODY_ACTING_FIELDS
+            }
+        else:
+            if expression_exaggeration != 1:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"scenePlans[{index}] 无人镜头的 expressionExaggeration 必须为 1。",
+                )
+            normalized_facial_acting = {}
+            normalized_body_acting = {}
 
         complexity_score = item.get("complexityScore")
         if not isinstance(complexity_score, int) or isinstance(complexity_score, bool) or not 1 <= complexity_score <= 5:
@@ -438,6 +635,27 @@ def _normalize_codex_visual_plan(
             "depthCompositionZh": _non_empty_text(shot.get("depthCompositionZh"), f"scenePlans[{index}].shot.depthCompositionZh", maximum=220),
             "posterCompositionZh": _non_empty_text(shot.get("posterCompositionZh"), f"scenePlans[{index}].shot.posterCompositionZh", maximum=220),
         }
+        if impact_level >= 4:
+            if shot["scale"] not in {"close_up", "extreme_close_up"} and not breaking_composition:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"scenePlans[{index}] 高冲击镜头必须使用近景／极近特写或破格构图。",
+                )
+            if not normalized_manga_composition["mangaDevices"]:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"scenePlans[{index}] 高冲击镜头至少需要一种漫画冲击手法。",
+                )
+            if normalized_manga_composition["backgroundMode"] not in {"simplified", "abstract_impact"}:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"scenePlans[{index}] 高冲击镜头必须简化或抽象化背景。",
+                )
+            if visible_ids and expression_exaggeration < 4:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"scenePlans[{index}] 高冲击人物镜头的表情夸张度不得低于 4。",
+                )
 
         readability = item.get("visualReadability")
         if not isinstance(readability, dict) or readability.get("withoutDialogueReadable") is not True:
@@ -468,6 +686,24 @@ def _normalize_codex_visual_plan(
             "propIds": list(dict.fromkeys(scene_prop_ids)),
             "changeJustificationZh": _non_empty_text(continuity.get("changeJustificationZh"), f"scenePlans[{index}].continuity.changeJustificationZh", maximum=240),
         }
+        continuity_state = item.get("continuityState")
+        if not isinstance(continuity_state, dict):
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].continuityState 缺失。")
+        carry_over_from_scene_id = continuity_state.get("carryOverFromSceneId", "")
+        if not isinstance(carry_over_from_scene_id, str):
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].continuityState.carryOverFromSceneId 必须是字符串。")
+        normalized_continuity_state = {
+            "entryStateId": _non_empty_text(continuity_state.get("entryStateId"), f"scenePlans[{index}].continuityState.entryStateId", maximum=160),
+            "entryStateZh": _non_empty_text(continuity_state.get("entryStateZh"), f"scenePlans[{index}].continuityState.entryStateZh", maximum=420),
+            "exitStateId": _non_empty_text(continuity_state.get("exitStateId"), f"scenePlans[{index}].continuityState.exitStateId", maximum=160),
+            "exitStateZh": _non_empty_text(continuity_state.get("exitStateZh"), f"scenePlans[{index}].continuityState.exitStateZh", maximum=420),
+            "characterBlockingZh": _non_empty_text(continuity_state.get("characterBlockingZh"), f"scenePlans[{index}].continuityState.characterBlockingZh", maximum=320),
+            "screenDirectionZh": _non_empty_text(continuity_state.get("screenDirectionZh"), f"scenePlans[{index}].continuityState.screenDirectionZh", maximum=260),
+            "eyelineZh": _non_empty_text(continuity_state.get("eyelineZh"), f"scenePlans[{index}].continuityState.eyelineZh", maximum=260),
+            "propStateZh": _non_empty_text(continuity_state.get("propStateZh"), f"scenePlans[{index}].continuityState.propStateZh", maximum=260),
+            "lightingStateZh": _non_empty_text(continuity_state.get("lightingStateZh"), f"scenePlans[{index}].continuityState.lightingStateZh", maximum=260),
+            "carryOverFromSceneId": carry_over_from_scene_id.strip(),
+        }
 
         emotional_beat = item.get("emotionalBeat")
         if not isinstance(emotional_beat, dict) or emotional_beat.get("category") not in CODEX_CRITICAL_EMOTIONS:
@@ -478,12 +714,12 @@ def _normalize_codex_visual_plan(
             raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].emotionalBeat.visualSignals 无效。")
         visual_signals = list(dict.fromkeys(visual_signals))
         if emotion_category != "none":
-            if len(line_ids) != 1:
-                raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}] 情绪爆点必须独占一个分镜。")
             if shot["scale"] not in {"close_up", "extreme_close_up"} and not breaking_composition:
                 raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}] 情绪爆点必须使用特写／极近特写或破格构图。")
             if len(visual_signals) < 2 or not CODEX_PHYSICAL_EMOTION_SIGNALS.intersection(visual_signals):
                 raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}] 情绪爆点至少需要两个可见信号，且不能只靠明暗或色彩。")
+            if visible_ids and expression_exaggeration < 3:
+                raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}] 情绪爆点的表情夸张度不得低于 3。")
 
         prompt_components = item.get("promptComponents")
         if not isinstance(prompt_components, dict):
@@ -496,6 +732,12 @@ def _normalize_codex_visual_plan(
         video_prompt = str(item.get("videoPromptZh") or "").strip()
         if prompt_generation["image"]:
             image_prompt = _non_empty_text(image_prompt, f"scenePlans[{index}].imagePromptZh", maximum=CODEX_IMAGE_PROMPT_MAXIMUM)
+            temporal_risk = _image_prompt_temporal_sequence_risk(image_prompt)
+            if temporal_risk:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"scenePlans[{index}].imagePromptZh 必须只描述一个静态决定性瞬间：{temporal_risk}。",
+                )
         elif len(image_prompt) > CODEX_IMAGE_PROMPT_MAXIMUM:
             raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].imagePromptZh 过长。")
         if prompt_generation["video"]:
@@ -507,17 +749,25 @@ def _normalize_codex_visual_plan(
             "sceneId": scene_id,
             "episodeNumber": item.get("episodeNumber"),
             "sequence": index,
+            "sequenceId": sequence_id,
+            "shotRole": shot_role,
             "scriptLineIds": line_ids,
             "visibleCharacterIds": list(dict.fromkeys(visible_ids)),
-            "primaryCharacterId": item.get("primaryCharacterId") if item.get("primaryCharacterId") in visible_ids else "",
+            "primaryCharacterId": item.get("primaryCharacterId") if visible_ids else "",
             "noCharacter": len(visible_ids) == 0,
             "complexityScore": complexity_score,
+            "impactLevel": impact_level,
+            "expressionExaggeration": expression_exaggeration,
             "narrativeFunction": narrative_function,
             "storyBeatIds": list(dict.fromkeys(beat_ids)),
             "shot": normalized_shot,
             "visualReadability": normalized_readability,
             "continuity": normalized_continuity,
+            "continuityState": normalized_continuity_state,
             "emotionalBeat": {"category": emotion_category, "visualSignals": visual_signals},
+            "mangaComposition": normalized_manga_composition,
+            "facialActing": normalized_facial_acting,
+            "bodyActing": normalized_body_acting,
             "promptComponents": normalized_components,
             "imagePromptZh": image_prompt,
             "videoPromptZh": video_prompt,
@@ -540,8 +790,16 @@ def _normalize_codex_visual_plan(
         previous_emotion = "none"
         repeated_dialogue = 0
         repeated_shot = 0
+        repeated_high_impact = 0
         previous_signature: tuple[str, str, str] | None = None
+        previous_scene_id = ""
         for scene in episode_scenes:
+            if scene["continuityState"]["carryOverFromSceneId"] != previous_scene_id:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"分镜 {scene['sceneId']} 的进入状态没有承接上一镜；carryOverFromSceneId 应为“{previous_scene_id}”。",
+                )
+            previous_scene_id = scene["sceneId"]
             emotion = scene["emotionalBeat"]["category"]
             if emotion != "none" and emotion == previous_emotion:
                 raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "相邻分镜不得连续重复同一种情绪爆点。")
@@ -554,17 +812,19 @@ def _normalize_codex_visual_plan(
             if repeated_shot >= 3:
                 raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "不得连续三镜使用完全相同的景别、角度和视向。")
             previous_signature = signature
+            repeated_high_impact = repeated_high_impact + 1 if scene["impactLevel"] >= 4 else 0
+            if repeated_high_impact >= 3:
+                raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "不得连续三镜都使用高冲击构图，必须保留视觉蓄力与爆发对比。")
 
     story_visual_plan = value.get("storyVisualPlan")
     if not isinstance(story_visual_plan, dict):
         raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "storyVisualPlan 缺失。")
     complexity_level = story_visual_plan.get("complexityLevel")
-    if not isinstance(complexity_level, int) or isinstance(complexity_level, bool) or complexity_level not in CODEX_MINIMUM_SCENE_RATIOS:
+    if not isinstance(complexity_level, int) or isinstance(complexity_level, bool) or complexity_level not in CODEX_COMPLEXITY_LEVELS:
         raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "storyVisualPlan.complexityLevel 必须为 1–5。")
     planned_page_count = story_visual_plan.get("plannedPageCount")
-    minimum_pages = math.ceil(len(expected_line_ids) * CODEX_MINIMUM_SCENE_RATIOS[complexity_level])
-    if story_visual_plan.get("pageCountMode") != "complexity_adaptive" or planned_page_count != len(normalized_scenes) or planned_page_count < minimum_pages:
-        raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "分镜页数必须按剧情复杂度自适应，且与实际分镜数一致。")
+    if story_visual_plan.get("pageCountMode") != "complexity_adaptive" or planned_page_count != len(normalized_scenes):
+        raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "分镜页数必须按剧情语义自适应，并与实际分镜数一致；不得按语音时长强制拆画面。")
     opening_hook_scene_id = story_visual_plan.get("openingHookSceneId")
     if not normalized_scenes or opening_hook_scene_id != normalized_scenes[0]["sceneId"] or normalized_scenes[0]["narrativeFunction"] != "hook":
         raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "第一镜必须是已绑定正式稿的开篇钩子。")
@@ -622,9 +882,100 @@ def _normalize_codex_visual_plan(
     if any(beat_id not in beat_ids for scene in normalized_scenes for beat_id in scene["storyBeatIds"]):
         raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "分镜引用了不存在的 storyBeatId。")
 
+    visual_sequences = story_visual_plan.get("visualSequences")
+    if not isinstance(visual_sequences, list) or not visual_sequences:
+        raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "storyVisualPlan.visualSequences 不能为空。")
+    normalized_sequences: list[dict[str, Any]] = []
+    seen_sequence_ids: set[str] = set()
+    ordered_sequence_scene_ids: list[str] = []
+    previous_sequence_by_episode: dict[int, dict[str, Any]] = {}
+    for sequence_index, sequence in enumerate(visual_sequences, start=1):
+        if not isinstance(sequence, dict):
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"visualSequences[{sequence_index}] 必须是对象。")
+        sequence_id = _non_empty_text(sequence.get("sequenceId"), f"visualSequences[{sequence_index}].sequenceId", maximum=160)
+        if sequence_id in seen_sequence_ids:
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"visualSequences[{sequence_index}].sequenceId 重复。")
+        seen_sequence_ids.add(sequence_id)
+        sequence_scene_ids = sequence.get("sceneIds")
+        if not isinstance(sequence_scene_ids, list) or not sequence_scene_ids or any(scene_id not in scene_by_id for scene_id in sequence_scene_ids):
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"visualSequences[{sequence_index}].sceneIds 无效。")
+        sequence_episode_number = sequence.get("episodeNumber")
+        sequence_scenes = [scene_by_id[scene_id] for scene_id in sequence_scene_ids]
+        if any(scene["episodeNumber"] != sequence_episode_number or scene["sequenceId"] != sequence_id for scene in sequence_scenes):
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"visualSequences[{sequence_index}] 与分镜集数或 sequenceId 绑定不一致。")
+        sequence_location_id = sequence.get("locationId")
+        if sequence_location_id not in location_ids or any(scene["continuity"]["locationId"] != sequence_location_id for scene in sequence_scenes):
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"visualSequences[{sequence_index}] 必须在同一冻结地点内连续调度。")
+        shot_ladder = sequence.get("shotLadder")
+        impact_arc = sequence.get("impactArc")
+        if shot_ladder != [scene["shotRole"] for scene in sequence_scenes]:
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"visualSequences[{sequence_index}].shotLadder 必须与实际镜头功能顺序一致。")
+        if impact_arc != [scene["impactLevel"] for scene in sequence_scenes]:
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"visualSequences[{sequence_index}].impactArc 必须与实际镜头冲击等级一致。")
+        opening_state_id = _non_empty_text(sequence.get("openingStateId"), f"visualSequences[{sequence_index}].openingStateId", maximum=160)
+        closing_state_id = _non_empty_text(sequence.get("closingStateId"), f"visualSequences[{sequence_index}].closingStateId", maximum=160)
+        if opening_state_id != sequence_scenes[0]["continuityState"]["entryStateId"] or closing_state_id != sequence_scenes[-1]["continuityState"]["exitStateId"]:
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"visualSequences[{sequence_index}] 的首尾状态与分镜不一致。")
+        for local_index, scene in enumerate(sequence_scenes[1:], start=1):
+            previous_scene = sequence_scenes[local_index - 1]
+            if scene["continuityState"]["entryStateId"] != previous_scene["continuityState"]["exitStateId"]:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"visualSequences[{sequence_index}] 内分镜 {scene['sceneId']} 的进入状态没有继承上一镜离开状态。",
+                )
+        previous_sequence = previous_sequence_by_episode.get(sequence_episode_number)
+        if previous_sequence and previous_sequence["locationId"] != sequence_location_id and sequence_scenes[0]["shotRole"] not in {"establishing", "transition"}:
+            raise ToolError(
+                "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                f"visualSequences[{sequence_index}] 更换地点后必须以环境建立或转场镜头开始。",
+            )
+        normalized_sequence = {
+            "sequenceId": sequence_id,
+            "episodeNumber": sequence_episode_number,
+            "sceneIds": list(sequence_scene_ids),
+            "locationId": sequence_location_id,
+            "timeLightingZh": _non_empty_text(sequence.get("timeLightingZh"), f"visualSequences[{sequence_index}].timeLightingZh", maximum=320),
+            "paletteContrastZh": _non_empty_text(sequence.get("paletteContrastZh"), f"visualSequences[{sequence_index}].paletteContrastZh", maximum=320),
+            "spatialAxisZh": _non_empty_text(sequence.get("spatialAxisZh"), f"visualSequences[{sequence_index}].spatialAxisZh", maximum=320),
+            "openingStateId": opening_state_id,
+            "closingStateId": closing_state_id,
+            "continuityFromPreviousZh": _non_empty_text(sequence.get("continuityFromPreviousZh"), f"visualSequences[{sequence_index}].continuityFromPreviousZh", maximum=420),
+            "shotLadder": list(shot_ladder),
+            "impactArc": list(impact_arc),
+        }
+        normalized_sequences.append(normalized_sequence)
+        previous_sequence_by_episode[sequence_episode_number] = normalized_sequence
+        ordered_sequence_scene_ids.extend(sequence_scene_ids)
+    if ordered_sequence_scene_ids != [scene["sceneId"] for scene in normalized_scenes]:
+        raise ToolError(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            "visualSequences 必须按正式分镜顺序完整且仅覆盖每一镜一次。",
+        )
+
     prompt_compiler = story_visual_plan.get("promptCompiler")
-    if not isinstance(prompt_compiler, dict) or prompt_compiler.get("mode") != "structured_budgeted_merge" or prompt_compiler.get("imagePromptMaxChars") != CODEX_IMAGE_PROMPT_MAXIMUM or prompt_compiler.get("videoPromptMaxChars") != CODEX_VIDEO_PROMPT_MAXIMUM or prompt_compiler.get("globalStyleRepeatedPerScene") is not False or prompt_compiler.get("identityFullProfileRepeatedPerScene") is not False:
-        raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "promptCompiler 必须使用分段思考、预算内合并，且不得逐镜重复全局画风和完整角色设定。")
+    if (
+        not isinstance(prompt_compiler, dict)
+        or prompt_compiler.get("mode") != "manga_structured_budgeted_merge"
+        or prompt_compiler.get("imagePromptMaxChars") != CODEX_IMAGE_PROMPT_MAXIMUM
+        or prompt_compiler.get("imagePromptSoftMinChars") != CODEX_IMAGE_PROMPT_SOFT_MINIMUM
+        or prompt_compiler.get("imagePromptSoftMaxChars") != CODEX_IMAGE_PROMPT_SOFT_MAXIMUM
+        or prompt_compiler.get("videoPromptMaxChars") != CODEX_VIDEO_PROMPT_MAXIMUM
+        or prompt_compiler.get("globalStyleRepeatedPerScene") is not False
+        or prompt_compiler.get("identityFullProfileRepeatedPerScene") is not False
+        or prompt_compiler.get("singlePanelDirectiveRequired") is not True
+        or prompt_compiler.get("singleFocalPointRequired") is not True
+        or prompt_compiler.get("clutterControlRequired") is not True
+        or prompt_compiler.get("fullSeriesContextRequired") is not True
+        or prompt_compiler.get("sequencePlanRequired") is not True
+        or prompt_compiler.get("continuityStateRequired") is not True
+        or prompt_compiler.get("temporalSequenceForbidden") is not True
+        or prompt_compiler.get("shotRoleRequired") is not True
+        or prompt_compiler.get("failureRepairScope") != CODEX_FAILURE_REPAIR_SCOPE
+    ):
+        raise ToolError(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            "promptCompiler 必须使用漫画单幅、单焦点、画面减法和预算内合并合同，且不得逐镜重复全局画风和完整角色设定。",
+        )
 
     style_prompt = production_config["imageStyle"]["prompt"]
     normalized = {
@@ -634,6 +985,8 @@ def _normalize_codex_visual_plan(
         "stylePresetId": production_config["imageStyle"]["presetId"],
         "stylePromptSha256": _sha256_bytes(style_prompt.encode("utf-8")),
         "referenceUsage": CODEX_REFERENCE_USAGE,
+        "visualDirection": dict(CODEX_VISUAL_DIRECTION),
+        "seriesVisualPlan": normalized_series_visual_plan,
         "characterDesigns": normalized_designs,
         "continuityBible": {"locations": locations, "costumes": costumes, "props": props},
         "storyVisualPlan": {
@@ -644,12 +997,24 @@ def _normalize_codex_visual_plan(
             "plannedPageCount": planned_page_count,
             "pageCountRationaleZh": _non_empty_text(story_visual_plan.get("pageCountRationaleZh"), "storyVisualPlan.pageCountRationaleZh", maximum=420),
             "storyBeats": normalized_beats,
+            "visualSequences": normalized_sequences,
             "promptCompiler": {
-                "mode": "structured_budgeted_merge",
+                "mode": "manga_structured_budgeted_merge",
                 "imagePromptMaxChars": CODEX_IMAGE_PROMPT_MAXIMUM,
+                "imagePromptSoftMinChars": CODEX_IMAGE_PROMPT_SOFT_MINIMUM,
+                "imagePromptSoftMaxChars": CODEX_IMAGE_PROMPT_SOFT_MAXIMUM,
                 "videoPromptMaxChars": CODEX_VIDEO_PROMPT_MAXIMUM,
                 "globalStyleRepeatedPerScene": False,
                 "identityFullProfileRepeatedPerScene": False,
+                "singlePanelDirectiveRequired": True,
+                "singleFocalPointRequired": True,
+                "clutterControlRequired": True,
+                "fullSeriesContextRequired": True,
+                "sequencePlanRequired": True,
+                "continuityStateRequired": True,
+                "temporalSequenceForbidden": True,
+                "shotRoleRequired": True,
+                "failureRepairScope": CODEX_FAILURE_REPAIR_SCOPE,
             },
         },
         "scenePlans": normalized_scenes,
@@ -661,6 +1026,16 @@ def _normalize_codex_visual_plan(
             "criticalEmotionRequiresCloseOrBreakingComposition": True,
             "adjacentSameCriticalEmotionForbidden": True,
             "continuityBindingsRequired": True,
+            "singlePanelMangaRequired": True,
+            "singleVisualFocusRequired": True,
+            "exaggeratedStoryDrivenExpressionRequired": True,
+            "adaptiveBackgroundSimplificationRequired": True,
+            "clutterControlRequired": True,
+            "fullSeriesContextRequired": True,
+            "sequenceContinuityRequired": True,
+            "temporalSequenceInSingleImageForbidden": True,
+            "failedPromptRepairScope": CODEX_FAILURE_REPAIR_SCOPE,
+            "atomicImageReplacementRequired": True,
         },
     }
     normalized["contentHash"] = _sha256_bytes(_canonical_bytes(normalized))
@@ -828,7 +1203,12 @@ def _voice_catalog_document(path: Path) -> tuple[dict[str, Any], str, str]:
 
 
 def _validate_locked_voices(
-    manuscript: dict[str, Any], catalog: dict[str, Any], catalog_version: str, catalog_hash: str
+    manuscript: dict[str, Any],
+    catalog: dict[str, Any],
+    catalog_version: str,
+    catalog_hash: str,
+    *,
+    selected_engine_id: str,
 ) -> dict[str, dict[str, Any]]:
     available: set[tuple[str, str]] = set()
     for engine in catalog["engines"]:
@@ -841,6 +1221,16 @@ def _validate_locked_voices(
     for voice in manuscript.get("voices", []):
         engine = voice.get("engine") or voice.get("engineId")
         voice_id = voice.get("voiceId")
+        if engine != selected_engine_id:
+            raise ToolError(
+                "PRODUCTION_VOICE_ENGINE_MISMATCH",
+                "人物旁白与对白只能使用本次用户确认的配音引擎，不能跨引擎推荐或锁定音色。",
+                details={
+                    "speakerId": voice.get("speakerId"),
+                    "selectedEngineId": selected_engine_id,
+                    "actualEngineId": engine,
+                },
+            )
         if (engine, voice_id) not in available:
             raise ToolError(
                 "PRODUCTION_VOICE_UNKNOWN",
@@ -856,7 +1246,11 @@ def _validate_locked_voices(
             "catalogVersion": catalog_version,
             "catalogHash": catalog_hash,
         }
-    speakers = {line.get("speakerId") for line in manuscript.get("targetScript", {}).get("lines", [])}
+    speakers = {
+        line.get("speakerId")
+        for line in manuscript.get("targetScript", {}).get("lines", [])
+        if line.get("lineType") in {"narration", "dialogue"}
+    }
     missing = sorted(str(value) for value in speakers if value not in bindings)
     if missing:
         raise ToolError("PRODUCTION_VOICE_BINDING_MISSING", "部分正式文稿说话人没有锁定音色。", details={"speakers": missing})
@@ -913,6 +1307,8 @@ def _production_overview_markdown(
         f"- 正式标题：{publishing['title']}",
         f"- 中文标题：{publishing['titleZhTranslation']}",
         f"- 制作方式：`{production_config['deliveryMode']}`",
+        f"- 人物配音引擎：`{production_config['voiceTtsProfile']['engineId']}`（只从该引擎推荐并锁定当前项目音色）",
+        f"- 纯音效：`{'开启' if production_config['soundEffects']['enabled'] else '关闭'}`；固定 `seed_audio`；每条显式时长且不超过 {production_config['soundEffects']['maxDurationSeconds']:.0f} 秒",
         f"- 图片风格预设：`{production_config['imageStyle']['presetId']}`",
         f"- 图片风格提示词：{production_config['imageStyle']['prompt']}",
         f"- 剧情图片文字策略：`{production_config['storyImageTextPolicy']}`（角色图、分镜图和宫格图禁止可读文字；正式封面不受此项限制）",
@@ -959,6 +1355,8 @@ def _production_overview_markdown(
             "- `characters.json`：角色身份、关系、形象锚点和锁定音色。",
             "- `episodes.json`：分集与正式文稿行映射。",
             "- `production_config.json`：画幅、分辨率、并发、视频范围和失败策略。",
+            "- 人物语音不设固定行时长上限，也不会因配音时长自动拆分分镜；同一视觉时刻的多行可共用一幅画面。",
+            "- 纯音效不生成独立画面，使用 Seed Audio 后与相邻旁白或对白混合；背景音乐不属于音效。",
             "- `publishing.json`：目标语言标题、简介、Hashtags、频道和上传策略。",
             (
                 "- `confirmed_thumbnail.png`：用户明确要求并确认的 16:9 自定义封面。"
@@ -991,6 +1389,7 @@ def _codex_visual_plan_markdown(plan: dict[str, Any], characters: list[dict[str,
         f"- 图片风格：`{plan['stylePresetId']}`",
         f"- 风格提示词 SHA-256：`{plan['stylePromptSha256']}`",
         f"- 角色参考图用途：`{plan['referenceUsage']}`（只锁身份，不锁表情、视线、姿势、构图与背景）",
+        "- 视觉导演：单幅漫画、单一视觉焦点、剧情驱动夸张表演、冲击等级自适应背景减法。",
         f"- 方案 SHA-256：`{plan['contentHash']}`",
         "",
         "## 漫画角色设计",
@@ -1011,16 +1410,20 @@ def _codex_visual_plan_markdown(plan: dict[str, Any], characters: list[dict[str,
                 "",
             ]
         )
+    series_plan = plan["seriesVisualPlan"]
     story_plan = plan["storyVisualPlan"]
     lines.extend(
         [
             "## 故事画面规划",
             "",
+            f"- 规划顺序：`{series_plan['planningMode']}`；已读取全部集数：{series_plan['episodeNumbers']}。",
+            f"- 全剧时间线：{series_plan['timelineSummaryZh']}",
+            f"- 跨集连续性：{series_plan['crossEpisodeContinuityZh']}",
             f"- 开篇钩子分镜：`{story_plan['openingHookSceneId']}`",
             f"- 关系／核心矛盾分镜：`{'`、`'.join(story_plan['relationshipConflictSceneIds'])}`",
             f"- 剧情复杂度：{story_plan['complexityLevel']}/5",
             f"- 自适应页数：{story_plan['plannedPageCount']}；{story_plan['pageCountRationaleZh']}",
-            f"- 提示词预算：图片 ≤ {story_plan['promptCompiler']['imagePromptMaxChars']} 字符；视频 ≤ {story_plan['promptCompiler']['videoPromptMaxChars']} 字符",
+            f"- 提示词预算：图片建议 {story_plan['promptCompiler']['imagePromptSoftMinChars']}–{story_plan['promptCompiler']['imagePromptSoftMaxChars']} 字符，硬上限 {story_plan['promptCompiler']['imagePromptMaxChars']}；视频 ≤ {story_plan['promptCompiler']['videoPromptMaxChars']} 字符",
             "",
             "| 节拍 | 类型 | 来源正式稿 | 承载分镜 | 说明 |",
             "|---|---|---|---|---|",
@@ -1030,6 +1433,22 @@ def _codex_visual_plan_markdown(plan: dict[str, Any], characters: list[dict[str,
         lines.append(
             f"| `{beat['beatId']}` | `{beat['type']}` | {', '.join(beat['sourceLineIds'])} | {', '.join(beat['sceneIds'])} | {beat['summaryZh']} |"
         )
+    lines.extend(["", "## 连续场景段", ""])
+    for sequence in story_plan["visualSequences"]:
+        lines.extend(
+            [
+                f"### 第 {sequence['episodeNumber']} 集 · `{sequence['sequenceId']}`",
+                "",
+                f"- 地点／分镜：`{sequence['locationId']}`；{'、'.join(sequence['sceneIds'])}",
+                f"- 时间与光线：{sequence['timeLightingZh']}",
+                f"- 色彩与反差：{sequence['paletteContrastZh']}",
+                f"- 空间轴线：{sequence['spatialAxisZh']}",
+                f"- 首尾状态：`{sequence['openingStateId']}` → `{sequence['closingStateId']}`；{sequence['continuityFromPreviousZh']}",
+                f"- 镜头梯度：{' → '.join(sequence['shotLadder'])}",
+                f"- 冲击曲线：{' → '.join(str(level) for level in sequence['impactArc'])}",
+                "",
+            ]
+        )
     lines.extend(["", "## 连续性圣经", ""])
     for label, field, id_field in (("地点", "locations", "locationId"), ("服装", "costumes", "costumeId"), ("道具", "props", "propId")):
         entries = plan["continuityBible"][field]
@@ -1038,19 +1457,37 @@ def _codex_visual_plan_markdown(plan: dict[str, Any], characters: list[dict[str,
     lines.extend(["## 分镜图片／视频提示词", ""])
     for item in plan.get("scenePlans", []):
         performance = item["performance"]
+        manga_composition = item["mangaComposition"]
+        continuity_state = item["continuityState"]
+        facial_acting = item.get("facialActing", {})
+        body_acting = item.get("bodyActing", {})
         visible_names = [character_names.get(character_id, character_id) for character_id in item.get("visibleCharacterIds", [])]
         lines.extend(
             [
                 f"### 第 {item['episodeNumber']} 集 · 分镜 {item['sequence']}（`{item['sceneId']}`）",
                 "",
                 f"- 正式稿行：`{'`, `'.join(item['scriptLineIds'])}`",
+                f"- 连续场景／镜头功能：`{item['sequenceId']}`／`{item['shotRole']}`",
                 f"- 出镜角色：{'、'.join(visible_names) if visible_names else '无人出镜'}",
                 f"- 剧情功能／复杂度：`{item['narrativeFunction']}`；{item['complexityScore']}/5",
+                f"- 漫画冲击等级：{item['impactLevel']}/5；表情夸张度：{item['expressionExaggeration']}/5。",
                 f"- 镜头：`{item['shot']['scale']}`／`{item['shot']['angle']}`／`{item['shot']['view']}`；调度 `{item['shot']['dialogueStaging']}`；焦点 {item['shot']['focalPointZh']}；层次 {item['shot']['depthCompositionZh']}；海报构图 {item['shot']['posterCompositionZh']}。",
+                f"- 单幅漫画导演：核心瞬间 {manga_composition['coreMomentZh']}；唯一焦点 {manga_composition['singleVisualFocusZh']}；主动作 {manga_composition['primaryActionZh']}；互动 {manga_composition['interactionZh']}；构图 {manga_composition['shotDesignZh']}。",
+                f"- 冲击与减法：手法 {'、'.join(manga_composition['mangaDevices']) or '无'}；背景 `{manga_composition['backgroundMode']}`，{manga_composition['backgroundTreatmentZh']}；连续性 {manga_composition['continuityEssentialsZh']}；杂乱控制 {manga_composition['clutterControlZh']}。",
                 f"- 脱离文字可读：{item['visualReadability']['storyInformationZh']}；关系 {item['visualReadability']['relationshipCueZh']}；因果／矛盾 {item['visualReadability']['conflictOrCauseEffectCueZh']}。",
                 f"- 情绪爆点：`{item['emotionalBeat']['category']}`；可见信号：{'、'.join(item['emotionalBeat']['visualSignals']) or '无'}。",
                 f"- 连续性：地点 `{item['continuity']['locationId']}`；服装 {item['continuity']['costumeIdsByCharacter']}；道具 {item['continuity']['propIds']}；{item['continuity']['changeJustificationZh']}。",
+                f"- 状态链：`{continuity_state['entryStateId']}` → `{continuity_state['exitStateId']}`；进入 {continuity_state['entryStateZh']}；离开 {continuity_state['exitStateZh']}。",
+                f"- 空间承接：站位 {continuity_state['characterBlockingZh']}；运动方向 {continuity_state['screenDirectionZh']}；视线 {continuity_state['eyelineZh']}；道具 {continuity_state['propStateZh']}；光线 {continuity_state['lightingStateZh']}；承接上一镜 `{continuity_state['carryOverFromSceneId'] or '无（本集首镜）'}`。",
                 f"- 表演：内在情绪“{performance['internalEmotion']}”，外显“{performance['visibleEmotion']}”，强度 {performance['intensity']}/5；视线 {performance['gaze']}；眼睛 {performance['eyes']}；眉形 {performance['brows']}；嘴形 {performance['mouth']}；头部 {performance['headPose']}；身体 {performance['bodyPose']}；手势 {performance['handGesture']}；互动对象 {performance['interactionTarget']}；相对上一镜 {performance['changeFromPrevious']}。",
+                (
+                    f"- 漫画面部表演：眼形 {facial_acting['eyeShapeZh']}；瞳孔 {facial_acting['pupilZh']}；眉形 {facial_acting['browZh']}；口部与下颌 {facial_acting['mouthJawZh']}；面部张力 {facial_acting['faceTensionZh']}；夸张手法 {facial_acting['exaggerationTechniqueZh']}。"
+                    if facial_acting else "- 漫画面部表演：无人镜头，不适用。"
+                ),
+                (
+                    f"- 漫画肢体表演：动作线 {body_acting['lineOfActionZh']}；重心 {body_acting['centerOfGravityZh']}；肩背 {body_acting['shoulderSpineZh']}；手部张力 {body_acting['handTensionZh']}；次级运动 {body_acting['secondaryMotionZh']}。"
+                    if body_acting else "- 漫画肢体表演：无人镜头，不适用。"
+                ),
                 f"- 图片提示词：{item['imagePromptZh'] or '本次未启用'}",
                 f"- 视频提示词：{item['videoPromptZh'] or '本次未启用'}",
                 "",
@@ -1094,6 +1531,15 @@ class ProductionCenter:
             "steps": [step_id for step_id, _, _ in STEP_DEFINITIONS],
             "deliveryModes": ["auto_render", "jianying_refine"],
             "videoSelectionModes": sorted(VIDEO_SELECTION_MODES),
+            "audioRouting": {
+                "humanVoiceEngineSelectedByUser": True,
+                "recommendVoicesFromSelectedEngineOnly": True,
+                "speakerBindingScope": "current_project",
+                "soundEffectEngine": "seed_audio",
+                "soundEffectExplicitDurationRequired": True,
+                "soundEffectMaxDurationSeconds": SOUND_EFFECT_MAX_DURATION_SECONDS,
+                "backgroundMusicTreatedAsSoundEffect": False,
+            },
             "codexVisualPlan": {
                 "schemaVersion": CODEX_VISUAL_PLAN_SCHEMA_VERSION,
                 "characterDesign": True,
@@ -1102,10 +1548,32 @@ class ProductionCenter:
                 "scenePerformance": True,
                 "storyVisualPlanning": True,
                 "complexityAdaptivePageCount": True,
+                "semanticSceneGrouping": True,
+                "speechDurationMaySplitStoryboard": False,
+                "soundEffectStandaloneStoryboard": False,
                 "cameraCompositionContract": True,
                 "criticalEmotionVisualSignals": True,
                 "continuityBible": True,
-                "promptBudgets": {"imageMaxChars": CODEX_IMAGE_PROMPT_MAXIMUM, "videoMaxChars": CODEX_VIDEO_PROMPT_MAXIMUM},
+                "mangaImpactDirection": True,
+                "singlePanel": True,
+                "singleVisualFocus": True,
+                "exaggeratedFacialActing": True,
+                "bodyLineOfAction": True,
+                "adaptiveBackgroundSimplification": True,
+                "clutterControl": True,
+                "fullSeriesContext": True,
+                "visualSequencePlanning": True,
+                "continuityStateChain": True,
+                "temporalSequenceInSingleImageForbidden": True,
+                "failedPromptRepairScope": CODEX_FAILURE_REPAIR_SCOPE,
+                "atomicImageReplacement": True,
+                "mangaDeviceLimit": CODEX_VISUAL_DIRECTION["mangaDeviceLimit"],
+                "promptBudgets": {
+                    "imageSoftMinChars": CODEX_IMAGE_PROMPT_SOFT_MINIMUM,
+                    "imageSoftMaxChars": CODEX_IMAGE_PROMPT_SOFT_MAXIMUM,
+                    "imageMaxChars": CODEX_IMAGE_PROMPT_MAXIMUM,
+                    "videoMaxChars": CODEX_VIDEO_PROMPT_MAXIMUM,
+                },
                 "referenceUsage": CODEX_REFERENCE_USAGE,
                 "workshopMayRewriteLockedPrompts": False,
                 "postGenerationVisualAudit": False,
@@ -1348,8 +1816,32 @@ class ProductionCenter:
         if not self.voice_catalog_path or not self.voice_catalog_path.is_file():
             raise ToolError("PRODUCTION_VOICE_CATALOG_UNAVAILABLE", "没有可用的版本化音色目录。")
         catalog, catalog_version, catalog_hash = _voice_catalog_document(self.voice_catalog_path)
-        voice_bindings = _validate_locked_voices(manuscript, catalog, catalog_version, catalog_hash)
         config = self._validate_production_config(production_config)
+        voice_bindings = _validate_locked_voices(
+            manuscript,
+            catalog,
+            catalog_version,
+            catalog_hash,
+            selected_engine_id=config["voiceTtsProfile"]["engineId"],
+        )
+        sound_effect_lines = [line for line in target_lines if line.get("lineType") == "sound_effect"]
+        if sound_effect_lines and not config["soundEffects"]["enabled"]:
+            raise ToolError("PRODUCTION_SOUND_EFFECT_DISABLED", "正式配音稿含纯音效行，但本次制作设置没有开启音效生成。")
+        for line in sound_effect_lines:
+            if (
+                line.get("speakerId") != "sfx"
+                or line.get("audioEngine") != "seed_audio"
+                or line.get("visualGenerationAllowed") is not False
+                or not isinstance(line.get("durationSeconds"), (int, float))
+                or isinstance(line.get("durationSeconds"), bool)
+                or not 0 < float(line["durationSeconds"]) <= SOUND_EFFECT_MAX_DURATION_SECONDS
+                or not str(line.get("soundPrompt") or "").strip()
+            ):
+                raise ToolError(
+                    "PRODUCTION_SOUND_EFFECT_LINE_INVALID",
+                    "纯音效行必须使用 sfx、Seed Audio、显式0–5秒时长，并禁止独立生成画面。",
+                    details={"lineId": line.get("lineId")},
+                )
         config["codexVisualPlan"] = _normalize_codex_visual_plan(
             config.get("codexVisualPlan"),
             manuscript=manuscript,
@@ -1634,6 +2126,36 @@ class ProductionCenter:
                 "PRODUCTION_STORY_IMAGE_TEXT_POLICY_INVALID",
                 "角色图、分镜图和宫格图必须使用 forbid_visible_text；正式封面文字由封面流程单独管理。",
             )
+        voice_tts_profile = deepcopy(config.get("voiceTtsProfile"))
+        if not isinstance(voice_tts_profile, dict):
+            raise ToolError("PRODUCTION_VOICE_ENGINE_REQUIRED", "开始制作前必须由用户明确选择人物旁白与对白配音引擎。")
+        voice_selection_source = str(voice_tts_profile.get("selectionSource") or "").strip()
+        voice_engine_id = str(voice_tts_profile.get("engineId") or "").strip()
+        if voice_selection_source != "user" or not voice_engine_id or voice_engine_id == "seed_audio":
+            raise ToolError(
+                "PRODUCTION_VOICE_ENGINE_INVALID",
+                "人物旁白与对白引擎必须来自本次用户选择，且不得使用仅供纯音效的 Seed Audio。",
+            )
+        if voice_tts_profile.get("recommendVoicesFromSelectedEngineOnly") is not True:
+            raise ToolError("PRODUCTION_VOICE_RECOMMENDATION_SCOPE_INVALID", "角色音色只能从用户所选配音引擎中推荐。")
+        if voice_tts_profile.get("lockScope") != "current_project":
+            raise ToolError("PRODUCTION_VOICE_LOCK_SCOPE_INVALID", "角色 speaker_id 与音色绑定必须锁定在当前项目范围。")
+        sound_effects = deepcopy(config.get("soundEffects"))
+        if not isinstance(sound_effects, dict) or not isinstance(sound_effects.get("enabled"), bool):
+            raise ToolError("PRODUCTION_SOUND_EFFECT_CONFIG_REQUIRED", "必须明确确认本项目是否生成纯音效。")
+        if (
+            sound_effects.get("engineId") != "seed_audio"
+            or not str(sound_effects.get("modelId") or "").strip()
+            or sound_effects.get("requireExplicitDuration") is not True
+            or sound_effects.get("maxDurationSeconds") != SOUND_EFFECT_MAX_DURATION_SECONDS
+            or sound_effects.get("standaloneStoryboard") is not False
+            or sound_effects.get("mixWithAdjacentSpeech") is not True
+            or sound_effects.get("backgroundMusicEnabled") is not False
+        ):
+            raise ToolError(
+                "PRODUCTION_SOUND_EFFECT_CONFIG_INVALID",
+                "纯音效必须独立使用 Seed Audio、显式短时长（最长5秒）、贴邻人声混合且不得单独生成画面或充当背景音乐。",
+            )
         prompt_generation = deepcopy(config.get("promptGeneration", {"image": False, "video": False}))
         if (
             not isinstance(prompt_generation, dict)
@@ -1696,6 +2218,22 @@ class ProductionCenter:
             "frameRate": frame_rate,
             "imageStyle": {"presetId": image_style_id, "prompt": image_style_prompt},
             "storyImageTextPolicy": story_image_text_policy,
+            "voiceTtsProfile": {
+                "selectionSource": "user",
+                "engineId": voice_engine_id,
+                "recommendVoicesFromSelectedEngineOnly": True,
+                "lockScope": "current_project",
+            },
+            "soundEffects": {
+                "enabled": sound_effects["enabled"],
+                "engineId": "seed_audio",
+                "modelId": str(sound_effects["modelId"]).strip(),
+                "requireExplicitDuration": True,
+                "maxDurationSeconds": SOUND_EFFECT_MAX_DURATION_SECONDS,
+                "standaloneStoryboard": False,
+                "mixWithAdjacentSpeech": True,
+                "backgroundMusicEnabled": False,
+            },
             "promptGeneration": {
                 "image": prompt_generation["image"],
                 "video": prompt_generation["video"],
@@ -1911,10 +2449,11 @@ class ProductionCenter:
         package_root = package_root.resolve()
         manifest = self.validate_package(package_root)
         if self.workshop_bridge is not None:
+            bridge_isolation_root = getattr(self.workshop_bridge, "isolation_root", self.root)
             target = (
                 target_root.resolve()
                 if target_root is not None
-                else self.workshop_bridge.isolation_root
+                else bridge_isolation_root
                 / "workshop-projects"
                 / manifest["projectId"]
                 / manifest["packageVersion"]
@@ -2263,6 +2802,18 @@ class ProductionCenter:
         characters = {item["characterId"]: item for item in documents["characters.json"]["characters"]}
         rows = []
         for line in documents["script_lines.json"]["lines"]:
+            if line.get("lineType") == "sound_effect":
+                rows.append(
+                    {
+                        **deepcopy(line),
+                        "voice": {
+                            "engineId": "seed_audio",
+                            "modelId": documents["production_config.json"]["soundEffects"]["modelId"],
+                            "bindingStatus": "SOUND_EFFECT_ENGINE_BOUND",
+                        },
+                    }
+                )
+                continue
             speaker = characters.get(line["speakerId"])
             if not speaker or not isinstance(speaker.get("voice"), dict):
                 raise ToolError("PRODUCTION_VOICE_BINDING_MISSING", "正式文稿行说话人没有锁定音色。")
@@ -2283,6 +2834,7 @@ class ProductionCenter:
                 continue
             path = audio_root / f"{line['lineId']}.wav"
             frequency = 360 + index * 20
+            duration_seconds = float(line.get("durationSeconds", 0.75)) if line.get("lineType") == "sound_effect" else 0.75
             self._run_command(
                 [
                     self.ffmpeg_path,
@@ -2293,7 +2845,7 @@ class ProductionCenter:
                     "-f",
                     "lavfi",
                     "-i",
-                    f"sine=frequency={frequency}:sample_rate=48000:duration=0.75",
+                    f"sine=frequency={frequency}:sample_rate=48000:duration={duration_seconds:.3f}",
                     "-c:a",
                     "pcm_s16le",
                     str(path),
@@ -2306,20 +2858,40 @@ class ProductionCenter:
     def _execute_p5(self, task: dict[str, Any], documents: dict[str, dict[str, Any]]) -> None:
         storyboards = []
         cursor = 0.0
-        for line in documents["script_lines.json"]["lines"]:
-            storyboard_id = f"SB-{line['lineId']}"
+        lines = documents["script_lines.json"]["lines"]
+        line_by_id = {line["lineId"]: line for line in lines}
+        scene_plans = documents["production_config.json"].get("codexVisualPlan", {}).get("scenePlans", [])
+        grouped_lines: list[tuple[str, list[dict[str, Any]]]] = []
+        if scene_plans:
+            for scene in scene_plans:
+                grouped_lines.append((scene["sceneId"], [line_by_id[line_id] for line_id in scene["scriptLineIds"]]))
+        else:
+            pending_effects: list[dict[str, Any]] = []
+            for line in lines:
+                if line.get("lineType") == "sound_effect":
+                    pending_effects.append(line)
+                    continue
+                grouped_lines.append((f"SB-{line['lineId']}", [*pending_effects, line]))
+                pending_effects = []
+            if pending_effects and grouped_lines:
+                grouped_lines[-1][1].extend(pending_effects)
+        for storyboard_id, group in grouped_lines:
+            duration_seconds = sum(
+                float(line.get("durationSeconds", 0.75)) if line.get("lineType") == "sound_effect" else 0.75
+                for line in group
+            )
             storyboards.append(
                 {
                     "storyboardId": storyboard_id,
-                    "episodeNumber": line["episodeNumber"],
-                    "lineIds": [line["lineId"]],
-                    "speakerIds": [line["speakerId"]],
-                    "audioAssetIds": [f"audio-{line['lineId']}"],
+                    "episodeNumber": group[0]["episodeNumber"],
+                    "lineIds": [line["lineId"] for line in group],
+                    "speakerIds": [line["speakerId"] for line in group if line.get("lineType") != "sound_effect"],
+                    "audioAssetIds": [f"audio-{line['lineId']}" for line in group],
                     "startSeconds": round(cursor, 3),
-                    "durationSeconds": 0.75,
+                    "durationSeconds": round(duration_seconds, 3),
                 }
             )
-            cursor += 0.75
+            cursor += duration_seconds
         document = {"schemaVersion": "1.0.0", "storyboards": storyboards, "durationSeconds": round(cursor, 3)}
         path = self._task_root(task["productionTaskId"]) / "assets" / "storyboards.json"
         _atomic_json(path, document)
@@ -2493,16 +3065,23 @@ class ProductionCenter:
         srt_parts: list[str] = []
         timeline = []
         cursor = 0.0
+        cue = 0
         for index, line in enumerate(lines, 1):
             start = cursor
-            end = cursor + 0.75
-            srt_parts.extend([str(index), f"{self._srt_timestamp(start)} --> {self._srt_timestamp(end)}", line["text"], ""])
+            duration_seconds = float(line.get("durationSeconds", 0.75)) if line.get("lineType") == "sound_effect" else 0.75
+            end = cursor + duration_seconds
+            subtitle_cue: int | None = None
+            if line.get("lineType") != "sound_effect":
+                cue += 1
+                subtitle_cue = cue
+                srt_parts.extend([str(cue), f"{self._srt_timestamp(start)} --> {self._srt_timestamp(end)}", line["text"], ""])
             timeline.append(
                 {
-                    "cue": index,
+                    "cue": subtitle_cue,
                     "lineId": line["lineId"],
                     "episodeNumber": line["episodeNumber"],
                     "speakerId": line["speakerId"],
+                    "lineType": line.get("lineType"),
                     "startSeconds": round(start, 3),
                     "endSeconds": round(end, 3),
                     "textHash": _sha256_bytes(line["text"].encode("utf-8")),
@@ -2511,7 +3090,7 @@ class ProductionCenter:
             cursor = end
         srt_path = root / "subtitles.srt"
         timeline_path = root / "timeline-map.json"
-        _atomic_bytes(srt_path, ("\n".join(srt_parts).rstrip() + "\n").encode("utf-8"))
+        _atomic_bytes(srt_path, (("\n".join(srt_parts).rstrip() + "\n") if srt_parts else "").encode("utf-8"))
         _atomic_json(timeline_path, {"schemaVersion": "1.0.0", "language": _read_json(Path(task["packagePath"]) / "script_lines.json")["language"], "durationSeconds": round(cursor, 3), "items": timeline})
         return srt_path, timeline_path
 
@@ -2519,7 +3098,13 @@ class ProductionCenter:
         output_root = self._task_root(task["productionTaskId"]) / "render"
         output_root.mkdir(parents=True, exist_ok=True)
         lines = documents["script_lines.json"]["lines"]
-        duration = max(0.75 * len(lines), 1.0)
+        duration = max(
+            sum(
+                float(line.get("durationSeconds", 0.75)) if line.get("lineType") == "sound_effect" else 0.75
+                for line in lines
+            ),
+            1.0,
+        )
         video_path = output_root / "final-video.mp4"
         self._render_media(
             Path(task["packagePath"]) / "confirmed_thumbnail.png",
@@ -2551,7 +3136,7 @@ class ProductionCenter:
             "trackType": "jianying-native-subtitle-track",
             "language": documents["script_lines.json"]["language"],
             "sourceSrt": "subtitles.srt",
-            "items": _read_json(timeline_path)["items"],
+            "items": [item for item in _read_json(timeline_path)["items"] if item.get("cue") is not None],
             "ordinaryTextTrack": False,
         }
         _atomic_json(draft_root / "native-subtitle-track.json", native_track)
@@ -2654,7 +3239,8 @@ class ProductionCenter:
             if time_index is not None:
                 subtitle_text_parts.extend(rows[time_index + 1 :])
         normalized_subtitles = re.sub(r"\s+", "", "".join(subtitle_text_parts))
-        normalized_script = re.sub(r"\s+", "", "".join(line["text"] for line in expected_lines))
+        spoken_lines = [line for line in expected_lines if line.get("lineType") != "sound_effect"]
+        normalized_script = re.sub(r"\s+", "", "".join(line["text"] for line in spoken_lines))
         if not normalized_script or normalized_script not in normalized_subtitles:
             raise ToolError("PRODUCTION_SUBTITLE_MAPPING_MISMATCH", "SRT 没有按原顺序完整包含目标语言正式母稿。")
         expected_duration = float(timeline.get("durationSeconds", 0))
@@ -2673,7 +3259,7 @@ class ProductionCenter:
             "videoCodec": video.get("codec_name"),
             "audioCodec": audio_streams[0].get("codec_name"),
             "durationSeconds": round(duration, 3),
-            "subtitleCueCount": len(items),
+            "subtitleCueCount": len(spoken_lines),
             "timelineMapped": True,
             "videoSha256": _sha256_file(video_path),
             "subtitlesSha256": _sha256_file(subtitles_path),

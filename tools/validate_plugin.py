@@ -15,7 +15,7 @@ PLUGIN_NAME = "ai-video-channel-production"
 MARKETPLACE_NAME = "novel-manga-production"
 PLUGIN_ROOT = ROOT / "plugins" / PLUGIN_NAME
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-CURRENT_PRODUCT_VERSION = "0.12.0-rc.4"
+CURRENT_PRODUCT_VERSION = "0.13.0-rc.1"
 
 EXPECTED_SKILLS = {
     "channel-production",

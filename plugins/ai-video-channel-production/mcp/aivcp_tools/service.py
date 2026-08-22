@@ -39,7 +39,7 @@ RETIRED_CONTENT_TOOL_PREFIXES = (
 
 
 LOCAL_TOOL_PROTOCOL_VERSION = "1.0.0"
-SERVICE_VERSION = "0.12.0-rc.4"
+SERVICE_VERSION = "0.13.0-rc.1"
 
 
 def default_data_root(plugin_root: Path | None = None) -> Path:
@@ -345,6 +345,80 @@ class LocalToolService:
         confirmation_ref = authorization.get("confirmationRef")
         if not isinstance(confirmation_ref, str) or not confirmation_ref.startswith(f"task:{task_id}:"):
             raise ToolError("VIDEO_GENERATION_AUTHORIZATION_REF_INVALID", "视频生成授权必须绑定当前任务。")
+
+    @staticmethod
+    def _production_voice_selection_view(
+        catalog: dict[str, Any], workshop_capabilities: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Build human-voice choices without treating a no-probe result as failure."""
+        workshop_engines = {
+            str(item.get("engine") or ""): item
+            for item in workshop_capabilities.get("voiceEngines", [])
+            if isinstance(item, dict) and str(item.get("engine") or "")
+        }
+        probe_executed = workshop_capabilities.get("externalServiceProbeExecuted") is True
+        choices: list[dict[str, Any]] = []
+        for engine in catalog.get("engines", []):
+            if not isinstance(engine, dict):
+                continue
+            engine_id = str(engine.get("engineId") or "")
+            if not engine_id:
+                continue
+            workshop = workshop_engines.get(engine_id, {})
+            installed = engine.get("installed") is True
+            configured = workshop.get("configured") is True
+            catalog_voice_count = len(engine.get("voices", [])) if isinstance(engine.get("voices"), list) else 0
+            catalog_ready = installed and catalog_voice_count > 0
+            reserved_for_sound_effects = engine_id == "seed_audio"
+            available_now: bool | None = bool(workshop.get("available")) if probe_executed else None
+            if not configured:
+                selection_status = "workshop_not_configured"
+            elif probe_executed and available_now is not True:
+                selection_status = "runtime_unavailable"
+            elif probe_executed:
+                selection_status = "ready"
+            else:
+                selection_status = "configured_runtime_check_deferred"
+            choices.append(
+                {
+                    "engineId": engine_id,
+                    "displayName": engine.get("displayName", engine_id),
+                    "catalogInstalled": installed,
+                    "catalogVoiceCount": catalog_voice_count,
+                    "workshopConfigured": configured,
+                    "runtimeStatus": (
+                        "available"
+                        if available_now is True
+                        else "unavailable"
+                        if available_now is False
+                        else "not_probed"
+                    ),
+                    "availableNow": available_now,
+                    "runtimeCheckDeferredToProductionStart": not probe_executed,
+                    "startupMode": (
+                        "workshop_managed_on_demand"
+                        if engine_id in {"voicevox_external", "kokoro"}
+                        else "provider_preflight_at_production_start"
+                    ),
+                    "humanVoiceSelectable": bool(
+                        catalog_ready
+                        and configured
+                        and not reserved_for_sound_effects
+                        and (not probe_executed or available_now is True)
+                    ),
+                    "reservedForSoundEffects": reserved_for_sound_effects,
+                    "selectionStatus": (
+                        "reserved_for_sound_effects" if reserved_for_sound_effects else selection_status
+                    ),
+                }
+            )
+        return {
+            "selectionAuthority": "pre_scanned_catalog_plus_workshop_configuration",
+            "catalogTool": "system_voice_catalog",
+            "externalServiceProbeExecuted": probe_executed,
+            "availabilityRule": "not_probed_is_not_unavailable",
+            "humanVoiceEngines": choices,
+        }
 
     def call(self, name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
         args = arguments or {}
@@ -1086,7 +1160,11 @@ class LocalToolService:
             result = self.production.capabilities()
             if self.production.workshop_bridge is not None:
                 result["workshopHealth"] = self.production.workshop_bridge.health_check()
-                result["workshopCapabilities"] = self.production.workshop_bridge.capabilities()
+                workshop_capabilities = self.production.workshop_bridge.capabilities()
+                result["workshopCapabilities"] = workshop_capabilities
+                result["voiceSelection"] = self._production_voice_selection_view(
+                    self.voices.read(), workshop_capabilities
+                )
         elif name == "production_package_assemble":
             self.store.assert_binding(
                 task_id=args.get("taskId"),
@@ -1846,7 +1924,7 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "content_workspace_narration_prepare",
-            "制作绑定完成后，把用户确认的正式稿整理为可直接配音的版本，并冻结一个默认直接用于发布的口播稿标题；不自动生成另一套标题。章节标题是否朗读必须使用本次制作设置，不能从旧项目继承。",
+            "制作绑定完成后，把用户确认的正式稿整理为可直接配音的版本，并冻结一个默认直接用于发布的口播稿标题；不自动生成另一套标题。每集必须以匹配开场剧情的纯音效起播；其余音效必须放在触发它的完整旁白或对白之后，不能抢句或打断人声。章节标题是否朗读必须使用本次制作设置，不能从旧项目继承。",
             {
                 **workspace_binding_properties,
                 "sourceDocumentId": {"type": "string", "minLength": 1, "maxLength": 128},
@@ -1944,7 +2022,7 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "content_manuscript_finalize",
-            "校验目标语言原生母稿、逐行中文审核映射、角色音色、合并质量门和独立外语质量保险门后冻结 Manuscript Package v1，并生成绑定该包的 07 正式口播稿与 08 中文审核稿。",
+            "校验目标语言正式配音稿、逐行中文审核映射、角色音色、合并质量门和独立外语质量保险门后冻结 Manuscript Package v1，并生成绑定该包的 07 正式口播稿与 08 中文审核稿。旁白与对白不设固定时长硬上限；每集第一行必须是匹配开场的纯音效，其余纯音效必须紧跟触发它的完整人声，独占一行并严格写成【sound：具体描述；时长1.2秒】，最长5秒、speakerId=sfx、固定 Seed Audio、禁止独立画面且禁止生成字幕。",
             {**binding_properties, "projectId": {"type": "string"}, "storyBible": {"type": "object"}, "characters": {"type": "array"}, "targetScript": {"type": "array"}, "chineseAuditScript": {"type": ["array", "null"]}, "qualityGate": {"type": "object"}, "foreignLanguageQualityGate": {"type": "object"}, "confirmation": {"type": "object"}, "authoringMode": {"type": "string"}},
             ["taskId", "channelProfileId", "bindingProof", "projectId", "storyBible", "characters", "targetScript", "qualityGate", "foreignLanguageQualityGate", "confirmation"],
         ),
@@ -1974,13 +2052,13 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "production_capabilities",
-            "只读检查标准生产包、制作任务、FFmpeg、工坊桥和发布隔离边界。",
+            "只读检查标准生产包、制作任务、FFmpeg、工坊桥和发布隔离边界。人物配音必须以 voiceSelection.humanVoiceEngines 为可选依据；externalServiceProbeExecuted=false 时，旧 available=false 只表示未探测，不能判定引擎不可用。",
             {},
             [],
         ),
         (
             "production_package_assemble",
-            "从已确认的 Manuscript 与 Publishing Asset 组装 Production Package v2.1；开启图片或视频提示词时，必须由 Codex 在 productionConfig.codexVisualPlan 中提交漫画角色设计、故事画面规划、复杂度自适应页数、镜头构图、情绪爆点可见信号、连续性绑定、预算内图片提示词和可选视频提示词，工坊锁定执行且不得重写。硬门同时校验 07 正式口播稿与机器生产脚本逐字一致、08 中文稿仅供审核，并生成生产包总览与可查看视觉方案文档。",
+            "从已确认的 Manuscript 与 Publishing Asset 组装 Production Package v2.1。productionConfig 必须保存用户本次选择的人物配音引擎，角色音色只能从该引擎推荐并在当前项目锁定；每集开场必须有 Seed Audio，其他音效只能在触发人声完整结束后播放、与触发句共用分镜、不得生成字幕或独立画面。开启图片或视频提示词时，codexVisualPlan 必须按同一视觉时刻细分分镜，单镜最多三条同一视觉时刻的人声，并在动作、视线、情绪或因果变化处继续拆分；同时执行生图安全预检，工坊不得重写。",
             {
                 **binding_properties,
                 "projectId": {"type": "string"},

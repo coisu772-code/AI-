@@ -13,7 +13,6 @@ REQUIRED_TOOLS = (
     "system_capabilities",
     "content_capabilities",
     "content_workspace_start",
-    "content_workspace_document_reject",
     "content_workspace_narration_prepare",
     "production_capabilities",
     "data_center_capabilities",
@@ -286,12 +285,31 @@ def main() -> int:
                 or "2.1" not in workshop_capabilities.get("supportedPackageVersions", [])
                 or workshop_capabilities.get("externalServiceProbeExecuted") is not False
                 or not reported_voice_engines.issubset(covered_voice_engines)
-                or codex_visual_plan.get("schemaVersion") != "1.1"
+                or codex_visual_plan.get("schemaVersion") != "1.3"
                 or codex_visual_plan.get("storyVisualPlanning") is not True
                 or codex_visual_plan.get("complexityAdaptivePageCount") is not True
                 or codex_visual_plan.get("criticalEmotionVisualSignals") is not True
                 or codex_visual_plan.get("continuityBible") is not True
-                or codex_visual_plan.get("promptBudgets") != {"imageMaxChars": 600, "videoMaxChars": 500}
+                or codex_visual_plan.get("mangaImpactDirection") is not True
+                or codex_visual_plan.get("singlePanel") is not True
+                or codex_visual_plan.get("singleVisualFocus") is not True
+                or codex_visual_plan.get("exaggeratedFacialActing") is not True
+                or codex_visual_plan.get("bodyLineOfAction") is not True
+                or codex_visual_plan.get("adaptiveBackgroundSimplification") is not True
+                or codex_visual_plan.get("clutterControl") is not True
+                or codex_visual_plan.get("fullSeriesContext") is not True
+                or codex_visual_plan.get("visualSequencePlanning") is not True
+                or codex_visual_plan.get("continuityStateChain") is not True
+                or codex_visual_plan.get("temporalSequenceInSingleImageForbidden") is not True
+                or codex_visual_plan.get("failedPromptRepairScope") != "failed_scene_only"
+                or codex_visual_plan.get("atomicImageReplacement") is not True
+                or codex_visual_plan.get("mangaDeviceLimit") != 3
+                or codex_visual_plan.get("promptBudgets") != {
+                    "imageSoftMinChars": 280,
+                    "imageSoftMaxChars": 450,
+                    "imageMaxChars": 600,
+                    "videoMaxChars": 500,
+                }
             ):
                 raise SystemExit("Cached plugin workshop bridge or voice-engine catalog coverage is incomplete.")
             component_integration["workshopHealthCheckExecuted"] = True
@@ -301,8 +319,16 @@ def main() -> int:
             component_integration["ffprobeAvailable"] = True
             component_integration["externalServiceProbeExecuted"] = False
             component_integration["workshopVoiceEnginesCovered"] = sorted(reported_voice_engines)
-            component_integration["codexVisualPlanSchema"] = "1.1"
+            component_integration["codexVisualPlanSchema"] = "1.3"
+            component_integration["fullSeriesContext"] = True
+            component_integration["visualSequencePlanning"] = True
+            component_integration["continuityStateChain"] = True
+            component_integration["failedPromptRepairScope"] = "failed_scene_only"
+            component_integration["atomicImageReplacement"] = True
             component_integration["criticalEmotionVisualSignals"] = True
+            component_integration["mangaImpactDirection"] = True
+            component_integration["singleVisualFocus"] = True
+            component_integration["exaggeratedFacialActing"] = True
         capability_status[tool_name] = "PASS"
 
     report = {
