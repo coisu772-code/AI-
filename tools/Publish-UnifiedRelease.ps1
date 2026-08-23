@@ -64,13 +64,21 @@ function Get-GitHubReleaseByTag {
         [Parameter(Mandatory = $true)][hashtable]$Headers
     )
     $encodedTag = [System.Uri]::EscapeDataString($ReleaseTag)
-    try {
-        return Invoke-GitHubJson -Method Get -Uri "https://api.github.com/repos/$Repository/releases/tags/$encodedTag" -Headers $Headers
-    }
-    catch {
-        $response = $_.Exception.Response
-        if ($null -ne $response -and [int]$response.StatusCode -eq 404) { return $null }
-        throw
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            return Invoke-GitHubJson -Method Get -Uri "https://api.github.com/repos/$Repository/releases/tags/$encodedTag" -Headers $Headers
+        }
+        catch {
+            $caught = $_
+            $responseProperty = $caught.Exception.PSObject.Properties["Response"]
+            $response = if ($null -eq $responseProperty) { $null } else { $responseProperty.Value }
+            $notFound = $null -ne $response -and [int]$response.StatusCode -eq 404
+            if ($attempt -ge 3) {
+                if ($notFound) { return $null }
+                throw $caught
+            }
+            Start-Sleep -Seconds $attempt
+        }
     }
 }
 
