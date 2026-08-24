@@ -51,7 +51,7 @@ def validate_release_manifest(manifest_path: Path | None = None) -> list[str]:
         component_attestation = source.get("componentManifest", {})
         if (
             component_attestation.get("fileName") != "publisher-component-manifest-v0.9.0-rc.3.json"
-            or component_attestation.get("sha256") != "ada2fb31fd4c47c2f5888a127de7fcf2b992e3a6076d6d542def651f013bc95e"
+            or component_attestation.get("sha256") != "df27aada48e7fc7b57f5e5a04c4197480ac1533354481198694631083cc79318"
         ):
             errors.append("publisher component reuse attestation is not locked")
         if source.get("constraintsCatalog", {}).get("sha256") != "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a":

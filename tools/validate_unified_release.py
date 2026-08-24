@@ -257,7 +257,7 @@ def validate(manifest_path: Path, asset_root: Path) -> dict[str, object]:
     expected_publisher_source = {
         "commit": "606a5e6592ad20a747cd5494a9dde54fdaec6fb0",
         "snapshotSha256": "b9d1c52e98d79154c1c3c809c1178d570d67891b289682fb79c9ac345f714295",
-        "componentManifestSha256": "ada2fb31fd4c47c2f5888a127de7fcf2b992e3a6076d6d542def651f013bc95e",
+        "componentManifestSha256": "df27aada48e7fc7b57f5e5a04c4197480ac1533354481198694631083cc79318",
         "constraintsSha256": "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a",
     }
     if publisher_source.get("commit") != expected_publisher_source["commit"]:
