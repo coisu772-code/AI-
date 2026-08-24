@@ -7,7 +7,9 @@
   "versions": [
     {
       "version": "0.14.0-rc.1",
-      "status": "source-candidate",
+      "status": "local-release-candidate",
+      "gitTag": "v0.14.0-rc.1",
+      "manifest": "unified-release-v0.14.0-rc.1.json",
       "remotePublished": false
     },
     {
