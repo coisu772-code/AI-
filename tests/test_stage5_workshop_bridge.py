@@ -107,6 +107,7 @@ class WorkshopBridgeTests(unittest.TestCase):
                     "success": True,
                     "voiceEngines": [{"engine": "fixture", "available": False}],
                     "supportedPackageVersions": ["2.1"],
+                    "supportedCodexVisualPlanSchemas": ["1.3", "1.4", "1.5"],
                 },
             )
 
@@ -114,6 +115,7 @@ class WorkshopBridgeTests(unittest.TestCase):
             result = self.bridge.capabilities()
         self.assertFalse(result["externalServiceProbeExecuted"])
         self.assertEqual(["2.1"], result["supportedPackageVersions"])
+        self.assertEqual(["1.3", "1.4", "1.5"], result["supportedCodexVisualPlanSchemas"])
 
     def test_import_is_limited_to_isolation_and_preserves_duplicate_flag(self) -> None:
         package = self.root / "production-package"
@@ -209,7 +211,13 @@ class WorkshopBridgeTests(unittest.TestCase):
         project = self.isolation / "workshop-project" / "novel_manga_project.json"
         project.parent.mkdir(parents=True)
         project.write_text(
-            json.dumps({"id": "fixture-project", "importMeta": self._official_import_meta()}),
+            json.dumps({
+                "id": "fixture-project",
+                "importMeta": {
+                    **self._official_import_meta(),
+                    "productionContract": {"gridBatch": {"template": "wide_16_9_1"}},
+                },
+            }),
             encoding="utf-8",
         )
 
@@ -217,6 +225,7 @@ class WorkshopBridgeTests(unittest.TestCase):
             self.assertEqual("run-production", argv[1])
             self.assertIn("--auto-start", argv)
             self.assertIn("audio,storyboard", argv)
+            self.assertEqual("wide_16_9_1", argv[argv.index("--grid-template") + 1])
             result_path = Path(argv[argv.index("--result-file") + 1])
             result_path.write_text(
                 json.dumps({"success": True, "processId": 4242, "forwarded": True, "status": "accepted"}),
@@ -235,6 +244,64 @@ class WorkshopBridgeTests(unittest.TestCase):
         self.assertEqual(4242, result["processId"])
         self.assertTrue(result["forwarded"])
         self.assertFalse(result["publishingTriggered"])
+
+    def test_start_production_reuses_running_project_without_new_process(self) -> None:
+        project = self.isolation / "workshop-project" / "novel_manga_project.json"
+        project.parent.mkdir(parents=True)
+        project.write_text(
+            json.dumps(
+                {
+                    "id": "fixture-project",
+                    "importMeta": self._official_import_meta(),
+                    "autoProductionTask": {
+                        "externalRequestId": "task-existing-001",
+                        "status": "running",
+                        "selectedStepIds": ["audio"],
+                        "selectedEpisodeIds": ["ep_001"],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        with patch("aivcp_tools.workshop_bridge.subprocess.Popen") as popen:
+            result = self.bridge.start_production(
+                project,
+                selected_step_ids=["audio"],
+                request_id="task-new-002",
+                expected_project_id="fixture-project",
+            )
+        popen.assert_not_called()
+        self.assertEqual("already_running", result["status"])
+        self.assertEqual("task-existing-001", result["requestId"])
+        self.assertTrue(result["joinedExisting"])
+
+    def test_start_timeout_keeps_lease_and_blocks_duplicate_process(self) -> None:
+        project = self.isolation / "workshop-project" / "novel_manga_project.json"
+        project.parent.mkdir(parents=True)
+        project.write_text(
+            json.dumps({"id": "fixture-project", "importMeta": self._official_import_meta()}),
+            encoding="utf-8",
+        )
+        with patch("aivcp_tools.workshop_bridge.subprocess.Popen", return_value=_RunningProcess()) as popen:
+            first = self.bridge.start_production(
+                project,
+                selected_step_ids=["audio"],
+                request_id="task-pending-001",
+                expected_project_id="fixture-project",
+                startup_timeout_seconds=1,
+            )
+            second = self.bridge.start_production(
+                project,
+                selected_step_ids=["audio"],
+                request_id="task-pending-002",
+                expected_project_id="fixture-project",
+                startup_timeout_seconds=1,
+            )
+        self.assertEqual(1, popen.call_count)
+        self.assertEqual("start_pending", first["status"])
+        self.assertEqual("start_pending", second["status"])
+        self.assertEqual("task-pending-001", second["requestId"])
+        self.assertFalse(first["startConfirmed"])
 
     def test_production_status_is_read_only(self) -> None:
         project = self.isolation / "workshop-project" / "novel_manga_project.json"
@@ -320,6 +387,64 @@ class WorkshopBridgeTests(unittest.TestCase):
                 expected_request_id="current-run",
             )
         self.assertEqual("WORKSHOP_STATUS_TASK_MISMATCH", caught.exception.code)
+
+    def test_completed_artifacts_are_isolated_real_and_traceable(self) -> None:
+        project = self.isolation / "workshop-project" / "novel_manga_project.json"
+        project.parent.mkdir(parents=True)
+        image_a = project.parent / "scene-a.png"
+        image_b = project.parent / "scene-b.png"
+        image_a.write_bytes(b"real storyboard image a")
+        image_b.write_bytes(b"real storyboard image b")
+        upload = project.parent / "upload-package"
+        report_dir = upload / "05-report"
+        report_dir.mkdir(parents=True)
+        video = upload / "final.mp4"
+        subtitles = upload / "subtitles.srt"
+        video.write_bytes(b"real workshop mp4 fixture")
+        subtitles.write_text("1\n00:00:00,000 --> 00:00:01,000\nline one\n", encoding="utf-8")
+        report = {
+            "status": "completed",
+            "videoPath": str(video),
+            "subtitlePath": str(subtitles),
+            "sceneCount": 2,
+            "subtitleCount": 1,
+            "durationSec": 1.0,
+            "resolution": "1920x1080",
+            "renderHash": "b" * 64,
+        }
+        (report_dir / "upload_package_report.json").write_text(json.dumps(report), encoding="utf-8")
+        project.write_text(
+            json.dumps(
+                {
+                    "id": "fixture-project",
+                    "importMeta": self._official_import_meta(),
+                    "autoProductionTask": {
+                        "id": "workshop-task-1",
+                        "externalRequestId": "task-run-001",
+                        "status": "completed",
+                    },
+                    "lastFinalVideoPath": str(video),
+                    "lastUploadPackagePath": str(upload),
+                    "scenes": [
+                        {"id": "scene-a", "splitImagePath": str(image_a)},
+                        {"id": "scene-b", "splitImagePath": str(image_b)},
+                    ],
+                    "scriptLines": [{"id": "line-1", "durationSec": 1.0, "audioPath": "audio.wav"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        before = project.read_bytes()
+        result = self.bridge.production_artifacts(
+            project,
+            expected_project_id="fixture-project",
+            expected_request_id="task-run-001",
+        )
+        self.assertEqual(before, project.read_bytes())
+        self.assertEqual("workshop", result["provenance"])
+        self.assertEqual(2, len(result["storyboardImages"]))
+        self.assertEqual(2, len({item["sha256"] for item in result["storyboardImages"]}))
+        self.assertFalse(result["publishingTriggered"])
         self.assertEqual(before, project.read_bytes())
 
 

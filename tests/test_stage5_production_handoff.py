@@ -18,7 +18,13 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from aivcp_tools.contracts import with_hash  # noqa: E402
 from aivcp_tools.errors import ToolError  # noqa: E402
-from aivcp_tools.production import ProductionCenter, _normalize_codex_visual_plan, production_package_hash  # noqa: E402
+from aivcp_tools.production import (  # noqa: E402
+    ProductionCenter,
+    _normalize_codex_visual_plan,
+    _subtitles_cover_spoken_lines_in_order,
+    _validate_sound_effect_scene_bindings,
+    production_package_hash,
+)
 from aivcp_tools.review_documents import save_review_document  # noqa: E402
 from aivcp_tools.service import LocalToolService, ServiceConfig, tool_definitions  # noqa: E402
 from stage5_support import (  # noqa: E402
@@ -58,6 +64,39 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
             callback()
         self.assertEqual(code, caught.exception.code)
         return caught.exception
+
+    def test_subtitle_coverage_allows_interleaved_sound_effect_cues(self) -> None:
+        spoken_lines = [
+            {"lineId": "E01-L001", "text": "彼は扉を見上げた。"},
+            {"lineId": "E01-L002", "text": "光が差し込んだ。"},
+        ]
+        subtitles_with_sfx = "彼は扉を見上げた。【sound：扉が開く音】光が差し込んだ。"
+        self.assertTrue(_subtitles_cover_spoken_lines_in_order(subtitles_with_sfx, spoken_lines))
+        self.assertFalse(
+            _subtitles_cover_spoken_lines_in_order(
+                "光が差し込んだ。【sound：扉が開く音】彼は扉を見上げた。",
+                spoken_lines,
+            )
+        )
+
+    def test_sound_effect_must_share_the_trigger_scene(self) -> None:
+        lines = [
+            {"lineId": "E01-L001", "episodeNumber": 1, "lineType": "narration"},
+            {"lineId": "E01-SFX01", "episodeNumber": 1, "lineType": "sound_effect"},
+            {"lineId": "E01-L002", "episodeNumber": 1, "lineType": "dialogue"},
+        ]
+        _validate_sound_effect_scene_bindings(
+            lines,
+            {"E01-L001": "SCENE-01", "E01-SFX01": "SCENE-01", "E01-L002": "SCENE-02"},
+        )
+        error = self.assert_tool_error(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            lambda: _validate_sound_effect_scene_bindings(
+                lines,
+                {"E01-L001": "SCENE-01", "E01-SFX01": "SCENE-02", "E01-L002": "SCENE-02"},
+            ),
+        )
+        self.assertEqual("E01-L001", error.details["triggerLineId"])
 
     def _package_copy(self, context, name: str) -> Path:
         destination = self.root / "mutations" / name
@@ -123,19 +162,40 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         capabilities = context.content.service.call("production_capabilities")
         self.assertEqual("2.1", capabilities["contracts"]["productionPackage"])
         self.assertEqual([f"P{index}" for index in range(12)], capabilities["steps"])
+        self.assertEqual(20, capabilities["productionConcurrency"]["maximum"])
+        self.assertEqual(20, capabilities["productionConcurrency"]["recommendedImage"])
+        self.assertTrue(capabilities["gridBatch"]["episodeTemplateOverrides"])
         self.assertFalse(capabilities["boundaries"]["readyPackage"])
         self.assertFalse(capabilities["boundaries"]["upload"])
-        self.assertEqual("1.3", capabilities["codexVisualPlan"]["schemaVersion"])
+        self.assertEqual("1.5", capabilities["codexVisualPlan"]["schemaVersion"])
         self.assertEqual("identity_only", capabilities["codexVisualPlan"]["referenceUsage"])
         self.assertTrue(capabilities["codexVisualPlan"]["mangaImpactDirection"])
         self.assertTrue(capabilities["codexVisualPlan"]["singleVisualFocus"])
         self.assertTrue(capabilities["codexVisualPlan"]["exaggeratedFacialActing"])
         self.assertTrue(capabilities["codexVisualPlan"]["semanticSceneGrouping"])
+        self.assertEqual("semantic_visual_beat_v2", capabilities["codexVisualPlan"]["semanticGroupingMode"])
+        self.assertTrue(capabilities["codexVisualPlan"]["semanticGroupingBeforeContinuity"])
+        self.assertFalse(capabilities["codexVisualPlan"]["ttsLineBreakCreatesScene"])
+        self.assertFalse(capabilities["codexVisualPlan"]["lineCountHardCap"])
         self.assertTrue(capabilities["codexVisualPlan"]["fullSeriesContext"])
         self.assertTrue(capabilities["codexVisualPlan"]["visualSequencePlanning"])
         self.assertTrue(capabilities["codexVisualPlan"]["continuityStateChain"])
         self.assertTrue(capabilities["codexVisualPlan"]["temporalSequenceInSingleImageForbidden"])
+        self.assertTrue(capabilities["codexVisualPlan"]["combatEffectsContract"])
+        self.assertTrue(capabilities["codexVisualPlan"]["combatKeyMomentsOnly"])
+        self.assertFalse(capabilities["codexVisualPlan"]["combatAllPhasesRequired"])
+        self.assertFalse(capabilities["codexVisualPlan"]["combatPhaseChangeMayForceStoryboard"])
+        self.assertTrue(capabilities["codexVisualPlan"]["combatIntermediatePhasesMayBeOmitted"])
+        self.assertTrue(capabilities["codexVisualPlan"]["nonGraphicCombatEffectsPreserved"])
         self.assertEqual("failed_scene_only", capabilities["codexVisualPlan"]["failedPromptRepairScope"])
+        self.assertTrue(capabilities["codexVisualPlan"]["placeholderContentRejected"])
+        self.assertTrue(capabilities["codexVisualPlan"]["imagePromptSoftMinimumEnforced"])
+        self.assertEqual(0.90, capabilities["codexVisualPlan"]["imagePromptMinimumUniqueRatio"])
+        self.assertTrue(capabilities["codexVisualPlan"]["mechanicalLineGroupingRejected"])
+        self.assertTrue(capabilities["codexVisualPlan"]["shotRoleBalanceGate"])
+        self.assertTrue(capabilities["codexVisualPlan"]["impactArcGate"])
+        self.assertTrue(capabilities["codexVisualPlan"]["sceneCostumeGroundingRequired"])
+        self.assertTrue(capabilities["codexVisualPlan"]["storyPromptPrecedesReferenceMaterial"])
         self.assertTrue(capabilities["codexVisualPlan"]["atomicImageReplacement"])
         self.assertFalse(capabilities["codexVisualPlan"]["speechDurationMaySplitStoryboard"])
         self.assertFalse(capabilities["codexVisualPlan"]["soundEffectStandaloneStoryboard"])
@@ -156,6 +216,16 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         self.assertEqual("seed_audio", sound_lines[1]["audioEngine"])
         self.assertEqual(1.2, sound_lines[1]["durationSeconds"])
         self.assertFalse(sound_lines[1]["visualGenerationAllowed"])
+        cheer_lines = context.content.service.content._validate_lines(
+            [
+                {"lineId": "E01-SFX01", "episodeNumber": 1, "sequence": 1, "speakerId": "sfx", "lineType": "sound_effect", "text": "【sound：人群突然欢呼；时长1秒】"},
+                {"lineId": "E01-L001", "episodeNumber": 1, "sequence": 2, "speakerId": "narrator", "lineType": "narration", "emotion": "喜悦", "text": "旗帜升起。"},
+            ],
+            1,
+            field="targetScript",
+        )
+        self.assertEqual(2.5, cheer_lines[0]["durationSeconds"])
+        self.assertEqual("【sound：人群突然欢呼；时长2.5秒】", cheer_lines[0]["text"])
         self.assert_tool_error(
             "SCRIPT_SOUND_EFFECT_INVALID",
             lambda: context.content.service.content._validate_lines(
@@ -242,7 +312,7 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         )
         visual_characters = [item for item in manuscript["characters"] if item.get("visualConsistencyRequired")]
         plan = {
-            "schemaVersion": "1.3",
+            "schemaVersion": "1.5",
             "author": "codex",
             "visualDirection": {
                 "mode": "manga_impact",
@@ -256,6 +326,11 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
             "characterDesigns": [
                 {
                     "characterId": item["characterId"],
+                    "personId": item.get("personId", item["characterId"]),
+                    "appearanceId": item.get("appearanceId", item["characterId"]),
+                    "lifePhase": item.get("lifePhase", "current_life"),
+                    "ageStage": item.get("ageStage", "unspecified"),
+                    "referencePolicy": item.get("referencePolicy", "required"),
                     "designIntentZh": "从人物身份与性格建立漫画轮廓记忆点和近景记忆点。",
                     "identityAnchorPromptZh": "漫画人物比例，独特脸型与眼型，分层发束，固定服装轮廓与配色。",
                     "referenceSheetPromptZh": "单画布中一个角色只出现一次，单一正面略偏四分之三视角，只穿一套主服装，清楚服装层次与固定配饰，无剧情背景和可读文字。",
@@ -303,8 +378,20 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
                     "episodeNumber": episode_number,
                     "sequenceId": sequence_id,
                     "shotRole": "climax" if index == 1 else "reaction" if index == 2 else "action",
+                    "semanticGroupId": f"VG-E{episode_number:02d}-{index:03d}",
                     "scriptLineIds": [line["lineId"]],
                     "visibleCharacterIds": visible,
+                    "appearanceBindings": [
+                        {
+                            "characterId": character_id,
+                            "personId": next(item for item in visual_characters if item["characterId"] == character_id).get("personId", character_id),
+                            "appearanceId": next(item for item in visual_characters if item["characterId"] == character_id).get("appearanceId", character_id),
+                            "lifePhase": next(item for item in visual_characters if item["characterId"] == character_id).get("lifePhase", "current_life"),
+                            "ageStage": next(item for item in visual_characters if item["characterId"] == character_id).get("ageStage", "unspecified"),
+                            "referencePolicy": next(item for item in visual_characters if item["characterId"] == character_id).get("referencePolicy", "required"),
+                        }
+                        for character_id in visible
+                    ],
                     "primaryCharacterId": visible[0] if visible else "",
                     "complexityScore": 4,
                     "impactLevel": 5 if index == 1 else 3,
@@ -391,21 +478,32 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
                         "handTensionZh": "手指由松弛转为明显收紧",
                         "secondaryMotionZh": "头发和衣角沿动作方向产生次级运动",
                     } if visible else {},
+                    "combatDirection": {"active": False, "phase": "none"},
                     "promptComponents": {
-                        "subjectActionZh": "主体完成与当前正式稿对应的明确动作",
-                        "visualStoryZh": "用人物距离、动作与关键物呈现事件因果",
-                        "performanceZh": "表情、视线、手势和身体重心可见",
-                        "cameraCompositionZh": "使用当前镜头合同形成焦点和空间层次",
-                        "continuityEnvironmentZh": "保持地点、服装和关键物连续",
-                        "lightingColorZh": "光色辅助当前情绪而不代替表演",
-                        "keyObjectZh": "关键物位于因果视线方向",
+                        "subjectActionZh": f"第{index}镜主体抬起握紧的右手并把肩线压向左侧关系对象",
+                        "visualStoryZh": f"第{index}镜用双方距离收窄和关键物受力呈现冲突因果",
+                        "performanceZh": f"第{index}镜瞳孔收紧、眉心下压、嘴角绷住且前脚承重",
+                        "cameraCompositionZh": f"第{index}镜采用{shot_scale}景别与{shot_view}视向形成单一面部焦点",
+                        "continuityEnvironmentZh": f"第{index}镜保留主要场景冷侧光、轮廓和配色固定、关键物位置",
+                        "lightingColorZh": f"第{index}镜冷色主光从右后方切入并压暗左侧压力对象",
+                        "keyObjectZh": f"第{index}镜关键物停在两人视线交点并承担唯一因果提示",
+                        "battleEffectsZh": "",
                     },
-                    "imagePromptZh": "漫画分镜静态关键瞬间，人物表情与姿态服从当前剧情，无可读文字。",
+                    "imagePromptZh": "",
                     "videoPromptZh": "人物完成一次明确的表情与重心变化，镜头缓慢推进后停稳。",
                 }
             )
             previous_scene_by_episode[episode_number] = scene_id
             previous_exit_state_by_episode[episode_number] = exit_state_id
+        for fixture_index, scene in enumerate(plan["scenePlans"], start=1):
+            components = scene["promptComponents"]
+            scene["imagePromptZh"] = (
+                f"单幅漫画静态关键瞬间，第{fixture_index}镜只冻结主体抬手压向关系对象的一刻，唯一视觉焦点位于主体骤紧的眼神与握紧指节；"
+                f"{components['subjectActionZh']}；{components['visualStoryZh']}；{components['performanceZh']}；"
+                f"{components['cameraCompositionZh']}；{components['continuityEnvironmentZh']}；{components['lightingColorZh']}；"
+                f"{components['keyObjectZh']}；人物左右位置、视线高度和压力方向清楚，背景只保留解释地点的石墙轮廓与冷光入口，"
+                f"次要装饰、旁观者、招牌和无关道具全部降级，画面禁止可读文字、字母、数字、字幕、对白气泡、标志与水印。"
+            )
         first_scene_id = plan["scenePlans"][0]["sceneId"]
         second_scene_id = plan["scenePlans"][1]["sceneId"]
         remaining_scene_ids = [item["sceneId"] for item in plan["scenePlans"][2:]] or [second_scene_id]
@@ -415,7 +513,35 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
             "complexityLevel": 4,
             "pageCountMode": "complexity_adaptive",
             "plannedPageCount": len(plan["scenePlans"]),
-            "pageCountRationaleZh": "复杂关系、冲突与情绪节点一行一镜，保证画面因果清楚。",
+            "pageCountRationaleZh": "先判断相邻行能否共享一个视觉时刻，再只为重要因果、关系和情绪变化保留画面。",
+            "semanticGrouping": {
+                "mode": "semantic_visual_beat_v2",
+                "ttsLineBreakCreatesScene": False,
+                "durationCreatesScene": False,
+                "mergeBeforeContinuityPlanning": True,
+                "lineCountHardCap": False,
+                "actionPhaseChangeCreatesScene": False,
+                "splitOnlyForImportantVisibleChange": True,
+            },
+            "combatSelectionPolicy": {
+                "mode": "key_moments_only",
+                "allPhasesRequired": False,
+                "phaseChangeCreatesScene": False,
+                "intermediatePhasesMayBeOmitted": True,
+            },
+            "semanticBeatGroups": [
+                {
+                    "groupId": scene["semanticGroupId"],
+                    "episodeNumber": scene["episodeNumber"],
+                    "sourceLineIds": list(scene["scriptLineIds"]),
+                    "visualMomentZh": "该行本身承担一个不可被相邻画面替代的重要视觉结果。",
+                    "decision": "intentional_single",
+                    "reason": "intentional_single_line_impact",
+                    "decisionReasonZh": "测试夹具将该行锁为独立重点画面，不以换行或时长作为理由。",
+                    "boundaryFromPrevious": "episode_start" if not scene["continuityState"]["carryOverFromSceneId"] else "causal_result_change",
+                }
+                for scene in plan["scenePlans"]
+            ],
             "storyBeats": [
                 {"beatId": "BEAT-HOOK", "type": "hook", "summaryZh": "首镜建立观看钩子", "sourceLineIds": [all_lines[0]["lineId"]], "sceneIds": [first_scene_id]},
                 {"beatId": "BEAT-REL", "type": "relationship", "summaryZh": "交代人物关系", "sourceLineIds": [all_lines[1]["lineId"]], "sceneIds": [second_scene_id]},
@@ -454,6 +580,11 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
                 "continuityStateRequired": True,
                 "temporalSequenceForbidden": True,
                 "shotRoleRequired": True,
+                "semanticBeatGroupingRequired": True,
+                "lineBreakSplitForbidden": True,
+                "lineCountHardCapDisabled": True,
+                "combatEffectsContractRequired": True,
+                "combatKeyMomentSelectionRequired": True,
                 "failureRepairScope": "failed_scene_only",
             },
         }
@@ -498,9 +629,70 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
             normalized["characterDesigns"][0]["referenceSheetPromptZh"],
             next(item for item in package_characters if item["characterId"] == normalized["characterDesigns"][0]["characterId"])["referenceSheetPromptZh"],
         )
+        narrator_character = next(item for item in package_characters if item["characterId"] == "narrator")
+        self.assertEqual("narrator", narrator_character["personId"])
+        self.assertEqual("narrator", narrator_character["appearanceId"])
+        self.assertEqual("current_life", narrator_character["lifePhase"])
+        self.assertEqual("unspecified", narrator_character["ageStage"])
+        self.assertEqual("none", narrator_character["referencePolicy"])
         visual_review = Path(assembled["userReviewDocuments"]["directory"]) / "11B_Codex角色设计与分镜提示词方案.md"
         self.assertTrue(visual_review.is_file())
         self.assertIn("只锁身份，不锁表情", visual_review.read_text(encoding="utf-8"))
+        combat = json.loads(json.dumps(plan, ensure_ascii=False))
+        combat_scene = combat["scenePlans"][1]
+        battle_effects = "蓝白能量集中撞上护盾中央，环形冲击波、定向火星与石屑向外迸开，地面尘雾沿受力方向后压，强光勾出双方轮廓"
+        combat_scene["combatDirection"] = {
+            "active": True,
+            "phase": "impact",
+            "frozenMomentZh": "护盾在单一命中点向内凹陷并迸出环形冲击光的瞬间",
+            "effectSourceZh": "画面左前方武器释放的蓝白能量",
+            "trajectoryZh": "能量沿左下至右上的对角线压向护盾",
+            "impactPointZh": "护盾中央偏右的单一高亮接触点",
+            "effectShapeColorZh": "蓝白核心、青色外缘的锥形能量与环形冲击波",
+            "scaleLayeringZh": "前景飞散火星，中景护盾形变，后景压力波压暗空间",
+            "particlesDebrisZh": "接触点喷出短促火星、细碎石屑和定向烟尘",
+            "environmentalResponseZh": "地面尘土沿冲击方向掀起，附近旗帜被气浪压向后方",
+            "lightingInteractionZh": "蓝白强光照亮双方轮廓，并在背光侧形成深阴影",
+            "attackerKineticsZh": "攻方肩胯同向压入，动作线集中指向接触点",
+            "defenderResponseZh": "守方前脚陷地、双臂内收，护盾受力但仍保持防线",
+            "safetyBoundaryZh": "全年龄非血腥冲突，不呈现伤口、肢体损伤或痛苦过程",
+        }
+        combat_scene["promptComponents"]["battleEffectsZh"] = battle_effects
+        combat_components = combat_scene["promptComponents"]
+        combat_scene["imagePromptZh"] = (
+            f"单幅漫画静态冲击瞬间，只冻结护盾在单一命中点向内凹陷的一刻，唯一焦点落在蓝白高亮接触点；{battle_effects}；"
+            f"{combat_components['subjectActionZh']}；{combat_components['visualStoryZh']}；{combat_components['performanceZh']}；"
+            f"{combat_components['cameraCompositionZh']}；{combat_components['continuityEnvironmentZh']}；{combat_components['lightingColorZh']}；"
+            "前景火星、中景护盾形变与后景压力波形成清楚尺度，次要人物和无关装饰全部降级，禁止可读文字、字母、数字、字幕、对白气泡、标志与水印。"
+        )
+        combat_scene["videoPromptZh"] = f"镜头短促推进并停在护盾接触点；{battle_effects}。"
+        normalized_combat = _normalize_codex_visual_plan(
+            combat,
+            manuscript=manuscript,
+            production_config=config,
+            synthetic=False,
+        )
+        self.assertTrue(normalized_combat["scenePlans"][1]["combatDirection"]["active"])
+        self.assertEqual("impact", normalized_combat["scenePlans"][1]["combatDirection"]["phase"])
+        missing_combat_effects = json.loads(json.dumps(combat, ensure_ascii=False))
+        missing_scene = missing_combat_effects["scenePlans"][1]
+        missing_components = missing_scene["promptComponents"]
+        missing_scene["imagePromptZh"] = (
+            "单幅漫画静态冲击瞬间，只冻结护盾在单一命中点向内凹陷的一刻，唯一焦点落在盾面中央；"
+            f"{missing_components['subjectActionZh']}；{missing_components['visualStoryZh']}；{missing_components['performanceZh']}；"
+            f"{missing_components['cameraCompositionZh']}；{missing_components['continuityEnvironmentZh']}；{missing_components['lightingColorZh']}；"
+            "前景只保留握紧的手和盾缘，中景突出守方受力姿态，后景压暗为空间压力，移除旁观者、招牌、装饰和无关道具，"
+            "禁止可读文字、字母、数字、字幕、对白气泡、标志、水印与签名。"
+        )
+        self.assert_tool_error(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            lambda: _normalize_codex_visual_plan(
+                missing_combat_effects,
+                manuscript=manuscript,
+                production_config=config,
+                synthetic=False,
+            ),
+        )
         invalid = json.loads(json.dumps(plan, ensure_ascii=False))
         invalid["scenePlans"] = invalid["scenePlans"][:-1]
         self.assert_tool_error(
@@ -518,6 +710,18 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
             "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
             lambda: _normalize_codex_visual_plan(
                 invalid_character_reference,
+                manuscript=manuscript,
+                production_config=config,
+                synthetic=False,
+            ),
+        )
+        stage_mismatch = json.loads(json.dumps(plan, ensure_ascii=False))
+        first_bound_scene = next(item for item in stage_mismatch["scenePlans"] if item["appearanceBindings"])
+        first_bound_scene["appearanceBindings"][0]["ageStage"] = "wrong_age_stage"
+        self.assert_tool_error(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            lambda: _normalize_codex_visual_plan(
+                stage_mismatch,
                 manuscript=manuscript,
                 production_config=config,
                 synthetic=False,
@@ -545,6 +749,43 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
             "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
             lambda: _normalize_codex_visual_plan(
                 prompt_over_budget,
+                manuscript=manuscript,
+                production_config=config,
+                synthetic=False,
+            ),
+        )
+        prompt_under_quality_floor = json.loads(json.dumps(plan, ensure_ascii=False))
+        prompt_under_quality_floor["scenePlans"][0]["imagePromptZh"] = "单幅漫画静态关键瞬间，无可读文字。"
+        self.assert_tool_error(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            lambda: _normalize_codex_visual_plan(
+                prompt_under_quality_floor,
+                manuscript=manuscript,
+                production_config=config,
+                synthetic=False,
+            ),
+        )
+        placeholder_content = json.loads(json.dumps(plan, ensure_ascii=False))
+        placeholder_content["characterDesigns"][0]["fixedFeatures"][0] = "x"
+        self.assert_tool_error(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            lambda: _normalize_codex_visual_plan(
+                placeholder_content,
+                manuscript=manuscript,
+                production_config=config,
+                synthetic=False,
+            ),
+        )
+        ungrounded_prompt = json.loads(json.dumps(plan, ensure_ascii=False))
+        ungrounded_prompt["scenePlans"][0]["imagePromptZh"] = (
+            "单幅漫画静态关键瞬间，主体站在石墙前保持中性表情，画面使用柔和侧光与清楚轮廓，背景保持简洁，"
+            "人物服装与发型整洁，构图稳定，色彩协调，画面具有商业插画完成度；只保留一个人物和一个道具，"
+            "去除旁观者、装饰、招牌和杂乱物体；禁止可读文字、字母、数字、字幕、对白气泡、标志、水印与签名。" * 2
+        )[:450]
+        self.assert_tool_error(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            lambda: _normalize_codex_visual_plan(
+                ungrounded_prompt,
                 manuscript=manuscript,
                 production_config=config,
                 synthetic=False,
@@ -756,6 +997,35 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         publishing_ref = next(asset for asset in invalidation["task"]["assets"] if asset["assetId"] == "publishing-reference")
         self.assertEqual("INVALIDATED", publishing_ref["status"])
 
+    def test_real_renderer_invalidation_schedules_a_fresh_selective_workshop_request(self) -> None:
+        context = self.context("ja-JP")
+        args = mutation_arguments(context)
+        completed = context.content.service.call("production_task_run", args)["task"]
+        task_path = context.content.service.production._task_path(context.production_task_id)
+        task = json.loads(task_path.read_text(encoding="utf-8"))
+        task["synthetic"] = False
+        task["workshop"] = {
+            "requestId": "stage5-old-render-request",
+            "lastStatus": {"status": "completed"},
+            "artifactSnapshot": {"finalVideoSha256": "f" * 64},
+        }
+        task_path.write_text(json.dumps(task, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+        invalidation = context.content.service.production.invalidate(
+            context.production_task_id,
+            changes=["render_engine"],
+        )
+        updated = invalidation["task"]
+        self.assertEqual("RETRYING", updated["state"])
+        self.assertIsNone(updated["resultPackagePath"])
+        self.assertNotIn("requestId", updated["workshop"])
+        self.assertNotIn("lastStatus", updated["workshop"])
+        self.assertNotIn("artifactSnapshot", updated["workshop"])
+        self.assertEqual("stage5-old-render-request", updated["workshop"]["previousRequestId"])
+        final_video = next(asset for asset in updated["assets"] if asset["assetId"] == "final-video")
+        self.assertEqual("INVALIDATED", final_video["status"])
+        self.assertEqual(completed["productionTaskId"], updated["productionTaskId"])
+
     def test_unauthorized_video_fallback_pauses_then_retries_only_failure(self) -> None:
         context = self.context(
             "en-US",
@@ -848,6 +1118,24 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         self.assertEqual("first_last_frame", validated["videoGeneration"]["frameInputMode"])
         self.assertEqual("dedicated_generated", validated["videoGeneration"]["endFrameSource"])
         self.assertEqual("wide_16_9_4", validated["gridBatch"]["template"])
+
+        per_episode = json.loads(json.dumps(config))
+        per_episode["gridBatch"] = {
+            "template": "wide_16_9_4",
+            "selectionSource": "user",
+        }
+        per_episode["gridBatch"]["episodeTemplates"] = {"E01": "wide_16_9_1", "E02": "wide_16_9_4"}
+        per_episode["concurrency"]["image"] = 20
+        validated_per_episode = center._validate_production_config(per_episode)
+        self.assertEqual({"E01": "wide_16_9_1", "E02": "wide_16_9_4"}, validated_per_episode["gridBatch"]["episodeTemplates"])
+        self.assertEqual(20, validated_per_episode["concurrency"]["image"])
+
+        too_much_concurrency = json.loads(json.dumps(per_episode))
+        too_much_concurrency["concurrency"]["image"] = 21
+        self.assert_tool_error(
+            "PRODUCTION_CONFIG_INVALID",
+            lambda: center._validate_production_config(too_much_concurrency),
+        )
 
         missing_end_source = json.loads(json.dumps(config))
         missing_end_source["videoGeneration"]["endFrameSource"] = ""
@@ -996,6 +1284,9 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
             def __init__(self) -> None:
                 self.start_calls = 0
                 self.status_value = "running"
+                self.task_present = True
+                self.last_selected_steps = []
+                self.last_selected_episodes = []
 
             def import_package(self, _package_root, target_root, *, expected_project_id):
                 target_root.mkdir(parents=True, exist_ok=True)
@@ -1009,9 +1300,11 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
                     "duplicate": False,
                 }
 
-            def start_production(self, _project_path, *, selected_step_ids, request_id, **_kwargs):
+            def start_production(self, _project_path, *, selected_step_ids, selected_episode_ids=(), request_id, **_kwargs):
                 self.start_calls += 1
                 self.assert_no_placeholder_steps(selected_step_ids)
+                self.last_selected_steps = list(selected_step_ids)
+                self.last_selected_episodes = list(selected_episode_ids)
                 return {
                     "requestId": request_id,
                     "joinedExisting": False,
@@ -1026,7 +1319,7 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
 
             def production_status(self, _project_path, **_kwargs):
                 return {
-                    "taskPresent": True,
+                    "taskPresent": self.task_present,
                     "status": self.status_value,
                     "error": "fixture failure" if self.status_value == "failed" else "",
                     "message": "",
@@ -1049,13 +1342,66 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         self.assertEqual(1, bridge.start_calls)
         self.assertFalse((center._task_root("formal-routing-task") / "assets" / "storyboard-images").exists())
 
+        bridge.task_present = False
+        bridge.status_value = "not_started"
+        missing_once = center.run_task("formal-routing-task")
+        missing_twice = center.run_task("formal-routing-task")
+        missing_thrice = center.run_task("formal-routing-task")
+        self.assertTrue(missing_once["workshopStartConfirmationPending"])
+        self.assertTrue(missing_twice["workshopStartConfirmationPending"])
+        self.assertEqual("NEEDS_REPAIR", missing_thrice["task"]["state"])
+        self.assertEqual("workshop_task_missing", missing_thrice["task"]["workshop"]["lastErrorDetail"]["category"])
+        self.assertEqual(1, bridge.start_calls)
+
+        bridge.task_present = True
+        bridge.status_value = "running"
+        recovered_observation = center.run_task("formal-routing-task")
+        self.assertTrue(recovered_observation["workshopRunning"])
+        self.assertEqual("RUNNING", recovered_observation["task"]["state"])
+
+        center.request_pause("formal-routing-task")
+        bridge.task_present = False
+        resumed = center.resume_task("formal-routing-task")
+        self.assertEqual("READY_TO_PRODUCE", resumed["state"])
+        self.assertNotIn("requestId", resumed["workshop"])
+        restarted_after_pause = center.run_task("formal-routing-task")
+        self.assertTrue(restarted_after_pause["workshopStarted"])
+        self.assertEqual(2, bridge.start_calls)
+
+        bridge.task_present = True
         bridge.status_value = "failed"
         failed = center.run_task("formal-routing-task")
         self.assertTrue(failed["workshopNeedsAttention"])
+        self.assertEqual("unknown", failed["task"]["workshop"]["lastErrorDetail"]["category"])
+        self.assertEqual("fixture failure", failed["task"]["history"][-1]["details"]["error"]["message"])
+        project_path = Path(failed["task"]["import"]["projectPath"])
+        (project_path.parent / "selective-rework-scope.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "1.0",
+                    "taskId": "test-task",
+                    "projectId": failed["task"]["projectId"],
+                    "automaticRemainingWorkflowAuthorization": "task:test-task:auto-remaining-workflow",
+                    "authorizationBoundToProjectId": failed["task"]["projectId"],
+                    "uploadAuthorized": False,
+                    "hardExclusions": ["audio", "storyboard"],
+                    "command": {
+                        "steps": ["grid_image", "final_render"],
+                        "episodes": ["E01"],
+                        "skipCompleted": True,
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
         center.retry_failed("formal-routing-task")
         restarted = center.run_task("formal-routing-task")
         self.assertTrue(restarted["workshopStarted"])
-        self.assertEqual(2, bridge.start_calls)
+        self.assertEqual(3, bridge.start_calls)
+        self.assertEqual(["grid_image", "final_render"], bridge.last_selected_steps)
+        self.assertEqual(["E01"], bridge.last_selected_episodes)
+        self.assertTrue(restarted["task"]["workshop"]["selectiveReworkScope"]["sha256"])
 
 
 if __name__ == "__main__":

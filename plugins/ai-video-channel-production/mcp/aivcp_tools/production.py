@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tempfile
 import uuid
+from collections import Counter
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -64,7 +65,7 @@ STEP_DEFINITIONS = (
     ("P2", "角色资产质量门", ("P1",)),
     ("P3", "配音行与音色绑定校验", ("P2",)),
     ("P4", "逐句配音", ("P3",)),
-    ("P5", "按真实音频时长生成分镜", ("P4",)),
+    ("P5", "按锁定语义画面组生成分镜时间线", ("P4",)),
     ("P6", "载入并校验 Codex 分镜提示词", ("P5",)),
     ("P7", "宫格生图、切割与分镜回填", ("P6",)),
     ("P8", "可选分镜视频生成", ("P7",)),
@@ -79,9 +80,13 @@ VIDEO_SELECTION_MODES = {
     "all_storyboards",
 }
 
-CODEX_VISUAL_PLAN_SCHEMA_VERSION = "1.3"
+MAX_PRODUCTION_CONCURRENCY = 20
+WORKSHOP_MISSING_TASK_GRACE_OBSERVATIONS = 2
+
+CODEX_VISUAL_PLAN_SCHEMA_VERSION = "1.5"
 CODEX_VISUAL_PLAN_AUTHOR = "codex"
 CODEX_REFERENCE_USAGE = "identity_only"
+CODEX_REFERENCE_POLICIES = {"required", "optional", "none"}
 CODEX_VISUAL_DIRECTION = {
     "mode": "manga_impact",
     "panelMode": "single_panel",
@@ -115,6 +120,76 @@ CODEX_PERFORMANCE_FIELDS = (
     "interactionTarget",
     "changeFromPrevious",
 )
+
+
+def _character_appearance_contract(character: dict[str, Any]) -> dict[str, str]:
+    character_id = _non_empty_text(character.get("characterId"), "character.characterId", maximum=128)
+    policy = str(character.get("referencePolicy") or "").strip()
+    if policy not in CODEX_REFERENCE_POLICIES:
+        policy = "required" if character.get("visualConsistencyRequired") is True else "none"
+    return {
+        "personId": str(character.get("personId") or character_id).strip(),
+        "appearanceId": str(character.get("appearanceId") or character_id).strip(),
+        "lifePhase": str(character.get("lifePhase") or "current_life").strip(),
+        "ageStage": str(character.get("ageStage") or "unspecified").strip(),
+        "referencePolicy": policy,
+    }
+
+
+def _sound_effect_duration_profile(prompt: str) -> dict[str, float | str]:
+    text = str(prompt or "").strip().lower()
+    has = lambda *values: any(value in text for value in values)
+    if has("音乐", "音樂", "旋律", "八音盒", "music", "melody", "song", "オルゴール", "音楽", "メロディ"):
+        return {"category": "musical", "min": 3.0, "max": 4.8, "recommended": 3.8}
+    if has("欢呼", "歡呼", "喝彩", "人群", "群众", "群眾", "笑声", "笑聲", "crowd", "cheer", "applause", "laughter", "歓声", "拍手", "群衆", "笑い声"):
+        return {"category": "crowd", "min": 2.5, "max": 4.2, "recommended": 3.2}
+    if has("风声", "風聲", "雨声", "雨聲", "火焰声", "篝火声", "海浪声", "河流声", "树林环境", "森林环境", "环境声", "環境音", "wind", "rain", "fire ambience", "waves", "river ambience", "forest ambience", "風音", "雨音", "波音"):
+        return {"category": "ambience", "min": 3.0, "max": 4.8, "recommended": 3.8}
+    if has("鼓", "钟", "鐘", "铃", "鈴", "锣", "鑼", "号角", "回响", "回響", "drum", "bell", "gong", "horn", "resonance", "太鼓", "角笛", "残響"):
+        return {"category": "resonant", "min": 1.8, "max": 3.2, "recommended": 2.4}
+    if has("转场", "轉場", "过渡", "過渡", "提示音", "系统音", "系統音", "transition", "whoosh", "swoosh", "通知音", "転換"):
+        return {"category": "transition", "min": 1.6, "max": 3.0, "recommended": 2.2}
+    return {"category": "transient", "min": 0.8, "max": 1.6, "recommended": 1.2}
+
+
+def _classify_workshop_error(message: Any) -> dict[str, Any]:
+    text = str(message or "").strip()
+    normalized = text.lower()
+    category = "unknown"
+    recoverable = False
+    action = "inspect_workshop_logs"
+    patterns = (
+        ("provider_task_pending", True, "resume_original_provider_task", (
+            "尚未完成", "待取回", "仍在处理", "polling pending", "task pending", "processing",
+        )),
+        ("quota_exhausted", True, "wait_or_change_provider_quota", (
+            "resource has been exhausted", "quota", "rate limit", "too many requests", "配额", "限流",
+        )),
+        ("authentication", True, "repair_provider_authentication", (
+            "auth_unavailable", "unauthorized", "authentication", "invalid api key", "http 401", "http 403", "鉴权", "认证",
+        )),
+        ("timeout", True, "resume_from_checkpoint", (
+            "timeout", "timed out", "deadline exceeded", "超时",
+        )),
+        ("content_policy", False, "revise_failed_prompt_only", (
+            "content policy", "safety", "moderation", "内容政策", "安全审核",
+        )),
+        ("cancelled", True, "resume_from_checkpoint", (
+            "cancelled", "canceled", "已取消", "已停止", "中断",
+        )),
+    )
+    for candidate, candidate_recoverable, candidate_action, markers in patterns:
+        if any(marker in normalized for marker in markers):
+            category = candidate
+            recoverable = candidate_recoverable
+            action = candidate_action
+            break
+    return {
+        "category": category,
+        "recoverable": recoverable,
+        "recommendedAction": action,
+        "message": text,
+    }
 
 
 def _character_reference_prompt_risk(prompt: str) -> str | None:
@@ -249,9 +324,56 @@ CODEX_IMAGE_PROMPT_MAXIMUM = 600
 CODEX_IMAGE_PROMPT_SOFT_MINIMUM = 280
 CODEX_IMAGE_PROMPT_SOFT_MAXIMUM = 450
 CODEX_VIDEO_PROMPT_MAXIMUM = 500
+CODEX_IMAGE_PROMPT_MINIMUM_UNIQUE_RATIO = 0.90
+CODEX_SEMANTIC_GROUP_DOMINANCE_LIMIT = 0.70
+CODEX_SCENE_ROLE_DOMINANCE_LIMIT = 0.65
 CODEX_COMPLEXITY_LEVELS = {1, 2, 3, 4, 5}
 CODEX_SERIES_PLANNING_MODE = "full_series_then_sequence_then_shot"
 CODEX_FAILURE_REPAIR_SCOPE = "failed_scene_only"
+CODEX_SEMANTIC_GROUPING_MODE = "semantic_visual_beat_v2"
+CODEX_SEMANTIC_GROUP_DECISIONS = {"merged", "intentional_single"}
+CODEX_SEMANTIC_GROUP_REASONS = {
+    "same_visual_moment",
+    "same_action_phase",
+    "environmental_support",
+    "continuous_dialogue_reaction",
+    "short_context_continuation",
+    "intentional_single_line_impact",
+}
+CODEX_SCENE_BOUNDARY_REASONS = {
+    "episode_start",
+    "important_action_phase_change",
+    "focal_subject_change",
+    "spatial_change",
+    "gaze_emotion_change",
+    "key_object_change",
+    "causal_result_change",
+    "intentional_single_line_impact",
+}
+CODEX_COMBAT_PHASES = {
+    "anticipation",
+    "charge",
+    "release",
+    "contact",
+    "impact",
+    "defense",
+    "reaction",
+    "aftermath",
+}
+CODEX_COMBAT_DIRECTION_FIELDS = (
+    "frozenMomentZh",
+    "effectSourceZh",
+    "trajectoryZh",
+    "impactPointZh",
+    "effectShapeColorZh",
+    "scaleLayeringZh",
+    "particlesDebrisZh",
+    "environmentalResponseZh",
+    "lightingInteractionZh",
+    "attackerKineticsZh",
+    "defenderResponseZh",
+    "safetyBoundaryZh",
+)
 SOUND_EFFECT_MAX_DURATION_SECONDS = 5.0
 
 
@@ -271,6 +393,26 @@ def _canonical_bytes(value: Any) -> bytes:
 
 def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def _subtitles_cover_spoken_lines_in_order(
+    normalized_subtitles: str,
+    spoken_lines: list[dict[str, Any]],
+) -> bool:
+    """Require every spoken line in order while allowing interleaved SFX cues."""
+
+    cursor = 0
+    found_spoken_text = False
+    for line in spoken_lines:
+        normalized_line = re.sub(r"\s+", "", str(line.get("text") or ""))
+        if not normalized_line:
+            continue
+        found_spoken_text = True
+        position = normalized_subtitles.find(normalized_line, cursor)
+        if position < 0:
+            return False
+        cursor = position + len(normalized_line)
+    return found_spoken_text
 
 
 def _sha256_file(path: Path) -> str:
@@ -305,7 +447,26 @@ def _non_empty_text(value: Any, field: str, *, maximum: int = 2000) -> str:
     normalized = value.strip()
     if len(normalized) > maximum:
         raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"{field} 过长。")
+    if not re.search(r"(?:^|\.)(?:characterId|groupId|sequenceId|sceneId|beatId|entryStateId|exitStateId)$", field):
+        placeholder_risk = _visual_placeholder_risk(normalized)
+        if placeholder_risk:
+            raise ToolError(
+                "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                f"{field} 含有占位内容“{placeholder_risk}”，必须填写与本项目剧情直接相关的具体信息。",
+            )
     return normalized
+
+
+def _visual_placeholder_risk(value: str) -> str | None:
+    normalized = re.sub(r"[\s`'\"“”‘’。，、；;：:（）()\[\]【】/|_-]+", "", value).lower()
+    if normalized in {"x", "y", "z", "xy", "xyz", "tbd", "todo", "na", "null", "none", "待补", "待定", "占位"}:
+        return value.strip()
+    for token in ("placeholder", "占位符", "待补充", "待填写", "稍后补充", "todo:", "tbd:"):
+        if token in value.lower():
+            return token
+    if normalized and set(normalized) <= {"x", "y", "z"}:
+        return value.strip()
+    return None
 
 
 def _image_prompt_temporal_sequence_risk(prompt: str) -> str | None:
@@ -324,10 +485,55 @@ def _generic_scene_language_risk(*values: str) -> str | None:
         "身体重心稳定并与动作一致",
         "视线落在互动对象或关键物件",
         "改变景别以避免重复",
+        "当前人物或物件",
+        "当前人物或关键物件",
+        "当前剧情对应",
+        "与当前正式稿对应",
+        "眼神、眉形、嘴形和手势明确",
+        "背景适度简化",
     ):
         if phrase in combined:
             return phrase
     return None
+
+
+def _validate_sound_effect_scene_bindings(
+    target_lines: list[dict[str, Any]],
+    scene_id_by_line_id: dict[str, str],
+) -> None:
+    lines_by_episode: dict[int, list[dict[str, Any]]] = {}
+    for line in target_lines:
+        episode_number = line.get("episodeNumber")
+        if isinstance(episode_number, int) and not isinstance(episode_number, bool):
+            lines_by_episode.setdefault(episode_number, []).append(line)
+    for episode_number, episode_lines in lines_by_episode.items():
+        for index, line in enumerate(episode_lines):
+            if line.get("lineType") != "sound_effect":
+                continue
+            trigger_index = index - 1 if index > 0 else 1
+            if trigger_index >= len(episode_lines):
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    "音效行必须和触发它的旁白或对白共用同一分镜。",
+                    details={"episodeNumber": episode_number, "lineId": line.get("lineId")},
+                )
+            line_id = str(line.get("lineId") or "")
+            trigger_line_id = str(episode_lines[trigger_index].get("lineId") or "")
+            if (
+                not scene_id_by_line_id.get(line_id)
+                or scene_id_by_line_id.get(line_id) != scene_id_by_line_id.get(trigger_line_id)
+            ):
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    "音效行必须和触发它的旁白或对白共用同一分镜，禁止音画错位。",
+                    details={
+                        "episodeNumber": episode_number,
+                        "lineId": line_id,
+                        "triggerLineId": trigger_line_id,
+                        "soundSceneId": scene_id_by_line_id.get(line_id),
+                        "triggerSceneId": scene_id_by_line_id.get(trigger_line_id),
+                    },
+                )
 
 
 def _normalize_codex_visual_plan(
@@ -351,7 +557,7 @@ def _normalize_codex_visual_plan(
     if value.get("schemaVersion") != CODEX_VISUAL_PLAN_SCHEMA_VERSION or value.get("author") != CODEX_VISUAL_PLAN_AUTHOR:
         raise ToolError(
             "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
-            "codexVisualPlan 必须声明 schemaVersion=1.3、author=codex。",
+            f"codexVisualPlan 必须声明 schemaVersion={CODEX_VISUAL_PLAN_SCHEMA_VERSION}、author=codex。",
         )
     visual_direction = value.get("visualDirection")
     if not isinstance(visual_direction, dict) or any(
@@ -369,6 +575,27 @@ def _normalize_codex_visual_plan(
         for item in characters
         if isinstance(item, dict) and isinstance(item.get("characterId"), str)
     }
+    appearance_by_character_id = {
+        character_id: _character_appearance_contract(item)
+        for character_id, item in character_by_id.items()
+    }
+    appearance_owners: dict[str, str] = {}
+    for character_id, appearance in appearance_by_character_id.items():
+        appearance_id = appearance["appearanceId"]
+        if not all(appearance.values()) or appearance_id in appearance_owners:
+            raise ToolError(
+                "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                "每个角色外观阶段必须有非空 personId、appearanceId、lifePhase、ageStage、referencePolicy，且 appearanceId 全局唯一。",
+                details={"characterId": character_id, "appearanceId": appearance_id, "owner": appearance_owners.get(appearance_id)},
+            )
+        appearance_owners[appearance_id] = character_id
+        visual_required = character_by_id[character_id].get("visualConsistencyRequired") is True
+        if (appearance["referencePolicy"] == "required") != visual_required or (appearance["referencePolicy"] == "none" and visual_required):
+            raise ToolError(
+                "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                "referencePolicy 与 visualConsistencyRequired 冲突；required 必须生成阶段专用参考图，none 必须直接按文字生图。",
+                details={"characterId": character_id, "referencePolicy": appearance["referencePolicy"]},
+            )
     required_visual_ids = {
         character_id
         for character_id, item in character_by_id.items()
@@ -383,6 +610,14 @@ def _normalize_codex_visual_plan(
         if character_id not in character_by_id or character_id in seen_design_ids:
             raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"characterDesigns[{index}].characterId 无效或重复。")
         seen_design_ids.add(character_id)
+        appearance = appearance_by_character_id[character_id]
+        for field in ("personId", "appearanceId", "lifePhase", "ageStage", "referencePolicy"):
+            if str(item.get(field) or "").strip() != appearance[field]:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"characterDesigns[{index}].{field} 与角色外观阶段不一致。",
+                    details={"characterId": character_id, "expected": appearance[field]},
+                )
         fixed_features = item.get("fixedFeatures")
         if not isinstance(fixed_features, list) or not 3 <= len(fixed_features) <= 12:
             raise ToolError(
@@ -390,26 +625,31 @@ def _normalize_codex_visual_plan(
                 f"characterDesigns[{index}].fixedFeatures 必须包含 3–12 个身份固定特征。",
             )
         fixed_features = [_non_empty_text(entry, f"characterDesigns[{index}].fixedFeatures", maximum=180) for entry in fixed_features]
-        reference_sheet_prompt = _non_empty_text(
-            item.get("referenceSheetPromptZh"),
-            f"characterDesigns[{index}].referenceSheetPromptZh",
-        )
-        reference_risk = _character_reference_prompt_risk(reference_sheet_prompt)
-        if reference_risk:
+        reference_sheet_prompt = str(item.get("referenceSheetPromptZh") or "").strip()
+        if appearance["referencePolicy"] != "none":
+            reference_sheet_prompt = _non_empty_text(reference_sheet_prompt, f"characterDesigns[{index}].referenceSheetPromptZh")
+            reference_risk = _character_reference_prompt_risk(reference_sheet_prompt)
+            if reference_risk:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"characterDesigns[{index}].referenceSheetPromptZh 必须是单画布、单角色、单视角、单套主服装：{reference_risk}。",
+                    details={"characterId": character_id, "risk": reference_risk},
+                )
+        elif reference_sheet_prompt:
             raise ToolError(
                 "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
-                f"characterDesigns[{index}].referenceSheetPromptZh 必须是单画布、单角色、单视角、单套主服装：{reference_risk}。",
-                details={"characterId": character_id, "risk": reference_risk},
+                f"characterDesigns[{index}] 的 referencePolicy=none，不得生成或绑定角色参考图提示词。",
             )
         normalized_designs.append(
             {
                 "characterId": character_id,
+                **appearance,
                 "designIntentZh": _non_empty_text(item.get("designIntentZh"), f"characterDesigns[{index}].designIntentZh"),
                 "identityAnchorPromptZh": _non_empty_text(item.get("identityAnchorPromptZh"), f"characterDesigns[{index}].identityAnchorPromptZh"),
                 "referenceSheetPromptZh": reference_sheet_prompt,
                 "storyboardIdentityPromptZh": _non_empty_text(item.get("storyboardIdentityPromptZh"), f"characterDesigns[{index}].storyboardIdentityPromptZh"),
                 "fixedFeatures": fixed_features,
-                "referenceUsage": CODEX_REFERENCE_USAGE,
+                "referenceUsage": CODEX_REFERENCE_USAGE if appearance["referencePolicy"] != "none" else "none",
                 "flexibleFeatures": list(CODEX_REFERENCE_FLEXIBLE_FEATURES),
             }
         )
@@ -460,6 +700,7 @@ def _normalize_codex_visual_plan(
     costumes, costume_ids = normalize_continuity_entries("costumes", "costumeId")
     props, prop_ids = normalize_continuity_entries("props", "propId")
     costume_character_by_id = {entry["costumeId"]: entry["characterId"] for entry in costumes}
+    costume_features_by_id = {entry["costumeId"]: entry["fixedFeatures"] for entry in costumes}
 
     target_lines = manuscript.get("targetScript", {}).get("lines", [])
     line_by_id = {
@@ -493,9 +734,109 @@ def _normalize_codex_visual_plan(
         "timelineSummaryZh": _non_empty_text(series_visual_plan.get("timelineSummaryZh"), "seriesVisualPlan.timelineSummaryZh", maximum=800),
         "crossEpisodeContinuityZh": _non_empty_text(series_visual_plan.get("crossEpisodeContinuityZh"), "seriesVisualPlan.crossEpisodeContinuityZh", maximum=800),
     }
+    story_visual_plan = value.get("storyVisualPlan")
+    if not isinstance(story_visual_plan, dict):
+        raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "storyVisualPlan 缺失。")
+    semantic_grouping = story_visual_plan.get("semanticGrouping")
+    if (
+        not isinstance(semantic_grouping, dict)
+        or semantic_grouping.get("mode") != CODEX_SEMANTIC_GROUPING_MODE
+        or semantic_grouping.get("ttsLineBreakCreatesScene") is not False
+        or semantic_grouping.get("durationCreatesScene") is not False
+        or semantic_grouping.get("mergeBeforeContinuityPlanning") is not True
+        or semantic_grouping.get("lineCountHardCap") is not False
+        or semantic_grouping.get("actionPhaseChangeCreatesScene") is not False
+        or semantic_grouping.get("splitOnlyForImportantVisibleChange") is not True
+    ):
+        raise ToolError(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            "storyVisualPlan.semanticGrouping 必须先按视觉时刻合并相邻短行，再做连续性与分镜；拆行、时长和行数上限均不得直接制造画面。",
+        )
+    combat_selection_policy = story_visual_plan.get("combatSelectionPolicy")
+    if (
+        not isinstance(combat_selection_policy, dict)
+        or combat_selection_policy.get("mode") != "key_moments_only"
+        or combat_selection_policy.get("allPhasesRequired") is not False
+        or combat_selection_policy.get("phaseChangeCreatesScene") is not False
+        or combat_selection_policy.get("intermediatePhasesMayBeOmitted") is not True
+    ):
+        raise ToolError(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            "storyVisualPlan.combatSelectionPolicy 必须只选择承担剧情重点的战斗瞬间，不得为覆盖全部动作阶段而加镜。",
+        )
+    semantic_beat_groups = story_visual_plan.get("semanticBeatGroups")
+    if not isinstance(semantic_beat_groups, list) or not semantic_beat_groups:
+        raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "storyVisualPlan.semanticBeatGroups 不能为空。")
+    normalized_semantic_groups: list[dict[str, Any]] = []
+    semantic_group_by_id: dict[str, dict[str, Any]] = {}
+    semantic_group_line_ids: list[str] = []
+    previous_episode_number: int | None = None
+    for group_index, group in enumerate(semantic_beat_groups, start=1):
+        if not isinstance(group, dict):
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"semanticBeatGroups[{group_index}] 必须是对象。")
+        group_id = _non_empty_text(group.get("groupId"), f"semanticBeatGroups[{group_index}].groupId", maximum=160)
+        if group_id in semantic_group_by_id:
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"semanticBeatGroups[{group_index}].groupId 重复。")
+        group_line_ids = group.get("sourceLineIds")
+        if (
+            not isinstance(group_line_ids, list)
+            or not group_line_ids
+            or any(line_id not in line_by_id for line_id in group_line_ids)
+            or len(set(group_line_ids)) != len(group_line_ids)
+        ):
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"semanticBeatGroups[{group_index}].sourceLineIds 无效。")
+        episode_numbers = {line_by_id[line_id].get("episodeNumber") for line_id in group_line_ids}
+        episode_number = group.get("episodeNumber")
+        if episode_numbers != {episode_number}:
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"semanticBeatGroups[{group_index}] 不能跨集或错绑集数。")
+        decision = group.get("decision")
+        expected_decision = "merged" if len(group_line_ids) > 1 else "intentional_single"
+        if decision not in CODEX_SEMANTIC_GROUP_DECISIONS or decision != expected_decision:
+            raise ToolError(
+                "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                f"semanticBeatGroups[{group_index}].decision 必须反映实际合并结果。",
+            )
+        reason = group.get("reason")
+        if reason not in CODEX_SEMANTIC_GROUP_REASONS:
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"semanticBeatGroups[{group_index}].reason 无效。")
+        if decision == "intentional_single" and reason != "intentional_single_line_impact":
+            raise ToolError(
+                "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                f"semanticBeatGroups[{group_index}] 单行独立成镜必须说明它本身就是不可合并的决定性画面。",
+            )
+        if decision == "merged" and reason == "intentional_single_line_impact":
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"semanticBeatGroups[{group_index}] 合并组不能使用单行理由。")
+        boundary_reason = group.get("boundaryFromPrevious")
+        is_episode_start = episode_number != previous_episode_number
+        if boundary_reason not in CODEX_SCENE_BOUNDARY_REASONS or (boundary_reason == "episode_start") != is_episode_start:
+            raise ToolError(
+                "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                f"semanticBeatGroups[{group_index}].boundaryFromPrevious 必须对应真实的可见边界，不能由换行制造。",
+            )
+        normalized_group = {
+            "groupId": group_id,
+            "episodeNumber": episode_number,
+            "sourceLineIds": list(group_line_ids),
+            "visualMomentZh": _non_empty_text(group.get("visualMomentZh"), f"semanticBeatGroups[{group_index}].visualMomentZh", maximum=360),
+            "decision": decision,
+            "reason": reason,
+            "decisionReasonZh": _non_empty_text(group.get("decisionReasonZh"), f"semanticBeatGroups[{group_index}].decisionReasonZh", maximum=360),
+            "boundaryFromPrevious": boundary_reason,
+        }
+        normalized_semantic_groups.append(normalized_group)
+        semantic_group_by_id[group_id] = normalized_group
+        semantic_group_line_ids.extend(group_line_ids)
+        previous_episode_number = episode_number
+    if semantic_group_line_ids != expected_line_ids:
+        raise ToolError(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            "semanticBeatGroups 必须按正式稿顺序完整且仅覆盖每一行一次。",
+            details={"expectedLineIds": expected_line_ids, "actualLineIds": semantic_group_line_ids},
+        )
     normalized_scenes: list[dict[str, Any]] = []
     covered_line_ids: list[str] = []
     seen_scene_ids: set[str] = set()
+    used_semantic_group_ids: list[str] = []
     scene_by_id: dict[str, dict[str, Any]] = {}
     for index, item in enumerate(value.get("scenePlans", []), start=1):
         if not isinstance(item, dict):
@@ -517,6 +858,13 @@ def _normalize_codex_visual_plan(
         episode_numbers = {line_by_id[line_id].get("episodeNumber") for line_id in line_ids}
         if episode_numbers != {item.get("episodeNumber")}:
             raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}] 不能跨集或错绑集数。")
+        semantic_group_id = _non_empty_text(item.get("semanticGroupId"), f"scenePlans[{index}].semanticGroupId", maximum=160)
+        semantic_group = semantic_group_by_id.get(semantic_group_id)
+        if semantic_group is None or semantic_group_id in used_semantic_group_ids:
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].semanticGroupId 无效或重复。")
+        if semantic_group["sourceLineIds"] != line_ids or semantic_group["episodeNumber"] != item.get("episodeNumber"):
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}] 与语义画面组绑定不一致。")
+        used_semantic_group_ids.append(semantic_group_id)
         sequence_id = _non_empty_text(item.get("sequenceId"), f"scenePlans[{index}].sequenceId", maximum=160)
         shot_role = item.get("shotRole")
         if shot_role not in CODEX_SHOT_ROLES:
@@ -524,6 +872,32 @@ def _normalize_codex_visual_plan(
         visible_ids = item.get("visibleCharacterIds", [])
         if not isinstance(visible_ids, list) or any(character_id not in character_by_id for character_id in visible_ids):
             raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].visibleCharacterIds 无效。")
+        visible_ids = list(dict.fromkeys(visible_ids))
+        if any(character_id not in seen_design_ids for character_id in visible_ids):
+            raise ToolError(
+                "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                f"scenePlans[{index}] 的每个出镜外观阶段都必须有 characterDesign；referencePolicy=none 也要有文字身份锚点。",
+            )
+        raw_appearance_bindings = item.get("appearanceBindings")
+        if not isinstance(raw_appearance_bindings, list) or len(raw_appearance_bindings) != len(visible_ids):
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].appearanceBindings 必须与出镜角色逐一对应。")
+        normalized_appearance_bindings: list[dict[str, str]] = []
+        bound_character_ids: set[str] = set()
+        for binding_index, binding in enumerate(raw_appearance_bindings, start=1):
+            if not isinstance(binding, dict):
+                raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].appearanceBindings[{binding_index}] 必须是对象。")
+            character_id = str(binding.get("characterId") or "").strip()
+            expected = appearance_by_character_id.get(character_id)
+            if character_id not in visible_ids or character_id in bound_character_ids or expected is None:
+                raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].appearanceBindings[{binding_index}] 角色无效或重复。")
+            if any(str(binding.get(field) or "").strip() != expected[field] for field in ("personId", "appearanceId", "lifePhase", "ageStage", "referencePolicy")):
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"scenePlans[{index}] 外观阶段绑定与角色合同不一致，禁止跨年龄或跨人生阶段复用参考图。",
+                    details={"characterId": character_id, "expected": expected},
+                )
+            normalized_appearance_bindings.append({"characterId": character_id, **expected})
+            bound_character_ids.add(character_id)
         if visible_ids and item.get("primaryCharacterId") not in visible_ids:
             raise ToolError(
                 "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
@@ -727,20 +1101,110 @@ def _normalize_codex_visual_plan(
             field: _non_empty_text(prompt_components.get(field), f"scenePlans[{index}].promptComponents.{field}", maximum=260)
             for field in CODEX_PROMPT_COMPONENT_FIELDS
         }
+        generic_component_risk = _generic_scene_language_risk(*normalized_components.values())
+        if generic_component_risk:
+            raise ToolError(
+                "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                f"scenePlans[{index}].promptComponents 使用了不可跨项目复用的模板语句：{generic_component_risk}。",
+            )
+        for character_id in visible_ids:
+            costume_id = costume_bindings[character_id]
+            costume_features = costume_features_by_id[costume_id]
+            if not any(feature in normalized_components["continuityEnvironmentZh"] for feature in costume_features):
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"scenePlans[{index}] 没有把当前剧情服装写入 continuityEnvironmentZh，角色参考图可能覆盖实际剧情服装。",
+                    details={"characterId": character_id, "costumeId": costume_id, "requiredFeatures": costume_features},
+                )
+        battle_effects = str(prompt_components.get("battleEffectsZh") or "").strip()
+        combat_direction = item.get("combatDirection")
+        if not isinstance(combat_direction, dict) or not isinstance(combat_direction.get("active"), bool):
+            raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].combatDirection.active 必须明确为 true 或 false。")
+        if combat_direction["active"]:
+            combat_phase = combat_direction.get("phase")
+            if combat_phase not in CODEX_COMBAT_PHASES:
+                raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].combatDirection.phase 无效。")
+            normalized_combat_direction = {
+                "active": True,
+                "phase": combat_phase,
+                **{
+                    field: _non_empty_text(
+                        combat_direction.get(field), f"scenePlans[{index}].combatDirection.{field}", maximum=300
+                    )
+                    for field in CODEX_COMBAT_DIRECTION_FIELDS
+                },
+            }
+            battle_effects = _non_empty_text(
+                battle_effects, f"scenePlans[{index}].promptComponents.battleEffectsZh", maximum=320
+            )
+            for field, text in (
+                ("combatDirection.frozenMomentZh", normalized_combat_direction["frozenMomentZh"]),
+                ("promptComponents.battleEffectsZh", battle_effects),
+            ):
+                temporal_risk = _image_prompt_temporal_sequence_risk(text)
+                if temporal_risk:
+                    raise ToolError(
+                        "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                        f"scenePlans[{index}].{field} 必须只描述战斗的一个动作阶段：{temporal_risk}。",
+                    )
+        else:
+            if combat_direction.get("phase") != "none" or battle_effects:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"scenePlans[{index}] 非战斗镜头必须使用 phase=none 且 battleEffectsZh 为空。",
+                )
+            normalized_combat_direction = {"active": False, "phase": "none"}
+        normalized_components["battleEffectsZh"] = battle_effects
         image_prompt = str(item.get("imagePromptZh") or "").strip()
         video_prompt = str(item.get("videoPromptZh") or "").strip()
         if prompt_generation["image"]:
             image_prompt = _non_empty_text(image_prompt, f"scenePlans[{index}].imagePromptZh", maximum=CODEX_IMAGE_PROMPT_MAXIMUM)
+            if len(image_prompt) < CODEX_IMAGE_PROMPT_SOFT_MINIMUM:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"scenePlans[{index}].imagePromptZh 只有 {len(image_prompt)} 字符，低于 {CODEX_IMAGE_PROMPT_SOFT_MINIMUM} 字符质量下限。",
+                )
             temporal_risk = _image_prompt_temporal_sequence_risk(image_prompt)
             if temporal_risk:
                 raise ToolError(
                     "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
                     f"scenePlans[{index}].imagePromptZh 必须只描述一个静态决定性瞬间：{temporal_risk}。",
                 )
+            if normalized_combat_direction["active"] and battle_effects not in image_prompt:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"scenePlans[{index}].imagePromptZh 必须编入已锁定的战斗特效组件。",
+                )
+            grounded_components = sum(
+                component in image_prompt
+                for component in normalized_components.values()
+                if component
+            )
+            if grounded_components < 3:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"scenePlans[{index}].imagePromptZh 未直接编入足够的剧情动作、表演、构图或连续性组件。",
+                )
+            if normalized_components["continuityEnvironmentZh"] not in image_prompt:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"scenePlans[{index}].imagePromptZh 必须直接编入地点与当前服装连续性，禁止参考图服装覆盖剧情。",
+                )
+            compact_prompt = re.sub(r"\s+", "", image_prompt).lower()
+            if "文字" not in compact_prompt and "文本" not in compact_prompt and "readabletext" not in compact_prompt:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"scenePlans[{index}].imagePromptZh 必须明确禁止可读文字。",
+                )
         elif len(image_prompt) > CODEX_IMAGE_PROMPT_MAXIMUM:
             raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].imagePromptZh 过长。")
         if prompt_generation["video"]:
             video_prompt = _non_empty_text(video_prompt, f"scenePlans[{index}].videoPromptZh", maximum=CODEX_VIDEO_PROMPT_MAXIMUM)
+            if normalized_combat_direction["active"] and battle_effects not in video_prompt:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    f"scenePlans[{index}].videoPromptZh 必须编入已锁定的战斗特效组件。",
+                )
         elif len(video_prompt) > CODEX_VIDEO_PROMPT_MAXIMUM:
             raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", f"scenePlans[{index}].videoPromptZh 过长。")
 
@@ -750,8 +1214,10 @@ def _normalize_codex_visual_plan(
             "sequence": index,
             "sequenceId": sequence_id,
             "shotRole": shot_role,
+            "semanticGroupId": semantic_group_id,
             "scriptLineIds": line_ids,
-            "visibleCharacterIds": list(dict.fromkeys(visible_ids)),
+            "visibleCharacterIds": visible_ids,
+            "appearanceBindings": normalized_appearance_bindings,
             "primaryCharacterId": item.get("primaryCharacterId") if visible_ids else "",
             "noCharacter": len(visible_ids) == 0,
             "complexityScore": complexity_score,
@@ -767,6 +1233,7 @@ def _normalize_codex_visual_plan(
             "mangaComposition": normalized_manga_composition,
             "facialActing": normalized_facial_acting,
             "bodyActing": normalized_body_acting,
+            "combatDirection": normalized_combat_direction,
             "promptComponents": normalized_components,
             "imagePromptZh": image_prompt,
             "videoPromptZh": video_prompt,
@@ -781,11 +1248,87 @@ def _normalize_codex_visual_plan(
             "Codex 分镜方案必须按正式稿顺序完整且仅覆盖每一行一次。",
             details={"expectedLineIds": expected_line_ids, "actualLineIds": covered_line_ids},
         )
+    _validate_sound_effect_scene_bindings(
+        target_lines,
+        {
+            line_id: scene["sceneId"]
+            for scene in normalized_scenes
+            for line_id in scene["scriptLineIds"]
+        },
+    )
+    if used_semantic_group_ids != [group["groupId"] for group in normalized_semantic_groups]:
+        raise ToolError(
+            "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+            "每个语义画面组必须按顺序且仅绑定一个分镜。",
+        )
+
+    if prompt_generation["image"] and len(normalized_scenes) >= 20:
+        prompt_signatures = [re.sub(r"[\s，。；、,:：;]+", "", scene["imagePromptZh"]).lower() for scene in normalized_scenes]
+        unique_prompt_ratio = len(set(prompt_signatures)) / len(prompt_signatures)
+        prompt_counts = Counter(prompt_signatures)
+        most_repeated_prompt = prompt_counts.most_common(1)[0][1]
+        if unique_prompt_ratio < CODEX_IMAGE_PROMPT_MINIMUM_UNIQUE_RATIO or most_repeated_prompt > 2:
+            raise ToolError(
+                "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                "整套图片提示词重复度过高，必须让每镜直接体现本镜独有的场景、动作、表演、构图和连续性。",
+                details={
+                    "sceneCount": len(normalized_scenes),
+                    "uniquePromptCount": len(set(prompt_signatures)),
+                    "uniquePromptRatio": round(unique_prompt_ratio, 4),
+                    "maximumExactRepeat": most_repeated_prompt,
+                    "requiredUniqueRatio": CODEX_IMAGE_PROMPT_MINIMUM_UNIQUE_RATIO,
+                },
+            )
+
+    if len(normalized_semantic_groups) >= 40:
+        group_size_counts = Counter(len(group["sourceLineIds"]) for group in normalized_semantic_groups)
+        dominant_group_size, dominant_group_count = group_size_counts.most_common(1)[0]
+        dominant_group_ratio = dominant_group_count / len(normalized_semantic_groups)
+        decision_reason_ratio = len({group["decisionReasonZh"] for group in normalized_semantic_groups}) / len(normalized_semantic_groups)
+        visual_moment_ratio = len({group["visualMomentZh"] for group in normalized_semantic_groups}) / len(normalized_semantic_groups)
+        if (
+            dominant_group_size > 1
+            and dominant_group_ratio > CODEX_SEMANTIC_GROUP_DOMINANCE_LIMIT
+            and (decision_reason_ratio < 0.60 or visual_moment_ratio < 0.60)
+        ):
+            raise ToolError(
+                "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                "语义画面组呈现固定行数机械切分特征，必须重新按剧情中的可见变化与决定性瞬间分组。",
+                details={
+                    "dominantLineCount": dominant_group_size,
+                    "dominantGroupRatio": round(dominant_group_ratio, 4),
+                    "decisionReasonUniqueRatio": round(decision_reason_ratio, 4),
+                    "visualMomentUniqueRatio": round(visual_moment_ratio, 4),
+                },
+            )
 
     scenes_by_episode: dict[int, list[dict[str, Any]]] = {}
     for scene in normalized_scenes:
         scenes_by_episode.setdefault(scene["episodeNumber"], []).append(scene)
     for episode_scenes in scenes_by_episode.values():
+        if len(episode_scenes) >= 12:
+            role_counts = Counter(scene["shotRole"] for scene in episode_scenes)
+            dominant_role, dominant_role_count = role_counts.most_common(1)[0]
+            if dominant_role_count / len(episode_scenes) > CODEX_SCENE_ROLE_DOMINANCE_LIMIT:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    "单集镜头功能过度集中，必须补齐建立、行动、反应、情绪、结果与高潮所需的剧情镜头。",
+                    details={"dominantRole": dominant_role, "dominantRoleRatio": round(dominant_role_count / len(episode_scenes), 4)},
+                )
+            episode_roles = set(role_counts)
+            if "climax" not in episode_roles or not episode_roles.intersection({"emotion_closeup", "consequence", "aftermath"}):
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    "单集缺少高潮或情绪／结果回报镜头，不能把故事全部降级为普通反应镜头。",
+                    details={"episodeNumber": episode_scenes[0]["episodeNumber"], "shotRoles": sorted(episode_roles)},
+                )
+            impact_levels = [scene["impactLevel"] for scene in episode_scenes]
+            if min(impact_levels) > 2 or max(impact_levels) < 4:
+                raise ToolError(
+                    "PRODUCTION_CODEX_VISUAL_PLAN_INVALID",
+                    "单集缺少视觉蓄力与爆发的冲击曲线，impactLevel 必须同时包含低强度铺垫和 4–5 级关键画面。",
+                    details={"episodeNumber": episode_scenes[0]["episodeNumber"], "minimum": min(impact_levels), "maximum": max(impact_levels)},
+                )
         previous_emotion = "none"
         repeated_dialogue = 0
         repeated_shot = 0
@@ -815,9 +1358,6 @@ def _normalize_codex_visual_plan(
             if repeated_high_impact >= 3:
                 raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "不得连续三镜都使用高冲击构图，必须保留视觉蓄力与爆发对比。")
 
-    story_visual_plan = value.get("storyVisualPlan")
-    if not isinstance(story_visual_plan, dict):
-        raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "storyVisualPlan 缺失。")
     complexity_level = story_visual_plan.get("complexityLevel")
     if not isinstance(complexity_level, int) or isinstance(complexity_level, bool) or complexity_level not in CODEX_COMPLEXITY_LEVELS:
         raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "storyVisualPlan.complexityLevel 必须为 1–5。")
@@ -969,6 +1509,11 @@ def _normalize_codex_visual_plan(
         or prompt_compiler.get("continuityStateRequired") is not True
         or prompt_compiler.get("temporalSequenceForbidden") is not True
         or prompt_compiler.get("shotRoleRequired") is not True
+        or prompt_compiler.get("semanticBeatGroupingRequired") is not True
+        or prompt_compiler.get("lineBreakSplitForbidden") is not True
+        or prompt_compiler.get("lineCountHardCapDisabled") is not True
+        or prompt_compiler.get("combatEffectsContractRequired") is not True
+        or prompt_compiler.get("combatKeyMomentSelectionRequired") is not True
         or prompt_compiler.get("failureRepairScope") != CODEX_FAILURE_REPAIR_SCOPE
     ):
         raise ToolError(
@@ -995,6 +1540,22 @@ def _normalize_codex_visual_plan(
             "pageCountMode": "complexity_adaptive",
             "plannedPageCount": planned_page_count,
             "pageCountRationaleZh": _non_empty_text(story_visual_plan.get("pageCountRationaleZh"), "storyVisualPlan.pageCountRationaleZh", maximum=420),
+            "semanticGrouping": {
+                "mode": CODEX_SEMANTIC_GROUPING_MODE,
+                "ttsLineBreakCreatesScene": False,
+                "durationCreatesScene": False,
+                "mergeBeforeContinuityPlanning": True,
+                "lineCountHardCap": False,
+                "actionPhaseChangeCreatesScene": False,
+                "splitOnlyForImportantVisibleChange": True,
+            },
+            "combatSelectionPolicy": {
+                "mode": "key_moments_only",
+                "allPhasesRequired": False,
+                "phaseChangeCreatesScene": False,
+                "intermediatePhasesMayBeOmitted": True,
+            },
+            "semanticBeatGroups": normalized_semantic_groups,
             "storyBeats": normalized_beats,
             "visualSequences": normalized_sequences,
             "promptCompiler": {
@@ -1013,6 +1574,11 @@ def _normalize_codex_visual_plan(
                 "continuityStateRequired": True,
                 "temporalSequenceForbidden": True,
                 "shotRoleRequired": True,
+                "semanticBeatGroupingRequired": True,
+                "lineBreakSplitForbidden": True,
+                "lineCountHardCapDisabled": True,
+                "combatEffectsContractRequired": True,
+                "combatKeyMomentSelectionRequired": True,
                 "failureRepairScope": CODEX_FAILURE_REPAIR_SCOPE,
             },
         },
@@ -1033,6 +1599,11 @@ def _normalize_codex_visual_plan(
             "fullSeriesContextRequired": True,
             "sequenceContinuityRequired": True,
             "temporalSequenceInSingleImageForbidden": True,
+            "semanticBeatGroupingRequired": True,
+            "lineBreakSplitForbidden": True,
+            "lineCountHardCapDisabled": True,
+            "combatEffectsContractRequired": True,
+            "combatKeyMomentSelectionRequired": True,
             "failedPromptRepairScope": CODEX_FAILURE_REPAIR_SCOPE,
             "atomicImageReplacementRequired": True,
         },
@@ -1400,9 +1971,11 @@ def _codex_visual_plan_markdown(plan: dict[str, Any], characters: list[dict[str,
             [
                 f"### {character_names.get(character_id, character_id)}（`{character_id}`）",
                 "",
+                f"- 人物／外观阶段：`{item['personId']}` → `{item['appearanceId']}`；人生阶段 `{item['lifePhase']}`；年龄阶段 `{item['ageStage']}`。",
+                f"- 参考图策略：`{item['referencePolicy']}`；实际用途 `{item['referenceUsage']}`。",
                 f"- 设计意图：{item['designIntentZh']}",
                 f"- 身份锚点：{item['identityAnchorPromptZh']}",
-                f"- 角色参考图提示词：{item['referenceSheetPromptZh']}",
+                f"- 角色参考图提示词：{item['referenceSheetPromptZh'] or '无（本阶段直接按文字生图）'}",
                 f"- 分镜身份短锚点：{item['storyboardIdentityPromptZh']}",
                 f"- 固定特征：{'、'.join(item['fixedFeatures'])}",
                 f"- 分镜可变项：{'、'.join(item['flexibleFeatures'])}",
@@ -1432,6 +2005,11 @@ def _codex_visual_plan_markdown(plan: dict[str, Any], characters: list[dict[str,
         lines.append(
             f"| `{beat['beatId']}` | `{beat['type']}` | {', '.join(beat['sourceLineIds'])} | {', '.join(beat['sceneIds'])} | {beat['summaryZh']} |"
         )
+    lines.extend(["", "## 配音行到语义画面组", "", "| 画面组 | 正式稿行 | 决策 | 与上一组边界 | 唯一视觉时刻 |", "|---|---|---|---|---|"])
+    for group in story_plan["semanticBeatGroups"]:
+        lines.append(
+            f"| `{group['groupId']}` | {', '.join(group['sourceLineIds'])} | `{group['decision']}`／`{group['reason']}` | `{group['boundaryFromPrevious']}` | {group['visualMomentZh']}（{group['decisionReasonZh']}） |"
+        )
     lines.extend(["", "## 连续场景段", ""])
     for sequence in story_plan["visualSequences"]:
         lines.extend(
@@ -1460,12 +2038,14 @@ def _codex_visual_plan_markdown(plan: dict[str, Any], characters: list[dict[str,
         continuity_state = item["continuityState"]
         facial_acting = item.get("facialActing", {})
         body_acting = item.get("bodyActing", {})
+        combat_direction = item.get("combatDirection", {"active": False, "phase": "none"})
         visible_names = [character_names.get(character_id, character_id) for character_id in item.get("visibleCharacterIds", [])]
         lines.extend(
             [
                 f"### 第 {item['episodeNumber']} 集 · 分镜 {item['sequence']}（`{item['sceneId']}`）",
                 "",
                 f"- 正式稿行：`{'`, `'.join(item['scriptLineIds'])}`",
+                f"- 语义画面组：`{item['semanticGroupId']}`（先合并相邻短行，再应用连续性和单镜合同）",
                 f"- 连续场景／镜头功能：`{item['sequenceId']}`／`{item['shotRole']}`",
                 f"- 出镜角色：{'、'.join(visible_names) if visible_names else '无人出镜'}",
                 f"- 剧情功能／复杂度：`{item['narrativeFunction']}`；{item['complexityScore']}/5",
@@ -1487,6 +2067,11 @@ def _codex_visual_plan_markdown(plan: dict[str, Any], characters: list[dict[str,
                     f"- 漫画肢体表演：动作线 {body_acting['lineOfActionZh']}；重心 {body_acting['centerOfGravityZh']}；肩背 {body_acting['shoulderSpineZh']}；手部张力 {body_acting['handTensionZh']}；次级运动 {body_acting['secondaryMotionZh']}。"
                     if body_acting else "- 漫画肢体表演：无人镜头，不适用。"
                 ),
+                (
+                    f"- 战斗特效：阶段 `{combat_direction['phase']}`；冻结瞬间 {combat_direction['frozenMomentZh']}；来源 {combat_direction['effectSourceZh']}；轨迹 {combat_direction['trajectoryZh']}；接触点 {combat_direction['impactPointZh']}；形态与色彩 {combat_direction['effectShapeColorZh']}；尺度分层 {combat_direction['scaleLayeringZh']}；粒子与碎屑 {combat_direction['particlesDebrisZh']}；环境反馈 {combat_direction['environmentalResponseZh']}；光影交互 {combat_direction['lightingInteractionZh']}；攻方动力 {combat_direction['attackerKineticsZh']}；守方反应 {combat_direction['defenderResponseZh']}；安全边界 {combat_direction['safetyBoundaryZh']}。"
+                    if combat_direction.get("active") else "- 战斗特效：本镜不适用。"
+                ),
+                f"- 编译后的战斗特效组件：{item['promptComponents']['battleEffectsZh'] or '本镜不适用'}",
                 f"- 图片提示词：{item['imagePromptZh'] or '本次未启用'}",
                 f"- 视频提示词：{item['videoPromptZh'] or '本次未启用'}",
                 "",
@@ -1530,6 +2115,8 @@ class ProductionCenter:
             "steps": [step_id for step_id, _, _ in STEP_DEFINITIONS],
             "deliveryModes": ["auto_render", "jianying_refine"],
             "videoSelectionModes": sorted(VIDEO_SELECTION_MODES),
+            "productionConcurrency": {"minimum": 1, "maximum": MAX_PRODUCTION_CONCURRENCY, "recommendedImage": 20},
+            "gridBatch": {"globalTemplate": True, "episodeTemplateOverrides": True},
             "audioRouting": {
                 "humanVoiceEngineSelectedByUser": True,
                 "recommendVoicesFromSelectedEngineOnly": True,
@@ -1537,17 +2124,28 @@ class ProductionCenter:
                 "soundEffectEngine": "seed_audio",
                 "soundEffectExplicitDurationRequired": True,
                 "soundEffectMaxDurationSeconds": SOUND_EFFECT_MAX_DURATION_SECONDS,
+                "soundEffectCategoryDurationWindows": True,
+                "soundEffectActiveAudioGate": True,
+                "soundEffectIncompleteAutoRetry": True,
                 "backgroundMusicTreatedAsSoundEffect": False,
             },
             "codexVisualPlan": {
                 "schemaVersion": CODEX_VISUAL_PLAN_SCHEMA_VERSION,
                 "characterDesign": True,
+                "logicalPersonAppearanceStages": True,
+                "sceneAppearanceBindingRequired": True,
+                "textOnlyChildAppearanceAllowed": True,
+                "crossLifeReferenceReuseForbidden": True,
                 "sceneImagePrompts": True,
                 "sceneVideoPrompts": True,
                 "scenePerformance": True,
                 "storyVisualPlanning": True,
                 "complexityAdaptivePageCount": True,
                 "semanticSceneGrouping": True,
+                "semanticGroupingMode": CODEX_SEMANTIC_GROUPING_MODE,
+                "semanticGroupingBeforeContinuity": True,
+                "ttsLineBreakCreatesScene": False,
+                "lineCountHardCap": False,
                 "speechDurationMaySplitStoryboard": False,
                 "soundEffectStandaloneStoryboard": False,
                 "cameraCompositionContract": True,
@@ -1564,9 +2162,26 @@ class ProductionCenter:
                 "visualSequencePlanning": True,
                 "continuityStateChain": True,
                 "temporalSequenceInSingleImageForbidden": True,
+                "combatEffectsContract": True,
+                "combatSinglePhasePerStill": True,
+                "combatKeyMomentsOnly": True,
+                "combatAllPhasesRequired": False,
+                "combatPhaseChangeMayForceStoryboard": False,
+                "combatIntermediatePhasesMayBeOmitted": True,
+                "nonGraphicCombatEffectsPreserved": True,
                 "failedPromptRepairScope": CODEX_FAILURE_REPAIR_SCOPE,
                 "atomicImageReplacement": True,
                 "mangaDeviceLimit": CODEX_VISUAL_DIRECTION["mangaDeviceLimit"],
+                "placeholderContentRejected": True,
+                "imagePromptSoftMinimumEnforced": True,
+                "imagePromptMinimumUniqueRatio": CODEX_IMAGE_PROMPT_MINIMUM_UNIQUE_RATIO,
+                "mechanicalLineGroupingRejected": True,
+                "shotRoleBalanceGate": True,
+                "impactArcGate": True,
+                "promptComponentGroundingRequired": True,
+                "sceneCostumeGroundingRequired": True,
+                "storyPromptPrecedesReferenceMaterial": True,
+                "costumeOverrideSuppressesFullBodyReference": True,
                 "promptBudgets": {
                     "imageSoftMinChars": CODEX_IMAGE_PROMPT_SOFT_MINIMUM,
                     "imageSoftMaxChars": CODEX_IMAGE_PROMPT_SOFT_MAXIMUM,
@@ -1576,6 +2191,12 @@ class ProductionCenter:
                 "referenceUsage": CODEX_REFERENCE_USAGE,
                 "workshopMayRewriteLockedPrompts": False,
                 "postGenerationVisualAudit": False,
+                "autoRenderMotion": {
+                    "minimumFamiliesForTwelveStills": 5,
+                    "adjacentFamilyRepeatForbidden": True,
+                    "zoomAmplitude": {"low": 1.10, "medium": 1.16, "high": 1.22},
+                    "speedMultiplier": {"low": 1.40, "medium": 1.62, "high": 1.85},
+                },
             },
             "ffmpegAvailable": bool(self.ffmpeg_path and Path(self.ffmpeg_path).is_file()),
             "ffprobeAvailable": bool(self.ffprobe_path and Path(self.ffprobe_path).is_file()),
@@ -1841,6 +2462,21 @@ class ProductionCenter:
                     "纯音效行必须使用 sfx、Seed Audio、显式0–5秒时长，并禁止独立生成画面。",
                     details={"lineId": line.get("lineId")},
                 )
+            duration_profile = _sound_effect_duration_profile(str(line.get("soundPrompt") or ""))
+            duration_seconds = float(line["durationSeconds"])
+            if not float(duration_profile["min"]) <= duration_seconds <= float(duration_profile["max"]):
+                raise ToolError(
+                    "PRODUCTION_SOUND_EFFECT_DURATION_INVALID",
+                    "纯音效时长必须落在当前声音类型的可辨认区间，不能把欢呼、环境声或鼓声压成突兀的一秒。",
+                    details={
+                        "lineId": line.get("lineId"),
+                        "category": duration_profile["category"],
+                        "minimumSeconds": duration_profile["min"],
+                        "maximumSeconds": duration_profile["max"],
+                        "recommendedSeconds": duration_profile["recommended"],
+                        "actualSeconds": duration_seconds,
+                    },
+                )
         config["codexVisualPlan"] = _normalize_codex_visual_plan(
             config.get("codexVisualPlan"),
             manuscript=manuscript,
@@ -1927,8 +2563,10 @@ class ProductionCenter:
                 if speaker_id not in voice_bindings:
                     raise ToolError("PRODUCTION_VOICE_BINDING_MISSING", "持续角色缺少锁定音色。")
                 design = design_by_character_id.get(speaker_id, {})
+                appearance = _character_appearance_contract(character) if config.get("codexVisualPlan") else {}
                 packaged_character = {
                     **deepcopy(character),
+                    **appearance,
                     **deepcopy(design),
                     "voice": deepcopy(voice_bindings[speaker_id]),
                 }
@@ -2180,6 +2818,20 @@ class ProductionCenter:
         grid_selection_source = str(grid_batch.get("selectionSource") or "default").strip()
         if grid_selection_source not in {"user", "default", "production_profile"}:
             raise ToolError("PRODUCTION_GRID_BATCH_INVALID", "宫格批次选择来源无效。")
+        episode_templates = deepcopy(grid_batch.get("episodeTemplates", {}))
+        if not isinstance(episode_templates, dict):
+            raise ToolError("PRODUCTION_GRID_BATCH_INVALID", "分集宫格批次必须是 episodeId 到宫格预设的对象映射。")
+        normalized_episode_templates: dict[str, str] = {}
+        for raw_episode_id, raw_template in episode_templates.items():
+            episode_id = str(raw_episode_id or "").strip()
+            episode_template = str(raw_template or "").strip()
+            if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", episode_id) or episode_template not in valid_grid_templates:
+                raise ToolError(
+                    "PRODUCTION_GRID_BATCH_INVALID",
+                    "分集宫格批次包含无效的 episodeId 或宫格预设。",
+                    details={"episodeId": episode_id, "template": episode_template},
+                )
+            normalized_episode_templates[episode_id] = episode_template
         video = deepcopy(config.get("videoGeneration", {}))
         if not isinstance(video.get("enabled"), bool) or video.get("selectionMode") not in VIDEO_SELECTION_MODES:
             raise ToolError("PRODUCTION_VIDEO_SCOPE_INVALID", "视频生成范围无效。")
@@ -2203,8 +2855,11 @@ class ProductionCenter:
         video["frameInputMode"] = frame_input_mode
         video["endFrameSource"] = end_frame_source
         video["selectedStoryboardIds"] = []
-        concurrency = deepcopy(config.get("concurrency", {"image": 1, "video": 1, "tts": 1}))
-        if any(not isinstance(value, int) or isinstance(value, bool) or value < 1 or value > 16 for value in concurrency.values()):
+        concurrency = deepcopy(config.get("concurrency", {"image": 20, "video": 1, "tts": 1}))
+        if not isinstance(concurrency, dict) or any(
+            not isinstance(value, int) or isinstance(value, bool) or value < 1 or value > MAX_PRODUCTION_CONCURRENCY
+            for value in concurrency.values()
+        ):
             raise ToolError("PRODUCTION_CONFIG_INVALID", "并发参数无效。")
         retry_limit = config.get("retryLimit", 2)
         if not isinstance(retry_limit, int) or isinstance(retry_limit, bool) or not 0 <= retry_limit <= 10:
@@ -2240,6 +2895,7 @@ class ProductionCenter:
             "gridBatch": {
                 "template": grid_template,
                 "selectionSource": grid_selection_source,
+                "episodeTemplates": normalized_episode_templates,
             },
             "videoGeneration": video,
             "concurrency": concurrency,
@@ -2568,6 +3224,36 @@ class ProductionCenter:
 
     def resume_task(self, task_id: Any) -> dict[str, Any]:
         task = self._load_task(task_id)
+        if task["state"] == "PAUSE_REQUESTED":
+            details: dict[str, Any] = {"fromState": "PAUSE_REQUESTED"}
+            workshop = task.get("workshop")
+            if not task.get("synthetic") and isinstance(workshop, dict) and self.workshop_bridge is not None:
+                project_path_text = str(task.get("import", {}).get("projectPath") or "").strip()
+                request_id = str(workshop.get("requestId") or "").strip()
+                if project_path_text and request_id:
+                    status = self.workshop_bridge.production_status(
+                        Path(project_path_text),
+                        expected_project_id=task["projectId"],
+                        expected_request_id=request_id,
+                    )
+                    workshop["lastStatus"] = status
+                    normalized_status = str(status.get("status") or "").strip().lower()
+                    task_present = bool(status.get("taskPresent"))
+                    details.update({"workshopStatus": normalized_status or "NOT_STARTED", "taskPresent": task_present})
+                    if task_present and normalized_status in {"running", "idle", "completed"}:
+                        task["state"] = "RUNNING"
+                        task["runId"] = request_id
+                        self._save_task(task, event="TASK_RESUMED", details=details)
+                        return task
+                previous_request_id = str(workshop.get("requestId") or "").strip()
+                if previous_request_id:
+                    workshop["previousRequestId"] = previous_request_id
+                workshop.pop("requestId", None)
+                workshop.pop("lastStatus", None)
+            task["state"] = "READY_TO_PRODUCE"
+            task["runId"] = None
+            self._save_task(task, event="TASK_RESUMED", details=details)
+            return task
         if task["state"] not in {"PAUSED", "NEEDS_REPAIR", "RETRYING"}:
             raise ToolError("PRODUCTION_TASK_NOT_RESUMABLE", "当前制作状态不能恢复。")
         task["state"] = "READY_TO_PRODUCE"
@@ -2619,6 +3305,7 @@ class ProductionCenter:
             "image_style": {"storyboard-image", "storyboard-video", "final-video"},
             "video_scope": {"storyboard-video", "final-video"},
             "delivery_mode": {"final-video", "jianying-draft"},
+            "render_engine": {"final-video"},
         }
         invalidated: set[str] = set()
         if all(change in publishing_only for change in changes):
@@ -2638,8 +3325,18 @@ class ProductionCenter:
                 if any(asset_id in invalidated for asset_id in step["assetIds"]):
                     step["status"] = "PENDING"
             if invalidated:
-                task["state"] = "READY_TO_PRODUCE"
                 task["resultPackagePath"] = None
+                workshop = task.get("workshop")
+                if not task.get("synthetic") and isinstance(workshop, dict):
+                    previous_request_id = str(workshop.pop("requestId", "") or "").strip()
+                    if previous_request_id:
+                        workshop["previousRequestId"] = previous_request_id
+                    workshop.pop("lastStatus", None)
+                    workshop.pop("artifactSnapshot", None)
+                    task["state"] = "RETRYING"
+                    task["runId"] = None
+                else:
+                    task["state"] = "READY_TO_PRODUCE"
         self._update_progress(task)
         self._save_task(task, event="SELECTIVE_INVALIDATION", details={"changes": changes, "assetIds": sorted(invalidated)})
         return {"task": task, "invalidatedAssetIds": sorted(invalidated), "mediaPreserved": all(change in publishing_only for change in changes)}
@@ -3239,8 +3936,7 @@ class ProductionCenter:
                 subtitle_text_parts.extend(rows[time_index + 1 :])
         normalized_subtitles = re.sub(r"\s+", "", "".join(subtitle_text_parts))
         spoken_lines = [line for line in expected_lines if line.get("lineType") != "sound_effect"]
-        normalized_script = re.sub(r"\s+", "", "".join(line["text"] for line in spoken_lines))
-        if not normalized_script or normalized_script not in normalized_subtitles:
+        if not _subtitles_cover_spoken_lines_in_order(normalized_subtitles, spoken_lines):
             raise ToolError("PRODUCTION_SUBTITLE_MAPPING_MISMATCH", "SRT 没有按原顺序完整包含目标语言正式母稿。")
         expected_duration = float(timeline.get("durationSeconds", 0))
         if abs(duration - expected_duration) > max(1.0, expected_duration * 0.2):
@@ -3283,6 +3979,75 @@ class ProductionCenter:
         steps.append("diagnostics")
         steps.append("export" if config.get("deliveryMode") == "jianying_refine" else "final_render")
         return steps
+
+    @staticmethod
+    def _workshop_selective_rework_scope(task: dict[str, Any], project_path: Path) -> dict[str, Any] | None:
+        """Load a one-project selective retry contract without broadening its scope."""
+
+        if str(task.get("state") or "").strip().upper() not in {"RETRYING", "READY_TO_PRODUCE"}:
+            return None
+        scope_path = project_path.parent / "selective-rework-scope.json"
+        if not scope_path.is_file():
+            return None
+        try:
+            scope = json.loads(scope_path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ToolError(
+                "PRODUCTION_SELECTIVE_REWORK_SCOPE_INVALID",
+                "选择性恢复清单无法读取，已阻止回退为全流程重跑。",
+                details={"scopePath": str(scope_path)},
+            ) from exc
+        if not isinstance(scope, dict):
+            raise ToolError(
+                "PRODUCTION_SELECTIVE_REWORK_SCOPE_INVALID",
+                "选择性恢复清单格式无效，已阻止回退为全流程重跑。",
+                details={"scopePath": str(scope_path)},
+            )
+
+        project_id = str(task.get("projectId") or "").strip()
+        command = scope.get("command") if isinstance(scope.get("command"), dict) else {}
+        steps = [str(item).strip() for item in command.get("steps", [])]
+        episodes = [str(item).strip() for item in command.get("episodes", [])]
+        hard_exclusions = {str(item).strip() for item in scope.get("hardExclusions", [])}
+        allowed_steps = {
+            "character_images",
+            "voice_matching",
+            "character_assets_gate",
+            "audio",
+            "storyboard",
+            "image_prompts",
+            "grid_image",
+            "video",
+            "diagnostics",
+            "export",
+            "final_render",
+        }
+        authorization = str(scope.get("automaticRemainingWorkflowAuthorization") or "").strip()
+        invalid = (
+            str(scope.get("projectId") or "").strip() != project_id
+            or str(scope.get("authorizationBoundToProjectId") or "").strip() != project_id
+            or not authorization.endswith(":auto-remaining-workflow")
+            or bool(scope.get("uploadAuthorized"))
+            or not bool(command.get("skipCompleted"))
+            or not steps
+            or any(step not in allowed_steps for step in steps)
+            or any(step in hard_exclusions for step in steps)
+            or not episodes
+        )
+        if invalid:
+            raise ToolError(
+                "PRODUCTION_SELECTIVE_REWORK_SCOPE_INVALID",
+                "选择性恢复清单与当前项目或授权不匹配，已阻止扩大重试范围。",
+                details={"scopePath": str(scope_path), "projectId": project_id},
+            )
+        return {
+            "path": str(scope_path.resolve()),
+            "sha256": _sha256_file(scope_path),
+            "selectedStepIds": steps,
+            "selectedEpisodeIds": episodes,
+            "skipCompleted": True,
+            "authorization": authorization,
+        }
 
     @staticmethod
     def _srt_end_seconds(path: Path) -> float:
@@ -3496,16 +4261,37 @@ class ProductionCenter:
         workshop = task.setdefault("workshop", {})
         request_id = str(workshop.get("requestId") or "")
         if not request_id:
+            production_config = documents.get("production_config.json", {})
+            prompt_generation = production_config.get("promptGeneration", {})
+            if bool(prompt_generation.get("image") or prompt_generation.get("video")):
+                visual_plan = production_config.get("codexVisualPlan")
+                if not isinstance(visual_plan, dict) or visual_plan.get("schemaVersion") != CODEX_VISUAL_PLAN_SCHEMA_VERSION:
+                    raise ToolError(
+                        "PRODUCTION_CODEX_VISUAL_PLAN_LEGACY",
+                        "旧视觉方案不能启动新的工坊请求；请用当前 1.4 语义分镜合同重新组装生产包。",
+                        details={
+                            "requiredSchemaVersion": CODEX_VISUAL_PLAN_SCHEMA_VERSION,
+                            "actualSchemaVersion": visual_plan.get("schemaVersion") if isinstance(visual_plan, dict) else None,
+                        },
+                    )
             if self._step(task, "P0")["status"] != "COMPLETED":
                 self._execute_p0(task, documents)
             request_id = f"stage5-{task['productionTaskId']}-{uuid.uuid4().hex[:12]}"
             selected_steps = self._workshop_selected_steps(documents["production_config.json"])
+            selected_episode_ids: list[str] = []
+            skip_completed = True
+            selective_scope = self._workshop_selective_rework_scope(task, project_path)
+            if selective_scope is not None:
+                selected_steps = selective_scope["selectedStepIds"]
+                selected_episode_ids = selective_scope["selectedEpisodeIds"]
+                skip_completed = selective_scope["skipCompleted"]
             start = self.workshop_bridge.start_production(
                 project_path,
                 selected_step_ids=selected_steps,
+                selected_episode_ids=selected_episode_ids,
                 request_id=request_id,
                 expected_project_id=task["projectId"],
-                skip_completed=True,
+                skip_completed=skip_completed,
             )
             request_id = str(start.get("requestId") or request_id)
             task["runId"] = request_id
@@ -3513,13 +4299,31 @@ class ProductionCenter:
             task["workshop"] = {
                 "requestId": request_id,
                 "selectedStepIds": selected_steps,
+                "selectedEpisodeIds": selected_episode_ids,
+                "skipCompleted": skip_completed,
                 "projectPath": str(project_path.resolve()),
                 "joinedExisting": bool(start.get("joinedExisting")),
                 "startConfirmed": bool(start.get("startConfirmed")),
                 "launchCount": int(workshop.get("launchCount", 0)) + (0 if start.get("joinedExisting") else 1),
                 "provenance": "workshop",
             }
-            self._save_task(task, event="WORKSHOP_RUN_STARTED", details={"requestId": request_id, "selectedStepIds": selected_steps})
+            if selective_scope is not None:
+                task["workshop"]["selectiveReworkScope"] = {
+                    "path": selective_scope["path"],
+                    "sha256": selective_scope["sha256"],
+                    "authorization": selective_scope["authorization"],
+                }
+            self._save_task(
+                task,
+                event="WORKSHOP_RUN_STARTED",
+                details={
+                    "requestId": request_id,
+                    "selectedStepIds": selected_steps,
+                    "selectedEpisodeIds": selected_episode_ids,
+                    "skipCompleted": skip_completed,
+                    "selectiveReworkScope": selective_scope is not None,
+                },
+            )
             return {"task": task, "workshopStarted": True, "idempotent": False}
 
         status = self.workshop_bridge.production_status(
@@ -3529,17 +4333,76 @@ class ProductionCenter:
         )
         workshop["lastStatus"] = status
         normalized_status = str(status.get("status") or "").strip().lower()
-        if normalized_status in {"running", "idle"} or not status.get("taskPresent"):
+        task_present = bool(status.get("taskPresent"))
+        if task_present and normalized_status in {"running", "idle"}:
+            workshop["missingTaskObservations"] = 0
             task["state"] = "RUNNING"
-            self._save_task(task, event="WORKSHOP_STATUS_OBSERVED", details={"status": normalized_status or "NOT_STARTED"})
+            self._save_task(
+                task,
+                event="WORKSHOP_STATUS_OBSERVED",
+                details={"status": normalized_status or "NOT_STARTED", "taskPresent": True, "requestId": request_id},
+            )
             return {"task": task, "workshopRunning": True, "idempotent": True}
         if normalized_status in {"paused", "failed", "cancelled"}:
-            task["state"] = "PAUSED" if normalized_status == "paused" else "FAILED"
-            workshop["lastError"] = status.get("error") or status.get("message")
-            self._save_task(task, event="WORKSHOP_STOPPED", details={"status": normalized_status})
+            error_message = status.get("error") or status.get("message") or normalized_status
+            error_detail = _classify_workshop_error(error_message)
+            if normalized_status == "paused" or error_detail["recoverable"]:
+                task["state"] = "NEEDS_CONFIGURATION" if error_detail["category"] == "authentication" else "PAUSED"
+            else:
+                task["state"] = "FAILED"
+            workshop["lastError"] = error_detail["message"]
+            workshop["lastErrorDetail"] = error_detail
+            workshop["missingTaskObservations"] = 0
+            self._save_task(
+                task,
+                event="WORKSHOP_STOPPED",
+                details={
+                    "status": normalized_status,
+                    "taskPresent": task_present,
+                    "requestId": request_id,
+                    "error": error_detail,
+                },
+            )
+            return {"task": task, "workshopNeedsAttention": True, "idempotent": True}
+        if not task_present:
+            missing_count = int(workshop.get("missingTaskObservations", 0)) + 1
+            workshop["missingTaskObservations"] = missing_count
+            details = {
+                "status": normalized_status or "NOT_STARTED",
+                "taskPresent": False,
+                "requestId": request_id,
+                "missingTaskObservations": missing_count,
+            }
+            if missing_count <= WORKSHOP_MISSING_TASK_GRACE_OBSERVATIONS:
+                task["state"] = "RUNNING"
+                workshop["startupPendingConfirmation"] = True
+                self._save_task(task, event="WORKSHOP_START_CONFIRMATION_PENDING", details=details)
+                return {
+                    "task": task,
+                    "workshopRunning": True,
+                    "workshopStartConfirmationPending": True,
+                    "idempotent": True,
+                }
+            error_detail = {
+                "category": "workshop_task_missing",
+                "recoverable": True,
+                "recommendedAction": "inspect_original_request_before_retry",
+                "message": "工坊连续查询不到原生产任务，已停止把缺失任务误报为运行中。",
+            }
+            task["state"] = "NEEDS_REPAIR"
+            workshop["startupPendingConfirmation"] = False
+            workshop["lastError"] = error_detail["message"]
+            workshop["lastErrorDetail"] = error_detail
+            self._save_task(task, event="WORKSHOP_TASK_MISSING", details={**details, "error": error_detail})
             return {"task": task, "workshopNeedsAttention": True, "idempotent": True}
         if normalized_status != "completed":
-            raise ToolError("WORKSHOP_STATUS_INVALID", "工坊返回了无法识别的生产状态。", details={"status": normalized_status})
+            raise ToolError(
+                "WORKSHOP_STATUS_INVALID",
+                "工坊返回了无法识别的生产状态。",
+                details={"status": normalized_status, "taskPresent": task_present, "requestId": request_id},
+            )
+        workshop["missingTaskObservations"] = 0
+        workshop["startupPendingConfirmation"] = False
         snapshot = self.workshop_bridge.production_artifacts(
             project_path,
             expected_project_id=task["projectId"],
@@ -3760,7 +4623,14 @@ class ProductionCenter:
         task = self._load_task(task_id)
         if task["state"] == "VIDEO_READY":
             return {"task": task, "idempotent": True}
-        if task["state"] not in {"READY_TO_PRODUCE", "RETRYING", "RUNNING"}:
+        runnable_states = {"READY_TO_PRODUCE", "RETRYING", "RUNNING"}
+        # A formal workshop request that temporarily disappeared must keep the
+        # same request id.  Allow monitoring to resume from NEEDS_REPAIR without
+        # launching a second paid request.  Synthetic fixtures still use the
+        # explicit repair/retry path.
+        if not task["synthetic"]:
+            runnable_states.add("NEEDS_REPAIR")
+        if task["state"] not in runnable_states:
             raise ToolError("PRODUCTION_TASK_NOT_RUNNABLE", "当前制作任务不能运行。")
         if not task["synthetic"]:
             return self._run_workshop_task(task)

@@ -350,6 +350,34 @@
           "minLength": 3,
           "maxLength": 128
         },
+        "personId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "appearanceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "lifePhase": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "ageStage": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "referencePolicy": {
+          "type": "string",
+          "enum": [
+            "required",
+            "optional",
+            "none"
+          ]
+        },
         "targetLanguageName": {
           "type": "string",
           "minLength": 1,
