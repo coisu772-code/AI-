@@ -2,9 +2,14 @@
   "schemaVersion": "1.0.0",
   "productId": "ai-video-channel-production",
   "productName": "AI 视频频道生产系统",
-  "currentReleaseCandidate": "0.13.0-rc.1",
+  "currentReleaseCandidate": "0.14.0-rc.1",
   "publishedVersion": "0.13.0-rc.1",
   "versions": [
+    {
+      "version": "0.14.0-rc.1",
+      "status": "source-candidate",
+      "remotePublished": false
+    },
     {
       "version": "0.13.0-rc.1",
       "status": "published-prerelease",
