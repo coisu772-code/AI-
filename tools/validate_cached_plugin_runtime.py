@@ -262,6 +262,7 @@ def main() -> int:
             workshop_health = result.get("workshopHealth", {})
             workshop_capabilities = result.get("workshopCapabilities", {})
             codex_visual_plan = result.get("codexVisualPlan", {})
+            audio_routing = result.get("audioRouting", {})
             voice_catalog = json.loads(Path(expected_environment["AIVCP_VOICE_CATALOG"]).read_text(encoding="utf-8-sig"))
             covered_voice_engines = {
                 str(item.get("engineId"))
@@ -282,10 +283,27 @@ def main() -> int:
                 or workshop_health.get("ffmpegAvailable") is not True
                 or workshop_health.get("ffmpegPathSet") is not True
                 or workshop_health.get("ffprobePathSet") is not True
+                or workshop_health.get("imageMotionContract") != "strong_multidirectional_balanced_motion_v9"
+                or workshop_health.get("appearanceStageContract") != "person_appearance_life_age_reference_policy_v1"
+                or workshop_health.get("soundEffectContract") != "category_duration_active_audio_envelope_retry_v1"
                 or "2.1" not in workshop_capabilities.get("supportedPackageVersions", [])
+                or "1.5" not in workshop_capabilities.get("supportedCodexVisualPlanSchemas", [])
                 or workshop_capabilities.get("externalServiceProbeExecuted") is not False
                 or not reported_voice_engines.issubset(covered_voice_engines)
-                or codex_visual_plan.get("schemaVersion") != "1.3"
+                or codex_visual_plan.get("schemaVersion") != "1.5"
+                or audio_routing.get("soundEffectCategoryDurationWindows") is not True
+                or audio_routing.get("soundEffectActiveAudioGate") is not True
+                or audio_routing.get("soundEffectIncompleteAutoRetry") is not True
+                or codex_visual_plan.get("logicalPersonAppearanceStages") is not True
+                or codex_visual_plan.get("sceneAppearanceBindingRequired") is not True
+                or codex_visual_plan.get("textOnlyChildAppearanceAllowed") is not True
+                or codex_visual_plan.get("crossLifeReferenceReuseForbidden") is not True
+                or codex_visual_plan.get("autoRenderMotion") != {
+                    "minimumFamiliesForTwelveStills": 5,
+                    "adjacentFamilyRepeatForbidden": True,
+                    "zoomAmplitude": {"low": 1.10, "medium": 1.16, "high": 1.22},
+                    "speedMultiplier": {"low": 1.40, "medium": 1.62, "high": 1.85},
+                }
                 or codex_visual_plan.get("storyVisualPlanning") is not True
                 or codex_visual_plan.get("complexityAdaptivePageCount") is not True
                 or codex_visual_plan.get("criticalEmotionVisualSignals") is not True
@@ -301,6 +319,16 @@ def main() -> int:
                 or codex_visual_plan.get("visualSequencePlanning") is not True
                 or codex_visual_plan.get("continuityStateChain") is not True
                 or codex_visual_plan.get("temporalSequenceInSingleImageForbidden") is not True
+                or codex_visual_plan.get("semanticGroupingMode") != "semantic_visual_beat_v2"
+                or codex_visual_plan.get("semanticGroupingBeforeContinuity") is not True
+                or codex_visual_plan.get("ttsLineBreakCreatesScene") is not False
+                or codex_visual_plan.get("lineCountHardCap") is not False
+                or codex_visual_plan.get("combatEffectsContract") is not True
+                or codex_visual_plan.get("combatKeyMomentsOnly") is not True
+                or codex_visual_plan.get("combatAllPhasesRequired") is not False
+                or codex_visual_plan.get("combatPhaseChangeMayForceStoryboard") is not False
+                or codex_visual_plan.get("combatIntermediatePhasesMayBeOmitted") is not True
+                or codex_visual_plan.get("nonGraphicCombatEffectsPreserved") is not True
                 or codex_visual_plan.get("failedPromptRepairScope") != "failed_scene_only"
                 or codex_visual_plan.get("atomicImageReplacement") is not True
                 or codex_visual_plan.get("mangaDeviceLimit") != 3
@@ -319,7 +347,18 @@ def main() -> int:
             component_integration["ffprobeAvailable"] = True
             component_integration["externalServiceProbeExecuted"] = False
             component_integration["workshopVoiceEnginesCovered"] = sorted(reported_voice_engines)
-            component_integration["codexVisualPlanSchema"] = "1.3"
+            component_integration["codexVisualPlanSchema"] = "1.5"
+            component_integration["imageMotionContract"] = workshop_health["imageMotionContract"]
+            component_integration["appearanceStageContract"] = workshop_health["appearanceStageContract"]
+            component_integration["soundEffectContract"] = workshop_health["soundEffectContract"]
+            component_integration["soundEffectCategoryDurationWindows"] = True
+            component_integration["soundEffectActiveAudioGate"] = True
+            component_integration["soundEffectIncompleteAutoRetry"] = True
+            component_integration["appearanceStageBinding"] = True
+            component_integration["textOnlyChildAppearance"] = True
+            component_integration["autoRenderMotion"] = codex_visual_plan["autoRenderMotion"]
+            component_integration["semanticGroupingMode"] = "semantic_visual_beat_v2"
+            component_integration["combatKeyMomentsOnly"] = True
             component_integration["fullSeriesContext"] = True
             component_integration["visualSequencePlanning"] = True
             component_integration["continuityStateChain"] = True

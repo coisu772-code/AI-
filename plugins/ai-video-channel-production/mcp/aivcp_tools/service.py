@@ -2058,7 +2058,7 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "production_package_assemble",
-            "从已确认的 Manuscript 与 Publishing Asset 组装 Production Package v2.1。productionConfig 必须保存用户本次选择的人物配音引擎，角色音色只能从该引擎推荐并在当前项目锁定；每集开场必须有 Seed Audio，其他音效只能在触发人声完整结束后播放、与触发句共用分镜、不得生成字幕或独立画面。开启图片或视频提示词时，codexVisualPlan 必须按同一视觉时刻细分分镜，单镜最多三条同一视觉时刻的人声，并在动作、视线、情绪或因果变化处继续拆分；同时执行生图安全预检，工坊不得重写。",
+            "从已确认的 Manuscript 与 Publishing Asset 组装 Production Package v2.1。productionConfig 必须保存用户本次选择的人物配音引擎，角色音色只能从该引擎推荐并在当前项目锁定；每集开场必须有 Seed Audio，其他音效只能在触发人声完整结束后播放、与触发句共用分镜、不得生成字幕或独立画面，并按短促、回响、人群、环境或旋律类别使用可辨认的完整时长。开启图片或视频提示词时，codexVisualPlan schema 1.5 必须先合并同一视觉时刻，再按动作、视线、情绪或因果变化拆分；同一人物的前世、转生后、婴幼儿、少年与成年分别绑定 appearanceId，幼童可无参考图直接按文字生图；同时执行生成前阶段绑定与生图安全预检，工坊不得重写。",
             {
                 **binding_properties,
                 "projectId": {"type": "string"},

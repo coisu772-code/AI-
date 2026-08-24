@@ -33,6 +33,7 @@ _FORBIDDEN_COMMAND_FRAGMENTS = (
 _FORBIDDEN_STEP_FRAGMENTS = ("publish", "upload", "oauth", "receipt", "analytics", "learning")
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9_.:-]{1,160}$")
 _SAFE_STEP = re.compile(r"^[a-z][a-z0-9_]{0,79}$")
+_SAFE_GRID_TEMPLATE = re.compile(r"^(?:wide_16_9|wide_4_3|portrait_9_16|square_1_1)_(?:1|4|9|16)$")
 _WORKSHOP_START_LEASE_SECONDS = 300
 _ACTIVE_WORKSHOP_TASK_STATES = frozenset({"running"})
 
@@ -177,6 +178,9 @@ class WorkshopBridge:
             "ffmpegAvailable": bool(result.get("ffmpegAvailable")),
             "ffmpegPathSet": bool(str(result.get("ffmpegPath") or "").strip()),
             "ffprobePathSet": bool(str(result.get("ffprobePath") or "").strip()),
+            "imageMotionContract": str(result.get("imageMotionContract") or ""),
+            "appearanceStageContract": str(result.get("appearanceStageContract") or ""),
+            "soundEffectContract": str(result.get("soundEffectContract") or ""),
             "boundary": "read_only_no_external_services",
         }
 
@@ -190,6 +194,11 @@ class WorkshopBridge:
             "supportedPackageVersions": (
                 result.get("supportedPackageVersions")
                 if isinstance(result.get("supportedPackageVersions"), list)
+                else []
+            ),
+            "supportedCodexVisualPlanSchemas": (
+                result.get("supportedCodexVisualPlanSchemas")
+                if isinstance(result.get("supportedCodexVisualPlanSchemas"), list)
                 else []
             ),
             "externalServiceProbeExecuted": False,
@@ -412,6 +421,16 @@ class WorkshopBridge:
                 details={"projectPath": str(project_path)},
             )
         project = self._load_official_project(project_path, expected_project_id)
+        import_meta = project.get("importMeta") if isinstance(project.get("importMeta"), dict) else {}
+        production_contract = import_meta.get("productionContract") if isinstance(import_meta.get("productionContract"), dict) else {}
+        grid_batch = production_contract.get("gridBatch") if isinstance(production_contract.get("gridBatch"), dict) else {}
+        grid_template = str(grid_batch.get("template") or "").strip()
+        if grid_template and _SAFE_GRID_TEMPLATE.fullmatch(grid_template) is None:
+            raise ToolError(
+                "WORKSHOP_GRID_TEMPLATE_INVALID",
+                "生产包锁定的宫格模板无效，未启动工坊。",
+                details={"gridTemplate": grid_template},
+            )
         steps = [str(item).strip() for item in selected_step_ids]
         episodes = [str(item).strip() for item in selected_episode_ids]
         if not steps or any(_SAFE_STEP.fullmatch(item) is None for item in steps):
@@ -459,6 +478,8 @@ class WorkshopBridge:
         ]
         if episodes:
             arguments.extend(["--episodes", ",".join(episodes)])
+        if grid_template:
+            arguments.extend(["--grid-template", grid_template])
         if not skip_completed:
             arguments.append("--no-skip-completed")
         self._validate_command("run-production", arguments)
@@ -476,6 +497,7 @@ class WorkshopBridge:
             "selectedStepIds": steps,
             "selectedEpisodeIds": episodes,
             "skipCompleted": bool(skip_completed),
+            "gridTemplate": grid_template,
         }
         existing_lease = self._claim_start_lease(lease_path, lease)
         if existing_lease is not None:

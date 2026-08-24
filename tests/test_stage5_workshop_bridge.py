@@ -107,6 +107,7 @@ class WorkshopBridgeTests(unittest.TestCase):
                     "success": True,
                     "voiceEngines": [{"engine": "fixture", "available": False}],
                     "supportedPackageVersions": ["2.1"],
+                    "supportedCodexVisualPlanSchemas": ["1.3", "1.4", "1.5"],
                 },
             )
 
@@ -114,6 +115,7 @@ class WorkshopBridgeTests(unittest.TestCase):
             result = self.bridge.capabilities()
         self.assertFalse(result["externalServiceProbeExecuted"])
         self.assertEqual(["2.1"], result["supportedPackageVersions"])
+        self.assertEqual(["1.3", "1.4", "1.5"], result["supportedCodexVisualPlanSchemas"])
 
     def test_import_is_limited_to_isolation_and_preserves_duplicate_flag(self) -> None:
         package = self.root / "production-package"
@@ -209,7 +211,13 @@ class WorkshopBridgeTests(unittest.TestCase):
         project = self.isolation / "workshop-project" / "novel_manga_project.json"
         project.parent.mkdir(parents=True)
         project.write_text(
-            json.dumps({"id": "fixture-project", "importMeta": self._official_import_meta()}),
+            json.dumps({
+                "id": "fixture-project",
+                "importMeta": {
+                    **self._official_import_meta(),
+                    "productionContract": {"gridBatch": {"template": "wide_16_9_1"}},
+                },
+            }),
             encoding="utf-8",
         )
 
@@ -217,6 +225,7 @@ class WorkshopBridgeTests(unittest.TestCase):
             self.assertEqual("run-production", argv[1])
             self.assertIn("--auto-start", argv)
             self.assertIn("audio,storyboard", argv)
+            self.assertEqual("wide_16_9_1", argv[argv.index("--grid-template") + 1])
             result_path = Path(argv[argv.index("--result-file") + 1])
             result_path.write_text(
                 json.dumps({"success": True, "processId": 4242, "forwarded": True, "status": "accepted"}),

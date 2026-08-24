@@ -34,6 +34,28 @@ CONTENT_LOOP_VERSION = "1.0.0"
 PACKAGE_SCHEMA_VERSION = "1.0.0"
 SOUND_EFFECT_MAX_DURATION_SECONDS = 5.0
 SOUND_EFFECT_LINE_PATTERN = re.compile(r"^【sound：(.+?)；时长([0-9]+(?:\.[0-9]+)?)秒】$")
+
+
+def _sound_effect_duration_window(prompt: str) -> tuple[float, float, float]:
+    text = str(prompt or "").strip().lower()
+    has = lambda *values: any(value in text for value in values)
+    if has("音乐", "音樂", "旋律", "八音盒", "music", "melody", "song", "オルゴール", "音楽", "メロディ"):
+        return 3.0, 4.8, 3.8
+    if has("欢呼", "歡呼", "喝彩", "人群", "群众", "群眾", "笑声", "笑聲", "crowd", "cheer", "applause", "laughter", "歓声", "拍手", "群衆", "笑い声"):
+        return 2.5, 4.2, 3.2
+    if has("风声", "風聲", "雨声", "雨聲", "火焰声", "篝火声", "海浪声", "河流声", "树林环境", "森林环境", "环境声", "環境音", "wind", "rain", "fire ambience", "waves", "river ambience", "forest ambience", "風音", "雨音", "波音"):
+        return 3.0, 4.8, 3.8
+    if has("鼓", "钟", "鐘", "铃", "鈴", "锣", "鑼", "号角", "回响", "回響", "drum", "bell", "gong", "horn", "resonance", "太鼓", "角笛", "残響"):
+        return 1.8, 3.2, 2.4
+    if has("转场", "轉場", "过渡", "過渡", "提示音", "系统音", "系統音", "transition", "whoosh", "swoosh", "通知音", "転換"):
+        return 1.6, 3.0, 2.2
+    return 0.8, 1.6, 1.2
+
+
+def _normalized_sound_effect_duration(prompt: str, requested: float) -> float:
+    minimum, maximum, recommended = _sound_effect_duration_window(prompt)
+    value = requested if requested > 0 else recommended
+    return round(max(minimum, min(maximum, value)), 1)
 SCORE_KEYS = (
     "audienceFit",
     "clickPotential",
@@ -1574,6 +1596,8 @@ class ContentLoop:
                 duration_seconds = float(marker.group(2))
                 if not sound_prompt or not 0 < duration_seconds <= SOUND_EFFECT_MAX_DURATION_SECONDS:
                     raise ToolError("SCRIPT_SOUND_EFFECT_INVALID", f"{field} 的纯音效时长必须大于0且不超过5秒。")
+                duration_seconds = _normalized_sound_effect_duration(sound_prompt, duration_seconds)
+                normalized_line["text"] = f"【sound：{sound_prompt}；时长{duration_seconds:g}秒】"
                 normalized_line.update(
                     {
                         "emotion": "sound_effect",
