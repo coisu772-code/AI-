@@ -10,12 +10,12 @@ import zipfile
 from pathlib import Path
 
 
-PUBLISHER_NAME = "youtube-publisher-center-v0.9.0-rc.3-windows-amd64.zip"
-PUBLISHER_SIZE = 33022006
-PUBLISHER_SHA256 = "a472ab385915f146448dc2a99e168ec4073916852c963fdfbf8d6dc39b4d465b"
-PUBLISHER_ROOT = "youtube-publisher-center-v0.9.0-rc.3-windows-amd64"
-PUBLISHER_VALIDATOR_SIZE = 17479168
-PUBLISHER_VALIDATOR_SHA256 = "3db3cbc0c1dabc7eca9776ab6823be3a3c6e14edb38520b1e686b8c83abc45f8"
+PUBLISHER_NAME = "youtube-publisher-center-v0.9.0-rc.4-windows-amd64.zip"
+PUBLISHER_SIZE = 32921357
+PUBLISHER_SHA256 = "d07921bf5aa41f8a1094ec4c0b1dc9becbc206a3b04f6bd21086ffae54d5dc1b"
+PUBLISHER_ROOT = "youtube-publisher-center-v0.9.0-rc.4-windows-amd64"
+PUBLISHER_VALIDATOR_SIZE = 17800192
+PUBLISHER_VALIDATOR_SHA256 = "05480f05876cd98d91404e8447fb23300395cd8da6a8ff64522fde222dc41e09"
 CATALOG_VERSION = "2026.08.04.1"
 CATALOG_SHA256 = "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a"
 STALE_CATALOG_SHA256 = "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13"
@@ -72,7 +72,12 @@ def validate(publisher_zip: Path, stage8_output: Path) -> dict[str, object]:
             raise RuntimeError(f"publisher constraints identity mismatch: {result}")
         if result.get("network_execution_default") is not False:
             raise RuntimeError("publisher capabilities did not preserve the offline default")
-        if result.get("component_version") != "0.9.0-rc.3" or result.get("formal_publisher_handoff") is not True:
+        required_commands = {"handoff", "status-live", "receipt-live"}
+        if (
+            result.get("component_version") != "0.9.0-rc.4"
+            or result.get("formal_publisher_handoff") is not True
+            or not required_commands.issubset(set(result.get("commands", [])))
+        ):
             raise RuntimeError("publisher formal handoff capability is missing")
 
         exact_results: dict[str, object] = {}

@@ -9,7 +9,7 @@ import zipfile
 from pathlib import Path, PurePosixPath
 
 
-FIXED_TIME = (2026, 8, 7, 0, 0, 0)
+FIXED_TIME = (2026, 8, 25, 0, 0, 0)
 BINARY_NAMES = (
     "youtube-publisher-center.exe",
     "publish-package-v2.exe",
@@ -147,11 +147,13 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 
 此组件由 AI 视频频道生产系统统一安装，用于管理频道授权、审核发布任务并执行真实 YouTube 上传。
 
-- `publish-package-v2.exe`：离线校验并导入 Publish Package v2.1.0；本命令不联网、不执行 OAuth、不上传。
+- `publish-package-v2.exe`：兼容 Publish Package v2.1.0，提供 `handoff`、`status-live` 和 `receipt-live` 正式交接接口。交接默认只做本地校验、复制和数据库导入，不执行 OAuth，也不直接上传。
 - `youtube-publisher-center.exe`：桌面发布中心；只有最终中文验收、频道身份、OAuth、隐私和上传策略全部通过后，才可能调用 YouTube API。
 - `channel-list.exe`：只读输出可用频道档案，供频道序号和身份校验。
 
-升级包不包含 OAuth 凭据、频道资料、任务数据库或用户媒体。
+本修复版会保持发布包内冻结的隐私状态、分类、儿童内容标记和订阅者通知设置，并把运行状态写在签名发布包之外，避免破坏包哈希。
+
+升级包不包含 OAuth 凭据、频道资料、任务数据库、发布包或用户媒体。
 """
     )
     files[f"INSTALL-UPGRADE-ROLLBACK-v{version}.md"] = text(
@@ -159,15 +161,19 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 
 请通过 AI 视频频道生产系统统一安装器安装或升级本组件。程序文件按版本隔离；用户频道、OAuth 和任务数据保存在独立数据目录。升级失败时，统一安装器恢复上一个活动版本。
 
-升级后请重新启动 Codex 和 YouTube 发布中心。首次真实上传仍须在发布中心完成账号 OAuth，并按界面确认最终中文验收、频道、隐私状态和发布策略。
+升级后请重新启动 Codex 和 YouTube 发布中心。已有成片与 Publish Package v2.1.0 可以直接继续交接，不需要重新生产视频。
+
+首次真实上传仍须在发布中心完成账号 OAuth，并按界面确认最终中文验收、频道、隐私状态和发布策略。
 """
     )
     files[f"SECURITY-REVIEW-v{version}.md"] = text(
         f"""# 安全边界 {version}
 
-Codex 交接命令固定为 `network_execution=false`，只进行本地校验、复制和数据库导入。真实 OAuth 与 YouTube API 调用只属于桌面发布中心。
+Codex 的 `handoff` 交接固定为 `network_execution=false`，只进行本地校验、复制和正式数据库导入。真实 OAuth 与 YouTube API 调用只属于桌面发布中心。
 
-所有 MANUAL、SCHEDULED 和 AUTO 任务在本次最终中文验收前都必须停在 `FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED`。确认该卡只解除这一项阻断；频道停用、OAuth 无效、频道身份不一致、每日限额或其他安全门仍会继续阻断。AUTO 不能跳过最终中文验收。
+所有 REQUIRE_REVIEW 和 AUTO 任务在本次最终中文验收前都必须停在 `FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED`。确认该卡只解除这一项阻断；频道停用、OAuth 无效、频道身份不一致、每日限额或其他安全门仍会继续阻断。AUTO 不能跳过最终中文验收。
+
+运行状态写入发布包旁车目录，签名发布包保持只读。正式上传前会重新校验发布包哈希、频道身份和冻结的上传设置。
 """
     )
     files["docs/publish-package-v2-live-execution.md"] = text(
@@ -255,6 +261,8 @@ Codex 交接命令固定为 `network_execution=false`，只进行本地校验、
             "final_chinese_review_required_for_all_upload_policies": True,
             "final_chinese_review_blocker": "FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED",
             "publication_receipt_after_remote_video_id_only": True,
+            "immutable_publish_package_runtime_state": True,
+            "frozen_upload_settings_preserved": True,
         },
     }
     manifest_path = output_dir / f"publisher-component-manifest-v{version}.json"
