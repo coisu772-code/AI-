@@ -11,6 +11,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_ROOT = ROOT / "plugins" / "ai-video-channel-production"
+PRODUCT_VERSION = json.loads((PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
 sys.path.insert(0, str(PLUGIN_ROOT / "mcp"))
 sys.path.insert(0, str(ROOT / "tests"))
 sys.path.insert(0, str(ROOT / "tools"))
@@ -243,7 +244,7 @@ def generate(output_root: Path) -> dict[str, Any]:
     profile_ids = {record["channelProfileId"] for record in markets.values()}
     summary = {
         "schemaVersion": "1.0.0",
-        "productVersion": "0.8.0-rc.2",
+        "productVersion": PRODUCT_VERSION,
         "fixtureType": "recorded-synthetic-stage8-e2e",
         "syntheticFixture": True,
         "markets": markets,
