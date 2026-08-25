@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import os
 import re
 import shutil
@@ -55,6 +54,7 @@ ACTIVE_TASK_STATES = {
     "RESULT_VALIDATING",
     "PAUSE_REQUESTED",
     "PAUSED",
+    "QUEUED_WAITING_WORKSHOP",
     "NEEDS_CONFIGURATION",
     "NEEDS_REPAIR",
     "RETRYING",
@@ -2118,6 +2118,13 @@ class ProductionCenter:
             "videoSelectionModes": sorted(VIDEO_SELECTION_MODES),
             "productionConcurrency": {"minimum": 1, "maximum": MAX_PRODUCTION_CONCURRENCY, "recommendedImage": 20},
             "gridBatch": {"globalTemplate": True, "episodeTemplateOverrides": True},
+            "workshopScheduling": {
+                "singleton": True,
+                "machineWideOwner": True,
+                "crossProjectParallelism": False,
+                "busyBehavior": "queued_waiting_workshop",
+                "sameRequestJoin": True,
+            },
             "audioRouting": {
                 "humanVoiceEngineSelectedByUser": True,
                 "recommendVoicesFromSelectedEngineOnly": True,
@@ -3217,9 +3224,13 @@ class ProductionCenter:
 
     def request_pause(self, task_id: Any) -> dict[str, Any]:
         task = self._load_task(task_id)
-        if task["state"] not in {"RUNNING", "RETRYING", "READY_TO_PRODUCE"}:
+        if task["state"] not in {"RUNNING", "RETRYING", "READY_TO_PRODUCE", "QUEUED_WAITING_WORKSHOP"}:
             raise ToolError("PRODUCTION_TASK_NOT_PAUSABLE", "当前制作状态不能请求暂停。")
-        task["state"] = "PAUSE_REQUESTED" if task["state"] != "READY_TO_PRODUCE" else "PAUSED"
+        task["state"] = (
+            "PAUSE_REQUESTED"
+            if task["state"] in {"RUNNING", "RETRYING"}
+            else "PAUSED"
+        )
         self._save_task(task, event="PAUSE_REQUESTED")
         return task
 
@@ -3909,8 +3920,15 @@ class ProductionCenter:
         if not video_streams or not audio_streams:
             raise ToolError("PRODUCTION_VIDEO_STREAMS_INVALID", "最终 MP4 必须同时包含视频流和音频流。")
         video = video_streams[0]
-        if video.get("width") != expected_width or video.get("height") != expected_height or expected_width * 9 != expected_height * 16:
-            raise ToolError("PRODUCTION_VIDEO_DIMENSIONS_INVALID", "最终 MP4 分辨率或画幅不符合 16:9 预设。")
+        actual_width = int(video.get("width") or 0)
+        actual_height = int(video.get("height") or 0)
+        if (
+            expected_width * 9 != expected_height * 16
+            or actual_width * 9 != actual_height * 16
+            or actual_width < expected_width
+            or actual_height < expected_height
+        ):
+            raise ToolError("PRODUCTION_VIDEO_DIMENSIONS_INVALID", "最终 MP4 分辨率低于预设或画幅不符合 16:9。")
         try:
             duration = float(document.get("format", {}).get("duration") or video.get("duration") or 0)
         except (TypeError, ValueError):
@@ -3950,6 +3968,9 @@ class ProductionCenter:
             "audioStreamCount": len(audio_streams),
             "width": video["width"],
             "height": video["height"],
+            "configuredMinimumWidth": expected_width,
+            "configuredMinimumHeight": expected_height,
+            "resolutionUpgradeApplied": actual_width > expected_width or actual_height > expected_height,
             "aspectRatio": "16:9",
             "frameRate": video.get("avg_frame_rate"),
             "videoCodec": video.get("codec_name"),
@@ -4112,6 +4133,62 @@ class ProductionCenter:
         )
         return destination
 
+    def _write_workshop_validation_subtitles(
+        self,
+        documents: dict[str, dict[str, Any]],
+        workshop_snapshot: dict[str, Any],
+        destination: Path,
+    ) -> Path:
+        """Build an audit-only SRT when the final video intentionally has no subtitles.
+
+        The sidecar is used only by the Stage 5 line-order and duration checks;
+        it is never burned into the completed MP4.
+        """
+
+        lines = documents["script_lines.json"]["lines"]
+        workshop_lines = {
+            str(item.get("lineId") or ""): item
+            for item in workshop_snapshot.get("scriptLines", [])
+            if isinstance(item, dict) and str(item.get("lineId") or "").strip()
+        }
+        try:
+            duration_total = float((workshop_snapshot.get("uploadReport") or {}).get("durationSec") or 0)
+        except (TypeError, ValueError):
+            duration_total = 0
+        if duration_total <= 0:
+            raise ToolError("PRODUCTION_VIDEO_DURATION_INVALID", "无字幕工坊报告缺少有效成片时长。")
+
+        weights: list[float] = []
+        for line in lines:
+            item = workshop_lines.get(str(line.get("lineId") or ""), {})
+            try:
+                duration = float(item.get("durationSeconds") or 0)
+            except (TypeError, ValueError):
+                duration = 0
+            weights.append(max(duration, 0.01))
+        weight_total = sum(weights)
+        cursor = 0.0
+        cue = 0
+        parts: list[str] = []
+        for index, (line, weight) in enumerate(zip(lines, weights, strict=True), 1):
+            start = cursor
+            end = duration_total if index == len(lines) else cursor + duration_total * weight / weight_total
+            if line.get("lineType") != "sound_effect":
+                cue += 1
+                parts.extend(
+                    [
+                        str(cue),
+                        f"{self._srt_timestamp(start)} --> {self._srt_timestamp(end)}",
+                        str(line.get("text") or ""),
+                        "",
+                    ]
+                )
+            cursor = end
+        if cue == 0:
+            raise ToolError("PRODUCTION_SUBTITLES_INVALID", "正式母稿没有可用于技术验收的人声文本。")
+        _atomic_bytes(destination, ("\n".join(parts).rstrip() + "\n").encode("utf-8"))
+        return destination
+
     def _sample_video_frames(self, task: dict[str, Any], video_path: Path, duration_seconds: float) -> dict[str, Any]:
         sample_root = self._task_root(task["productionTaskId"]) / "reports" / "frame-samples"
         sample_root.mkdir(parents=True, exist_ok=True)
@@ -4198,7 +4275,13 @@ class ProductionCenter:
         video_path = render_root / "final-video.mp4"
         subtitle_path = render_root / "subtitles.srt"
         _write_copy(Path(snapshot["finalVideoPath"]), video_path)
-        _write_copy(Path(snapshot["subtitlePath"]), subtitle_path)
+        workshop_subtitle_path = str(snapshot.get("subtitlePath") or "").strip()
+        subtitle_source = "workshop"
+        if workshop_subtitle_path:
+            _write_copy(Path(workshop_subtitle_path), subtitle_path)
+        else:
+            subtitle_source = "validation_sidecar_only"
+            self._write_workshop_validation_subtitles(documents, snapshot, subtitle_path)
         timeline_path = self._write_workshop_timeline(
             task,
             documents,
@@ -4225,7 +4308,7 @@ class ProductionCenter:
         )
         validation["workshopUploadReport"] = {
             key: snapshot.get("uploadReport", {}).get(key)
-            for key in ("status", "sceneCount", "subtitleCount", "durationSec", "resolution", "renderHash")
+            for key in ("status", "sceneCount", "subtitleCount", "subtitleMode", "durationSec", "resolution", "renderHash")
         }
         validation_path = self._task_root(task["productionTaskId"]) / "reports" / "p11-validation.json"
         _atomic_json(validation_path, validation)
@@ -4236,6 +4319,7 @@ class ProductionCenter:
             "uploadReportSha256": _sha256_file(Path(snapshot["uploadReportPath"])),
             "finalVideoSha256": _sha256_file(video_path),
             "subtitlesSha256": _sha256_file(subtitle_path),
+            "subtitleSource": subtitle_source,
         }
         self._register_asset(task, step_id="P10", asset_id="final-video", asset_type="final-video", path=video_path, source="workshop")
         self._register_asset(task, step_id="P10", asset_id="subtitles", asset_type="subtitles", path=subtitle_path, source="workshop")
@@ -4277,7 +4361,12 @@ class ProductionCenter:
                     )
             if self._step(task, "P0")["status"] != "COMPLETED":
                 self._execute_p0(task, documents)
-            request_id = f"stage5-{task['productionTaskId']}-{uuid.uuid4().hex[:12]}"
+            request_id = str(workshop.get("pendingRequestId") or "").strip()
+            newly_reserved = not request_id
+            if not request_id:
+                request_id = f"stage5-{task['productionTaskId']}-{uuid.uuid4().hex[:12]}"
+                workshop["pendingRequestId"] = request_id
+                workshop["requestReservedAt"] = utc_now()
             selected_steps = self._workshop_selected_steps(documents["production_config.json"])
             selected_episode_ids: list[str] = []
             skip_completed = True
@@ -4286,17 +4375,57 @@ class ProductionCenter:
                 selected_steps = selective_scope["selectedStepIds"]
                 selected_episode_ids = selective_scope["selectedEpisodeIds"]
                 skip_completed = selective_scope["skipCompleted"]
-            start = self.workshop_bridge.start_production(
-                project_path,
-                selected_step_ids=selected_steps,
-                selected_episode_ids=selected_episode_ids,
-                request_id=request_id,
-                expected_project_id=task["projectId"],
-                skip_completed=skip_completed,
-            )
+            if newly_reserved:
+                self._save_task(
+                    task,
+                    event="WORKSHOP_REQUEST_RESERVED",
+                    details={"requestId": request_id, "projectId": task["projectId"]},
+                )
+            try:
+                start = self.workshop_bridge.start_production(
+                    project_path,
+                    selected_step_ids=selected_steps,
+                    selected_episode_ids=selected_episode_ids,
+                    request_id=request_id,
+                    expected_project_id=task["projectId"],
+                    skip_completed=skip_completed,
+                )
+            except ToolError as exc:
+                if exc.code != "WORKSHOP_BUSY":
+                    raise
+                queue = task.setdefault("workshopQueue", {})
+                if not queue.get("queuedAt"):
+                    queue["queuedAt"] = utc_now()
+                queue.update(
+                    {
+                        "status": "WAITING_WORKSHOP",
+                        "requestId": request_id,
+                        "ownerProjectId": str(exc.details.get("ownerProjectId") or ""),
+                        "ownerRequestId": str(exc.details.get("ownerRequestId") or ""),
+                        "message": "工坊正在处理其他项目；本任务保留原请求号并等待。",
+                    }
+                )
+                task["state"] = "QUEUED_WAITING_WORKSHOP"
+                task["runId"] = request_id
+                self._save_task(
+                    task,
+                    event="WORKSHOP_QUEUED",
+                    details={
+                        "requestId": request_id,
+                        "ownerProjectId": queue["ownerProjectId"],
+                        "ownerRequestId": queue["ownerRequestId"],
+                    },
+                )
+                return {
+                    "task": task,
+                    "workshopQueued": True,
+                    "waitingForWorkshop": True,
+                    "idempotent": True,
+                }
             request_id = str(start.get("requestId") or request_id)
             task["runId"] = request_id
             task["state"] = "RUNNING"
+            task.pop("workshopQueue", None)
             task["workshop"] = {
                 "requestId": request_id,
                 "selectedStepIds": selected_steps,
@@ -4624,7 +4753,7 @@ class ProductionCenter:
         task = self._load_task(task_id)
         if task["state"] == "VIDEO_READY":
             return {"task": task, "idempotent": True}
-        runnable_states = {"READY_TO_PRODUCE", "RETRYING", "RUNNING"}
+        runnable_states = {"READY_TO_PRODUCE", "RETRYING", "RUNNING", "QUEUED_WAITING_WORKSHOP"}
         # A formal workshop request that temporarily disappeared must keep the
         # same request id.  Allow monitoring to resume from NEEDS_REPAIR without
         # launching a second paid request.  Synthetic fixtures still use the

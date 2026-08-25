@@ -35,7 +35,11 @@ _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9_.:-]{1,160}$")
 _SAFE_STEP = re.compile(r"^[a-z][a-z0-9_]{0,79}$")
 _SAFE_GRID_TEMPLATE = re.compile(r"^(?:wide_16_9|wide_4_3|portrait_9_16|square_1_1)_(?:1|4|9|16)$")
 _WORKSHOP_START_LEASE_SECONDS = 300
+_WORKSHOP_PAUSED_OWNER_STALE_SECONDS = 900
+_WORKSHOP_OWNER_GUARD_STALE_SECONDS = 30
 _ACTIVE_WORKSHOP_TASK_STATES = frozenset({"running"})
+_WORKSHOP_OWNER_HELD_STATES = frozenset({"running", "idle", "paused"})
+_WORKSHOP_OWNER_TERMINAL_STATES = frozenset({"completed", "failed", "cancelled"})
 
 
 def _is_within(path: Path, root: Path) -> bool:
@@ -342,11 +346,14 @@ class WorkshopBridge:
             )
         return project
 
-    def _start_lease_path(self, project_path: Path) -> Path:
+    def _start_lease_path(self, _project_path: Path) -> Path:
         lease_root = self.isolation_root / ".workshop-bridge-launches"
         lease_root.mkdir(parents=True, exist_ok=True)
-        key = hashlib.sha256(str(project_path.resolve()).casefold().encode("utf-8")).hexdigest()
-        return lease_root / f"{key}.json"
+        # The installed Workshop is a singleton.  A per-project lease allowed
+        # two different Codex conversations to launch project A and project B
+        # concurrently and forward both requests into that one process.  Keep
+        # exactly one machine/data-root owner instead.
+        return lease_root / "global-workshop-owner.json"
 
     @staticmethod
     def _read_start_lease(lease_path: Path) -> dict[str, Any] | None:
@@ -357,18 +364,149 @@ class WorkshopBridge:
         return value if isinstance(value, dict) else None
 
     @staticmethod
+    def _same_lease_project(lease: dict[str, Any], project_path: Path) -> bool:
+        value = str(lease.get("projectPath") or "").strip()
+        if not value:
+            return False
+        try:
+            return str(Path(value).resolve()).casefold() == str(project_path.resolve()).casefold()
+        except OSError:
+            return os.path.normcase(os.path.abspath(value)) == os.path.normcase(os.path.abspath(str(project_path)))
+
+    @staticmethod
+    def _process_is_alive(process_id: Any) -> bool:
+        try:
+            pid = int(process_id or 0)
+        except (TypeError, ValueError):
+            return False
+        if pid <= 0:
+            return False
+        if os.name == "nt":
+            try:
+                import ctypes
+
+                process_query_limited_information = 0x1000
+                still_active = 259
+                kernel32 = ctypes.windll.kernel32
+                handle = kernel32.OpenProcess(process_query_limited_information, False, pid)
+                if not handle:
+                    # Access denied still proves that a process with this PID
+                    # exists; an invalid PID normally returns ERROR_INVALID_PARAMETER.
+                    return int(kernel32.GetLastError()) == 5
+                try:
+                    exit_code = ctypes.c_ulong()
+                    if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                        return True
+                    return int(exit_code.value) == still_active
+                finally:
+                    kernel32.CloseHandle(handle)
+            except (AttributeError, OSError, ValueError):
+                return False
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        except OSError:
+            return False
+        return True
+
+    @staticmethod
+    def _lease_age_seconds(lease: dict[str, Any]) -> float:
+        try:
+            created_at = float(lease.get("updatedAtEpoch") or lease.get("createdAtEpoch") or 0)
+        except (TypeError, ValueError):
+            created_at = 0
+        return max(0.0, time.time() - created_at) if created_at > 0 else float("inf")
+
+    def _lease_is_active(self, lease: dict[str, Any]) -> bool:
+        age_seconds = self._lease_age_seconds(lease)
+        process_alive = self._process_is_alive(lease.get("processId"))
+        project_path_text = str(lease.get("projectPath") or "").strip()
+        owner_request_id = str(lease.get("requestId") or "").strip()
+        if project_path_text:
+            try:
+                project = json.loads(Path(project_path_text).read_text(encoding="utf-8-sig"))
+            except (OSError, json.JSONDecodeError):
+                project = None
+            if isinstance(project, dict):
+                task = project.get("autoProductionTask")
+                if isinstance(task, dict):
+                    status = str(task.get("status") or "").strip().lower()
+                    actual_request_id = str(task.get("externalRequestId") or "").strip()
+                    if owner_request_id and actual_request_id == owner_request_id:
+                        if status in _WORKSHOP_OWNER_TERMINAL_STATES:
+                            return False
+                        if status in {"running", "idle"}:
+                            return True
+                        if status == "paused":
+                            return process_alive or age_seconds < _WORKSHOP_PAUSED_OWNER_STALE_SECONDS
+                    elif status in {"running", "idle"}:
+                        # A mismatched but running project is never safe to
+                        # supersede.  The Workshop's in-memory owner will
+                        # provide the second, authoritative guard.
+                        return True
+        return process_alive or age_seconds < _WORKSHOP_START_LEASE_SECONDS
+
+    @staticmethod
+    def _write_start_lease(lease_path: Path, lease: dict[str, Any]) -> None:
+        lease["updatedAtEpoch"] = time.time()
+        temporary = lease_path.with_name(f"{lease_path.name}.{uuid.uuid4().hex}.tmp")
+        temporary.write_text(json.dumps(lease, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(temporary, lease_path)
+
+    def _release_start_lease(self, lease_path: Path, lease: dict[str, Any]) -> None:
+        current = self._read_start_lease(lease_path)
+        if not isinstance(current, dict):
+            return
+        if (
+            str(current.get("requestId") or "") == str(lease.get("requestId") or "")
+            and str(current.get("projectPath") or "").casefold()
+            == str(lease.get("projectPath") or "").casefold()
+        ):
+            lease_path.unlink(missing_ok=True)
+
+    @staticmethod
+    def _acquire_start_lease_guard(lease_path: Path) -> Path:
+        guard_path = lease_path.with_name(f"{lease_path.name}.guard")
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            try:
+                guard_path.mkdir()
+                return guard_path
+            except FileExistsError:
+                try:
+                    age_seconds = max(0.0, time.time() - guard_path.stat().st_mtime)
+                except OSError:
+                    age_seconds = 0
+                if age_seconds >= _WORKSHOP_OWNER_GUARD_STALE_SECONDS:
+                    try:
+                        guard_path.rmdir()
+                    except OSError:
+                        pass
+                    continue
+                time.sleep(0.02)
+        raise ToolError(
+            "WORKSHOP_BUSY",
+            "工坊全局所有权正在由另一个生产请求登记；当前项目已进入等待队列。",
+            retryable=True,
+            details={"ownerState": "claim_in_progress"},
+        )
+
+    @staticmethod
     def _start_response_from_lease(lease: dict[str, Any]) -> dict[str, Any]:
         return {
             "success": True,
             "requestId": str(lease.get("requestId") or ""),
             "processId": int(lease.get("processId") or 0),
-            "forwarded": False,
-            "status": "start_pending",
+            "forwarded": bool(lease.get("forwarded")),
+            "status": str(lease.get("status") or "start_pending"),
             "selectedStepIds": [str(item) for item in lease.get("selectedStepIds", [])],
             "selectedEpisodeIds": [str(item) for item in lease.get("selectedEpisodeIds", [])],
             "skipCompleted": bool(lease.get("skipCompleted", True)),
             "joinedExisting": True,
-            "startConfirmed": False,
+            "startConfirmed": bool(lease.get("startConfirmed")),
             "boundary": "isolated_production_only",
             "publishingTriggered": False,
         }
@@ -378,22 +516,60 @@ class WorkshopBridge:
         lease_path: Path,
         lease: dict[str, Any],
     ) -> dict[str, Any] | None:
-        for _attempt in range(2):
+        guard_path = self._acquire_start_lease_guard(lease_path)
+        try:
+            for _attempt in range(3):
+                try:
+                    descriptor = os.open(lease_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                except FileExistsError:
+                    existing = self._read_start_lease(lease_path)
+                    if existing is None:
+                        try:
+                            age_seconds = max(0.0, time.time() - lease_path.stat().st_mtime)
+                        except OSError:
+                            age_seconds = 0
+                        if age_seconds < _WORKSHOP_START_LEASE_SECONDS:
+                            raise ToolError(
+                                "WORKSHOP_BUSY",
+                                "工坊全局所有权正在登记中；当前项目已进入等待队列。",
+                                retryable=True,
+                                details={"ownerState": "registering"},
+                            )
+                        lease_path.unlink(missing_ok=True)
+                        continue
+                    if self._lease_is_active(existing):
+                        if self._same_lease_project(existing, Path(str(lease.get("projectPath") or ""))):
+                            return existing
+                        raise ToolError(
+                            "WORKSHOP_BUSY",
+                            "工坊正在处理另一个项目；当前项目已进入等待队列。",
+                            retryable=True,
+                            details={
+                                "ownerProjectId": str(existing.get("projectId") or ""),
+                                "ownerRequestId": str(existing.get("requestId") or ""),
+                                "ownerState": str(existing.get("status") or existing.get("phase") or "active"),
+                            },
+                        )
+                    lease_path.unlink(missing_ok=True)
+                    continue
+                with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                    json.dump(lease, handle, ensure_ascii=False, sort_keys=True)
+                    handle.write("\n")
+                return None
+            existing = self._read_start_lease(lease_path)
+            if existing and self._same_lease_project(existing, Path(str(lease.get("projectPath") or ""))):
+                return existing
+            raise ToolError(
+                "WORKSHOP_BUSY",
+                "工坊全局所有权竞争未完成；当前项目已进入等待队列。",
+                retryable=True,
+                details={"ownerState": "contended"},
+            )
+        finally:
             try:
-                descriptor = os.open(lease_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            except FileExistsError:
-                existing = self._read_start_lease(lease_path)
-                created_at = float((existing or {}).get("createdAtEpoch") or 0)
-                if existing and time.time() - created_at < _WORKSHOP_START_LEASE_SECONDS:
-                    return existing
-                lease_path.unlink(missing_ok=True)
-                continue
-            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-                json.dump(lease, handle, ensure_ascii=False, sort_keys=True)
-                handle.write("\n")
-            return None
-        existing = self._read_start_lease(lease_path)
-        return existing or lease
+                guard_path.rmdir()
+            except OSError:
+                pass
 
     def start_production(
         self,
@@ -453,6 +629,35 @@ class WorkshopBridge:
         task = project.get("autoProductionTask")
         if isinstance(task, dict) and str(task.get("status") or "").strip().lower() in _ACTIVE_WORKSHOP_TASK_STATES:
             active_request_id = str(task.get("externalRequestId") or request_id).strip()
+            lease_path = self._start_lease_path(project_path)
+            adopted_lease = {
+                "requestId": active_request_id,
+                "projectId": str(project.get("id") or expected_project_id or ""),
+                "projectPath": str(project_path),
+                "processId": 0,
+                "createdAtEpoch": time.time(),
+                "updatedAtEpoch": time.time(),
+                "selectedStepIds": [str(item) for item in task.get("selectedStepIds", steps)],
+                "selectedEpisodeIds": [str(item) for item in task.get("selectedEpisodeIds", episodes)],
+                "skipCompleted": bool(skip_completed),
+                "gridTemplate": grid_template,
+                "phase": "active",
+                "status": "already_running",
+                "startConfirmed": True,
+                "forwarded": True,
+            }
+            existing_lease = self._claim_start_lease(lease_path, adopted_lease)
+            if existing_lease is not None and not self._same_lease_project(existing_lease, project_path):
+                raise ToolError(
+                    "WORKSHOP_BUSY",
+                    "工坊正在处理另一个项目；当前项目已进入等待队列。",
+                    retryable=True,
+                )
+            if existing_lease is not None and str(existing_lease.get("requestId") or "") != active_request_id:
+                # The project snapshot is the authoritative same-project run;
+                # repair an older same-project owner record instead of leaving
+                # a stale request ID to block the next project after completion.
+                self._write_start_lease(lease_path, adopted_lease)
             return {
                 "success": True,
                 "requestId": active_request_id,
@@ -490,6 +695,7 @@ class WorkshopBridge:
         lease_path = self._start_lease_path(project_path)
         lease = {
             "requestId": request_id,
+            "projectId": str(project.get("id") or expected_project_id or ""),
             "projectPath": str(project_path),
             "processId": 0,
             "resultPath": str(result_path),
@@ -498,6 +704,10 @@ class WorkshopBridge:
             "selectedEpisodeIds": episodes,
             "skipCompleted": bool(skip_completed),
             "gridTemplate": grid_template,
+            "phase": "launching",
+            "status": "start_pending",
+            "startConfirmed": False,
+            "forwarded": False,
         }
         existing_lease = self._claim_start_lease(lease_path, lease)
         if existing_lease is not None:
@@ -521,7 +731,7 @@ class WorkshopBridge:
                 creationflags=creation_flags,
             )
         except OSError as exc:
-            lease_path.unlink(missing_ok=True)
+            self._release_start_lease(lease_path, lease)
             result_path.unlink(missing_ok=True)
             raise ToolError(
                 "WORKSHOP_COMMAND_START_FAILED",
@@ -531,7 +741,7 @@ class WorkshopBridge:
             ) from exc
 
         lease["processId"] = process.pid
-        lease_path.write_text(json.dumps(lease, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+        self._write_start_lease(lease_path, lease)
 
         deadline = time.monotonic() + max(1, int(startup_timeout_seconds))
         payload: dict[str, Any] | None = None
@@ -546,7 +756,7 @@ class WorkshopBridge:
                     pass
             return_code = process.poll()
             if return_code is not None:
-                lease_path.unlink(missing_ok=True)
+                self._release_start_lease(lease_path, lease)
                 result_path.unlink(missing_ok=True)
                 raise ToolError(
                     "WORKSHOP_COMMAND_START_FAILED",
@@ -558,25 +768,45 @@ class WorkshopBridge:
         if payload is None:
             return self._start_response_from_lease(lease)
         result_path.unlink(missing_ok=True)
-        lease_path.unlink(missing_ok=True)
         if payload.get("success") is not True:
+            self._release_start_lease(lease_path, lease)
             safe_payload = redact(payload)
+            payload_status = str(safe_payload.get("status") or "").strip().lower()
+            payload_error = str(safe_payload.get("error") or "")
+            if payload_status == "busy" or "WORKSHOP_BUSY" in payload_error:
+                raise ToolError(
+                    "WORKSHOP_BUSY",
+                    "工坊正在处理另一个项目；当前项目已进入等待队列。",
+                    retryable=True,
+                    details={"requestId": request_id, "workshopStatus": payload_status or "busy"},
+                )
             raise ToolError(
                 "WORKSHOP_START_REJECTED",
-                str(safe_payload.get("error") or "工坊拒绝启动生产任务。"),
+                payload_error or "工坊拒绝启动生产任务。",
                 retryable=False,
                 details={"requestId": request_id},
             )
+        payload_status = str(payload.get("status") or "accepted")
+        lease.update(
+            {
+                "processId": int(payload.get("processId") or process.pid),
+                "phase": "active",
+                "status": payload_status,
+                "startConfirmed": True,
+                "forwarded": bool(payload.get("forwarded")),
+            }
+        )
+        self._write_start_lease(lease_path, lease)
         return {
             "success": True,
             "requestId": request_id,
             "processId": int(payload.get("processId") or process.pid),
             "forwarded": bool(payload.get("forwarded")),
-            "status": str(payload.get("status") or "accepted"),
+            "status": payload_status,
             "selectedStepIds": steps,
             "selectedEpisodeIds": episodes,
             "skipCompleted": bool(skip_completed),
-            "joinedExisting": False,
+            "joinedExisting": payload_status in {"duplicate", "already_running"},
             "startConfirmed": True,
             "boundary": "isolated_production_only",
             "publishingTriggered": False,
@@ -708,7 +938,22 @@ class WorkshopBridge:
             raise ToolError("WORKSHOP_UPLOAD_REPORT_INVALID", "工坊成片验收报告不可读。") from exc
         if not isinstance(report, dict) or str(report.get("status") or "").lower() != "completed":
             raise ToolError("WORKSHOP_UPLOAD_REPORT_INVALID", "工坊成片验收报告没有完成。")
-        subtitle = resolve_artifact(report.get("subtitlePath"), "subtitlePath")
+        export_settings = project.get("exportSettings") if isinstance(project.get("exportSettings"), dict) else {}
+        subtitle_mode = str(report.get("subtitleMode") or "").strip().lower()
+        try:
+            subtitle_count = int(report.get("subtitleCount") or 0)
+        except (TypeError, ValueError):
+            subtitle_count = -1
+        subtitles_explicitly_disabled = (
+            export_settings.get("includeSubtitles") is False
+            and subtitle_mode == "none"
+            and subtitle_count == 0
+        )
+        subtitle = resolve_artifact(
+            report.get("subtitlePath"),
+            "subtitlePath",
+            required=not subtitles_explicitly_disabled,
+        )
         report_video = resolve_artifact(report.get("videoPath"), "report.videoPath")
         if report_video != final_video:
             raise ToolError("WORKSHOP_FINAL_VIDEO_MISMATCH", "工坊项目与验收报告指向了不同成片。")
@@ -766,7 +1011,7 @@ class WorkshopBridge:
             "requestId": expected_request_id,
             "projectPath": str(project_path),
             "finalVideoPath": str(final_video),
-            "subtitlePath": str(subtitle),
+            "subtitlePath": str(subtitle) if subtitle is not None else "",
             "uploadPackagePath": str(upload_package),
             "uploadReportPath": str(reports[0].resolve()),
             "uploadReport": redact(report),

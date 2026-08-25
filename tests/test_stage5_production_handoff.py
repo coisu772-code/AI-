@@ -1403,6 +1403,81 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         self.assertEqual(["E01"], bridge.last_selected_episodes)
         self.assertTrue(restarted["task"]["workshop"]["selectiveReworkScope"]["sha256"])
 
+    def test_formal_task_queues_on_global_workshop_busy_and_reuses_reserved_request(self) -> None:
+        context = self.context("zh-CN")
+        package_root = self._package_copy(context, "formal-workshop-global-queue")
+        config_path = package_root / "production_config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["syntheticFixtureRunner"] = False
+        config["promptGeneration"] = {"image": False, "video": False}
+        config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        manifest_path = package_root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["synthetic"] = False
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        self._refresh_package_manifest(package_root)
+
+        class BusyThenAvailableWorkshopBridge:
+            def __init__(self) -> None:
+                self.start_calls = 0
+                self.request_ids: list[str] = []
+
+            def import_package(self, _package_root, target_root, *, expected_project_id):
+                target_root.mkdir(parents=True, exist_ok=True)
+                project_path = target_root / "novel_manga_project.json"
+                project_path.write_text(json.dumps({"id": expected_project_id}), encoding="utf-8")
+                return {
+                    "projectId": expected_project_id,
+                    "projectPath": str(project_path),
+                    "roundTripValidated": True,
+                    "publishingTriggered": False,
+                    "duplicate": False,
+                }
+
+            def start_production(self, _project_path, *, request_id, **_kwargs):
+                self.start_calls += 1
+                self.request_ids.append(request_id)
+                if self.start_calls == 1:
+                    raise ToolError(
+                        "WORKSHOP_BUSY",
+                        "another project is active",
+                        retryable=True,
+                        details={"ownerProjectId": "owner-project", "ownerRequestId": "owner-request"},
+                    )
+                return {
+                    "requestId": request_id,
+                    "joinedExisting": False,
+                    "startConfirmed": True,
+                    "publishingTriggered": False,
+                }
+
+            def production_status(self, _project_path, **_kwargs):
+                return {"taskPresent": True, "status": "running", "error": "", "message": ""}
+
+        bridge = BusyThenAvailableWorkshopBridge()
+        center = ProductionCenter(
+            self.root / "formal-global-queue-center",
+            voice_catalog_path=context.content.root / "voice-catalog.json",
+            ffmpeg_path=shutil.which("ffmpeg"),
+            ffprobe_path=shutil.which("ffprobe"),
+            workshop_bridge=bridge,
+        )
+        center.start_task(production_task_id="formal-global-queue-task", package_root=package_root)
+        queued = center.run_task("formal-global-queue-task")
+        self.assertTrue(queued["workshopQueued"])
+        self.assertEqual("QUEUED_WAITING_WORKSHOP", queued["task"]["state"])
+        self.assertEqual("WAITING_WORKSHOP", queued["task"]["workshopQueue"]["status"])
+        reserved_request_id = queued["task"]["workshop"]["pendingRequestId"]
+
+        paused = center.request_pause("formal-global-queue-task")
+        self.assertEqual("PAUSED", paused["state"])
+        center.resume_task("formal-global-queue-task")
+        started = center.run_task("formal-global-queue-task")
+        self.assertTrue(started["workshopStarted"])
+        self.assertEqual("RUNNING", started["task"]["state"])
+        self.assertEqual([reserved_request_id, reserved_request_id], bridge.request_ids)
+        self.assertNotIn("workshopQueue", started["task"])
+
 
 if __name__ == "__main__":
     unittest.main()
