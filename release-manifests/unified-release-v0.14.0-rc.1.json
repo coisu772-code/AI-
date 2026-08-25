@@ -17,7 +17,7 @@
       "sha256": "33eb470193bfd29c01a9619fdb8b82634363036cbaf7cb0bac9db5edb775cefc",
       "sizeBytes": 16247,
       "source": {
-        "commit": "25105af48f4f044b3ac61b80afb0ced03f8712c3",
+        "commit": "72ff47b53b02ecb75bec85f1a42e994358145333",
         "repository": "https://github.com/coisu772-code/AI-/"
       },
       "version": "0.14.0-rc.1"
@@ -36,10 +36,10 @@
         "reviewStatus": "product-license-applies",
         "source": "LICENSE.md"
       },
-      "sha256": "fd11825af959ecae0427d23306404f5b0fd218586ec3b059599247d4677274c5",
-      "sizeBytes": 701988,
+      "sha256": "b44c6685dc89018149846e08ce8385bcde90e3f492f7bc0f3a4d4f27321d3f93",
+      "sizeBytes": 703952,
       "source": {
-        "commit": "25105af48f4f044b3ac61b80afb0ced03f8712c3",
+        "commit": "72ff47b53b02ecb75bec85f1a42e994358145333",
         "repository": "https://github.com/coisu772-code/AI-/"
       },
       "version": "0.14.0-rc.1"
@@ -116,12 +116,12 @@
       "version": "2.7.0-rc.1"
     },
     {
-      "archiveRoot": "youtube-publisher-center-v0.9.0-rc.3-windows-amd64",
+      "archiveRoot": "youtube-publisher-center-v0.9.0-rc.4-windows-amd64",
       "assetId": "publisher-center",
       "compatibleProductVersions": [
         "0.14.0-rc.1"
       ],
-      "fileName": "youtube-publisher-center-v0.9.0-rc.3-windows-amd64.zip",
+      "fileName": "youtube-publisher-center-v0.9.0-rc.4-windows-amd64.zip",
       "install": true,
       "installSubpath": "apps/publisher",
       "license": {
@@ -129,14 +129,14 @@
         "reviewStatus": "technical-inventory-validated-release-owner-approval-required",
         "source": "LICENSE.md, THIRD-PARTY-NOTICES.json/.md and 101 third-party license texts inside archive"
       },
-      "sha256": "a472ab385915f146448dc2a99e168ec4073916852c963fdfbf8d6dc39b4d465b",
-      "sizeBytes": 33022006,
+      "sha256": "d07921bf5aa41f8a1094ec4c0b1dc9becbc206a3b04f6bd21086ffae54d5dc1b",
+      "sizeBytes": 32921357,
       "source": {
         "acceptanceStatus": "LOCAL_FORMAL_HANDOFF_AND_OFFLINE_SAFETY_PASS",
-        "commit": "606a5e6592ad20a747cd5494a9dde54fdaec6fb0",
+        "commit": "200daaa986181a4bd2ef08858399afa79fdc8535",
         "componentManifest": {
-          "fileName": "publisher-component-manifest-v0.9.0-rc.3.json",
-          "sha256": "df27aada48e7fc7b57f5e5a04c4197480ac1533354481198694631083cc79318"
+          "fileName": "publisher-component-manifest-v0.9.0-rc.4.json",
+          "sha256": "2a4045e8e8d87b7ea88cdfb2815084ff0727f53c07c76d96fbbaae853d0e55d4"
         },
         "constraintsCatalog": {
           "normalization": "CRLF_AND_CR_TO_LF_BEFORE_SHA256",
@@ -145,9 +145,9 @@
         },
         "fileEntries": 112,
         "licenseReviewRequired": 0,
-        "snapshotSha256": "b9d1c52e98d79154c1c3c809c1178d570d67891b289682fb79c9ac345f714295"
+        "snapshotSha256": "64d533dc40c91772e2b946af1bf3e9078d7f35b2b6c91061505eebbe466d4323"
       },
-      "version": "0.9.0-rc.3"
+      "version": "0.9.0-rc.4"
     }
   ],
   "downloadBaseUrl": "https://github.com/coisu772-code/AI-/releases/download/v0.14.0-rc.1",
