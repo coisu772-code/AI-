@@ -34,6 +34,12 @@ def archive_json(asset_root: Path, temporary: Path) -> list[Path]:
                 member = PurePosixPath(normalized)
                 if info.is_dir() or member.suffix.lower() != ".json":
                     continue
+                # Dependency lockfiles are not release control documents and
+                # commonly use the empty-string package-root key, which
+                # Windows PowerShell 5.1 ConvertFrom-Json cannot represent.
+                # npm validates these lockfiles in their owning component.
+                if member.name.lower() == "package-lock.json":
+                    continue
                 if member.is_absolute() or ".." in member.parts:
                     raise RuntimeError(f"unsafe JSON archive member: {archive_path.name}:{info.filename}")
                 destination = temporary / f"archive-{len(extracted):05d}.json"
