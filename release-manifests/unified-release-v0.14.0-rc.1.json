@@ -17,7 +17,7 @@
       "sha256": "33eb470193bfd29c01a9619fdb8b82634363036cbaf7cb0bac9db5edb775cefc",
       "sizeBytes": 16247,
       "source": {
-        "commit": "b2d5aa7cfd46c25f8504cb848bb4a39bd122fd64",
+        "commit": "7e9d08fc9b4054acc7ba680eb3b12a5a4f4696f2",
         "repository": "https://github.com/coisu772-code/AI-/"
       },
       "version": "0.14.0-rc.1"
@@ -36,10 +36,10 @@
         "reviewStatus": "product-license-applies",
         "source": "LICENSE.md"
       },
-      "sha256": "73fd445f2b59b272eb0fdc98453742d9e45bd51714ceb4df52ae1142cb47745a",
-      "sizeBytes": 703954,
+      "sha256": "5367c55428c4169d980f932cab1ac401fe926c7b3fb28439ef0ee65a1c86a81a",
+      "sizeBytes": 708160,
       "source": {
-        "commit": "b2d5aa7cfd46c25f8504cb848bb4a39bd122fd64",
+        "commit": "7e9d08fc9b4054acc7ba680eb3b12a5a4f4696f2",
         "repository": "https://github.com/coisu772-code/AI-/"
       },
       "version": "0.14.0-rc.1"
@@ -107,11 +107,11 @@
         "reviewStatus": "technical-inventory-validated-release-owner-approval-required",
         "source": "licenses/application/LICENSE.md, licenses/ffmpeg/COPYING.GPLv3 and FFMPEG-PROVENANCE.txt inside archive"
       },
-      "sha256": "14a5442cf4e82c916820c65f79373831e35892edd7de54ddd0a6ec16277d2076",
-      "sizeBytes": 157735596,
+      "sha256": "fc6d654466d054d333f59171d7b1d33195a4c0683e408ed216586d09cac0c9b0",
+      "sizeBytes": 157737828,
       "source": {
         "acceptanceStatus": "LOCAL_MERGED_ACCEPTANCE_PASS",
-        "commit": "dc636875357260c4e36d30a13a0f284b6544ecf5"
+        "commit": "8254fcf77cc00e421b7d1c0e5eacfdadcfb3d5d7"
       },
       "version": "2.7.0-rc.1"
     },
