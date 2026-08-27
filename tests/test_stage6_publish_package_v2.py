@@ -88,6 +88,11 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
         self._source_counter = 0
 
     def tearDown(self) -> None:
+        # Windows' shutil.rmtree can descend into a directory symlink and then
+        # fail with WinError 145. Remove test-created links explicitly first.
+        for child in self.root.iterdir():
+            if child.is_symlink():
+                child.unlink(missing_ok=True)
         self.temp.cleanup()
 
     def assert_publish_error(self, code: str, callback) -> PublishPackageError:

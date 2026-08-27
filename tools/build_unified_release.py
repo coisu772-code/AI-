@@ -15,10 +15,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.14.0-rc.1"
+VERSION = "0.15.0-rc.1"
 PYTHON_VERSION = "3.12.13"
 PYTHON_BUILD = "20260610"
-FIXED_TIME = (2026, 8, 24, 0, 0, 0)
+FIXED_TIME = (2026, 8, 27, 0, 0, 0)
 TEXT_SUFFIXES = {".cmd", ".json", ".md", ".ps1", ".py", ".txt", ".yaml", ".yml"}
 EXACT_BYTE_TEXT_PATHS: set[str] = set()
 RUNTIME_LICENSE_NAME_MARKERS = ("license", "copying", "notice", "copyright", "patent", "authors")
@@ -30,12 +30,12 @@ BOOTSTRAP_FILES = (
     "installer/Start-AIVideoChannelProductionInstall.ps1",
     "installer/install.cmd",
 )
-WORKSHOP_VERSION = "2.7.0-rc.1"
-WORKSHOP_NAME = "Z-Manga-Workshop-2.7.0-rc.1-for-AIVCP-0.14.0-rc.1-windows-x64-portable.zip"
-WORKSHOP_SHA = "fc6d654466d054d333f59171d7b1d33195a4c0683e408ed216586d09cac0c9b0"
-WORKSHOP_SIZE = 157737828
-WORKSHOP_ROOT = "Z-Manga-Workshop-2.7.0-rc.1-for-AIVCP-0.14.0-rc.1-windows-x64-portable"
-WORKSHOP_SOURCE_COMMIT = "8254fcf77cc00e421b7d1c0e5eacfdadcfb3d5d7"
+WORKSHOP_VERSION = "2.8.0-rc.1"
+WORKSHOP_NAME = "Z-Manga-Workshop-2.8.0-rc.1-for-AIVCP-0.15.0-rc.1-windows-x64-portable.zip"
+WORKSHOP_SHA = "9e24234a694a36074c1e416970310332177d99134f473f9d7f09c06b798b72f6"
+WORKSHOP_SIZE = 157740045
+WORKSHOP_ROOT = "Z-Manga-Workshop-2.8.0-rc.1-for-AIVCP-0.15.0-rc.1-windows-x64-portable"
+WORKSHOP_SOURCE_COMMIT = "78e7cb824e1bdf0299c343ed9b09d10d5e33fd81"
 PUBLISHER_VERSION = "0.9.0-rc.4"
 PUBLISHER_NAME = "youtube-publisher-center-v0.9.0-rc.4-windows-amd64.zip"
 PUBLISHER_SHA = "d07921bf5aa41f8a1094ec4c0b1dc9becbc206a3b04f6bd21086ffae54d5dc1b"
