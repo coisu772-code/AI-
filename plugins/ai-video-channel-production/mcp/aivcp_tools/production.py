@@ -25,7 +25,7 @@ from .review_documents import (
 from .security import contains_sensitive_material
 
 
-PRODUCTION_CENTER_VERSION = "1.0.0"
+PRODUCTION_CENTER_VERSION = "1.1.0"
 PRODUCTION_PACKAGE_SCHEMA_VERSION = "2.1"
 PRODUCTION_TASK_SCHEMA_VERSION = "1.0.0"
 PRODUCTION_RESULT_SCHEMA_VERSION = "1.0.0"
@@ -67,7 +67,7 @@ STEP_DEFINITIONS = (
     ("P3", "配音行与音色绑定校验", ("P2",)),
     ("P4", "逐句配音", ("P3",)),
     ("P5", "按锁定语义画面组生成分镜时间线", ("P4",)),
-    ("P6", "载入并校验 Codex 分镜提示词", ("P5",)),
+    ("P6", "按生产模式载入或生成分镜提示词", ("P5",)),
     ("P7", "宫格生图、切割与分镜回填", ("P6",)),
     ("P8", "可选分镜视频生成", ("P7",)),
     ("P9", "全片素材诊断", ("P8",)),
@@ -80,6 +80,308 @@ VIDEO_SELECTION_MODES = {
     "episode_first_n_storyboards",
     "all_storyboards",
 }
+PRODUCTION_MODE_IDS = {"fast_auto", "balanced", "director"}
+PRODUCTION_MODE_LABELS = {
+    "fast_auto": "极速自动模式",
+    "balanced": "平衡模式",
+    "director": "精品导演模式",
+}
+
+MAX_PRODUCTION_CONCURRENCY = 20
+WORKSHOP_MISSING_TASK_GRACE_OBSERVATIONS = 2
+
+CODEX_VISUAL_PLAN_SCHEMA_VERSION = "1.5"
+CODEX_VISUAL_PLAN_AUTHOR = "codex"
+CODEX_REFERENCE_USAGE = "identity_only"
+CODEX_REFERENCE_POLICIES = {"required", "optional", "none"}
+CODEX_VISUAL_DIRECTION = {
+    "mode": "manga_impact",
+    "panelMode": "single_panel",
+    "singleFocalPoint": True,
+    "expressionMode": "exaggerated_story_driven",
+    "backgroundSimplification": "impact_adaptive",
+    "compositionMode": "story_driven",
+    "mangaDeviceLimit": 3,
+}
+CODEX_REFERENCE_FLEXIBLE_FEATURES = (
+    "expression",
+    "gaze",
+    "headPose",
+    "bodyPose",
+    "handGesture",
+    "framing",
+    "lighting",
+    "background",
+)
+CODEX_PERFORMANCE_FIELDS = (
+    "internalEmotion",
+    "visibleEmotion",
+    "intensity",
+    "gaze",
+    "eyes",
+    "brows",
+    "mouth",
+    "headPose",
+    "bodyPose",
+    "handGesture",
+    "interactionTarget",
+    "changeFromPrevious",
+)
+
+
+def _character_appearance_contract(character: dict[str, Any]) -> dict[str, str]:
+    character_id = _non_empty_text(character.get("characterId"), "character.characterId", maximum=128)
+    policy = str(character.get("referencePolicy") or "").strip()
+    if policy not in CODEX_REFERENCE_POLICIES:
+        policy = "required" if character.get("visualConsistencyRequired") is True else "none"
+    return {
+        "personId": str(character.get("personId") or character_id).strip(),
+        "appearanceId": str(character.get("appearanceId") or character_id).strip(),
+        "lifePhase": str(character.get("lifePhase") or "current_life").strip(),
+        "ageStage": str(character.get("ageStage") or "unspecified").strip(),
+        "referencePolicy": policy,
+    }
+
+
+def _sound_effect_duration_profile(prompt: str) -> dict[str, float | str]:
+    text = str(prompt or "").strip().lower()
+    has = lambda *values: any(value in text for value in values)
+    if has("音乐", "音樂", "旋律", "八音盒", "music", "melody", "song", "オルゴール", "音楽", "メロディ"):
+        return {"category": "musical", "min": 3.0, "max": 4.8, "recommended": 3.8}
+    if has("欢呼", "歡呼", "喝彩", "人群", "群众", "群眾", "笑声", "笑聲", "crowd", "cheer", "applause", "laughter", "歓声", "拍手", "群衆", "笑い声"):
+        return {"category": "crowd", "min": 2.5, "max": 4.2, "recommended": 3.2}
+    if has("风声", "風聲", "雨声", "雨聲", "火焰声", "篝火声", "海浪声", "河流声", "树林环境", "森林环境", "环境声", "環境音", "wind", "rain", "fire ambience", "waves", "river ambience", "forest ambience", "風音", "雨音", "波音"):
+        return {"category": "ambience", "min": 3.0, "max": 4.8, "recommended": 3.8}
+    if has("鼓", "钟", "鐘", "铃", "鈴", "锣", "鑼", "号角", "回响", "回響", "drum", "bell", "gong", "horn", "resonance", "太鼓", "角笛", "残響"):
+        return {"category": "resonant", "min": 1.8, "max": 3.2, "recommended": 2.4}
+    if has("转场", "轉場", "过渡", "過渡", "提示音", "系统音", "系統音", "transition", "whoosh", "swoosh", "通知音", "転換"):
+        return {"category": "transition", "min": 1.6, "max": 3.0, "recommended": 2.2}
+    return {"category": "transient", "min": 0.8, "max": 1.6, "recommended": 1.2}
+
+
+def _classify_workshop_error(message: Any) -> dict[str, Any]:
+    text = str(message or "").strip()
+    normalized = text.lower()
+    category = "unknown"
+    recoverable = False
+    action = "inspect_workshop_logs"
+    patterns = (
+        ("provider_task_pending", True, "resume_original_provider_task", (
+            "尚未完成", "待取回", "仍在处理", "polling pending", "task pending", "processing",
+        )),
+        ("quota_exhausted", True, "wait_or_change_provider_quota", (
+            "resource has been exhausted", "quota", "rate limit", "too many requests", "配额", "限流",
+        )),
+        ("authentication", True, "repair_provider_authentication", (
+            "auth_unavailable", "unauthorized", "authentication", "invalid api key", "http 401", "http 403", "鉴权", "认证",
+        )),
+        ("timeout", True, "resume_from_checkpoint", (
+            "timeout", "timed out", "deadline exceeded", "超时",
+        )),
+        ("content_policy", False, "revise_failed_prompt_only", (
+            "content policy", "safety", "moderation", "内容政策", "安全审核",
+        )),
+        ("cancelled", True, "resume_from_checkpoint", (
+            "cancelled", "canceled", "已取消", "已停止", "中断",
+        )),
+    )
+    for candidate, candidate_recoverable, candidate_action, markers in patterns:
+        if any(marker in normalized for marker in markers):
+            category = candidate
+            recoverable = candidate_recoverable
+            action = candidate_action
+            break
+    return {
+        "category": category,
+        "recoverable": recoverable,
+        "recommendedAction": action,
+        "message": text,
+    }
+
+
+def _character_reference_prompt_risk(prompt: str) -> str | None:
+    value = prompt.strip().lower()
+    multi_view_terms = (
+        "三视图", "四视图", "六视图", "多视图", "多视角", "多角度", "三分之二侧面",
+        "正侧背", "转面设定", "turnaround", "model sheet", "character sheet", "reference sheet",
+        "拼图", "分栏", "宫格", "多画面", "重复人物",
+    )
+    for term in multi_view_terms:
+        if term in value:
+            return f"包含多视角或多画面指令：{term}"
+    front_requested = "正面" in value or "front view" in value
+    side_or_back_requested = any(term in value for term in ("侧面", "背面", "side view", "back view"))
+    if front_requested and side_or_back_requested:
+        return "同时要求正面与侧面/背面"
+    multi_outfit_terms = (
+        "两套服装", "两种服装", "多套服装", "多种服装", "多款服装", "不同服装", "服装对比", "换装",
+        "alternate outfit", "multiple outfit", "outfit variant",
+    )
+    for term in multi_outfit_terms:
+        if term in value:
+            return f"包含多套服装指令：{term}"
+    return None
+CODEX_NARRATIVE_FUNCTIONS = {
+    "hook",
+    "relationship",
+    "conflict",
+    "setup",
+    "emotion_peak",
+    "reversal",
+    "payoff",
+    "transition",
+}
+CODEX_SHOT_SCALES = {"extreme_wide", "wide", "medium", "close_up", "extreme_close_up"}
+CODEX_CAMERA_ANGLES = {"eye_level", "high_angle", "low_angle", "dutch_angle"}
+CODEX_CAMERA_VIEWS = {"front", "three_quarter", "profile", "back_view", "over_the_shoulder"}
+CODEX_DIALOGUE_STAGING = {
+    "action",
+    "blocking_change",
+    "reaction",
+    "evidence_insert",
+    "environment",
+    "half_body_dialogue",
+}
+CODEX_SHOT_ROLES = {
+    "establishing",
+    "action",
+    "reaction",
+    "emotion_closeup",
+    "evidence_insert",
+    "consequence",
+    "transition",
+    "climax",
+    "aftermath",
+}
+CODEX_CRITICAL_EMOTIONS = {
+    "none",
+    "shock",
+    "anger",
+    "fear",
+    "heartbreak",
+    "betrayal",
+    "awakening",
+    "revenge",
+    "face_slap",
+    "truth_reveal",
+    "life_death_separation",
+    "sweet_confirmation",
+    "final_reconciliation",
+}
+CODEX_EMOTION_SIGNALS = {
+    "gaze_change",
+    "pupil_constriction",
+    "mouth_micro_change",
+    "tears",
+    "clenched_hand",
+    "trembling_fingertips",
+    "step_back",
+    "blocking_or_protective_action",
+    "interpersonal_distance",
+    "light_color_shift",
+}
+CODEX_PHYSICAL_EMOTION_SIGNALS = CODEX_EMOTION_SIGNALS - {"light_color_shift"}
+CODEX_PROMPT_COMPONENT_FIELDS = (
+    "subjectActionZh",
+    "visualStoryZh",
+    "performanceZh",
+    "cameraCompositionZh",
+    "continuityEnvironmentZh",
+    "lightingColorZh",
+    "keyObjectZh",
+)
+CODEX_MANGA_COMPOSITION_TEXT_FIELDS = (
+    "coreMomentZh",
+    "singleVisualFocusZh",
+    "primaryActionZh",
+    "interactionZh",
+    "shotDesignZh",
+    "backgroundTreatmentZh",
+    "continuityEssentialsZh",
+    "clutterControlZh",
+)
+CODEX_FACIAL_ACTING_FIELDS = (
+    "eyeShapeZh",
+    "pupilZh",
+    "browZh",
+    "mouthJawZh",
+    "faceTensionZh",
+    "exaggerationTechniqueZh",
+)
+CODEX_BODY_ACTING_FIELDS = (
+    "lineOfActionZh",
+    "centerOfGravityZh",
+    "shoulderSpineZh",
+    "handTensionZh",
+    "secondaryMotionZh",
+)
+CODEX_MANGA_DEVICES = {
+    "speed_lines",
+    "impact_burst",
+    "extreme_foreshortening",
+    "dutch_angle",
+    "frame_breaking",
+    "heavy_shadow",
+    "high_contrast_silhouette",
+    "abstract_background",
+    "foreground_occlusion",
+}
+CODEX_BACKGROUND_MODES = {"detailed_context", "selective_detail", "simplified", "abstract_impact"}
+CODEX_IMAGE_PROMPT_MAXIMUM = 600
+CODEX_IMAGE_PROMPT_SOFT_MINIMUM = 280
+CODEX_IMAGE_PROMPT_SOFT_MAXIMUM = 450
+CODEX_VIDEO_PROMPT_MAXIMUM = 500
+CODEX_IMAGE_PROMPT_MINIMUM_UNIQUE_RATIO = 0.90
+CODEX_SEMANTIC_GROUP_DOMINANCE_LIMIT = 0.70
+CODEX_SCENE_ROLE_DOMINANCE_LIMIT = 0.65
+CODEX_COMPLEXITY_LEVELS = {1, 2, 3, 4, 5}
+CODEX_SERIES_PLANNING_MODE = "full_series_then_sequence_then_shot"
+CODEX_FAILURE_REPAIR_SCOPE = "failed_scene_only"
+CODEX_SEMANTIC_GROUPING_MODE = "semantic_visual_beat_v2"
+CODEX_SEMANTIC_GROUP_DECISIONS = {"merged", "intentional_single"}
+CODEX_SEMANTIC_GROUP_REASONS = {
+    "same_visual_moment",
+    "same_action_phase",
+    "environmental_support",
+    "continuous_dialogue_reaction",
+    "short_context_continuation",
+    "intentional_single_line_impact",
+}
+CODEX_SCENE_BOUNDARY_REASONS = {
+    "episode_start",
+    "important_action_phase_change",
+    "focal_subject_change",
+    "spatial_change",
+    "gaze_emotion_change",
+    "key_object_change",
+    "causal_result_change",
+    "intentional_single_line_impact",
+}
+CODEX_COMBAT_PHASES = {
+    "anticipation",
+    "charge",
+    "release",
+    "contact",
+    "impact",
+    "defense",
+    "reaction",
+    "aftermath",
+}
+CODEX_COMBAT_DIRECTION_FIELDS = (
+    "frozenMomentZh",
+    "effectSourceZh",
+    "trajectoryZh",
+    "impactPointZh",
+    "effectShapeColorZh",
+    "scaleLayeringZh",
+    "particlesDebrisZh",
+    "environmentalResponseZh",
+    "lightingInteractionZh",
+    "attackerKineticsZh",
+    "defenderResponseZh",
+    "safetyBoundaryZh",
+)
+SOUND_EFFECT_MAX_DURATION_SECONDS = 5.0
 
 MAX_PRODUCTION_CONCURRENCY = 20
 WORKSHOP_MISSING_TASK_GRACE_OBSERVATIONS = 2
@@ -545,7 +847,9 @@ def _normalize_codex_visual_plan(
     synthetic: bool,
 ) -> dict[str, Any] | None:
     prompt_generation = production_config["promptGeneration"]
-    requires_scene_plan = bool(prompt_generation["image"] or prompt_generation["video"])
+    production_mode = production_config.get("productionMode", {})
+    production_mode_id = str(production_mode.get("id") or "director")
+    requires_scene_plan = production_mode_id == "director" and bool(prompt_generation["image"] or prompt_generation["video"])
     if value is None:
         if requires_scene_plan and not synthetic:
             raise ToolError(
@@ -553,6 +857,12 @@ def _normalize_codex_visual_plan(
                 "已选择由 Codex 生成图片或视频提示词，但生产配置缺少 Codex 视觉方案。",
             )
         return None
+    if production_mode_id != "director" and not synthetic:
+        raise ToolError(
+            "PRODUCTION_MODE_VISUAL_PLAN_CONFLICT",
+            "极速自动模式和平衡模式禁止生成完整 Codex 视觉方案；只有精品导演模式使用 codexVisualPlan。",
+            details={"productionMode": production_mode_id},
+        )
     if not isinstance(value, dict):
         raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "codexVisualPlan 必须是对象。")
     if value.get("schemaVersion") != CODEX_VISUAL_PLAN_SCHEMA_VERSION or value.get("author") != CODEX_VISUAL_PLAN_AUTHOR:
@@ -1877,6 +2187,7 @@ def _production_overview_markdown(
         f"- 配音行数：{manuscript['lineCount']}",
         f"- 正式标题：{publishing['title']}",
         f"- 中文标题：{publishing['titleZhTranslation']}",
+        f"- 生产模式：`{production_config['productionMode']['id']}`（{PRODUCTION_MODE_LABELS.get(production_config['productionMode']['id'], '兼容模式')}）",
         f"- 制作方式：`{production_config['deliveryMode']}`",
         f"- 人物配音引擎：`{production_config['voiceTtsProfile']['engineId']}`（只从该引擎推荐并锁定当前项目音色）",
         f"- 纯音效：`{'开启' if production_config['soundEffects']['enabled'] else '关闭'}`；固定 `seed_audio`；每条显式时长且不超过 {production_config['soundEffects']['maxDurationSeconds']:.0f} 秒",
@@ -2115,6 +2426,34 @@ class ProductionCenter:
             },
             "steps": [step_id for step_id, _, _ in STEP_DEFINITIONS],
             "deliveryModes": ["auto_render", "jianying_refine"],
+            "productionModes": {
+                "selectionRequiredEveryNewProduction": True,
+                "inheritedDefault": None,
+                "recommended": "balanced",
+                "items": [
+                    {
+                        "id": "fast_auto",
+                        "displayNameZh": PRODUCTION_MODE_LABELS["fast_auto"],
+                        "codexVisualPlan": False,
+                        "workshopImagePromptAnalysis": False,
+                        "shotVideo": False,
+                    },
+                    {
+                        "id": "balanced",
+                        "displayNameZh": PRODUCTION_MODE_LABELS["balanced"],
+                        "codexVisualPlan": False,
+                        "workshopImagePromptAnalysis": True,
+                        "shotVideo": False,
+                    },
+                    {
+                        "id": "director",
+                        "displayNameZh": PRODUCTION_MODE_LABELS["director"],
+                        "codexVisualPlan": True,
+                        "workshopImagePromptAnalysis": False,
+                        "shotVideo": "explicit_scope_only",
+                    },
+                ],
+            },
             "videoSelectionModes": sorted(VIDEO_SELECTION_MODES),
             "productionConcurrency": {"minimum": 1, "maximum": MAX_PRODUCTION_CONCURRENCY, "recommendedImage": 20},
             "gridBatch": {"globalTemplate": True, "episodeTemplateOverrides": True},
@@ -2808,6 +3147,49 @@ class ProductionCenter:
             or not isinstance(prompt_generation.get("video"), bool)
         ):
             raise ToolError("PRODUCTION_PROMPT_GENERATION_INVALID", "图片提示词和视频提示词开关必须分别为明确的是／否。")
+        raw_production_mode = deepcopy(config.get("productionMode"))
+        production_mode_explicit = raw_production_mode is not None
+        if raw_production_mode is None:
+            # 旧生产包继续按原来的 Codex 导演路线读取；新任务会在自由创作工作区
+            # 绑定生产前强制取得本次用户选择，因此不会静默继承这个兼容值。
+            production_mode = {
+                "id": "director",
+                "selectionSource": "legacy",
+                "confirmed": True,
+            }
+        else:
+            if not isinstance(raw_production_mode, dict):
+                raise ToolError("PRODUCTION_MODE_INVALID", "生产模式必须是对象。")
+            production_mode_id = str(raw_production_mode.get("id") or "").strip()
+            production_mode_source = str(raw_production_mode.get("selectionSource") or "").strip()
+            if (
+                production_mode_id == "director"
+                and production_mode_source == "legacy"
+                and raw_production_mode.get("confirmed") is True
+            ):
+                # 已归一化的旧包在二次校验时继续保持兼容身份；新工作区无法
+                # 通过 bind_for_production 写出 legacy 来源。
+                production_mode_explicit = False
+                production_mode = {
+                    "id": "director",
+                    "selectionSource": "legacy",
+                    "confirmed": True,
+                }
+            elif (
+                production_mode_id not in PRODUCTION_MODE_IDS
+                or production_mode_source != "user"
+                or raw_production_mode.get("confirmed") is not True
+            ):
+                raise ToolError(
+                    "PRODUCTION_MODE_CONFIRMATION_REQUIRED",
+                    "每次开始制作都必须由用户本次明确选择极速自动、平衡或精品导演模式。",
+                )
+            else:
+                production_mode = {
+                    "id": production_mode_id,
+                    "selectionSource": "user",
+                    "confirmed": True,
+                }
         codex_visual_plan = deepcopy(config.get("codexVisualPlan"))
         if codex_visual_plan is not None and not isinstance(codex_visual_plan, dict):
             raise ToolError("PRODUCTION_CODEX_VISUAL_PLAN_INVALID", "codexVisualPlan 必须是对象。")
@@ -2863,6 +3245,49 @@ class ProductionCenter:
         video["frameInputMode"] = frame_input_mode
         video["endFrameSource"] = end_frame_source
         video["selectedStoryboardIds"] = []
+        workshop_prompt_generation = {"image": False, "video": False}
+        if production_mode_explicit:
+            production_mode_id = production_mode["id"]
+            if production_mode_id in {"fast_auto", "balanced"}:
+                if delivery_mode != "auto_render":
+                    raise ToolError(
+                        "PRODUCTION_MODE_DELIVERY_CONFLICT",
+                        "极速自动模式和平衡模式必须使用工坊自动成片。",
+                        details={"productionMode": production_mode_id, "deliveryMode": delivery_mode},
+                    )
+                if prompt_generation != {"image": False, "video": False}:
+                    raise ToolError(
+                        "PRODUCTION_MODE_PROMPT_CONFLICT",
+                        "极速自动模式和平衡模式不生成完整 Codex 图片／视频提示词。",
+                        details={"productionMode": production_mode_id, "promptGeneration": prompt_generation},
+                    )
+                if codex_visual_plan is not None:
+                    raise ToolError(
+                        "PRODUCTION_MODE_VISUAL_PLAN_CONFLICT",
+                        "极速自动模式和平衡模式不得携带 codexVisualPlan。",
+                        details={"productionMode": production_mode_id},
+                    )
+                if video["enabled"] or video["selectionMode"] != "none":
+                    raise ToolError(
+                        "PRODUCTION_MODE_VIDEO_CONFLICT",
+                        "极速自动模式和平衡模式只制作静态分镜成片；需要镜头视频时请选择精品导演模式。",
+                        details={"productionMode": production_mode_id},
+                    )
+                if production_mode_id == "balanced":
+                    # 保持正式生产包提示词开关关闭，避免工坊把它误判为必须接收
+                    # Codex 视觉方案；生产中心通过显式 image_prompts 步骤调用工坊现有分析能力。
+                    workshop_prompt_generation["image"] = True
+            elif production_mode_id == "director":
+                if prompt_generation["image"] is not True:
+                    raise ToolError(
+                        "PRODUCTION_MODE_PROMPT_CONFLICT",
+                        "精品导演模式必须开启 Codex 图片提示词与完整逐镜视觉方案。",
+                    )
+                if video["enabled"] and prompt_generation["video"] is not True:
+                    raise ToolError(
+                        "PRODUCTION_MODE_VIDEO_PROMPT_REQUIRED",
+                        "精品导演模式开启镜头视频时必须同时开启 Codex 视频提示词。",
+                    )
         concurrency = deepcopy(config.get("concurrency", {"image": 20, "video": 1, "tts": 1}))
         if not isinstance(concurrency, dict) or any(
             not isinstance(value, int) or isinstance(value, bool) or value < 1 or value > MAX_PRODUCTION_CONCURRENCY
@@ -2873,6 +3298,7 @@ class ProductionCenter:
         if not isinstance(retry_limit, int) or isinstance(retry_limit, bool) or not 0 <= retry_limit <= 10:
             raise ToolError("PRODUCTION_CONFIG_INVALID", "重试次数无效。")
         normalized_config = {
+            "productionMode": production_mode,
             "deliveryMode": delivery_mode,
             "aspectRatio": aspect_ratio,
             "width": width,
@@ -2900,6 +3326,7 @@ class ProductionCenter:
                 "image": prompt_generation["image"],
                 "video": prompt_generation["video"],
             },
+            "workshopPromptGeneration": workshop_prompt_generation,
             "gridBatch": {
                 "template": grid_template,
                 "selectionSource": grid_selection_source,
@@ -3188,6 +3615,7 @@ class ProductionCenter:
             "revision": 0,
             "createdAt": now,
             "updatedAt": now,
+            "productionMode": deepcopy(config["productionMode"]),
             "deliveryMode": config["deliveryMode"],
             "synthetic": bool(manifest["synthetic"] or config.get("syntheticFixtureRunner")),
             "videoGeneration": deepcopy(config["videoGeneration"]),
@@ -3993,7 +4421,14 @@ class ProductionCenter:
             "storyboard",
         ]
         prompt_generation = config.get("promptGeneration")
-        if isinstance(prompt_generation, dict) and bool(prompt_generation.get("image") or prompt_generation.get("video")):
+        workshop_prompt_generation = config.get("workshopPromptGeneration")
+        if (
+            isinstance(prompt_generation, dict)
+            and bool(prompt_generation.get("image") or prompt_generation.get("video"))
+        ) or (
+            isinstance(workshop_prompt_generation, dict)
+            and bool(workshop_prompt_generation.get("image") or workshop_prompt_generation.get("video"))
+        ):
             steps.append("image_prompts")
         steps.append("grid_image")
         if bool(config.get("videoGeneration", {}).get("enabled")):
@@ -4348,12 +4783,13 @@ class ProductionCenter:
         if not request_id:
             production_config = documents.get("production_config.json", {})
             prompt_generation = production_config.get("promptGeneration", {})
-            if bool(prompt_generation.get("image") or prompt_generation.get("video")):
+            production_mode_id = str(production_config.get("productionMode", {}).get("id") or "director")
+            if production_mode_id == "director" and bool(prompt_generation.get("image") or prompt_generation.get("video")):
                 visual_plan = production_config.get("codexVisualPlan")
                 if not isinstance(visual_plan, dict) or visual_plan.get("schemaVersion") != CODEX_VISUAL_PLAN_SCHEMA_VERSION:
                     raise ToolError(
                         "PRODUCTION_CODEX_VISUAL_PLAN_LEGACY",
-                        "旧视觉方案不能启动新的工坊请求；请用当前 1.4 语义分镜合同重新组装生产包。",
+                        "旧视觉方案不能启动新的工坊请求；请用当前 1.5 语义分镜合同重新组装生产包。",
                         details={
                             "requiredSchemaVersion": CODEX_VISUAL_PLAN_SCHEMA_VERSION,
                             "actualSchemaVersion": visual_plan.get("schemaVersion") if isinstance(visual_plan, dict) else None,

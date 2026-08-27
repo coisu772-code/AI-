@@ -1911,7 +1911,7 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "content_workspace_bind_production",
-            "仅在用户明确开始制作并确认频道号、正式文稿和生产配置后，将无频道工作区一次性绑定到目标频道并生成生产交接清单。",
+            "仅在用户明确开始制作，并为本次任务选择 productionMode（fast_auto 极速自动／balanced 平衡／director 精品导演）、确认频道号、正式文稿和生产配置后，将无频道工作区一次性绑定到目标频道并生成生产交接清单；模式不得从旧任务、旧项目或频道预设继承。",
             {
                 **workspace_binding_properties,
                 "channelProfileId": {"type": "string", "minLength": 3, "maxLength": 160},
@@ -2058,7 +2058,7 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "production_package_assemble",
-            "从已确认的 Manuscript 与 Publishing Asset 组装 Production Package v2.1。productionConfig 必须保存用户本次选择的人物配音引擎，角色音色只能从该引擎推荐并在当前项目锁定；每集开场必须有 Seed Audio，其他音效只能在触发人声完整结束后播放、与触发句共用分镜、不得生成字幕或独立画面，并按短促、回响、人群、环境或旋律类别使用可辨认的完整时长。开启图片或视频提示词时，codexVisualPlan schema 1.5 必须先合并同一视觉时刻，再按动作、视线、情绪或因果变化拆分；同一人物的前世、转生后、婴幼儿、少年与成年分别绑定 appearanceId，幼童可无参考图直接按文字生图；同时执行生成前阶段绑定与生图安全预检，工坊不得重写。",
+            "从已确认的 Manuscript 与 Publishing Asset 组装 Production Package v2.1。productionConfig 必须保存用户本次确认的 productionMode：fast_auto 不生成完整视觉方案并静态自动成片；balanced 由工坊现有分析步骤生成图片提示词并静态自动成片；director 才使用 codexVisualPlan schema 1.5，并可按用户明确范围生成镜头视频。人物配音引擎须来自本次选择，角色音色只能从该引擎推荐并在当前项目锁定；每集开场必须有 Seed Audio，其他音效只能在触发人声完整结束后播放、与触发句共用分镜、不得生成字幕或独立画面，并按短促、回响、人群、环境或旋律类别使用可辨认的完整时长。director 的 codexVisualPlan 必须先合并同一视觉时刻，再按动作、视线、情绪或因果变化拆分；同一人物的前世、转生后、婴幼儿、少年与成年分别绑定 appearanceId，幼童可无参考图直接按文字生图；同时执行生成前阶段绑定与生图安全预检，工坊不得重写。",
             {
                 **binding_properties,
                 "projectId": {"type": "string"},

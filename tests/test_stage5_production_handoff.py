@@ -167,6 +167,13 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         self.assertTrue(capabilities["gridBatch"]["episodeTemplateOverrides"])
         self.assertFalse(capabilities["boundaries"]["readyPackage"])
         self.assertFalse(capabilities["boundaries"]["upload"])
+        self.assertTrue(capabilities["productionModes"]["selectionRequiredEveryNewProduction"])
+        self.assertIsNone(capabilities["productionModes"]["inheritedDefault"])
+        self.assertEqual("balanced", capabilities["productionModes"]["recommended"])
+        self.assertEqual(
+            ["fast_auto", "balanced", "director"],
+            [item["id"] for item in capabilities["productionModes"]["items"]],
+        )
         self.assertEqual("1.5", capabilities["codexVisualPlan"]["schemaVersion"])
         self.assertEqual("identity_only", capabilities["codexVisualPlan"]["referenceUsage"])
         self.assertTrue(capabilities["codexVisualPlan"]["mangaImpactDirection"])
@@ -1142,6 +1149,80 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         self.assert_tool_error(
             "PRODUCTION_VIDEO_END_FRAME_INVALID",
             lambda: center._validate_production_config(missing_end_source),
+        )
+
+    def test_three_production_modes_map_to_distinct_workshop_routes(self) -> None:
+        center = self.context().content.service.production
+
+        fast = production_config()
+        fast["productionMode"] = {"id": "fast_auto", "selectionSource": "user", "confirmed": True}
+        normalized_fast = center._validate_production_config(fast)
+        self.assertEqual("fast_auto", normalized_fast["productionMode"]["id"])
+        self.assertEqual({"image": False, "video": False}, normalized_fast["promptGeneration"])
+        self.assertEqual({"image": False, "video": False}, normalized_fast["workshopPromptGeneration"])
+        self.assertNotIn("image_prompts", center._workshop_selected_steps(normalized_fast))
+        self.assertNotIn("codexVisualPlan", normalized_fast)
+
+        balanced = production_config()
+        balanced["productionMode"] = {"id": "balanced", "selectionSource": "user", "confirmed": True}
+        normalized_balanced = center._validate_production_config(balanced)
+        self.assertEqual("balanced", normalized_balanced["productionMode"]["id"])
+        self.assertEqual({"image": False, "video": False}, normalized_balanced["promptGeneration"])
+        self.assertEqual({"image": True, "video": False}, normalized_balanced["workshopPromptGeneration"])
+        self.assertIn("image_prompts", center._workshop_selected_steps(normalized_balanced))
+        self.assertNotIn("codexVisualPlan", normalized_balanced)
+
+        director = production_config()
+        director["productionMode"] = {"id": "director", "selectionSource": "user", "confirmed": True}
+        director["promptGeneration"] = {"image": True, "video": False}
+        normalized_director = center._validate_production_config(director)
+        self.assertEqual("director", normalized_director["productionMode"]["id"])
+        self.assertEqual({"image": False, "video": False}, normalized_director["workshopPromptGeneration"])
+        self.assertIn("image_prompts", center._workshop_selected_steps(normalized_director))
+        self.assert_tool_error(
+            "PRODUCTION_CODEX_VISUAL_PLAN_REQUIRED",
+            lambda: _normalize_codex_visual_plan(
+                None,
+                manuscript={},
+                production_config=normalized_director,
+                synthetic=False,
+            ),
+        )
+
+    def test_production_mode_rejects_incompatible_hidden_settings(self) -> None:
+        center = self.context().content.service.production
+        fast_with_prompts = production_config()
+        fast_with_prompts["productionMode"] = {
+            "id": "fast_auto",
+            "selectionSource": "user",
+            "confirmed": True,
+        }
+        fast_with_prompts["promptGeneration"] = {"image": True, "video": False}
+        self.assert_tool_error(
+            "PRODUCTION_MODE_PROMPT_CONFLICT",
+            lambda: center._validate_production_config(fast_with_prompts),
+        )
+
+        balanced_with_video = production_config(selection_mode="project_first_n_storyboards", count=1)
+        balanced_with_video["productionMode"] = {
+            "id": "balanced",
+            "selectionSource": "user",
+            "confirmed": True,
+        }
+        self.assert_tool_error(
+            "PRODUCTION_MODE_VIDEO_CONFLICT",
+            lambda: center._validate_production_config(balanced_with_video),
+        )
+
+        unconfirmed = production_config()
+        unconfirmed["productionMode"] = {
+            "id": "balanced",
+            "selectionSource": "production_profile",
+            "confirmed": True,
+        }
+        self.assert_tool_error(
+            "PRODUCTION_MODE_CONFIRMATION_REQUIRED",
+            lambda: center._validate_production_config(unconfirmed),
         )
 
     def test_failure_matrix_upstream_and_package_hard_gates(self) -> None:

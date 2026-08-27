@@ -486,6 +486,17 @@ class CreativeWorkspace:
             raise ToolError("PRODUCTION_SOURCE_NOT_CONFIRMED", "开始制作前必须选择并确认唯一正式文稿。")
         if not isinstance(production_config, dict) or not production_config:
             raise ToolError("PRODUCTION_SETTINGS_REQUIRED", "开始制作前必须确认频道号和完整生产配置。")
+        production_mode = production_config.get("productionMode")
+        if (
+            not isinstance(production_mode, dict)
+            or production_mode.get("id") not in {"fast_auto", "balanced", "director"}
+            or production_mode.get("selectionSource") != "user"
+            or production_mode.get("confirmed") is not True
+        ):
+            raise ToolError(
+                "PRODUCTION_MODE_CONFIRMATION_REQUIRED",
+                "每次开始制作都必须先让用户本次选择：极速自动、平衡或精品导演模式；不得继承旧项目或频道预设。",
+            )
         expected_ref = f"task:{state['taskId']}:start-production:{state['workspaceId']}:{channel_profile_id}"
         if (
             not isinstance(confirmation, dict)

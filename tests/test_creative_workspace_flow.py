@@ -141,6 +141,23 @@ class CreativeWorkspaceFlowTests(unittest.TestCase):
         )
         channel_binding = self.store.bind_task(task_id="task-free-001", channel_profile_id=channel["channelProfileId"])
         gate_ref = f"task:task-free-001:start-production:{self.workspace_id}:{channel['channelProfileId']}"
+        with self.assertRaises(ToolError) as missing_mode:
+            self.workspace.bind_for_production(
+                task_id="task-free-001",
+                workspace_id=self.workspace_id,
+                binding_proof=self.proof,
+                channel_profile_id=channel["channelProfileId"],
+                channel_binding_proof=channel_binding["bindingProof"],
+                production_source_document_id="formal-manuscript",
+                production_config={
+                    "voice": "voice-01",
+                    "imageStyle": "visual_01",
+                    "uploadPolicy": "AUTO",
+                    "privacyStatus": "private",
+                },
+                confirmation={"confirmed": True, "confirmationRef": gate_ref, "channelSerial": "01"},
+            )
+        self.assertEqual("PRODUCTION_MODE_CONFIRMATION_REQUIRED", missing_mode.exception.code)
         result = self.workspace.bind_for_production(
             task_id="task-free-001",
             workspace_id=self.workspace_id,
@@ -149,6 +166,11 @@ class CreativeWorkspaceFlowTests(unittest.TestCase):
             channel_binding_proof=channel_binding["bindingProof"],
             production_source_document_id="formal-manuscript",
             production_config={
+                "productionMode": {
+                    "id": "balanced",
+                    "selectionSource": "user",
+                    "confirmed": True,
+                },
                 "voice": "voice-01",
                 "imageStyle": "visual_01",
                 "uploadPolicy": "AUTO",
