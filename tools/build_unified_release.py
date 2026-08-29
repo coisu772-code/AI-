@@ -15,10 +15,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.15.0-rc.1"
+VERSION = "0.16.0-rc.1"
 PYTHON_VERSION = "3.12.13"
 PYTHON_BUILD = "20260610"
-FIXED_TIME = (2026, 8, 27, 0, 0, 0)
+FIXED_TIME = (2026, 8, 29, 0, 0, 0)
 TEXT_SUFFIXES = {".cmd", ".json", ".md", ".ps1", ".py", ".txt", ".yaml", ".yml"}
 EXACT_BYTE_TEXT_PATHS: set[str] = set()
 RUNTIME_LICENSE_NAME_MARKERS = ("license", "copying", "notice", "copyright", "patent", "authors")
@@ -30,21 +30,21 @@ BOOTSTRAP_FILES = (
     "installer/Start-AIVideoChannelProductionInstall.ps1",
     "installer/install.cmd",
 )
-WORKSHOP_VERSION = "2.8.0-rc.1"
-WORKSHOP_NAME = "Z-Manga-Workshop-2.8.0-rc.1-for-AIVCP-0.15.0-rc.1-windows-x64-portable.zip"
-WORKSHOP_SHA = "9e24234a694a36074c1e416970310332177d99134f473f9d7f09c06b798b72f6"
-WORKSHOP_SIZE = 157740045
-WORKSHOP_ROOT = "Z-Manga-Workshop-2.8.0-rc.1-for-AIVCP-0.15.0-rc.1-windows-x64-portable"
-WORKSHOP_SOURCE_COMMIT = "78e7cb824e1bdf0299c343ed9b09d10d5e33fd81"
-PUBLISHER_VERSION = "0.9.0-rc.4"
-PUBLISHER_NAME = "youtube-publisher-center-v0.9.0-rc.4-windows-amd64.zip"
-PUBLISHER_SHA = "d07921bf5aa41f8a1094ec4c0b1dc9becbc206a3b04f6bd21086ffae54d5dc1b"
-PUBLISHER_SIZE = 32921357
-PUBLISHER_ROOT = "youtube-publisher-center-v0.9.0-rc.4-windows-amd64"
-PUBLISHER_SOURCE_COMMIT = "200daaa986181a4bd2ef08858399afa79fdc8535"
-PUBLISHER_SOURCE_SNAPSHOT_SHA = "64d533dc40c91772e2b946af1bf3e9078d7f35b2b6c91061505eebbe466d4323"
-PUBLISHER_COMPONENT_MANIFEST_NAME = "publisher-component-manifest-v0.9.0-rc.4.json"
-PUBLISHER_COMPONENT_MANIFEST_SHA = "2a4045e8e8d87b7ea88cdfb2815084ff0727f53c07c76d96fbbaae853d0e55d4"
+WORKSHOP_VERSION = "2.9.0-rc.1"
+WORKSHOP_NAME = "Z-Manga-Workshop-2.9.0-rc.1-for-AIVCP-0.16.0-rc.1-windows-x64-portable.zip"
+WORKSHOP_SHA = "8a3cd922aba5ed56f94272a46808e029ec876de7048f5f997ab1abbda31bb4e5"
+WORKSHOP_SIZE = 157743840
+WORKSHOP_ROOT = "Z-Manga-Workshop-2.9.0-rc.1-for-AIVCP-0.16.0-rc.1-windows-x64-portable"
+WORKSHOP_SOURCE_COMMIT = "cd78658ef7aba19412b7c2dfe8d429b338c3d2f7"
+PUBLISHER_VERSION = "0.10.0-rc.1"
+PUBLISHER_NAME = "youtube-publisher-center-v0.10.0-rc.1-windows-amd64.zip"
+PUBLISHER_SHA = "21c74b005e17140fe39fd6fb96b2ff83e8815e26848349829d0db47e84f844b2"
+PUBLISHER_SIZE = 42676866
+PUBLISHER_ROOT = "youtube-publisher-center-v0.10.0-rc.1-windows-amd64"
+PUBLISHER_SOURCE_COMMIT = "3bc6c2818c400a691defecdf28abe0fb0e07eee7"
+PUBLISHER_SOURCE_SNAPSHOT_SHA = "3e101b04a4af3e1164d6895a3368636fb65082fd38b8ff741f531be988cc825b"
+PUBLISHER_COMPONENT_MANIFEST_NAME = "publisher-component-manifest-v0.10.0-rc.1.json"
+PUBLISHER_COMPONENT_MANIFEST_SHA = "ff4d3f68e9af22d5b3cba6b159c609f280b65326e75858e639eb2db3b6d5e173"
 PUBLISHER_CONSTRAINTS_SHA = "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a"
 KOKORO_VARIANTS = ("cpu", "nvidia", "nvidia-blackwell")
 KOKORO_REUSE_VERSION = "0.10.0-rc.1"
@@ -397,7 +397,7 @@ def publisher_machine_manifest(path: Path) -> dict[str, object]:
         "assetName": PUBLISHER_NAME,
         "assetSize": PUBLISHER_SIZE,
         "assetSha256": PUBLISHER_SHA,
-        "fileEntries": 112,
+        "fileEntries": 113,
         "reviewRequired": 0,
         "licenseTextFiles": 101,
         "constraintsSha256": PUBLISHER_CONSTRAINTS_SHA,
@@ -531,7 +531,7 @@ def build_all(output: Path, runtime_source: Path, uv: Path, workshop_dir: Path, 
     manifest = {
         "schemaVersion":"2.0.0","productId":"ai-video-channel-production","productName":"AI 视频频道生产系统","productVersion":VERSION,
         "releaseStatus":"candidate","hashAlgorithm":"SHA-256","downloadBaseUrl":f"https://github.com/coisu772-code/AI-/releases/download/v{VERSION}",
-        "generatedAt":"2026-08-24T00:00:00Z","assets":assets,"optionalRuntimePackages":kokoro_packages,
+        "generatedAt":"2026-08-29T00:00:00Z","assets":assets,"optionalRuntimePackages":kokoro_packages,
         "runtime":{"pythonVersion":PYTHON_VERSION,"pythonBuild":PYTHON_BUILD,"youtubeCollectorVersion":YT_DLP_VERSION,"youtubeCollectorCommandVersion":YT_DLP_COMMAND_VERSION,"javascriptRuntimeVersion":DENO_VERSION,"requiresPreinstalledPython":False,"requiresPreinstalledUv":False,"requiresPreinstalledYoutubeCollector":False,"requiresPreinstalledJavascriptRuntime":False},
         "logicalComponents":[{"componentId":"ffmpeg-runtime","version":"8.1.2","providedByAsset":"workshop","license":{"expression":"GPL-3.0-only","source":"apps/workshop/licenses/ffmpeg/COPYING.GPLv3 and FFMPEG-PROVENANCE.txt"},"healthCheck":{"command":"apps/workshop/tools/ffmpeg/bin/ffmpeg.exe -version","expected":"ffmpeg version 8.1.2"},"files":[
             {"relativeInstallPath":"apps/workshop/tools/ffmpeg/bin/ffmpeg.exe","sizeBytes":101897728,"sha256":"1326dde4c84ff1f96fe6b8916c5bed29e163e9b5dccf995f6f3db069d143ec5e"},

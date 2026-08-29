@@ -255,9 +255,9 @@ def validate(manifest_path: Path, asset_root: Path) -> dict[str, object]:
         errors.append("release-owner license approval gate is missing")
     publisher_source = publisher.get("source", {})
     expected_publisher_source = {
-        "commit": "200daaa986181a4bd2ef08858399afa79fdc8535",
-        "snapshotSha256": "64d533dc40c91772e2b946af1bf3e9078d7f35b2b6c91061505eebbe466d4323",
-        "componentManifestSha256": "2a4045e8e8d87b7ea88cdfb2815084ff0727f53c07c76d96fbbaae853d0e55d4",
+        "commit": "3bc6c2818c400a691defecdf28abe0fb0e07eee7",
+        "snapshotSha256": "3e101b04a4af3e1164d6895a3368636fb65082fd38b8ff741f531be988cc825b",
+        "componentManifestSha256": "ff4d3f68e9af22d5b3cba6b159c609f280b65326e75858e639eb2db3b6d5e173",
         "constraintsSha256": "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a",
     }
     if publisher_source.get("commit") != expected_publisher_source["commit"]:
@@ -273,7 +273,7 @@ def validate(manifest_path: Path, asset_root: Path) -> dict[str, object]:
         with zipfile.ZipFile(publisher_path) as archive:
             root = publisher.get("archiveRoot", "") + "/"
             file_names = [info.filename for info in archive.infolist() if not info.is_dir()]
-            if len(file_names) != 112:
+            if len(file_names) != 113:
                 errors.append(f"publisher file entry count mismatch: {len(file_names)}")
             for required in ("LICENSE.md", "THIRD-PARTY-NOTICES.json", "THIRD-PARTY-NOTICES.md"):
                 if root + required not in file_names:
@@ -352,3 +352,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

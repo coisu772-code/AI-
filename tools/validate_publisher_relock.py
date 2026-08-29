@@ -10,10 +10,10 @@ import zipfile
 from pathlib import Path
 
 
-PUBLISHER_NAME = "youtube-publisher-center-v0.9.0-rc.4-windows-amd64.zip"
-PUBLISHER_SIZE = 32921357
-PUBLISHER_SHA256 = "d07921bf5aa41f8a1094ec4c0b1dc9becbc206a3b04f6bd21086ffae54d5dc1b"
-PUBLISHER_ROOT = "youtube-publisher-center-v0.9.0-rc.4-windows-amd64"
+PUBLISHER_NAME = "youtube-publisher-center-v0.10.0-rc.1-windows-amd64.zip"
+PUBLISHER_SIZE = 42676866
+PUBLISHER_SHA256 = "21c74b005e17140fe39fd6fb96b2ff83e8815e26848349829d0db47e84f844b2"
+PUBLISHER_ROOT = "youtube-publisher-center-v0.10.0-rc.1-windows-amd64"
 PUBLISHER_VALIDATOR_SIZE = 17800192
 PUBLISHER_VALIDATOR_SHA256 = "05480f05876cd98d91404e8447fb23300395cd8da6a8ff64522fde222dc41e09"
 CATALOG_VERSION = "2026.08.04.1"
@@ -74,7 +74,7 @@ def validate(publisher_zip: Path, stage8_output: Path) -> dict[str, object]:
             raise RuntimeError("publisher capabilities did not preserve the offline default")
         required_commands = {"handoff", "status-live", "receipt-live"}
         if (
-            result.get("component_version") != "0.9.0-rc.4"
+            result.get("component_version") != "0.10.0-rc.1"
             or result.get("formal_publisher_handoff") is not True
             or not required_commands.issubset(set(result.get("commands", [])))
         ):
@@ -153,3 +153,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

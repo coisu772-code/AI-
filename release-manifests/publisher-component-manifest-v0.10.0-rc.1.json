@@ -1,0 +1,208 @@
+{
+  "schema_version": "1.2",
+  "component": "youtube-publisher-center",
+  "display_name": "YouTube \u53d1\u5e03\u4e2d\u5fc3",
+  "version": "0.10.0-rc.1",
+  "release_channel": "beta",
+  "distribution": "github-releases-candidate",
+  "source": {
+    "branch": "codex/release-20260829-publisher-v0.10.0-rc.1",
+    "commit": "3bc6c2818c400a691defecdf28abe0fb0e07eee7",
+    "live_adapter_commit": "62453a0c06cf7a678beff22f650c8277e87e3613",
+    "baseline_commit": "3bc6c2818c400a691defecdf28abe0fb0e07eee7",
+    "snapshot_file_count": 304,
+    "snapshot_sha256": "3e101b04a4af3e1164d6895a3368636fb65082fd38b8ff741f531be988cc825b",
+    "working_tree_clean": true
+  },
+  "target": {
+    "os": "windows",
+    "arch": "amd64",
+    "packaging": "portable-zip",
+    "desktop_runtime": "Wails v2.12.0"
+  },
+  "build": {
+    "generated_at_utc": "2026-08-29T15:49:01.839Z",
+    "go": "go1.26.2 windows/amd64",
+    "node": "v24.15.0",
+    "npm": "11.12.1",
+    "vite": "6.4.3",
+    "postcss": "8.5.25",
+    "cli_vcs_stamp_policy": "disabled because Go 1.26.2 reported stale worktree VCS metadata; source.commit and component hashes are authoritative",
+    "source_tree_clean_before_final_build": true,
+    "source_tree_clean_after_final_build": true,
+    "manifest_serialization": "JSON.stringify followed by semantics-preserving non-ASCII Unicode escapes"
+  },
+  "release_asset": {
+    "name": "youtube-publisher-center-v0.10.0-rc.1-windows-amd64.zip",
+    "size_bytes": 42676866,
+    "sha256": "21c74b005e17140fe39fd6fb96b2ff83e8815e26848349829d0db47e84f844b2",
+    "zip_entries": 116,
+    "file_entries": 113
+  },
+  "components": [
+    {
+      "path": "youtube-publisher-center.exe",
+      "size_bytes": 27976704,
+      "sha256": "72306b6f2108924522081e3d31fb7c8df1bd8bc63e4323bf5d02a3a5155fb8bf",
+      "go_version": "go1.26.2",
+      "embedded_go_modules": 28
+    },
+    {
+      "path": "publish-package-v2.exe",
+      "size_bytes": 17868288,
+      "sha256": "bd9ff3cecc193fcc3b0e0b8a30470228de8af75734098d7b23f0fb0e47bfb5c5",
+      "go_version": "go1.26.2",
+      "embedded_go_modules": 12
+    },
+    {
+      "path": "channel-list.exe",
+      "size_bytes": 10348544,
+      "sha256": "e07b31aee1f70935efb26a126b7cf38d27d373c1e4035269fac5565fde74a6d4",
+      "go_version": "go1.26.2",
+      "embedded_go_modules": 10
+    },
+    {
+      "path": "update-video-metadata.exe",
+      "size_bytes": 16658432,
+      "sha256": "892e4b7b7c52e3f25f1918cb07be1cebff71b4ba094a483aaf2cf7c2230cc18a",
+      "go_version": "go1.26.2",
+      "embedded_go_modules": 12
+    }
+  ],
+  "legal_inventory": {
+    "product_license": {
+      "path": "LICENSE.md",
+      "license": "Proprietary / All Rights Reserved",
+      "sha256": "ec0e654dc186945a920663c241a73cb757ee78b8a76a19db2be1e5a6e6f50a74"
+    },
+    "notices_json": {
+      "path": "THIRD-PARTY-NOTICES.json",
+      "sha256": "a6be73cf12250dc6d6693054167c67b15355300dd88277b3f4093951fe9f5042"
+    },
+    "notices_markdown": {
+      "path": "THIRD-PARTY-NOTICES.md",
+      "sha256": "4ae9bb944c0ccfeb70a359033df1367d4cdaa54d6becccdce8cf35b7c1d49336"
+    },
+    "license_text_files": 101,
+    "runtime_go_modules": 28,
+    "runtime_npm_packages": 4,
+    "build_only_npm_installed": 62,
+    "build_lock_only_optional_not_distributed": 49,
+    "review_required": 0,
+    "webview2_loader": {
+      "version": "1.0.992.28",
+      "sha256": "c4674acf95f0800793a4a6d61132adf5dfa694c218e482d86093494c4e84100a",
+      "evidence": "byte-identical to Microsoft.Web.WebView2 1.0.992.28 official NuGet x64 payload",
+      "license": "BSD-3-Clause"
+    },
+    "webview2_runtime": "external host-managed component; not distributed"
+  },
+  "dependency_security": {
+    "npm_audit_includes_dev_and_build_dependencies": true,
+    "vite": "6.4.3",
+    "postcss": "8.5.25",
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0,
+    "total": 0,
+    "resolved": [
+      "Vite 6.4.2 to 6.4.3: GHSA-fx2h-pf6j-xcff and GHSA-v6wh-96g9-6wx3",
+      "PostCSS 8.5.16 to 8.5.25: GHSA-r28c-9q8g-f849 and GHSA-fxqj-rqcc-2cmp"
+    ],
+    "unresolved_advisories": []
+  },
+  "safety_contract": {
+    "network_execution_default": false,
+    "oauth_owner": "publisher-internal-only",
+    "oauth_token_in_package_or_cli": false,
+    "requires_immutable_upload_intent": true,
+    "requires_g6_approval_reference": true,
+    "requires_exact_channel_serial_and_id": true,
+    "requires_confirmed_privacy_and_schedule": true,
+    "requires_active_publisher_oauth": true,
+    "requires_explicit_network_execution": true,
+    "requires_one_time_nonce": true,
+    "private_first": true,
+    "publication_receipt_after_remote_readback_only": true,
+    "final_chinese_review_required_for_all_upload_policies": true
+  },
+  "integration_contract": {
+    "publish_package_version": "2.1.0",
+    "constraints_catalog_version": "2026.08.04.1",
+    "constraints_catalog_sha256": "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a",
+    "constraints_catalog_normalization": "CRLF_AND_CR_TO_LF_BEFORE_SHA256"
+  },
+  "verification": {
+    "go_test_all": "passed in both PATH configurations with -count=1",
+    "go_test_path_matrix": {
+      "normal_path": "passed; resolved C:\\Users\\Administrator\\AppData\\Local\\Microsoft\\WinGet\\Packages\\yt-dlp.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-N-125365-g9a01c1cb6a-win64-gpl\\bin\\ffprobe.exe",
+      "controlled_no_ffprobe_path": "passed; Get-Command ffprobe returned absent",
+      "importer_missing_dependency_fixture": "pins PATH to a test-owned empty tool directory"
+    },
+    "manifest_parser_gate": {
+      "node_json_parse": "required and passed",
+      "powershell_convert_from_json_default_decode": "required and passed",
+      "asserted_fields": [
+        "source.commit",
+        "release ZIP size/SHA-256",
+        "Vite/PostCSS/npm audit",
+        "license counts",
+        "dual-PATH Go tests"
+      ]
+    },
+    "go_vet_all": "passed",
+    "frontend_build": "passed with Vite 6.4.3",
+    "frontend_bridge_tests": {
+      "passed": 17,
+      "failed": 0
+    },
+    "release_manifest_tests": "passed",
+    "recording_and_fake_live_adapter_tests": "passed",
+    "license_generation_deterministic": true,
+    "license_review_required": 0,
+    "zip_internal_sha256sums": "passed",
+    "zip_forbidden_artifact_scan": "passed; 0 findings",
+    "isolated_desktop_startup": "passed",
+    "isolated_publish_package_v2_capabilities": "passed",
+    "isolated_publish_package_v2_validate": "passed",
+    "isolated_publish_package_v2_import": "passed; imported=1 failed=0",
+    "formal_handoff_commands": "passed; handoff/status-live/receipt-live exposed by packaged CLI",
+    "formal_handoff_three_market_fixture": "passed; ja-JP, zh-CN and en-US imported without network execution",
+    "immutable_package_runtime_state": "passed; publisher state stored outside the signed v2 package",
+    "frozen_upload_settings": "passed; privacy, category, made-for-kids and subscriber notification preserved from upload_task.json",
+    "default_offline_execute_gate": "passed; NETWORK_EXECUTION_DISABLED"
+  },
+  "external_integration_gate": {
+    "status": "PASSED",
+    "publisher_constraints_sha256": "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a",
+    "available_stage6_fixture_constraints_sha256": "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a",
+    "failure_code": "",
+    "resolution_owner": "",
+    "distribution_repository_modified": true
+  },
+  "network_acceptance": {
+    "oauth_initiated": false,
+    "youtube_api_called": false,
+    "video_uploaded": false,
+    "real_publication_receipt_created": false,
+    "status": "CANDIDATE_READY_FOR_CONTROLLED_REAL_ACCEPTANCE",
+    "production_complete": false,
+    "still_required": [
+      "approved test channel with publisher-internal ACTIVE OAuth",
+      "explicit G6 approval for exact channel, video, privacy and schedule",
+      "fresh one-time runtime nonce",
+      "explicit networkExecution=true",
+      "separate approval to call real YouTube API and upload a test video"
+    ]
+  },
+  "excluded_from_release": [
+    "sqlite databases",
+    "oauth credentials or tokens",
+    "logs",
+    "channel profiles or channel identifiers",
+    "publish packages",
+    "media files",
+    "test receipts"
+  ]
+}

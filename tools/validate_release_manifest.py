@@ -46,12 +46,12 @@ def validate_release_manifest(manifest_path: Path | None = None) -> list[str]:
         if publisher.get("license", {}).get("reviewStatus") != "technical-inventory-validated-release-owner-approval-required":
             errors.append("publisher technical inventory status or external release-owner gate is missing")
         source = publisher.get("source", {})
-        if source.get("commit") != "200daaa986181a4bd2ef08858399afa79fdc8535":
+        if source.get("commit") != "3bc6c2818c400a691defecdf28abe0fb0e07eee7":
             errors.append("publisher source commit is not locked to the final candidate")
         component_attestation = source.get("componentManifest", {})
         if (
-            component_attestation.get("fileName") != "publisher-component-manifest-v0.9.0-rc.4.json"
-            or component_attestation.get("sha256") != "2a4045e8e8d87b7ea88cdfb2815084ff0727f53c07c76d96fbbaae853d0e55d4"
+            component_attestation.get("fileName") != "publisher-component-manifest-v0.10.0-rc.1.json"
+            or component_attestation.get("sha256") != "ff4d3f68e9af22d5b3cba6b159c609f280b65326e75858e639eb2db3b6d5e173"
         ):
             errors.append("publisher component reuse attestation is not locked")
         if source.get("constraintsCatalog", {}).get("sha256") != "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a":
@@ -135,3 +135,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
