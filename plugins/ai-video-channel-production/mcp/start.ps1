@@ -13,6 +13,13 @@ $pluginManifest = Get-Content -LiteralPath $pluginManifestPath -Raw -Encoding UT
 if ([string]$pluginManifest.name -ne "ai-video-channel-production" -or [string]::IsNullOrWhiteSpace([string]$pluginManifest.version)) {
     throw "The cached plugin identity is invalid. Reinstall the AI Video Channel Production plugin."
 }
+$pluginVersion = [string]$pluginManifest.version
+function Test-AivcpPluginVersionMatchesProduct([string]$PluginVersion, [string]$ProductVersion) {
+    if ($PluginVersion -eq $ProductVersion) { return $true }
+    $prefix = $ProductVersion + "+codex."
+    if (-not $PluginVersion.StartsWith($prefix, [System.StringComparison]::Ordinal)) { return $false }
+    return $PluginVersion.Substring($prefix.Length) -match '^[a-z0-9-]+$'
+}
 
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $utf8NoBom
@@ -32,7 +39,7 @@ if ((Test-Path -LiteralPath $installedStatePath -PathType Leaf) -and (Test-Path 
     if (
         [string]$installedState.schemaVersion -ne "2.0.0" -or
         [string]$installedState.productId -ne "ai-video-channel-production" -or
-        [string]$installedState.productVersion -ne [string]$pluginManifest.version -or
+        ([string]$installedState.productVersion -ne [string]$pluginManifest.version -and -not (Test-AivcpPluginVersionMatchesProduct $pluginVersion ([string]$installedState.productVersion))) -or
         -not [bool]$installedState.runtime.bundled -or
         [string]$installedState.runtime.python -ne "runtime/python/python.exe"
     ) {
@@ -88,7 +95,7 @@ else {
             [string]$state.schemaVersion -ne "2.0.0" -or
             [string]$state.productId -ne "ai-video-channel-production" -or
             [string]$state.productVersion -ne [string]$locator.productVersion -or
-            [string]$pluginManifest.version -ne [string]$locator.productVersion -or
+            ([string]$pluginManifest.version -ne [string]$locator.productVersion -and -not (Test-AivcpPluginVersionMatchesProduct $pluginVersion ([string]$locator.productVersion))) -or
             [string]$state.releaseManifestSha256 -ne [string]$installation.releaseManifestSha256 -or
             -not $locatorDataRoot.Equals($stateDataRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
             -not $installationDataRoot.Equals($stateDataRoot, [System.StringComparison]::OrdinalIgnoreCase) -or

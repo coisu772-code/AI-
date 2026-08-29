@@ -192,6 +192,9 @@ class WorkshopBridge:
         result = self._run_json("get-production-capabilities", ["--no-probe"])
         return {
             "success": True,
+            "soundEffectsUserSelectable": bool(result.get("soundEffectsUserSelectable")),
+            "soundEffectsMayBeDisabled": bool(result.get("soundEffectsMayBeDisabled")),
+            "pureSpeechOpeningSupported": bool(result.get("pureSpeechOpeningSupported")),
             "defaultVoiceEngine": str(result.get("defaultVoiceEngine") or ""),
             "productionLanguage": str(result.get("productionLanguage") or ""),
             "voiceEngines": result.get("voiceEngines") if isinstance(result.get("voiceEngines"), list) else [],
@@ -439,14 +442,15 @@ class WorkshopBridge:
                         if status in _WORKSHOP_OWNER_TERMINAL_STATES:
                             return False
                         if status in {"running", "idle"}:
-                            return True
+                            return process_alive or age_seconds < _WORKSHOP_START_LEASE_SECONDS
                         if status == "paused":
                             return process_alive or age_seconds < _WORKSHOP_PAUSED_OWNER_STALE_SECONDS
                     elif status in {"running", "idle"}:
-                        # A mismatched but running project is never safe to
-                        # supersede.  The Workshop's in-memory owner will
-                        # provide the second, authoritative guard.
-                        return True
+                        # A live Workshop process remains the authoritative
+                        # singleton owner.  A dead process plus an old lease
+                        # must not leave every later production task blocked
+                        # forever by a stale "running" project snapshot.
+                        return process_alive or age_seconds < _WORKSHOP_START_LEASE_SECONDS
         return process_alive or age_seconds < _WORKSHOP_START_LEASE_SECONDS
 
     @staticmethod

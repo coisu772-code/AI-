@@ -152,6 +152,16 @@
     "contractType": {
       "const": "manuscript-package"
     },
+    "id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "version": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/semver" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "hashAlgorithm": { "const": "SHA-256" },
+    "hashRule": { "const": "canonical-json-v1" },
+    "contentHash": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256" },
+    "upstream": {
+      "type": "array",
+      "items": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/contractReference" }
+    },
     "manuscriptPackageId": {
       "type": "string",
       "minLength": 3,
@@ -189,6 +199,9 @@
     "lineCount": {
       "type": "integer",
       "minimum": 1
+    },
+    "soundEffects": {
+      "$ref": "#/$defs/soundEffectsSelection"
     },
     "storyBible": {
       "$ref": "#/$defs/storyBible"
@@ -258,6 +271,30 @@
     }
   },
   "$defs": {
+    "soundEffectsSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "selectionSource",
+        "confirmed"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "selectionSource": {
+          "type": "string",
+          "enum": [
+            "user",
+            "legacy_script_inference"
+          ]
+        },
+        "confirmed": {
+          "const": true
+        }
+      }
+    },
     "storyBible": {
       "type": "object",
       "additionalProperties": false,

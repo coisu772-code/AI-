@@ -15,7 +15,7 @@ from .errors import ToolError
 from .store import ChannelStore
 
 
-CREATIVE_WORKSPACE_VERSION = "1.0.0"
+CREATIVE_WORKSPACE_VERSION = "1.1.0"
 PROMPT_STAGES = frozenset({"analysis", "ideation", "drafting", "review", "packaging", "custom"})
 DOCUMENT_STAGES = frozenset({"input", "research", "analysis", "ideation", "drafting", "review", "final", "packaging", "custom"})
 TEXT_SUFFIXES = frozenset({".txt", ".md", ".json", ".yaml", ".yml", ".prompt"})
@@ -161,12 +161,21 @@ class CreativeWorkspace:
         result["channelBindingStatus"] = "BOUND_FOR_PRODUCTION" if state.get("productionBinding") else "UNBOUND"
         return result
 
-    def start(self, *, task_id: Any, project_id: Any, workspace_id: Any = None) -> dict[str, Any]:
+    def start(
+        self,
+        *,
+        task_id: Any,
+        project_id: Any,
+        workspace_id: Any = None,
+        review_raw_draft: Any = False,
+    ) -> dict[str, Any]:
         task_id = _safe_id(task_id, "taskId")
         project_id = _safe_id(project_id, "projectId")
         if workspace_id is None:
             workspace_id = f"cw_{uuid.uuid4().hex}"
         workspace_id = _safe_id(workspace_id, "workspaceId")
+        if not isinstance(review_raw_draft, bool):
+            raise ToolError("CONTENT_WORKSPACE_REVIEW_POLICY_INVALID", "初稿审核选项必须是布尔值。")
         root = self._workspace_root(workspace_id)
         if root.exists():
             raise ToolError(
@@ -187,6 +196,14 @@ class CreativeWorkspace:
             "channelSerial": None,
             "productionBinding": None,
             "autoUploadAuthorization": None,
+            "manuscriptReviewPolicy": {
+                "schemaVersion": "1.0",
+                "reviewRawDraft": review_raw_draft,
+                "defaultExternalGate": "D4_REWRITE_DRAFT" if review_raw_draft else "D5_FINAL_MANUSCRIPT",
+                "finalTargetManuscriptConfirmationRequired": True,
+                "auditTranslationsAndReportsInformational": True,
+                "selectionSource": "current_task_user" if review_raw_draft else "new_task_default",
+            },
             "prompts": {},
             "documents": {},
             "createdAt": now,
@@ -282,6 +299,7 @@ class CreativeWorkspace:
         content: Any,
         media_type: Any = "text/markdown",
         source_refs: Any = None,
+        confirmation_required: Any = True,
     ) -> dict[str, Any]:
         state = self._assert(task_id=task_id, workspace_id=workspace_id, binding_proof=binding_proof)
         document_id = _safe_id(document_id, "documentId", maximum=128)
@@ -294,6 +312,8 @@ class CreativeWorkspace:
             raise ToolError("CONTENT_WORKSPACE_DOCUMENT_EMPTY", "文档内容不能为空。")
         if media_type not in {"text/plain", "text/markdown", "application/json"}:
             raise ToolError("CONTENT_WORKSPACE_MEDIA_TYPE_INVALID", "自由创作文档只接受文本、Markdown 或 JSON。")
+        if not isinstance(confirmation_required, bool):
+            raise ToolError("CONTENT_WORKSPACE_CONFIRMATION_POLICY_INVALID", "文档确认要求必须是布尔值。")
         source_refs = [] if source_refs is None else source_refs
         if not isinstance(source_refs, list) or any(not isinstance(value, str) or not value.strip() for value in source_refs):
             raise ToolError("CONTENT_WORKSPACE_SOURCE_REF_INVALID", "来源引用必须是字符串数组。")
@@ -316,7 +336,11 @@ class CreativeWorkspace:
             "sizeBytes": target.stat().st_size,
             "sha256": _sha256_file(target),
             "sourceRefs": [value.strip() for value in source_refs],
-            "confirmation": {"confirmed": False, "status": "AWAITING_USER_CONFIRMATION"},
+            "confirmationRequired": confirmation_required,
+            "confirmation": {
+                "confirmed": False,
+                "status": "AWAITING_USER_CONFIRMATION" if confirmation_required else "INFORMATIONAL_NOT_REQUIRED",
+            },
             "createdAt": utc_now(),
         }
         state["documents"][document_id] = record
@@ -340,6 +364,11 @@ class CreativeWorkspace:
         record = state["documents"].get(document_id)
         if not isinstance(record, dict):
             raise ToolError("CONTENT_WORKSPACE_DOCUMENT_NOT_FOUND", "没有找到需要确认的当前文档。")
+        if record.get("confirmationRequired") is False:
+            raise ToolError(
+                "CONTENT_WORKSPACE_DUPLICATE_CONFIRMATION_FORBIDDEN",
+                "该文档仅供查看，不设置重复确认门；请确认最终目标语言正式稿。",
+            )
         if record.get("confirmation", {}).get("status") == "REJECTED_BY_USER":
             raise ToolError(
                 "CONTENT_WORKSPACE_DOCUMENT_REJECTED",
@@ -496,6 +525,32 @@ class CreativeWorkspace:
             raise ToolError(
                 "PRODUCTION_MODE_CONFIRMATION_REQUIRED",
                 "每次开始制作都必须先让用户本次选择：极速自动、平衡或精品导演模式；不得继承旧项目或频道预设。",
+            )
+        video_generation = production_config.get("videoGeneration")
+        prompt_generation = production_config.get("promptGeneration")
+        scene_image_cadence = production_config.get("sceneImageCadence")
+        sound_effects = production_config.get("soundEffects")
+        if (
+            production_config.get("settingsContractVersion") != "2.0"
+            or production_config.get("deliveryMode") not in {"auto_render", "jianying_refine"}
+            or production_config.get("deliveryModeSelectionSource") != "user"
+            or not isinstance(video_generation, dict)
+            or video_generation.get("selectionSource") != "user"
+            or video_generation.get("confirmed") is not True
+            or not isinstance(prompt_generation, dict)
+            or prompt_generation.get("selectionSource") != "user"
+            or prompt_generation.get("confirmed") is not True
+            or not isinstance(scene_image_cadence, dict)
+            or scene_image_cadence.get("selectionSource") != "user"
+            or scene_image_cadence.get("confirmed") is not True
+            or not isinstance(sound_effects, dict)
+            or not isinstance(sound_effects.get("enabled"), bool)
+            or sound_effects.get("selectionSource") != "user"
+            or sound_effects.get("confirmed") is not True
+        ):
+            raise ToolError(
+                "PRODUCTION_USER_SETTINGS_NOT_FROZEN",
+                "新任务必须一次确认并冻结成片方式、纯音效、提示词开关、镜头视频范围和图片覆盖节奏。",
             )
         expected_ref = f"task:{state['taskId']}:start-production:{state['workspaceId']}:{channel_profile_id}"
         if (

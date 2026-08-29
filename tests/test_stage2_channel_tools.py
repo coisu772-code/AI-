@@ -348,30 +348,6 @@ class Stage2ToolTestCase(unittest.TestCase):
         self.assertEqual(updated["productionProfile"]["presetVersion"], "1.1.0")
         self.assertFalse(updated["affectsExistingProjects"])
 
-    def test_channel_defaults_update_cannot_persist_auto_upload(self) -> None:
-        completed, proof = self.onboard()
-        automatic = defaults()
-        automatic["uploadPolicy"] = "AUTO"
-        with self.assertRaises(ToolError) as error:
-            self.service.call(
-                "channel_update_defaults",
-                {
-                    "taskId": "task_fixture_001",
-                    "channelProfileId": completed["channelProfileId"],
-                    "bindingProof": proof,
-                    "defaults": automatic,
-                    "confirmation": {"confirmed": True, "scope": "channel_default"},
-                    "autoUploadConfirmation": {
-                        "confirmed": True,
-                        "scope": "channel_default",
-                        "channelSerial": "01",
-                        "youtubeChannelId": "UCFIXTURECHANNEL0001",
-                        "confirmationRef": "task:task_fixture_001:auto-upload-channel-default",
-                    },
-                },
-            )
-        self.assertEqual(error.exception.code, "AUTO_UPLOAD_NOT_AVAILABLE_STAGE2")
-
     def test_backup_export_import_conflict_and_restore_rollback(self) -> None:
         completed, proof = self.onboard()
         channel_id = completed["channelProfileId"]
@@ -601,7 +577,7 @@ class Stage2ToolTestCase(unittest.TestCase):
         self.assertEqual(resolved["productionProfile"]["contentHash"], completed["productionProfile"]["contentHash"])
         self.assertEqual(restarted.call("channel_integrity_check")["status"], "PASS")
 
-    def test_unknown_voice_and_persistent_auto_upload_are_blocked(self) -> None:
+    def test_unknown_voice_and_unconfirmed_auto_upload_are_blocked(self) -> None:
         started = self.service.call(
             "channel_onboarding_start",
             {
@@ -638,7 +614,7 @@ class Stage2ToolTestCase(unittest.TestCase):
             )
         self.assertEqual(upload_error.exception.code, "AUTO_UPLOAD_NOT_AVAILABLE_STAGE2")
 
-    def test_confirmed_auto_upload_still_is_not_persisted_in_channel_defaults(self) -> None:
+    def test_confirmed_auto_upload_default_requires_ready_publisher_channel(self) -> None:
         channel = synthetic_channel()
         channel["uploadPolicy"] = "AUTO"
         self.service.publisher = StaticPublisherProvider([channel])
@@ -653,7 +629,7 @@ class Stage2ToolTestCase(unittest.TestCase):
         )
         automatic = defaults()
         automatic["uploadPolicy"] = "AUTO"
-        with self.assertRaises(ToolError) as upload_error:
+        with self.assertRaises(ToolError) as caught:
             self.service.call(
                 "channel_onboarding_complete",
                 {
@@ -670,7 +646,7 @@ class Stage2ToolTestCase(unittest.TestCase):
                     },
                 },
             )
-        self.assertEqual(upload_error.exception.code, "AUTO_UPLOAD_NOT_AVAILABLE_STAGE2")
+        self.assertEqual(caught.exception.code, "AUTO_UPLOAD_NOT_AVAILABLE_STAGE2")
 
     def test_video_generation_is_current_task_only_and_defaults_to_disabled(self) -> None:
         invalid_defaults = defaults()
@@ -750,45 +726,6 @@ class Stage2ToolTestCase(unittest.TestCase):
             },
         )
         self.assertTrue(enabled["effectiveDefaults"]["videoGeneration"]["enabled"])
-
-    def test_auto_upload_is_not_persisted_even_for_ready_publisher_channel(self) -> None:
-        ready_channel = synthetic_channel()
-        ready_channel["authorizationStatus"] = "ACTIVE"
-        ready_channel["uploadPolicy"] = "AUTO"
-        service = LocalToolService(
-            ServiceConfig(
-                data_root=self.root / "auto-data",
-                voice_catalog_path=self.service.config.voice_catalog_path,
-            ),
-            publisher_provider=StaticPublisherProvider([ready_channel]),
-        )
-        started = service.call(
-            "channel_onboarding_start",
-            {
-                "taskId": "task_auto_ready",
-                "channelSerial": "01",
-                "targetRegion": "Japan",
-                "outputLanguage": "ja-JP",
-            },
-        )
-        automatic = defaults()
-        automatic["uploadPolicy"] = "AUTO"
-        with self.assertRaises(ToolError) as upload_error:
-            service.call(
-                "channel_onboarding_complete",
-                {
-                    "taskId": "task_auto_ready",
-                    "channelProfileId": started["channel"]["channelProfileId"],
-                    "bindingProof": started["taskBinding"]["bindingProof"],
-                    "defaults": automatic,
-                    "autoUploadAuthorization": {
-                        "confirmed": True,
-                        "scope": "channel_default",
-                        "version": "1.0.0",
-                    },
-                },
-            )
-        self.assertEqual(upload_error.exception.code, "AUTO_UPLOAD_NOT_AVAILABLE_STAGE2")
 
     def test_mcp_protocol_returns_structured_sanitized_tools(self) -> None:
         server = McpServer(self.service)

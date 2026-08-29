@@ -56,6 +56,8 @@ def _normalized_sound_effect_duration(prompt: str, requested: float) -> float:
     minimum, maximum, recommended = _sound_effect_duration_window(prompt)
     value = requested if requested > 0 else recommended
     return round(max(minimum, min(maximum, value)), 1)
+
+
 SCORE_KEYS = (
     "audienceFit",
     "clickPotential",
@@ -525,7 +527,16 @@ class ContentLoop:
                     "available": True,
                     "label": "按当前请求直接成稿",
                     "requiresConfirmedOutline": False,
-                    "firstUserReviewGate": "D4_REWRITE_DRAFT",
+                    "firstUserReviewGate": "D5_FINAL_MANUSCRIPT",
+                    "rawDraftReview": "explicit-user-opt-in-only",
+                    "informationalDocuments": [
+                        "rewrite-draft-target",
+                        "rewrite-draft-zh",
+                        "editorial-review",
+                        "revision-log",
+                        "final-script-zh",
+                        "foreign-language-quality-gate",
+                    ],
                 },
                 "market-original": {"available": True, "label": "目标市场原创"},
                 "channel-library": {"available": True, "label": "频道画像锚定"},
@@ -1555,7 +1566,14 @@ class ContentLoop:
         self._save_state(state)
         return {"package": contract, "packagePath": str(root), "confirmationCard": {"gate": "G3", "confirmed": True}}
 
-    def _validate_lines(self, lines: Any, episode_count: int, *, field: str) -> list[dict[str, Any]]:
+    def _validate_lines(
+        self,
+        lines: Any,
+        episode_count: int,
+        *,
+        field: str,
+        sound_effects_enabled: bool | None = None,
+    ) -> list[dict[str, Any]]:
         if not isinstance(lines, list) or not lines:
             raise ToolError("SCRIPT_LINES_INVALID", f"{field} 必须是非空行数组。")
         seen: set[str] = set()
@@ -1613,11 +1631,34 @@ class ContentLoop:
             per_episode[episode] += 1
             expected_global += 1
             normalized.append(normalized_line)
+        contains_sound_effects = any(line["lineType"] == "sound_effect" for line in normalized)
+        if sound_effects_enabled is False and contains_sound_effects:
+            raise ToolError(
+                "SCRIPT_SOUND_EFFECT_DISABLED",
+                f"{field} 已由用户关闭纯音效，正式稿不能包含 sound_effect 行。",
+            )
+        effective_sound_effects_enabled = contains_sound_effects if sound_effects_enabled is None else sound_effects_enabled
         if set(line["episodeNumber"] for line in normalized) != set(range(1, episode_count + 1)):
             raise ToolError("SCRIPT_EPISODE_MISSING", f"{field} 没有覆盖全部分集。")
         for episode in range(1, episode_count + 1):
-            if not any(line["episodeNumber"] == episode and line["lineType"] in {"narration", "dialogue"} for line in normalized):
+            episode_lines = [line for line in normalized if line["episodeNumber"] == episode]
+            if not any(line["lineType"] in {"narration", "dialogue"} for line in episode_lines):
                 raise ToolError("SCRIPT_EPISODE_SPEECH_MISSING", f"{field} 第 {episode} 集不能只有纯音效。")
+            if effective_sound_effects_enabled and episode_lines[0]["lineType"] != "sound_effect":
+                raise ToolError(
+                    "SCRIPT_EPISODE_OPENING_SOUND_EFFECT_REQUIRED",
+                    f"{field} 已开启纯音效，第 {episode} 集必须以一条符合开场剧情的纯音效开始。",
+                )
+            for position, line in enumerate(episode_lines):
+                if line["lineType"] != "sound_effect" or position == 0:
+                    continue
+                previous = episode_lines[position - 1]
+                if previous["lineType"] not in {"narration", "dialogue"}:
+                    raise ToolError(
+                        "SCRIPT_SOUND_EFFECT_PLACEMENT_INVALID",
+                        f"{field} 的非开场音效必须紧跟在完整旁白或对白之后，不能提前、连放或打断人声。",
+                        details={"episodeNumber": episode, "lineId": line["lineId"]},
+                    )
         return normalized
 
     def save_planning_document(
@@ -1934,6 +1975,7 @@ class ContentLoop:
         foreign_language_quality_gate: Any,
         confirmation: Any,
         authoring_mode: Any = "target-language-native",
+        sound_effects: Any = None,
     ) -> dict[str, Any]:
         self.store.assert_binding(task_id=task_id, channel_profile_id=channel_profile_id, binding_proof=binding_proof)
         project_id = _safe_identifier(project_id, "projectId")
@@ -2020,8 +2062,39 @@ class ContentLoop:
                     "catalogHash": voice["catalogHash"],
                 }
             )
+        if sound_effects is None:
+            inferred_enabled = bool(
+                isinstance(target_script, list)
+                and any(isinstance(line, dict) and line.get("lineType", line.get("type")) == "sound_effect" for line in target_script)
+            )
+            sound_effect_selection = {
+                "enabled": inferred_enabled,
+                "selectionSource": "legacy_script_inference",
+                "confirmed": True,
+            }
+        elif (
+            not isinstance(sound_effects, dict)
+            or not isinstance(sound_effects.get("enabled"), bool)
+            or sound_effects.get("selectionSource") != "user"
+            or sound_effects.get("confirmed") is not True
+        ):
+            raise ToolError(
+                "MANUSCRIPT_SOUND_EFFECT_SELECTION_REQUIRED",
+                "进入制作的正式稿必须记录用户本次是否启用纯音效；不得从频道预设或旧项目继承。",
+            )
+        else:
+            sound_effect_selection = {
+                "enabled": sound_effects["enabled"],
+                "selectionSource": "user",
+                "confirmed": True,
+            }
         episode_count = topic["productionRecommendation"]["episodeCount"]
-        target_lines = self._validate_lines(target_script, episode_count, field="targetScript")
+        target_lines = self._validate_lines(
+            target_script,
+            episode_count,
+            field="targetScript",
+            sound_effects_enabled=sound_effect_selection["enabled"],
+        )
         target_language = topic["audience"]["targetLanguage"]
         if target_language.startswith("zh"):
             if chinese_audit_script not in (None, target_script) and chinese_audit_script != target_script:
@@ -2029,7 +2102,12 @@ class ContentLoop:
             audit_lines = target_lines
             audit_mode = "TARGET_IS_CHINESE"
         else:
-            audit_lines = self._validate_lines(chinese_audit_script, episode_count, field="chineseAuditScript")
+            audit_lines = self._validate_lines(
+                chinese_audit_script,
+                episode_count,
+                field="chineseAuditScript",
+                sound_effects_enabled=sound_effect_selection["enabled"],
+            )
             if len(audit_lines) != len(target_lines):
                 raise ToolError("SCRIPT_MAPPING_MISMATCH", "中文回译与目标语言母稿行数不一致。")
             mapping_keys = ("lineId", "episodeNumber", "sequence", "speakerId", "lineType", "emotion")
@@ -2198,6 +2276,7 @@ class ContentLoop:
                 "targetLanguage": target_language,
                 "episodeCount": episode_count,
                 "lineCount": len(target_lines),
+                "soundEffects": sound_effect_selection,
                 "storyBible": story_contract,
                 "characters": contract_characters,
                 "voices": voices,

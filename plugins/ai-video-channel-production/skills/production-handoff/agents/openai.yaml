@@ -1,7 +1,7 @@
 interface:
   display_name: "制作中心"
-  short_description: "继承口播稿标题，规划剧情画面、情绪镜头与连续性并安全移交工坊"
-  default_prompt: "使用 $production-handoff 保留已确认口播稿标题作为发布标题，生成锁定的故事视觉方案、情绪镜头、连续性和预算内提示词，再移交工坊并在 VIDEO_READY 停止。"
+  short_description: "继承口播稿标题，规划剧情画面并移交工坊验收成片"
+  default_prompt: "Use $production-handoff to keep the confirmed narration title as the publishing title, build the locked story visual plan, emotion framing, continuity, and budgeted prompts, then hand off to the workshop and stop at VIDEO_READY."
 
 policy:
   allow_implicit_invocation: false

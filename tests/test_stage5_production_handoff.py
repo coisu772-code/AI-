@@ -207,22 +207,30 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         self.assertFalse(capabilities["codexVisualPlan"]["speechDurationMaySplitStoryboard"])
         self.assertFalse(capabilities["codexVisualPlan"]["soundEffectStandaloneStoryboard"])
         self.assertTrue(capabilities["audioRouting"]["humanVoiceEngineSelectedByUser"])
+        self.assertTrue(capabilities["audioRouting"]["soundEffectsSelectedByUserEveryProduction"])
+        self.assertTrue(capabilities["audioRouting"]["soundEffectsMayBeDisabled"])
+        self.assertTrue(capabilities["audioRouting"]["soundEffectEngineLoadedOnlyWhenEnabled"])
+        self.assertTrue(capabilities["audioRouting"]["pureSpeechFirstLineAllowedWhenDisabled"])
         self.assertEqual("seed_audio", capabilities["audioRouting"]["soundEffectEngine"])
         self.assertEqual(5.0, capabilities["audioRouting"]["soundEffectMaxDurationSeconds"])
         self.assertFalse(capabilities["codexVisualPlan"]["workshopMayRewriteLockedPrompts"])
         self.assertFalse(capabilities["codexVisualPlan"]["postGenerationVisualAudit"])
+        self.assertEqual("persistent_local_event", capabilities["localProductionQueue"]["dispatchMode"])
+        self.assertFalse(capabilities["localProductionQueue"]["codexHeartbeatDrivesProduction"])
+        self.assertFalse(capabilities["localProductionQueue"]["scheduledRetryDrivesProduction"])
+        self.assertFalse(capabilities["localProductionQueue"]["oldTasksMigrated"])
 
         sound_lines = context.content.service.content._validate_lines(
             [
-                {"lineId": "E01-L001", "episodeNumber": 1, "sequence": 1, "speakerId": "narrator", "lineType": "narration", "emotion": "紧张", "text": "她停在门前。"},
-                {"lineId": "E01-SFX01", "episodeNumber": 1, "sequence": 2, "speakerId": "sfx", "lineType": "sound_effect", "text": "【sound：门锁突然崩断；时长1.2秒】"},
+                {"lineId": "E01-SFX01", "episodeNumber": 1, "sequence": 1, "speakerId": "sfx", "lineType": "sound_effect", "text": "【sound：门锁突然崩断；时长1.2秒】"},
+                {"lineId": "E01-L001", "episodeNumber": 1, "sequence": 2, "speakerId": "narrator", "lineType": "narration", "emotion": "紧张", "text": "她停在门前。"},
             ],
             1,
             field="targetScript",
         )
-        self.assertEqual("seed_audio", sound_lines[1]["audioEngine"])
-        self.assertEqual(1.2, sound_lines[1]["durationSeconds"])
-        self.assertFalse(sound_lines[1]["visualGenerationAllowed"])
+        self.assertEqual("seed_audio", sound_lines[0]["audioEngine"])
+        self.assertEqual(1.2, sound_lines[0]["durationSeconds"])
+        self.assertFalse(sound_lines[0]["visualGenerationAllowed"])
         cheer_lines = context.content.service.content._validate_lines(
             [
                 {"lineId": "E01-SFX01", "episodeNumber": 1, "sequence": 1, "speakerId": "sfx", "lineType": "sound_effect", "text": "【sound：人群突然欢呼；时长1秒】"},
@@ -242,6 +250,38 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
                 ],
                 1,
                 field="targetScript",
+            ),
+        )
+        no_sound_lines = context.content.service.content._validate_lines(
+            [
+                {"lineId": "E01-L001", "episodeNumber": 1, "sequence": 1, "speakerId": "narrator", "lineType": "narration", "emotion": "平静", "text": "彼女は扉を開けた。"},
+            ],
+            1,
+            field="targetScript",
+            sound_effects_enabled=False,
+        )
+        self.assertEqual("narration", no_sound_lines[0]["lineType"])
+        self.assert_tool_error(
+            "SCRIPT_SOUND_EFFECT_DISABLED",
+            lambda: context.content.service.content._validate_lines(
+                [
+                    {"lineId": "E01-SFX01", "episodeNumber": 1, "sequence": 1, "speakerId": "sfx", "lineType": "sound_effect", "text": "【sound：扉が開く音；时长1.2秒】"},
+                    {"lineId": "E01-L001", "episodeNumber": 1, "sequence": 2, "speakerId": "narrator", "lineType": "narration", "emotion": "平静", "text": "彼女は扉を開けた。"},
+                ],
+                1,
+                field="targetScript",
+                sound_effects_enabled=False,
+            ),
+        )
+        self.assert_tool_error(
+            "SCRIPT_EPISODE_OPENING_SOUND_EFFECT_REQUIRED",
+            lambda: context.content.service.content._validate_lines(
+                [
+                    {"lineId": "E01-L001", "episodeNumber": 1, "sequence": 1, "speakerId": "narrator", "lineType": "narration", "emotion": "平静", "text": "彼女は扉を開けた。"},
+                ],
+                1,
+                field="targetScript",
+                sound_effects_enabled=True,
             ),
         )
 
@@ -366,9 +406,19 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         visual_ids = {item["characterId"] for item in visual_characters}
         costume_by_character = {item["characterId"]: f"CST-{index:02d}" for index, item in enumerate(visual_characters, start=1)}
         all_lines = manuscript["targetScript"]["lines"]
+        visual_groups = []
+        pending_sound_lines = []
+        for line in all_lines:
+            if line["lineType"] == "sound_effect":
+                pending_sound_lines.append(line)
+                continue
+            visual_groups.append([*pending_sound_lines, line])
+            pending_sound_lines = []
+        self.assertFalse(pending_sound_lines)
         previous_scene_by_episode: dict[int, str] = {}
         previous_exit_state_by_episode: dict[int, str] = {}
-        for index, line in enumerate(manuscript["targetScript"]["lines"], start=1):
+        for index, visual_group in enumerate(visual_groups, start=1):
+            line = next(item for item in visual_group if item["lineType"] in {"narration", "dialogue"})
             visible = [line["speakerId"]] if line["speakerId"] in visual_ids else []
             beat_id = "BEAT-HOOK" if index == 1 else "BEAT-REL" if index == 2 else "BEAT-CONFLICT"
             narrative_function = "hook" if index == 1 else "relationship" if index == 2 else "conflict"
@@ -386,7 +436,7 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
                     "sequenceId": sequence_id,
                     "shotRole": "climax" if index == 1 else "reaction" if index == 2 else "action",
                     "semanticGroupId": f"VG-E{episode_number:02d}-{index:03d}",
-                    "scriptLineIds": [line["lineId"]],
+                    "scriptLineIds": [item["lineId"] for item in visual_group],
                     "visibleCharacterIds": visible,
                     "appearanceBindings": [
                         {
@@ -542,17 +592,21 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
                     "episodeNumber": scene["episodeNumber"],
                     "sourceLineIds": list(scene["scriptLineIds"]),
                     "visualMomentZh": "该行本身承担一个不可被相邻画面替代的重要视觉结果。",
-                    "decision": "intentional_single",
-                    "reason": "intentional_single_line_impact",
-                    "decisionReasonZh": "测试夹具将该行锁为独立重点画面，不以换行或时长作为理由。",
+                    "decision": "merged" if len(scene["scriptLineIds"]) > 1 else "intentional_single",
+                    "reason": "same_visual_moment" if len(scene["scriptLineIds"]) > 1 else "intentional_single_line_impact",
+                    "decisionReasonZh": (
+                        "开场纯音效与紧随其后的台词发生在同一画面，因此共用分镜。"
+                        if len(scene["scriptLineIds"]) > 1
+                        else "测试夹具将该行锁为独立重点画面，不以换行或时长作为理由。"
+                    ),
                     "boundaryFromPrevious": "episode_start" if not scene["continuityState"]["carryOverFromSceneId"] else "causal_result_change",
                 }
                 for scene in plan["scenePlans"]
             ],
             "storyBeats": [
-                {"beatId": "BEAT-HOOK", "type": "hook", "summaryZh": "首镜建立观看钩子", "sourceLineIds": [all_lines[0]["lineId"]], "sceneIds": [first_scene_id]},
-                {"beatId": "BEAT-REL", "type": "relationship", "summaryZh": "交代人物关系", "sourceLineIds": [all_lines[1]["lineId"]], "sceneIds": [second_scene_id]},
-                {"beatId": "BEAT-CONFLICT", "type": "conflict", "summaryZh": "呈现核心冲突与推进", "sourceLineIds": [line["lineId"] for line in all_lines[2:]] or [all_lines[1]["lineId"]], "sceneIds": remaining_scene_ids},
+                {"beatId": "BEAT-HOOK", "type": "hook", "summaryZh": "首镜建立观看钩子", "sourceLineIds": [line["lineId"] for line in visual_groups[0]], "sceneIds": [first_scene_id]},
+                {"beatId": "BEAT-REL", "type": "relationship", "summaryZh": "交代人物关系", "sourceLineIds": [line["lineId"] for line in visual_groups[1]], "sceneIds": [second_scene_id]},
+                {"beatId": "BEAT-CONFLICT", "type": "conflict", "summaryZh": "呈现核心冲突与推进", "sourceLineIds": [line["lineId"] for group in visual_groups[2:] for line in group] or [line["lineId"] for line in visual_groups[1]], "sceneIds": remaining_scene_ids},
             ],
             "visualSequences": [
                 {
@@ -1073,7 +1127,7 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         context.content.service.production._render_media(
             Path(context.package["packagePath"]) / "confirmed_thumbnail.png",
             export_path,
-            duration_seconds=3.0,
+            duration_seconds=8.0,
             width=640,
             height=360,
             frame_rate=24,
@@ -1161,6 +1215,7 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         self.assertEqual({"image": False, "video": False}, normalized_fast["promptGeneration"])
         self.assertEqual({"image": False, "video": False}, normalized_fast["workshopPromptGeneration"])
         self.assertNotIn("image_prompts", center._workshop_selected_steps(normalized_fast))
+        self.assertEqual("character_images", center._workshop_selected_steps(normalized_fast)[0])
         self.assertNotIn("codexVisualPlan", normalized_fast)
 
         balanced = production_config()
@@ -1170,6 +1225,7 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         self.assertEqual({"image": False, "video": False}, normalized_balanced["promptGeneration"])
         self.assertEqual({"image": True, "video": False}, normalized_balanced["workshopPromptGeneration"])
         self.assertIn("image_prompts", center._workshop_selected_steps(normalized_balanced))
+        self.assertEqual("character_images", center._workshop_selected_steps(normalized_balanced)[0])
         self.assertNotIn("codexVisualPlan", normalized_balanced)
 
         director = production_config()
@@ -1179,6 +1235,7 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         self.assertEqual("director", normalized_director["productionMode"]["id"])
         self.assertEqual({"image": False, "video": False}, normalized_director["workshopPromptGeneration"])
         self.assertIn("image_prompts", center._workshop_selected_steps(normalized_director))
+        self.assertEqual("character_images", center._workshop_selected_steps(normalized_director)[0])
         self.assert_tool_error(
             "PRODUCTION_CODEX_VISUAL_PLAN_REQUIRED",
             lambda: _normalize_codex_visual_plan(
@@ -1189,7 +1246,7 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
             ),
         )
 
-    def test_production_mode_rejects_incompatible_hidden_settings(self) -> None:
+    def test_production_mode_preserves_user_selected_delivery_video_and_prompt_settings(self) -> None:
         center = self.context().content.service.production
         fast_with_prompts = production_config()
         fast_with_prompts["productionMode"] = {
@@ -1198,10 +1255,10 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
             "confirmed": True,
         }
         fast_with_prompts["promptGeneration"] = {"image": True, "video": False}
-        self.assert_tool_error(
-            "PRODUCTION_MODE_PROMPT_CONFLICT",
-            lambda: center._validate_production_config(fast_with_prompts),
-        )
+        fast_with_prompts["deliveryMode"] = "jianying_refine"
+        normalized_fast = center._validate_production_config(fast_with_prompts)
+        self.assertEqual("jianying_refine", normalized_fast["deliveryMode"])
+        self.assertTrue(normalized_fast["workshopPromptGeneration"]["image"])
 
         balanced_with_video = production_config(selection_mode="project_first_n_storyboards", count=1)
         balanced_with_video["productionMode"] = {
@@ -1209,10 +1266,10 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
             "selectionSource": "user",
             "confirmed": True,
         }
-        self.assert_tool_error(
-            "PRODUCTION_MODE_VIDEO_CONFLICT",
-            lambda: center._validate_production_config(balanced_with_video),
-        )
+        balanced_with_video["promptGeneration"] = {"image": False, "video": True}
+        normalized_balanced = center._validate_production_config(balanced_with_video)
+        self.assertTrue(normalized_balanced["videoGeneration"]["enabled"])
+        self.assertTrue(normalized_balanced["workshopPromptGeneration"]["video"])
 
         unconfirmed = production_config()
         unconfirmed["productionMode"] = {
@@ -1224,6 +1281,66 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
             "PRODUCTION_MODE_CONFIRMATION_REQUIRED",
             lambda: center._validate_production_config(unconfirmed),
         )
+
+    def test_new_settings_contract_freezes_all_user_choices_and_cadence(self) -> None:
+        center = self.context().content.service.production
+        config = production_config(selection_mode="project_first_n_storyboards", count=1)
+        config["productionMode"] = {"id": "balanced", "selectionSource": "user", "confirmed": True}
+        config["settingsContractVersion"] = "2.0"
+        config["deliveryMode"] = "jianying_refine"
+        config["deliveryModeSelectionSource"] = "user"
+        config["promptGeneration"] = {"image": True, "video": True, "selectionSource": "user", "confirmed": True}
+        config["videoGeneration"].update({"selectionSource": "user", "confirmed": True})
+        config["sceneImageCadence"] = {
+            "mode": "seconds_range",
+            "minimumSeconds": 8,
+            "maximumSeconds": 15,
+            "selectionSource": "user",
+            "confirmed": True,
+        }
+        normalized = center._validate_production_config(config)
+        self.assertEqual("jianying_refine", normalized["deliveryMode"])
+        self.assertEqual(8.0, normalized["sceneImageCadence"]["minimumSeconds"])
+        self.assertEqual(15.0, normalized["sceneImageCadence"]["maximumSeconds"])
+        broken = dict(config)
+        broken["deliveryModeSelectionSource"] = "default"
+        self.assert_tool_error(
+            "PRODUCTION_USER_SETTINGS_NOT_FROZEN",
+            lambda: center._validate_production_config(broken),
+        )
+
+    def test_user_can_disable_sound_effects_without_seed_audio_fields(self) -> None:
+        center = self.context().content.service.production
+        config = production_config()
+        config["settingsContractVersion"] = "2.0"
+        config["productionMode"] = {"id": "balanced", "selectionSource": "user", "confirmed": True}
+        config["deliveryModeSelectionSource"] = "user"
+        config["promptGeneration"] = {"image": False, "video": False, "selectionSource": "user", "confirmed": True}
+        config["videoGeneration"].update({"selectionSource": "user", "confirmed": True})
+        config["sceneImageCadence"] = {"mode": "semantic_auto", "selectionSource": "user", "confirmed": True}
+        config["soundEffects"] = {
+            "enabled": False,
+            "selectionSource": "user",
+            "confirmed": True,
+            "backgroundMusicEnabled": False,
+        }
+        normalized = center._validate_production_config(config)
+        self.assertFalse(normalized["soundEffects"]["enabled"])
+        self.assertIsNone(normalized["soundEffects"]["engineId"])
+        self.assertIsNone(normalized["soundEffects"]["modelId"])
+        self.assertEqual(0.0, normalized["soundEffects"]["maxDurationSeconds"])
+
+    def test_no_sound_effect_manuscript_assembles_as_pure_speech_package(self) -> None:
+        context = self.context(sound_effects_enabled=False)
+        manuscript_path, _ = self._upstream_paths(context)
+        manuscript = json.loads(manuscript_path.read_text(encoding="utf-8"))
+        self.assertFalse(manuscript["soundEffects"]["enabled"])
+        self.assertTrue(manuscript["targetScript"]["lines"])
+        self.assertTrue(all(line["lineType"] != "sound_effect" for line in manuscript["targetScript"]["lines"]))
+        production_config_path = Path(context.package["packagePath"]) / "production_config.json"
+        packaged_config = json.loads(production_config_path.read_text(encoding="utf-8"))
+        self.assertFalse(packaged_config["soundEffects"]["enabled"])
+        self.assertIsNone(packaged_config["soundEffects"]["engineId"])
 
     def test_failure_matrix_upstream_and_package_hard_gates(self) -> None:
         context = self.context()
@@ -1427,6 +1544,11 @@ class Stage5ProductionHandoffTests(unittest.TestCase):
         bridge.status_value = "not_started"
         missing_once = center.run_task("formal-routing-task")
         missing_twice = center.run_task("formal-routing-task")
+        pending_task = center._load_task("formal-routing-task")
+        pending_task["workshop"]["startupConfirmationStartedAtEpoch"] = (
+            time.time() - 61
+        )
+        center._save_task(pending_task, event="TEST_STARTUP_GRACE_EXPIRED")
         missing_thrice = center.run_task("formal-routing-task")
         self.assertTrue(missing_once["workshopStartConfirmationPending"])
         self.assertTrue(missing_twice["workshopStartConfirmationPending"])

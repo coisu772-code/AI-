@@ -26,6 +26,14 @@ def _runtime_binding_error(message: str) -> ToolError:
     return ToolError("RUNTIME_BINDING_MISMATCH", message)
 
 
+def _plugin_version_matches_product(plugin_version: Any, product_version: str) -> bool:
+    value = str(plugin_version or "")
+    prefix = product_version + "+codex."
+    suffix = value[len(prefix) :] if value.startswith(prefix) else ""
+    allowed = "abcdefghijklmnopqrstuvwxyz0123456789-"
+    return value == product_version or bool(suffix) and all(character in allowed for character in suffix)
+
+
 def _validate_runtime_binding() -> None:
     binding_names = (
         "AIVCP_INSTALL_ROOT",
@@ -105,7 +113,7 @@ def _validate_runtime_binding() -> None:
                 break
     identity_matches = (
         plugin.get("name") == "ai-video-channel-production"
-        and plugin.get("version") == expected_version
+        and (plugin.get("version") == expected_version or _plugin_version_matches_product(plugin.get("version"), expected_version))
         and marker.get("schemaVersion") == "2.0.0"
         and marker.get("productId") == "ai-video-channel-production"
         and marker.get("activeVersion") == expected_version

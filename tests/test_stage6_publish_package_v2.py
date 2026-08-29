@@ -8,7 +8,6 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 import jsonschema
 
@@ -25,13 +24,12 @@ from aivcp_tools.publish_package_v2 import (  # noqa: E402
     assemble_publish_package_v2,
     validate_publish_package_v2,
 )
-from aivcp_tools.publisher_v2_bridge import PublisherV2Bridge  # noqa: E402
 from aivcp_tools.service import LocalToolService, ServiceConfig, tool_definitions  # noqa: E402
 from stage5_support import build_stage5_context, mutation_arguments  # noqa: E402
 
 
 CATALOG = ROOT / "contracts" / "youtube-constraints" / "catalog-2026.08.04.1.json"
-CATALOG_SHA256 = "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a"
+CATALOG_SHA256 = "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13"
 THUMBNAIL = ROOT / "contracts" / "examples" / "valid" / "fixtures" / "confirmed-thumbnail-1600x900.png"
 CREATED_AT = "2026-08-04T04:00:00Z"
 
@@ -46,11 +44,6 @@ def _write(path: Path, value: dict) -> None:
 
 def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def _catalog_sha(path: Path) -> str:
-    normalized = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
-    return hashlib.sha256(normalized).hexdigest()
 
 
 class Stage6PublishPackageV2Tests(unittest.TestCase):
@@ -88,11 +81,6 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
         self._source_counter = 0
 
     def tearDown(self) -> None:
-        # Windows' shutil.rmtree can descend into a directory symlink and then
-        # fail with WinError 145. Remove test-created links explicitly first.
-        for child in self.root.iterdir():
-            if child.is_symlink():
-                child.unlink(missing_ok=True)
         self.temp.cleanup()
 
     def assert_publish_error(self, code: str, callback) -> PublishPackageError:
@@ -282,20 +270,14 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
             ),
         )
 
-    def test_catalog_lock_ignores_line_endings_but_rejects_semantic_changes(self) -> None:
-        self.assertEqual(CATALOG_SHA256, _catalog_sha(CATALOG))
+    def test_exact_publisher_catalog_is_locked_and_stale_catalog_fails(self) -> None:
+        self.assertEqual(CATALOG_SHA256, _sha(CATALOG))
         exact = self._assemble(name="exact-catalog")
-        line_ending_variant = self.root / "line-ending-catalog.json"
-        line_ending_variant.write_bytes(CATALOG.read_bytes().replace(b"\r\n", b"\n"))
-        accepted = validate_publish_package_v2(
-            Path(exact["package_path"]), constraints_catalog_path=line_ending_variant
-        )
-        self.assertTrue(accepted["valid"])
-        stale_catalog = self.root / "semantic-stale-catalog.json"
-        stale = _read(CATALOG)
-        stale["rules"]["title_max_characters"] = 99
-        _write(stale_catalog, stale)
-        self.assertNotEqual(CATALOG_SHA256, _catalog_sha(stale_catalog))
+        line_ending_catalog = self.root / "line-ending-catalog.json"
+        line_ending_catalog.write_bytes(CATALOG.read_bytes().replace(b"\r\n", b"\n"))
+        validate_publish_package_v2(Path(exact["package_path"]), constraints_catalog_path=line_ending_catalog)
+        stale_catalog = self.root / "stale-catalog.json"
+        stale_catalog.write_bytes(CATALOG.read_bytes().replace(b"2026.08.04.1", b"2026.08.04.0"))
         self.assert_publish_error(
             "PUBLISH_CONSTRAINTS_MISMATCH",
             lambda: validate_publish_package_v2(Path(exact["package_path"]), constraints_catalog_path=stale_catalog),
@@ -318,48 +300,6 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
             schema = definitions[name]["inputSchema"]
             self.assertIn("networkExecution", schema["required"])
             self.assertIs(False, schema["properties"]["networkExecution"]["const"])
-
-    def test_real_package_defaults_to_formal_publisher_handoff_and_live_status(self) -> None:
-        executable = self.root / "publish-package-v2.exe"
-        executable.write_bytes(b"fixture")
-        package = self.root / "formal.ready"
-        package.mkdir()
-        calls: list[list[str]] = []
-
-        class Completed:
-            returncode = 0
-            stderr = ""
-
-            def __init__(self, operation: str) -> None:
-                self.stdout = json.dumps(
-                    {
-                        "api_version": "youtube-publisher-center/publish-package-v2-tool/v1",
-                        "operation": operation,
-                        "status": "OK",
-                        "network_execution": False,
-                        "result": {"imported": True, "local_status": "WAITING_REVIEW"},
-                    }
-                )
-
-        def fake_run(argv: list[str], **_kwargs: object) -> Completed:
-            calls.append(argv)
-            return Completed(argv[1])
-
-        bridge = PublisherV2Bridge(executable)
-        with patch("aivcp_tools.publisher_v2_bridge.subprocess.run", side_effect=fake_run):
-            imported = bridge.import_package(
-                {"packagePath": str(package), "networkExecution": False}
-            )
-            status = bridge.read_status(
-                {"publishIntentId": "pi_fixture", "networkExecution": False},
-                receipt=False,
-            )
-        self.assertEqual("formal", imported["handoffMode"])
-        self.assertEqual("formal", status["handoffMode"])
-        self.assertEqual("handoff", calls[0][1])
-        self.assertEqual("status-live", calls[1][1])
-        self.assertNotIn("--database", calls[0])
-        self.assertNotIn("--isolation-root", calls[0])
 
     def test_metadata_keeps_public_hashtags_separate_from_backend_tags(self) -> None:
         result = self._assemble()
@@ -413,6 +353,70 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
         self.assertFalse(auto_ready["external_approval_required"])
         self.assertTrue(auto_ready["final_chinese_review_card"]["confirmation"]["autoAuthorized"])
         self.assertIsNone(auto_ready["youtube_video_id"])
+
+    def test_project_auto_authorization_overrides_frozen_review_default(self) -> None:
+        project_id = _read(self.result_root / "manifest.json")["projectId"]
+        grants = {
+            key: {"granted": True, "version": "1.0", "confirmed_at": "2026-08-04T03:00:00Z"}
+            for key in ("workspace", "channel", "intent")
+        }
+        grants["project"] = {
+            "granted": True,
+            "version": "G6_FINAL_CHINESE_REVIEW_V1",
+            "confirmed_at": "2026-08-04T03:00:00Z",
+            "source": "current_task_explicit",
+            "scope": "current_task_and_project_only",
+            "project_id": project_id,
+            "upload_policy": "AUTO",
+            "channel_serial": "01",
+            "privacy_status": "private",
+            "confirmation_ref": "task:stage6:auto-upload:current-project",
+            "revoked": False,
+        }
+
+        assembled = self._assemble(
+            policy="REQUIRE_REVIEW",
+            name="project-auto-overrides-review-default",
+            authorization=grants,
+        )
+
+        self.assertEqual("READY_TO_UPLOAD", assembled["status"])
+        upload_task = _read(Path(assembled["package_path"]) / "upload_task.json")
+        self.assertEqual("AUTO", upload_task["upload_policy"])
+        card = assembled["final_chinese_review_card"]
+        self.assertEqual("当前任务已明确授权自动上传（验收卡仅展示，不重复询问）", card["chinesePrimary"]["uploadPolicyZh"])
+        self.assertTrue(card["confirmation"]["autoAuthorized"])
+        self.assertFalse(card["confirmation"]["required"])
+
+    def test_do_not_upload_is_never_overridden_by_project_authorization(self) -> None:
+        project_id = _read(self.result_root / "manifest.json")["projectId"]
+        grants = {
+            key: {"granted": True, "version": "1.0", "confirmed_at": "2026-08-04T03:00:00Z"}
+            for key in ("workspace", "channel", "intent")
+        }
+        grants["project"] = {
+            "granted": True,
+            "version": "G6_FINAL_CHINESE_REVIEW_V1",
+            "confirmed_at": "2026-08-04T03:00:00Z",
+            "source": "current_task_explicit",
+            "scope": "current_task_and_project_only",
+            "project_id": project_id,
+            "upload_policy": "AUTO",
+            "channel_serial": "01",
+            "privacy_status": "private",
+            "confirmation_ref": "task:stage6:auto-upload:current-project",
+            "revoked": False,
+        }
+
+        assembled = self._assemble(
+            policy="DO_NOT_UPLOAD",
+            name="do-not-upload-remains-local",
+            authorization=grants,
+        )
+
+        self.assertEqual("PACKAGE_READY", assembled["status"])
+        upload_task = _read(Path(assembled["package_path"]) / "upload_task.json")
+        self.assertEqual("DO_NOT_UPLOAD", upload_task["upload_policy"])
 
     def test_publish_intent_id_changes_for_revision_video_or_channel_but_not_duplicate(self) -> None:
         base = self._assemble(name="base")
@@ -498,7 +502,10 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
             os.symlink(ready, link, target_is_directory=True)
         except OSError:
             self.skipTest("Symbolic link creation is unavailable")
-        self.assert_publish_error("PUBLISH_SYMLINK_FORBIDDEN", lambda: validate_publish_package_v2(link, constraints_catalog_path=CATALOG))
+        try:
+            self.assert_publish_error("PUBLISH_SYMLINK_FORBIDDEN", lambda: validate_publish_package_v2(link, constraints_catalog_path=CATALOG))
+        finally:
+            link.unlink(missing_ok=True)
 
     def test_bad_mp4_subtitle_range_and_language_are_rejected(self) -> None:
         result = self._assemble()

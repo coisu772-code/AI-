@@ -44,6 +44,18 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
         self.assertEqual("./plugins/ai-video-channel-production", marketplace["plugins"][0]["source"]["path"])
         self.assertFalse((ROOT / ".codex/plugins/marketplace.json").exists())
 
+    def test_local_codex_cachebuster_preserves_product_identity(self) -> None:
+        mcp_root = ROOT / "plugins" / "ai-video-channel-production" / "mcp"
+        sys.path.insert(0, str(mcp_root))
+        try:
+            from server import _plugin_version_matches_product
+        finally:
+            sys.path.remove(str(mcp_root))
+        self.assertTrue(_plugin_version_matches_product("0.12.0-rc.4", "0.12.0-rc.4"))
+        self.assertTrue(_plugin_version_matches_product("0.12.0-rc.4+codex.20260828165549", "0.12.0-rc.4"))
+        self.assertFalse(_plugin_version_matches_product("0.12.0-rc.4+other.20260828", "0.12.0-rc.4"))
+        self.assertFalse(_plugin_version_matches_product("0.11.0+codex.20260828", "0.12.0-rc.4"))
+
     def test_total_manifest_has_all_components_hashes_licenses_and_gates(self) -> None:
         manifest = self.manifest()
         assets = {asset["assetId"]: asset for asset in manifest["assets"]}

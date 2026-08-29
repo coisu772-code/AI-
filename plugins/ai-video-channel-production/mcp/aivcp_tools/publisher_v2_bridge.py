@@ -40,8 +40,9 @@ def _within(root: Path, target: Path, *, field: str) -> None:
 class PublisherV2Bridge:
     """Local adapter for isolated validation and approved formal publisher handoff."""
 
-    def __init__(self, executable: Path):
+    def __init__(self, executable: Path, desktop_executable: Path | None = None):
         self.executable = executable
+        self.desktop_executable = desktop_executable
 
     @classmethod
     def from_arguments(cls, arguments: dict[str, Any]) -> "PublisherV2Bridge":
@@ -49,7 +50,41 @@ class PublisherV2Bridge:
         executable = _path(configured, field="publisherCliPath", file=True)
         if executable.name.lower() != "publish-package-v2.exe":
             raise ToolError("PUBLISHER_CLI_IDENTITY_INVALID", "只允许使用隔离构建 publish-package-v2.exe。")
-        return cls(executable)
+        desktop_value = arguments.get("publisherDesktopPath") or os.environ.get("AIVCP_PUBLISHER_DESKTOP_EXE")
+        desktop_executable = None
+        if desktop_value:
+            desktop_executable = _path(desktop_value, field="publisherDesktopPath", file=True)
+            if desktop_executable.name.lower() != "youtube-publisher-center.exe":
+                raise ToolError("PUBLISHER_DESKTOP_IDENTITY_INVALID", "发布执行程序必须是 youtube-publisher-center.exe。")
+        return cls(executable, desktop_executable)
+
+    def _ensure_publisher_running(self) -> dict[str, Any]:
+        if self.desktop_executable is None:
+            return {"configured": False, "started": False}
+        flags = 0
+        if os.name == "nt":
+            flags = (
+                getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                | getattr(subprocess, "DETACHED_PROCESS", 0)
+                | getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            )
+        try:
+            process = subprocess.Popen(
+                [str(self.desktop_executable)],
+                cwd=str(self.desktop_executable.parent),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                shell=False,
+                creationflags=flags,
+                start_new_session=os.name != "nt",
+            )
+        except OSError as exc:
+            raise ToolError(
+                "PUBLISHER_DESKTOP_START_FAILED",
+                "发布包已交接，但本地 YouTube 发布中心未能自动启动。",
+            ) from exc
+        return {"configured": True, "started": True, "pid": process.pid}
 
     @staticmethod
     def assert_offline(arguments: dict[str, Any]) -> None:
@@ -128,8 +163,10 @@ class PublisherV2Bridge:
             if data_dir:
                 command.extend(["--data-dir", str(_path(data_dir, field="publisherDataDir", file=False))])
             payload = self._run("handoff", command, timeout=180)
+            publisher_process = self._ensure_publisher_running()
             return {
                 "publisher": payload,
+                "publisherProcess": publisher_process,
                 "handoffMode": "formal",
                 "networkExecution": False,
                 "uploadExecutionOwner": "youtube-publisher-center-desktop",
@@ -244,7 +281,8 @@ class PublisherV2Bridge:
         if publisher_data_path:
             command.extend(["--data-dir", str(_path(publisher_data_path, field="publisherDataPath", file=False))])
         payload = self._run("handoff", command, timeout=120)
-        return {"publisher": payload, "networkExecution": False}
+        publisher_process = self._ensure_publisher_running()
+        return {"publisher": payload, "publisherProcess": publisher_process, "networkExecution": False}
 
     def read_live_status(self, arguments: dict[str, Any], *, receipt: bool) -> dict[str, Any]:
         self.assert_offline(arguments)

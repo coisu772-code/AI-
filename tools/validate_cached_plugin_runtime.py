@@ -115,16 +115,8 @@ def main() -> int:
         "AIVCP_FFPROBE_PATH": str((active_root / "apps/workshop/tools/ffmpeg/bin/ffprobe.exe").resolve()),
         "AIVCP_PUBLISHER_CHANNEL_LIST_EXE": str((active_root / "apps/publisher/channel-list.exe").resolve()),
         "AIVCP_PUBLISHER_V2_CLI": str((active_root / "apps/publisher/publish-package-v2.exe").resolve()),
+        "AIVCP_PUBLISHER_DESKTOP_EXE": str((active_root / "apps/publisher/youtube-publisher-center.exe").resolve()),
         "AIVCP_VOICE_CATALOG": str((active_root / "plugins/ai-video-channel-production/assets/voice-catalog.json").resolve()),
-        "AIVCP_YT_DLP_COMMAND_JSON": json.dumps([
-            str(runtime_python),
-            "-m",
-            "yt_dlp",
-            "--js-runtimes",
-            "deno:" + str((active_root / "runtime/python/tools/deno.exe").resolve()),
-            "--ffmpeg-location",
-            str((active_root / "apps/workshop/tools/ffmpeg/bin").resolve()),
-        ], ensure_ascii=False, separators=(",", ":")),
         "AIVCP_PUBLISHER_TIMEOUT_SECONDS": "8",
         "AIVCP_NETWORK_EXECUTION": "false",
         "AIVCP_PUBLISHER_NETWORK_EXECUTION": "false",
@@ -166,7 +158,7 @@ def main() -> int:
     environment["LOCALAPPDATA"] = str(local_app_data)
     environment["PATH"] = target_path
     environment["AIVCP_NETWORK_EXECUTION"] = "false"
-    for name in ("AIVCP_PYTHON", "AIVCP_DATA_ROOT", "AIVCP_CONFIG_ROOT", "AIVCP_INSTALL_ROOT", "AIVCP_EXPECTED_PRODUCT_VERSION", "AIVCP_EXPECTED_RELEASE_MANIFEST_SHA256", "AIVCP_WORKSHOP_EXECUTABLE", "AIVCP_WORKSHOP_ISOLATION_ROOT", "AIVCP_FFMPEG_PATH", "AIVCP_FFPROBE_PATH", "AIVCP_PUBLISHER_CHANNEL_LIST_EXE", "AIVCP_PUBLISHER_V2_CLI", "AIVCP_VOICE_CATALOG", "AIVCP_YT_DLP_COMMAND_JSON", "AIVCP_RUNTIME_LOCATOR", "UV", "PYTHONHOME"):
+    for name in ("AIVCP_PYTHON", "AIVCP_DATA_ROOT", "AIVCP_CONFIG_ROOT", "AIVCP_INSTALL_ROOT", "AIVCP_EXPECTED_PRODUCT_VERSION", "AIVCP_EXPECTED_RELEASE_MANIFEST_SHA256", "AIVCP_WORKSHOP_EXECUTABLE", "AIVCP_WORKSHOP_ISOLATION_ROOT", "AIVCP_FFMPEG_PATH", "AIVCP_FFPROBE_PATH", "AIVCP_PUBLISHER_CHANNEL_LIST_EXE", "AIVCP_PUBLISHER_V2_CLI", "AIVCP_PUBLISHER_DESKTOP_EXE", "AIVCP_VOICE_CATALOG", "AIVCP_RUNTIME_LOCATOR", "UV", "PYTHONHOME"):
         environment.pop(name, None)
     environment.update(expected_environment)
     python_visible = shutil.which("python", path=target_path)
@@ -248,21 +240,22 @@ def main() -> int:
             component_integration["voiceCatalogAvailable"] = True
         if tool_name == "content_capabilities":
             direct_draft = result.get("routes", {}).get("direct-draft", {})
-            workspace_routes = result.get("creativeWorkspace", {}).get("draftingRoutes", [])
+            informational = set(direct_draft.get("informationalDocuments", []))
             if (
-                direct_draft.get("available") is not True
-                or direct_draft.get("requiresConfirmedOutline") is not False
-                or direct_draft.get("firstUserReviewGate") != "D4_REWRITE_DRAFT"
-                or "direct-draft" not in workspace_routes
-                or "provided-outline" not in workspace_routes
+                direct_draft.get("firstUserReviewGate") != "D5_FINAL_MANUSCRIPT"
+                or direct_draft.get("rawDraftReview") != "explicit-user-opt-in-only"
+                or not {"rewrite-draft-target", "rewrite-draft-zh", "editorial-review", "revision-log", "final-script-zh"}.issubset(informational)
             ):
-                raise SystemExit("Cached plugin did not expose the direct-draft route without a forced outline gate.")
-            component_integration["directDraftWithoutOutlineGate"] = True
+                raise SystemExit("Cached plugin still exposes duplicate manuscript confirmation gates.")
+            component_integration["singleManuscriptConfirmationGate"] = "D5_FINAL_MANUSCRIPT"
+            component_integration["rawDraftReviewOptInOnly"] = True
         if tool_name == "production_capabilities":
             workshop_health = result.get("workshopHealth", {})
             workshop_capabilities = result.get("workshopCapabilities", {})
             codex_visual_plan = result.get("codexVisualPlan", {})
             audio_routing = result.get("audioRouting", {})
+            production_modes = result.get("productionModes", {})
+            production_queue = result.get("localProductionQueue", {})
             voice_catalog = json.loads(Path(expected_environment["AIVCP_VOICE_CATALOG"]).read_text(encoding="utf-8-sig"))
             covered_voice_engines = {
                 str(item.get("engineId"))
@@ -285,7 +278,10 @@ def main() -> int:
                 or workshop_health.get("ffprobePathSet") is not True
                 or workshop_health.get("imageMotionContract") != "strong_multidirectional_balanced_motion_v9"
                 or workshop_health.get("appearanceStageContract") != "person_appearance_life_age_reference_policy_v1"
-                or workshop_health.get("soundEffectContract") != "category_duration_active_audio_envelope_retry_v1"
+                or workshop_health.get("soundEffectContract") != "user_optional_category_duration_active_audio_envelope_retry_v2"
+                or workshop_capabilities.get("soundEffectsUserSelectable") is not True
+                or workshop_capabilities.get("soundEffectsMayBeDisabled") is not True
+                or workshop_capabilities.get("pureSpeechOpeningSupported") is not True
                 or "2.1" not in workshop_capabilities.get("supportedPackageVersions", [])
                 or "1.5" not in workshop_capabilities.get("supportedCodexVisualPlanSchemas", [])
                 or workshop_capabilities.get("externalServiceProbeExecuted") is not False
@@ -294,6 +290,18 @@ def main() -> int:
                 or audio_routing.get("soundEffectCategoryDurationWindows") is not True
                 or audio_routing.get("soundEffectActiveAudioGate") is not True
                 or audio_routing.get("soundEffectIncompleteAutoRetry") is not True
+                or production_modes.get("modeOnlySelectsPromptAuthorAndRecommendedDefaults") is not True
+                or production_modes.get("deliveryModeAlwaysUserSelectable") is not True
+                or production_modes.get("shotVideoAlwaysUserSelectable") is not True
+                or production_modes.get("sceneImageCadenceAlwaysUserSelectable") is not True
+                or any(set(item.get("deliveryModes", [])) != {"auto_render", "jianying_refine"} for item in production_modes.get("items", []))
+                or any(item.get("shotVideo") != "explicit_scope_only" for item in production_modes.get("items", []))
+                or set(result.get("sceneImageCadenceModes", [])) != {"semantic_auto", "seconds_range", "line_level", "custom"}
+                or production_queue.get("schemaVersion") != "2.0"
+                or production_queue.get("dispatchMode") != "persistent_local_event"
+                or production_queue.get("codexHeartbeatDrivesProduction") is not False
+                or production_queue.get("scheduledRetryDrivesProduction") is not False
+                or production_queue.get("oldTasksMigrated") is not False
                 or codex_visual_plan.get("logicalPersonAppearanceStages") is not True
                 or codex_visual_plan.get("sceneAppearanceBindingRequired") is not True
                 or codex_visual_plan.get("textOnlyChildAppearanceAllowed") is not True
@@ -351,9 +359,18 @@ def main() -> int:
             component_integration["imageMotionContract"] = workshop_health["imageMotionContract"]
             component_integration["appearanceStageContract"] = workshop_health["appearanceStageContract"]
             component_integration["soundEffectContract"] = workshop_health["soundEffectContract"]
+            component_integration["soundEffectsUserSelectable"] = True
+            component_integration["soundEffectsMayBeDisabled"] = True
+            component_integration["pureSpeechOpeningSupported"] = True
             component_integration["soundEffectCategoryDurationWindows"] = True
             component_integration["soundEffectActiveAudioGate"] = True
             component_integration["soundEffectIncompleteAutoRetry"] = True
+            component_integration["productionModesPreserveUserChoices"] = True
+            component_integration["sceneImageCadenceUserSelectable"] = True
+            component_integration["persistentLocalEventQueue"] = True
+            component_integration["codexHeartbeatDrivesProduction"] = False
+            component_integration["scheduledRetryDrivesProduction"] = False
+            component_integration["oldTasksMigrated"] = False
             component_integration["appearanceStageBinding"] = True
             component_integration["textOnlyChildAppearance"] = True
             component_integration["autoRenderMotion"] = codex_visual_plan["autoRenderMotion"]

@@ -107,6 +107,9 @@ class WorkshopBridgeTests(unittest.TestCase):
                 argv,
                 {
                     "success": True,
+                    "soundEffectsUserSelectable": True,
+                    "soundEffectsMayBeDisabled": True,
+                    "pureSpeechOpeningSupported": True,
                     "voiceEngines": [{"engine": "fixture", "available": False}],
                     "supportedPackageVersions": ["2.1"],
                     "supportedCodexVisualPlanSchemas": ["1.3", "1.4", "1.5"],
@@ -116,6 +119,9 @@ class WorkshopBridgeTests(unittest.TestCase):
         with patch("aivcp_tools.workshop_bridge.subprocess.run", side_effect=fake_run):
             result = self.bridge.capabilities()
         self.assertFalse(result["externalServiceProbeExecuted"])
+        self.assertTrue(result["soundEffectsUserSelectable"])
+        self.assertTrue(result["soundEffectsMayBeDisabled"])
+        self.assertTrue(result["pureSpeechOpeningSupported"])
         self.assertEqual(["2.1"], result["supportedPackageVersions"])
         self.assertEqual(["1.3", "1.4", "1.5"], result["supportedCodexVisualPlanSchemas"])
 
@@ -480,6 +486,62 @@ class WorkshopBridgeTests(unittest.TestCase):
                 expected_project_id="next-project",
             )
         self.assertEqual("next-request", started["requestId"])
+        self.assertEqual(1, popen.call_count)
+
+    def test_stale_running_snapshot_with_dead_process_is_recovered(self) -> None:
+        stale = self.isolation / "stale-running-project" / "novel_manga_project.json"
+        next_project = self.isolation / "next-project" / "novel_manga_project.json"
+        stale.parent.mkdir(parents=True)
+        next_project.parent.mkdir(parents=True)
+        stale.write_text(
+            json.dumps(
+                {
+                    "id": "stale-running-project",
+                    "importMeta": self._official_import_meta(),
+                    "autoProductionTask": {
+                        "externalRequestId": "stale-running-request",
+                        "status": "running",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        next_project.write_text(
+            json.dumps({"id": "next-project", "importMeta": self._official_import_meta()}),
+            encoding="utf-8",
+        )
+        lease_path = self.bridge._start_lease_path(stale)
+        lease_path.write_text(
+            json.dumps(
+                {
+                    "requestId": "stale-running-request",
+                    "projectId": "stale-running-project",
+                    "projectPath": str(stale),
+                    "processId": 0,
+                    "createdAtEpoch": time.time() - 3600,
+                    "updatedAtEpoch": time.time() - 3600,
+                    "status": "accepted",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        def fake_popen(argv: list[str], **_kwargs: object) -> _RunningProcess:
+            result_path = Path(argv[argv.index("--result-file") + 1])
+            result_path.write_text(
+                json.dumps({"success": True, "processId": 4242, "forwarded": True, "status": "accepted"}),
+                encoding="utf-8",
+            )
+            return _RunningProcess()
+
+        with patch("aivcp_tools.workshop_bridge.subprocess.Popen", side_effect=fake_popen) as popen:
+            started = self.bridge.start_production(
+                next_project,
+                selected_step_ids=["audio"],
+                request_id="next-request-after-stale-running",
+                expected_project_id="next-project",
+            )
+        self.assertEqual("next-request-after-stale-running", started["requestId"])
         self.assertEqual(1, popen.call_count)
 
     def test_production_status_is_read_only(self) -> None:

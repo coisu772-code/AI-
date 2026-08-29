@@ -30,6 +30,7 @@ def production_config(
     selection_mode: str = "none",
     count: int | None = None,
     fallback_policy: str = "pause",
+    sound_effects_enabled: bool = True,
 ) -> dict[str, Any]:
     video = {
         "enabled": selection_mode != "none",
@@ -56,13 +57,15 @@ def production_config(
             "lockScope": "current_project",
         },
         "soundEffects": {
-            "enabled": False,
-            "engineId": "seed_audio",
-            "modelId": "seed-audio-1.0",
-            "requireExplicitDuration": True,
-            "maxDurationSeconds": 5.0,
+            "enabled": sound_effects_enabled,
+            "selectionSource": "user",
+            "confirmed": True,
+            "engineId": "seed_audio" if sound_effects_enabled else None,
+            "modelId": "seed-audio-1.0" if sound_effects_enabled else None,
+            "requireExplicitDuration": sound_effects_enabled,
+            "maxDurationSeconds": 5.0 if sound_effects_enabled else 0.0,
             "standaloneStoryboard": False,
-            "mixWithAdjacentSpeech": True,
+            "mixWithAdjacentSpeech": sound_effects_enabled,
             "backgroundMusicEnabled": False,
         },
         "videoGeneration": video,
@@ -85,6 +88,7 @@ def build_stage5_context(
     count: int | None = None,
     fallback_policy: str = "pause",
     omit_optional_publishing_assets: bool = False,
+    sound_effects_enabled: bool = True,
 ) -> Stage5Context:
     content = start_topic_context(
         root,
@@ -95,7 +99,7 @@ def build_stage5_context(
     )
     if omit_optional_publishing_assets:
         finalize_topic(content)
-        finalize_manuscript(content)
+        finalize_manuscript(content, sound_effects_enabled=sound_effects_enabled)
         content.service.call(
             "content_publishing_finalize",
             {
@@ -116,12 +120,13 @@ def build_stage5_context(
             },
         )
     else:
-        build_complete_pipeline(content, thumbnail_path)
+        build_complete_pipeline(content, thumbnail_path, sound_effects_enabled=sound_effects_enabled)
     config = production_config(
         delivery_mode=delivery_mode,
         selection_mode=selection_mode,
         count=count,
         fallback_policy=fallback_policy,
+        sound_effects_enabled=sound_effects_enabled,
     )
     assembled = content.service.call(
         "production_package_assemble",

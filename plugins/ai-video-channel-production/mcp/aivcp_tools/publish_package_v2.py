@@ -155,9 +155,10 @@ def _final_chinese_review_card(
     technical_report: dict[str, Any],
     technical_report_sha256: str,
     auto_upload_authorized: bool,
+    effective_upload_policy: str | None = None,
 ) -> dict[str, Any]:
     review = _validate_chinese_review(publishing)
-    policy = publishing["uploadPolicy"]
+    policy = effective_upload_policy or publishing["uploadPolicy"]
     privacy = publishing["privacyStatus"]
     media_integrity = technical_report.get("mediaIntegrity")
     if not isinstance(media_integrity, dict):
@@ -532,11 +533,12 @@ def _load_catalog(path: Path) -> tuple[dict[str, Any], str]:
     rules = catalog.get("rules")
     if not isinstance(rules, dict):
         raise PublishPackageError("PUBLISH_CONSTRAINTS_INVALID", "Constraints catalog rules are missing")
-    # Git may materialize the same JSON contract with CRLF or LF on different
-    # machines.  Hash normalized text bytes so checkout policy cannot break the
-    # publisher compatibility lock while semantic content remains unchanged.
+    # The frozen cross-repository contract uses the Windows CRLF serialization.
+    # Reconstruct those bytes so Git checkout policy cannot change the catalog
+    # identity expected by the publisher executable.
     normalized = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
-    return catalog, _sha256_bytes(normalized)
+    canonical = normalized.replace(b"\n", b"\r\n")
+    return catalog, _sha256_bytes(canonical)
 
 
 def _parse_iso(value: str, *, timezone: ZoneInfo | None = None) -> datetime:
@@ -766,22 +768,39 @@ def _grant_valid(value: Any, now: datetime) -> bool:
     return confirmed <= now
 
 
-def _project_auto_grant_valid(value: Any, now: datetime, upload_task: dict[str, Any]) -> bool:
+def _project_auto_grant_matches_context(
+    value: Any,
+    now: datetime,
+    *,
+    project_id: Any,
+    channel_serial: Any,
+    privacy_status: Any,
+) -> bool:
     if not _grant_valid(value, now):
         return False
     expected = {
         "source": "current_task_explicit",
         "scope": "current_task_and_project_only",
-        "project_id": upload_task.get("project_id"),
+        "project_id": project_id,
         "upload_policy": "AUTO",
-        "channel_serial": upload_task.get("channel_serial"),
-        "privacy_status": upload_task.get("privacy_status"),
+        "channel_serial": channel_serial,
+        "privacy_status": privacy_status,
         "revoked": False,
     }
     if any(value.get(key) != expected_value for key, expected_value in expected.items()):
         return False
     confirmation_ref = value.get("confirmation_ref")
     return isinstance(confirmation_ref, str) and confirmation_ref.startswith("task:") and ":auto-upload:" in confirmation_ref
+
+
+def _project_auto_grant_valid(value: Any, now: datetime, upload_task: dict[str, Any]) -> bool:
+    return upload_task.get("upload_policy") == "AUTO" and _project_auto_grant_matches_context(
+        value,
+        now,
+        project_id=upload_task.get("project_id"),
+        channel_serial=upload_task.get("channel_serial"),
+        privacy_status=upload_task.get("privacy_status"),
+    )
 
 
 def _determine_status(upload_task: dict[str, Any], *, now: datetime) -> tuple[str, list[str], bool]:
@@ -880,7 +899,10 @@ def _publish_intent_id(sources: PackageSources, channel_profile: dict[str, Any])
 def _copy_asset(source: Path, destination: Path) -> None:
     if source.is_symlink():
         raise PublishPackageError("PUBLISH_SYMLINK_FORBIDDEN", f"Cannot copy symbolic link: {source.name}")
-    shutil.copyfile(source, destination)
+    try:
+        os.link(source, destination)
+    except OSError:
+        shutil.copyfile(source, destination)
 
 
 def _file_entry(path: Path, root: Path, *, role: str, media_type: str | None = None) -> dict[str, Any]:
@@ -991,9 +1013,9 @@ def assemble_publish_package_v2(
     _validate_metadata(metadata, rules)
     _write_json(creating / "metadata.json", metadata)
 
-    policy = publishing.get("uploadPolicy")
+    source_policy = publishing.get("uploadPolicy")
     privacy = publishing.get("privacyStatus")
-    if policy not in POLICIES or privacy not in PRIVACY:
+    if source_policy not in POLICIES or privacy not in PRIVACY:
         raise PublishPackageError("PUBLISH_UPLOAD_TASK_INVALID", "Publishing upload policy or privacy is invalid")
     effective_timezone = timezone or channel_profile["timezone"]
     effective_limits = limits or {"daily_limit": 1, "used_today": 0, "concurrency_limit": 1, "active_uploads": 0}
@@ -1004,6 +1026,18 @@ def assemble_publish_package_v2(
         raise PublishPackageError("PUBLISH_LIMITS_INVALID", "Daily and concurrency limits must be positive")
     empty_grant = {"granted": False, "version": "", "confirmed_at": ""}
     provided_auth = authorization or {}
+    project_auto_authorized = _project_auto_grant_matches_context(
+        provided_auth.get("project"),
+        now,
+        project_id=result["projectId"],
+        channel_serial=channel_profile["channel_serial"],
+        privacy_status=privacy,
+    )
+    policy = (
+        "AUTO"
+        if source_policy != "DO_NOT_UPLOAD" and project_auto_authorized
+        else source_policy
+    )
     upload_task = {
         "schema_version": SCHEMA_VERSION,
         "publish_intent_id": intent_id,
@@ -1046,6 +1080,7 @@ def assemble_publish_package_v2(
             and all(_grant_valid(upload_task["authorization"].get(key), now) for key in ("workspace", "channel", "intent"))
             and _project_auto_grant_valid(upload_task["authorization"].get("project"), now, upload_task)
         ),
+        effective_upload_policy=policy,
     )
     _write_json(creating / "final_chinese_review_card.json", final_review_card)
     (creating / "FINAL_CHINESE_REVIEW_CARD.md").write_text(

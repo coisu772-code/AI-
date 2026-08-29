@@ -28,9 +28,9 @@ description: 通过本地安全工具读取 YouTube 发布中心的真实频道�
 
 1. 调用 `system_voice_catalog`，只展示已安装的预扫描真实引擎和音色；不要启动工坊扫描或手写不存在的音色 ID。
 2. 音色目录不可用时，引导运行安装修复并停止建库写入。
-3. 第二张确认卡确认默认配音、`auto_by_topic` 篇幅范围、`auto_by_topic` 集数范围、制作方式和图片风格预选项。上传策略固定显示为 `REQUIRE_REVIEW`；这里保存的是频道预设，不是日常内容任务的生产确认，新任务只有明确开始制作后才在 `G5B_PRODUCTION` 卡中重新确认技术设置。
+3. 第二张确认卡确认默认配音、`auto_by_topic` 篇幅范围、`auto_by_topic` 集数范围、制作方式、图片风格预选项和上传策略。这里保存的是频道预设，不是日常内容任务的生产确认；新任务进行研究、选题、写作和包装时不显示这些技术设置，只有用户明确开始制作后才在 `G5B_PRODUCTION` 卡中重新确认。
 4. 镜头视频生成不得保存为频道默认值，固定写入 `enabled=false`、`selectionMode=none`、`fallbackPolicy=pause`；以后只有用户在当前任务明确指定视频镜头范围时才临时开启。
-5. 上传策略必须保持 `REQUIRE_REVIEW`，不得把当前任务的自动执行或项目级自动上传授权持久化到频道预设。
+5. 上传策略默认 `REQUIRE_REVIEW`。只有发布中心返回的目标频道已经是 `uploadPolicy=AUTO`、频道启用且授权有效，并且用户在当前任务明确确认把 AUTO 保存为该频道默认值时，才传 `autoUploadConfirmation`；该确认不替代每个视频的 G6 最终中文验收。
 6. 用户确认后调用 `channel_onboarding_complete`，固定传 `executionMode=review`、`storyImageTextPolicy=forbid_visible_text`。成功结果必须同时满足 `READY`、存在 Channel Profile、存在 Production Profile 和完整性检查通过。
 7. 创建失败时显示结构化错误和可恢复动作，不把半成品报告为成功。
 
@@ -41,8 +41,6 @@ description: 通过本地安全工具读取 YouTube 发布中心的真实频道�
 - 调用 `channel_get` 读取频道档案与活动生产预设；内容阶段只读取地区、受众定位、语言和篇幅／集数策略，配音、宫格、图片／视频提示词和故事图片画风等制作预设延迟到开始制作时作为预选显示。
 - 仅本次修改调用 `channel_resolve_production` 并传 `overrides`；确认返回 `persistedDefaultsChanged=false`。视频生成只有当前任务明确指定镜头范围时才同时传 `videoGenerationAuthorization`，否则解析结果必须保持关闭。
 - 只有用户明确确认“以后本频道都这样”时才调用 `channel_update_defaults`，并传 `confirmation={"confirmed":true,"scope":"channel_default"}`。预设必须生成新版本，不改变已冻结项目。
-- 已有频道预设的 `videoGeneration.enabled=false` 不能持久化改为开启；用户明确要求动态分镜时只通过当前任务覆盖开启。已经冻结的 Production Package 不原地改写；用本次确认设置重新组装新包版本。
-- 频道预设不得从 `REQUIRE_REVIEW` 改为 `AUTO`；真实自动发布授权只由 YouTube 发布中心独立保存和执行，不能写回频道生产预设。
 
 ## 备份、恢复与迁移
 

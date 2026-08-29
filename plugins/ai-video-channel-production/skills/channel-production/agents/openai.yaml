@@ -1,7 +1,7 @@
 interface:
   display_name: "AI 视频频道生产系统"
-  short_description: "先在无频道工作区自由创作，明确制作后由 Codex 规划画面并进入工坊发布流程"
-  default_prompt: "使用 $channel-production 在无频道工作区按我的方式创作；等我明确开始制作后再选择频道和生产设置，并由 Codex 规划故事画面、情绪镜头、连续性和预算内图片／视频提示词。"
+  short_description: "自由创作后确认制作设置，由Codex规划画面并完成制作发布"
+  default_prompt: "使用 $channel-production 启动系统；进入制作后由 Codex 规划故事画面、情绪镜头、连续性和预算内图片／视频提示词。"
 
 policy:
   allow_implicit_invocation: true

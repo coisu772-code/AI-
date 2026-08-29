@@ -14,10 +14,9 @@ description: 从 VIDEO_READY Production Result Package v1 与已确认 Publishin
 3. 确认输入分别为 `VIDEO_READY` Production Result Package v1 与 `PUBLISHING_ASSETS_READY` Publishing Asset Package v1，并且项目、版本、哈希、目标语言和频道引用一致。正式发布必须同时验证生产来源为真实工坊、`placeholder=false`、媒体完整性为 `PASSED`，且结果包中的完整性摘要与技术报告完全一致；合成测试夹具和占位产物不得进入正式发布路线。
 4. 调用 `assemble_publish_package_v2`，始终传递 `networkExecution=false`。让工具按发布意图幂等组装 `<publish_intent_id>.creating`，并只在全部校验成功后原子形成 `.ready`。
 5. 调用 `validate_publish_package_v2` 独立重验 v2 文件、绑定、路径、哈希、媒体、字幕、元数据、频道、计划和额度。不要导入 `.creating`、含符号链接、未声明文件或任何验证失败的包。
-6. 正式项目调用 `import_publish_package_v2` 并传 `handoffMode=formal`，把源包无损复制到正式发布中心队列；`handoffMode=isolated` 只允许合成夹具和安装验收。始终保持 `networkExecution=false`，不得由 Codex 直接调用 OAuth 或 YouTube API。
+6. 调用 `import_publish_package_v2` 让隔离发布中心执行 `.ready → .importing → .imported/.failed`，先证明包能够被发布中心接受。始终保持 `networkExecution=false`；该步骤不得触发 OAuth 或 YouTube API。
 7. 读取工具返回的 `final_chinese_review_card_path`，向用户显示可点击的 `FINAL_CHINESE_REVIEW_CARD.md`。这张 G6 卡必须先集中显示中文故事、标题、配音、频道、隐私状态和上传策略；简介、标签含义和封面文案只在实际提供时显示，未提供时明确标注为空／使用 YouTube 自动缩略图。随后显示目标语言正式字段与相同的省略状态；同时显示成片来源、时长、分镜总数／唯一数／重复率、抽样帧结果、技术报告 SHA-256 和占位执行器状态。
 8. 检查发布包内的项目级自动上传授权。授权必须来自当前任务用户原话，且绑定当前项目、频道、隐私状态、AUTO 策略和版本；有效时验收卡显示 `AUTO_AUTHORIZED` 并继续交接，不重复提问。没有该授权时停在 `WAITING_REVIEW / FINAL_CHINESE_REVIEW_CONFIRMATION_REQUIRED`。频道预设、旧项目或其他任务授权一律无效。
-9. 显示项目、发布意图、频道序号、策略、隐私、计划、视频参数、标题、简介、Hashtags、封面、字幕、验证结论、最终中文验收状态、正式发布中心状态和下一动作。
 
 ## 执行三种策略
 

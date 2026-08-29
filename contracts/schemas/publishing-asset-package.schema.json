@@ -193,6 +193,16 @@
     "contractType": {
       "const": "publishing-asset-package"
     },
+    "id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "version": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/semver" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "hashAlgorithm": { "const": "SHA-256" },
+    "hashRule": { "const": "canonical-json-v1" },
+    "contentHash": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256" },
+    "upstream": {
+      "type": "array",
+      "items": { "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/contractReference" }
+    },
     "publishingAssetPackageId": {
       "type": "string",
       "minLength": 3,
