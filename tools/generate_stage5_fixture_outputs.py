@@ -102,10 +102,14 @@ def generate(output_root: Path) -> dict[str, object]:
     waiting = en.content.service.call("production_task_run", en_args)["task"]
     export_root = output_root / "en-US" / "jianying-user-export"
     export_path = export_root / "export.mp4"
+    draft_timeline = json.loads(
+        (Path(waiting["jianyingDraftPackagePath"]) / "timeline-map.json").read_text(encoding="utf-8")
+    )
+    expected_export_duration = float(draft_timeline["durationSeconds"])
     en.content.service.production._render_media(
         Path(en.package["packagePath"]) / "confirmed_thumbnail.png",
         export_path,
-        duration_seconds=3.0,
+        duration_seconds=expected_export_duration,
         width=640,
         height=360,
         frame_rate=24,

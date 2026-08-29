@@ -533,12 +533,10 @@ def _load_catalog(path: Path) -> tuple[dict[str, Any], str]:
     rules = catalog.get("rules")
     if not isinstance(rules, dict):
         raise PublishPackageError("PUBLISH_CONSTRAINTS_INVALID", "Constraints catalog rules are missing")
-    # The frozen cross-repository contract uses the Windows CRLF serialization.
-    # Reconstruct those bytes so Git checkout policy cannot change the catalog
-    # identity expected by the publisher executable.
+    # Bind the cross-repository contract to normalized LF bytes so Git checkout
+    # policy cannot change the catalog identity expected by the publisher.
     normalized = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
-    canonical = normalized.replace(b"\n", b"\r\n")
-    return catalog, _sha256_bytes(canonical)
+    return catalog, _sha256_bytes(normalized)
 
 
 def _parse_iso(value: str, *, timezone: ZoneInfo | None = None) -> datetime:

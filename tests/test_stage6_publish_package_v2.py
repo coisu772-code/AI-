@@ -29,7 +29,7 @@ from stage5_support import build_stage5_context, mutation_arguments  # noqa: E40
 
 
 CATALOG = ROOT / "contracts" / "youtube-constraints" / "catalog-2026.08.04.1.json"
-CATALOG_SHA256 = "a57cf04014db7512b420771fe9f412e47a3bd69048b0d34fc9c4765085ad5e13"
+CATALOG_SHA256 = "28788480458f37ba86584b4c63e0ef998081ac521ecd9fd0b1724c2a6074b99a"
 THUMBNAIL = ROOT / "contracts" / "examples" / "valid" / "fixtures" / "confirmed-thumbnail-1600x900.png"
 CREATED_AT = "2026-08-04T04:00:00Z"
 
@@ -271,7 +271,8 @@ class Stage6PublishPackageV2Tests(unittest.TestCase):
         )
 
     def test_exact_publisher_catalog_is_locked_and_stale_catalog_fails(self) -> None:
-        self.assertEqual(CATALOG_SHA256, _sha(CATALOG))
+        normalized_catalog = CATALOG.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+        self.assertEqual(CATALOG_SHA256, hashlib.sha256(normalized_catalog).hexdigest())
         exact = self._assemble(name="exact-catalog")
         line_ending_catalog = self.root / "line-ending-catalog.json"
         line_ending_catalog.write_bytes(CATALOG.read_bytes().replace(b"\r\n", b"\n"))
