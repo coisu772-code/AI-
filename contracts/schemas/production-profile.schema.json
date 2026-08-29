@@ -27,7 +27,7 @@
     "defaults": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["voice", "manuscript", "episodes", "deliveryMode", "videoGeneration", "uploadPolicy"],
+      "required": ["voice", "manuscript", "episodes", "imageStyle", "storyImageTextPolicy", "deliveryMode", "videoGeneration", "uploadPolicy"],
       "properties": {
         "voice": {
           "type": "object",
@@ -60,6 +60,16 @@
             "maxCount": { "type": "integer", "minimum": 1 }
           }
         },
+        "imageStyle": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["presetId", "prompt"],
+          "properties": {
+            "presetId": { "type": "string", "minLength": 1, "maxLength": 160 },
+            "prompt": { "type": "string", "minLength": 1, "maxLength": 2000 }
+          }
+        },
+        "storyImageTextPolicy": { "const": "forbid_visible_text" },
         "deliveryMode": { "type": "string", "enum": ["auto_render", "jianying_refine"] },
         "videoGeneration": {
           "type": "object",

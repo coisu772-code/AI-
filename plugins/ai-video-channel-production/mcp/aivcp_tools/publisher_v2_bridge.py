@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import subprocess
 from pathlib import Path
@@ -37,10 +38,11 @@ def _within(root: Path, target: Path, *, field: str) -> None:
 
 
 class PublisherV2Bridge:
-    """Thin offline-only adapter for the isolated Go publisher v2 CLI."""
+    """Local adapter for isolated validation and approved formal publisher handoff."""
 
-    def __init__(self, executable: Path):
+    def __init__(self, executable: Path, desktop_executable: Path | None = None):
         self.executable = executable
+        self.desktop_executable = desktop_executable
 
     @classmethod
     def from_arguments(cls, arguments: dict[str, Any]) -> "PublisherV2Bridge":
@@ -48,7 +50,41 @@ class PublisherV2Bridge:
         executable = _path(configured, field="publisherCliPath", file=True)
         if executable.name.lower() != "publish-package-v2.exe":
             raise ToolError("PUBLISHER_CLI_IDENTITY_INVALID", "只允许使用隔离构建 publish-package-v2.exe。")
-        return cls(executable)
+        desktop_value = arguments.get("publisherDesktopPath") or os.environ.get("AIVCP_PUBLISHER_DESKTOP_EXE")
+        desktop_executable = None
+        if desktop_value:
+            desktop_executable = _path(desktop_value, field="publisherDesktopPath", file=True)
+            if desktop_executable.name.lower() != "youtube-publisher-center.exe":
+                raise ToolError("PUBLISHER_DESKTOP_IDENTITY_INVALID", "发布执行程序必须是 youtube-publisher-center.exe。")
+        return cls(executable, desktop_executable)
+
+    def _ensure_publisher_running(self) -> dict[str, Any]:
+        if self.desktop_executable is None:
+            return {"configured": False, "started": False}
+        flags = 0
+        if os.name == "nt":
+            flags = (
+                getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                | getattr(subprocess, "DETACHED_PROCESS", 0)
+                | getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            )
+        try:
+            process = subprocess.Popen(
+                [str(self.desktop_executable)],
+                cwd=str(self.desktop_executable.parent),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                shell=False,
+                creationflags=flags,
+                start_new_session=os.name != "nt",
+            )
+        except OSError as exc:
+            raise ToolError(
+                "PUBLISHER_DESKTOP_START_FAILED",
+                "发布包已交接，但本地 YouTube 发布中心未能自动启动。",
+            ) from exc
+        return {"configured": True, "started": True, "pid": process.pid}
 
     @staticmethod
     def assert_offline(arguments: dict[str, Any]) -> None:
@@ -84,7 +120,7 @@ class PublisherV2Bridge:
             raise ToolError("PUBLISHER_CLI_PROTOCOL_INVALID", "发布中心 CLI 未证明 network_execution=false。")
         if completed.returncode != 0:
             code = str(payload.get("code") or "PUBLISHER_CLI_FAILED")
-            if operation == "receipt" and code == "PUBLICATION_RECEIPT_NOT_AVAILABLE":
+            if operation in {"receipt", "receipt-live"} and code == "PUBLICATION_RECEIPT_NOT_AVAILABLE":
                 return {
                     "status": "not_available",
                     "code": code,
@@ -100,8 +136,43 @@ class PublisherV2Bridge:
             )
         return payload
 
+    def capabilities(self) -> dict[str, Any]:
+        payload = self._run("capabilities", [], timeout=15)
+        result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+        commands = result.get("commands") if isinstance(result.get("commands"), list) else []
+        return {
+            "configured": True,
+            "formalHandoff": "handoff" in commands,
+            "liveStatus": "status-live" in commands,
+            "liveReceipt": "receipt-live" in commands,
+            "uploadExecutionOwner": result.get("upload_execution_owner"),
+            "networkExecution": False,
+        }
+
     def import_package(self, arguments: dict[str, Any]) -> dict[str, Any]:
         self.assert_offline(arguments)
+        mode = arguments.get("handoffMode")
+        if mode is None:
+            mode = "isolated" if arguments.get("syntheticChannelProfilePath") else "formal"
+        if mode == "formal":
+            package = _path(arguments.get("packagePath"), field="packagePath", file=False)
+            if not package.name.endswith(".ready"):
+                raise ToolError("PUBLISHER_PACKAGE_LIFECYCLE_INVALID", "只允许移交 .ready 发布包。")
+            command = ["--package", str(package)]
+            data_dir = arguments.get("publisherDataDir")
+            if data_dir:
+                command.extend(["--data-dir", str(_path(data_dir, field="publisherDataDir", file=False))])
+            payload = self._run("handoff", command, timeout=180)
+            publisher_process = self._ensure_publisher_running()
+            return {
+                "publisher": payload,
+                "publisherProcess": publisher_process,
+                "handoffMode": "formal",
+                "networkExecution": False,
+                "uploadExecutionOwner": "youtube-publisher-center-desktop",
+            }
+        if mode != "isolated":
+            raise ToolError("PUBLISHER_HANDOFF_MODE_INVALID", "handoffMode 只允许 formal 或 isolated。")
         isolation = _path(arguments.get("isolationRoot"), field="isolationRoot", file=False)
         inbox = _path(arguments.get("inboxPath"), field="inboxPath", file=False)
         database = _path(arguments.get("databasePath"), field="databasePath", must_exist=False)
@@ -119,21 +190,110 @@ class PublisherV2Bridge:
         if ffprobe:
             command.extend(["--ffprobe", str(_path(ffprobe, field="ffprobePath", file=True))])
         payload = self._run("import", command, timeout=120)
-        return {"publisher": payload, "networkExecution": False}
+        return {"publisher": payload, "handoffMode": "isolated", "networkExecution": False}
 
     def read_status(self, arguments: dict[str, Any], *, receipt: bool) -> dict[str, Any]:
         self.assert_offline(arguments)
-        isolation = _path(arguments.get("isolationRoot"), field="isolationRoot", file=False)
-        database = _path(arguments.get("databasePath"), field="databasePath", file=True)
-        _within(isolation, database, field="databasePath")
+        mode = arguments.get("handoffMode", "formal")
         intent = arguments.get("publishIntentId")
         if not isinstance(intent, str) or not intent:
             raise ToolError("PUBLISHER_ARGUMENT_INVALID", "publishIntentId 是必填项。")
+        if mode == "formal":
+            command = ["--publish-intent-id", intent]
+            data_dir = arguments.get("publisherDataDir")
+            if data_dir:
+                command.extend(["--data-dir", str(_path(data_dir, field="publisherDataDir", file=False))])
+            payload = self._run("receipt-live" if receipt else "status-live", command, timeout=30)
+            return {"publisher": payload, "handoffMode": "formal", "networkExecution": False}
+        if mode != "isolated":
+            raise ToolError("PUBLISHER_HANDOFF_MODE_INVALID", "handoffMode 只允许 formal 或 isolated。")
+        isolation = _path(arguments.get("isolationRoot"), field="isolationRoot", file=False)
+        database = _path(arguments.get("databasePath"), field="databasePath", file=True)
+        _within(isolation, database, field="databasePath")
         payload = self._run(
             "receipt" if receipt else "status",
             ["--database", str(database), "--isolation-root", str(isolation), "--publish-intent-id", intent],
             timeout=30,
         )
+        return {"publisher": payload, "handoffMode": "isolated", "networkExecution": False}
+
+    def handoff_package(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        self.assert_offline(arguments)
+        package = _path(arguments.get("packagePath"), field="packagePath", file=False)
+        if not package.name.endswith(".ready"):
+            raise ToolError("PUBLISHER_PACKAGE_LIFECYCLE_INVALID", "正式交接只接受 .ready 发布包。")
+        approval = arguments.get("finalReviewApproval")
+        required = {
+            "confirmed",
+            "publishIntentId",
+            "confirmationRef",
+            "confirmedAt",
+            "reviewCardSha256",
+            "version",
+        }
+        if not isinstance(approval, dict) or approval.get("confirmed") is not True or not required.issubset(approval):
+            raise ToolError(
+                "FINAL_REVIEW_APPROVAL_REQUIRED",
+                "正式 AUTO 交接必须携带当前任务对最终中文验收卡的完整确认。",
+            )
+        if approval.get("approvalSource") == "PROJECT_AUTO_UPLOAD_AUTHORIZATION":
+            try:
+                upload_task = json.loads((package / "upload_task.json").read_text(encoding="utf-8-sig"))
+                review_card_path = package / "FINAL_CHINESE_REVIEW_CARD.md"
+                review_card_sha256 = hashlib.sha256(review_card_path.read_bytes()).hexdigest()
+            except (OSError, json.JSONDecodeError) as exc:
+                raise ToolError("PROJECT_AUTO_UPLOAD_AUTHORIZATION_INVALID", "无法读取自动上传授权所绑定的发布包。") from exc
+            project_grant = (upload_task.get("authorization") or {}).get("project") or {}
+            if (
+                upload_task.get("upload_policy") != "AUTO"
+                or project_grant.get("granted") is not True
+                or project_grant.get("source") != "current_task_explicit"
+                or project_grant.get("scope") != "current_task_and_project_only"
+                or project_grant.get("project_id") != upload_task.get("project_id")
+                or project_grant.get("confirmation_ref") != approval.get("confirmationRef")
+                or project_grant.get("confirmed_at") != approval.get("confirmedAt")
+                or project_grant.get("version") != approval.get("version")
+                or approval.get("projectId") != upload_task.get("project_id")
+                or approval.get("publishIntentId") != upload_task.get("publish_intent_id")
+                or approval.get("reviewCardSha256") != review_card_sha256
+                or project_grant.get("revoked") is not False
+            ):
+                raise ToolError(
+                    "PROJECT_AUTO_UPLOAD_AUTHORIZATION_INVALID",
+                    "当前任务的自动上传授权与项目、频道、发布包或最终中文验收卡不一致。",
+                )
+        command = [
+            "--package",
+            str(package),
+            "--final-review-confirmed",
+            "--publish-intent-id",
+            str(approval["publishIntentId"]),
+            "--confirmation-ref",
+            str(approval["confirmationRef"]),
+            "--confirmed-at",
+            str(approval["confirmedAt"]),
+            "--review-card-sha256",
+            str(approval["reviewCardSha256"]),
+            "--approval-version",
+            str(approval["version"]),
+        ]
+        publisher_data_path = arguments.get("publisherDataPath")
+        if publisher_data_path:
+            command.extend(["--data-dir", str(_path(publisher_data_path, field="publisherDataPath", file=False))])
+        payload = self._run("handoff", command, timeout=120)
+        publisher_process = self._ensure_publisher_running()
+        return {"publisher": payload, "publisherProcess": publisher_process, "networkExecution": False}
+
+    def read_live_status(self, arguments: dict[str, Any], *, receipt: bool) -> dict[str, Any]:
+        self.assert_offline(arguments)
+        intent = arguments.get("publishIntentId")
+        if not isinstance(intent, str) or not intent:
+            raise ToolError("PUBLISHER_ARGUMENT_INVALID", "publishIntentId 是必填项。")
+        command = ["--publish-intent-id", intent]
+        publisher_data_path = arguments.get("publisherDataPath")
+        if publisher_data_path:
+            command.extend(["--data-dir", str(_path(publisher_data_path, field="publisherDataPath", file=False))])
+        payload = self._run("receipt-live" if receipt else "status-live", command, timeout=30)
         return {"publisher": payload, "networkExecution": False}
 
     @staticmethod

@@ -58,6 +58,7 @@ def synthetic_channel() -> dict[str, object]:
         "defaultLanguage": "ja-JP",
         "privacyStatus": "private",
         "timeZone": "Asia/Tokyo",
+        "uploadPolicy": "REQUIRE_REVIEW",
     }
 
 
@@ -71,6 +72,11 @@ def defaults(*, preferred_characters: int = 12000) -> dict[str, object]:
             "maxCharacters": 16000,
         },
         "episodes": {"mode": "auto_by_topic", "preferredCount": 8, "minCount": 6, "maxCount": 12},
+        "imageStyle": {
+            "presetId": "visual_01",
+            "prompt": "现代商业电视动画风格，干净线稿，稳定赛璐璐上色。",
+        },
+        "storyImageTextPolicy": "forbid_visible_text",
         "deliveryMode": "auto_render",
         "videoGeneration": {"enabled": False, "selectionMode": "none", "fallbackPolicy": "pause"},
         "uploadPolicy": "REQUIRE_REVIEW",
@@ -571,7 +577,7 @@ class Stage2ToolTestCase(unittest.TestCase):
         self.assertEqual(resolved["productionProfile"]["contentHash"], completed["productionProfile"]["contentHash"])
         self.assertEqual(restarted.call("channel_integrity_check")["status"], "PASS")
 
-    def test_unknown_voice_and_stage2_auto_upload_are_blocked(self) -> None:
+    def test_unknown_voice_and_unconfirmed_auto_upload_are_blocked(self) -> None:
         started = self.service.call(
             "channel_onboarding_start",
             {
@@ -607,6 +613,119 @@ class Stage2ToolTestCase(unittest.TestCase):
                 },
             )
         self.assertEqual(upload_error.exception.code, "AUTO_UPLOAD_NOT_AVAILABLE_STAGE2")
+
+    def test_confirmed_auto_upload_default_requires_ready_publisher_channel(self) -> None:
+        channel = synthetic_channel()
+        channel["uploadPolicy"] = "AUTO"
+        self.service.publisher = StaticPublisherProvider([channel])
+        started = self.service.call(
+            "channel_onboarding_start",
+            {
+                "taskId": "task_auto_upload",
+                "channelSerial": "01",
+                "targetRegion": "Japan",
+                "outputLanguage": "ja-JP",
+            },
+        )
+        automatic = defaults()
+        automatic["uploadPolicy"] = "AUTO"
+        with self.assertRaises(ToolError) as caught:
+            self.service.call(
+                "channel_onboarding_complete",
+                {
+                    "taskId": "task_auto_upload",
+                    "channelProfileId": started["channel"]["channelProfileId"],
+                    "bindingProof": started["taskBinding"]["bindingProof"],
+                    "defaults": automatic,
+                    "autoUploadConfirmation": {
+                        "confirmed": True,
+                        "scope": "channel_default",
+                        "channelSerial": "01",
+                        "youtubeChannelId": "UCFIXTURECHANNEL0001",
+                        "confirmationRef": "task:task_auto_upload:auto-upload-channel-default",
+                    },
+                },
+            )
+        self.assertEqual(caught.exception.code, "AUTO_UPLOAD_NOT_AVAILABLE_STAGE2")
+
+    def test_video_generation_is_current_task_only_and_defaults_to_disabled(self) -> None:
+        invalid_defaults = defaults()
+        invalid_defaults["videoGeneration"] = {
+            "enabled": True,
+            "selectionMode": "project_first_n_storyboards",
+            "count": 2,
+            "fallbackPolicy": "pause",
+        }
+        started = self.service.call(
+            "channel_onboarding_start",
+            {
+                "taskId": "task_video_persistent_guard",
+                "channelSerial": "01",
+                "targetRegion": "Japan",
+                "outputLanguage": "ja-JP",
+            },
+        )
+        with self.assertRaises(ToolError) as persistent_error:
+            self.service.call(
+                "channel_onboarding_complete",
+                {
+                    "taskId": "task_video_persistent_guard",
+                    "channelProfileId": started["channel"]["channelProfileId"],
+                    "bindingProof": started["taskBinding"]["bindingProof"],
+                    "defaults": invalid_defaults,
+                },
+            )
+        self.assertEqual(persistent_error.exception.code, "PERSISTENT_VIDEO_GENERATION_NOT_ALLOWED")
+
+        completed, proof = self.onboard(task_id="task_video_current_only")
+        channel_id = completed["channelProfileId"]
+        resolved = self.service.call(
+            "channel_resolve_production",
+            {
+                "taskId": "task_video_current_only",
+                "channelProfileId": channel_id,
+                "bindingProof": proof,
+            },
+        )
+        self.assertEqual(
+            resolved["effectiveDefaults"]["videoGeneration"],
+            {"enabled": False, "selectionMode": "none", "fallbackPolicy": "pause"},
+        )
+        video_override = {
+            "videoGeneration": {
+                "enabled": True,
+                "selectionMode": "project_first_n_storyboards",
+                "count": 2,
+                "fallbackPolicy": "pause",
+            }
+        }
+        with self.assertRaises(ToolError) as authorization_error:
+            self.service.call(
+                "channel_resolve_production",
+                {
+                    "taskId": "task_video_current_only",
+                    "channelProfileId": channel_id,
+                    "bindingProof": proof,
+                    "overrides": video_override,
+                },
+            )
+        self.assertEqual(authorization_error.exception.code, "VIDEO_GENERATION_AUTHORIZATION_REQUIRED")
+        enabled = self.service.call(
+            "channel_resolve_production",
+            {
+                "taskId": "task_video_current_only",
+                "channelProfileId": channel_id,
+                "bindingProof": proof,
+                "overrides": video_override,
+                "videoGenerationAuthorization": {
+                    "confirmed": True,
+                    "scope": "current_task",
+                    "taskId": "task_video_current_only",
+                    "confirmationRef": "task:task_video_current_only:storyboards-1-2",
+                },
+            },
+        )
+        self.assertTrue(enabled["effectiveDefaults"]["videoGeneration"]["enabled"])
 
     def test_mcp_protocol_returns_structured_sanitized_tools(self) -> None:
         server = McpServer(self.service)

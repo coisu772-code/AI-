@@ -7,6 +7,7 @@ import re
 import shutil
 import struct
 import tempfile
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -20,14 +21,43 @@ from .review_documents import (
     DOCUMENT_SPECS,
     REVIEW_DOCUMENT_SCHEMA_VERSION,
     copy_review_documents,
+    render_script_text,
     review_documents_view,
     save_review_document,
+    sync_review_workflow_state,
+    validate_review_document_bindings,
     validate_review_documents,
 )
 
 
 CONTENT_LOOP_VERSION = "1.0.0"
 PACKAGE_SCHEMA_VERSION = "1.0.0"
+SOUND_EFFECT_MAX_DURATION_SECONDS = 5.0
+SOUND_EFFECT_LINE_PATTERN = re.compile(r"^【sound：(.+?)；时长([0-9]+(?:\.[0-9]+)?)秒】$")
+
+
+def _sound_effect_duration_window(prompt: str) -> tuple[float, float, float]:
+    text = str(prompt or "").strip().lower()
+    has = lambda *values: any(value in text for value in values)
+    if has("音乐", "音樂", "旋律", "八音盒", "music", "melody", "song", "オルゴール", "音楽", "メロディ"):
+        return 3.0, 4.8, 3.8
+    if has("欢呼", "歡呼", "喝彩", "人群", "群众", "群眾", "笑声", "笑聲", "crowd", "cheer", "applause", "laughter", "歓声", "拍手", "群衆", "笑い声"):
+        return 2.5, 4.2, 3.2
+    if has("风声", "風聲", "雨声", "雨聲", "火焰声", "篝火声", "海浪声", "河流声", "树林环境", "森林环境", "环境声", "環境音", "wind", "rain", "fire ambience", "waves", "river ambience", "forest ambience", "風音", "雨音", "波音"):
+        return 3.0, 4.8, 3.8
+    if has("鼓", "钟", "鐘", "铃", "鈴", "锣", "鑼", "号角", "回响", "回響", "drum", "bell", "gong", "horn", "resonance", "太鼓", "角笛", "残響"):
+        return 1.8, 3.2, 2.4
+    if has("转场", "轉場", "过渡", "過渡", "提示音", "系统音", "系統音", "transition", "whoosh", "swoosh", "通知音", "転換"):
+        return 1.6, 3.0, 2.2
+    return 0.8, 1.6, 1.2
+
+
+def _normalized_sound_effect_duration(prompt: str, requested: float) -> float:
+    minimum, maximum, recommended = _sound_effect_duration_window(prompt)
+    value = requested if requested > 0 else recommended
+    return round(max(minimum, min(maximum, value)), 1)
+
+
 SCORE_KEYS = (
     "audienceFit",
     "clickPotential",
@@ -40,24 +70,11 @@ SCORE_KEYS = (
 SOURCE_MODES = {
     "channel-library",
     "market-original",
-    "single-reference",
-    "multi-reference",
     "provided-outline",
+    "task-prompt-guided",
     "trend",
-    "book-deconstruction",
-    "imitation",
-    "direct-rewrite",
-    "synthesis-rewrite",
 }
-EXTENSION_MODES = {
-    "trend",
-    "single-reference",
-    "multi-reference",
-    "book-deconstruction",
-    "imitation",
-    "direct-rewrite",
-    "synthesis-rewrite",
-}
+EXTENSION_MODES = {"trend"}
 QUALITY_CHECKS = {
     "locked-facts",
     "story-progress",
@@ -86,6 +103,14 @@ EXTENSION_CAPABILITY_NAMES = (
     "description-generation",
     "thumbnail-generation",
 )
+RETIRED_SOURCE_MODES = {
+    "single-reference",
+    "multi-reference",
+    "book-deconstruction",
+    "imitation",
+    "direct-rewrite",
+    "synthesis-rewrite",
+}
 
 
 def _safe_identifier(value: Any, field: str, *, maximum: int = 128) -> str:
@@ -187,9 +212,10 @@ def _extension_capabilities() -> list[dict[str, Any]]:
     for capability in EXTENSION_CAPABILITY_NAMES:
         packaging = capability in {"title-generation", "description-generation", "thumbnail-generation"}
         packaging_available = capability in {"title-generation", "description-generation", "thumbnail-generation"}
+        retired = capability in {"content-deconstruction", "direct-rewrite", "synthesis-rewrite"}
         item = {
             "capability": capability,
-            "status": "available" if (not packaging or packaging_available) else "planned-unavailable",
+            "status": "unavailable" if retired else "available" if (not packaging or packaging_available) else "planned-unavailable",
             "interfaceVersion": "1.0.0",
             "inputContractTypes": ["manuscript-package"] if packaging else ["source-package"],
             "outputContractType": (
@@ -200,10 +226,8 @@ def _extension_capabilities() -> list[dict[str, Any]]:
                 else "topic-package"
             ),
         }
-        if capability == "content-deconstruction":
-            item.update({"skillId": "content-deconstruct", "skillVersion": "1.0.0"})
-        elif capability in {"direct-rewrite", "synthesis-rewrite"}:
-            item.update({"skillId": "content-rewrite", "skillVersion": "1.0.0"})
+        if retired:
+            item.update({"reason": "retired-content-skill"})
         elif packaging_available:
             item.update(
                 {
@@ -359,7 +383,7 @@ def _packaging_review_markdown(
     lines = [
         "# 标题、简介与 Hashtags 双语审核",
         "",
-        "## 标题候选",
+        "## 正式标题记录" if len(title_candidates) == 1 else "## 标题候选",
         "",
         "| 选择 | 目标语言标题 | 中文翻译 | 评分 | 事实依据 | 承诺兑现 | 原句复制 |",
         "|---|---|---|---:|---|---|---|",
@@ -381,19 +405,21 @@ def _packaging_review_markdown(
             "",
             "## YouTube 简介（目标语言）",
             "",
-            description_body.rstrip(),
+            description_body.rstrip() or "未提供（用户未要求生成简介）。",
             "",
             "## YouTube 简介（中文翻译，仅供审核）",
             "",
-            description_chinese.rstrip(),
+            description_chinese.rstrip() or "未提供（没有正式简介需要翻译）。",
             "",
             "## Hashtags 双语对照",
             "",
-            "| 正式 Hashtag | 中文含义 |",
-            "|---|---|",
         ]
     )
-    lines.extend(f"| {_markdown_cell(item['hashtag'])} | {_markdown_cell(item['chinese'])} |" for item in hashtag_translations)
+    if hashtag_translations:
+        lines.extend(["| 正式 Hashtag | 中文含义 |", "|---|---|"])
+        lines.extend(f"| {_markdown_cell(item['hashtag'])} | {_markdown_cell(item['chinese'])} |" for item in hashtag_translations)
+    else:
+        lines.append("未提供（用户未要求生成 Hashtags）。")
     lines.extend(["", "> 中文翻译只供用户审核，不进入 YouTube 发布字段。", ""])
     return "\n".join(lines)
 
@@ -450,6 +476,7 @@ class ContentLoop:
         video_analyses: Any = None,
         content_analyses: Any = None,
         style_provider: Any = None,
+        task_prompt_registry: Any = None,
     ) -> None:
         self.store = store
         self.sources = sources
@@ -458,6 +485,7 @@ class ContentLoop:
         self.video_analyses = video_analyses
         self.content_analyses = content_analyses
         self.style_provider = style_provider
+        self.task_prompt_registry = task_prompt_registry
 
     def _validate_contract_schema(self, contract: dict[str, Any], schema_name: str) -> None:
         if not self.plugin_root:
@@ -495,26 +523,48 @@ class ContentLoop:
             "contentLoopVersion": CONTENT_LOOP_VERSION,
             "packageSchemaVersion": PACKAGE_SCHEMA_VERSION,
             "routes": {
+                "direct-draft": {
+                    "available": True,
+                    "label": "按当前请求直接成稿",
+                    "requiresConfirmedOutline": False,
+                    "firstUserReviewGate": "D5_FINAL_MANUSCRIPT",
+                    "rawDraftReview": "explicit-user-opt-in-only",
+                    "informationalDocuments": [
+                        "rewrite-draft-target",
+                        "rewrite-draft-zh",
+                        "editorial-review",
+                        "revision-log",
+                        "final-script-zh",
+                        "foreign-language-quality-gate",
+                    ],
+                },
                 "market-original": {"available": True, "label": "目标市场原创"},
                 "channel-library": {"available": True, "label": "频道画像锚定"},
                 "provided-outline": {"available": True, "label": "用户大纲直通"},
+                "task-prompt-guided": {
+                    "available": True,
+                    "label": "当前任务临时提示词编排",
+                    "scope": "task-and-project-only",
+                    "promptBodiesInstalledAsSkills": False,
+                },
                 "trend": {"available": False, "reason": "trend-analysis-skill-unavailable"},
-                "single-reference": {"available": True, "requires": "video-copy-deconstruction Analysis Package v1"},
-                "multi-reference": {"available": True, "requires": "video-copy-deconstruction Analysis Package v1"},
-                "imitation": {"available": True, "requires": "original-imitation-writing Writing Style Contract v1"},
-                "direct-rewrite": {"available": True, "requires": "content-deconstruct Analysis Package v1"},
-                "synthesis-rewrite": {"available": True, "requires": "content-deconstruct Analysis Package v1"},
+                "single-reference": {"available": False, "reason": "retired-content-skill"},
+                "multi-reference": {"available": False, "reason": "retired-content-skill"},
+                "book-deconstruction": {"available": False, "reason": "retired-content-skill"},
+                "imitation": {"available": False, "reason": "retired-content-skill"},
+                "direct-rewrite": {"available": False, "reason": "retired-content-skill"},
+                "synthesis-rewrite": {"available": False, "reason": "retired-content-skill"},
             },
             "extensionInterfaces": {
                 "analysis-package-v1": {
-                    "status": "available",
-                    "providers": ["channel-distillation", "video-copy-deconstruction", "content-deconstruct"],
-                    "consumers": ["direct-rewrite", "synthesis-rewrite", "content-review-edit"],
+                    "status": "retired-for-content-writing",
+                    "providers": ["channel-distillation"],
+                    "consumers": [],
                 },
                 "writing-style-contract-v1": {
-                    "status": "available",
-                    "provider": "original-imitation-writing",
-                    "consumers": ["imitation", "topic-center", "manuscript-center"],
+                    "status": "retired",
+                    "provider": None,
+                    "consumers": [],
                 },
                 "image-provider-v1": {"status": "available", "modes": ["real", "prompt_only"]},
             },
@@ -559,7 +609,9 @@ class ContentLoop:
 
     def _save_state(self, state: dict[str, Any]) -> None:
         state["updatedAt"] = utc_now()
+        project_root = self._project_root(state["channelProfileId"], state["projectId"])
         _atomic_json(self._state_path(state["channelProfileId"], state["projectId"]), state)
+        sync_review_workflow_state(project_root, state)
 
     def start_project(
         self,
@@ -576,6 +628,7 @@ class ContentLoop:
         learning_snapshot: Any = None,
         one_time_modifications: Any = None,
         long_term_learning: Any = None,
+        task_prompt_contract_ids: Any = None,
         resume_existing_project: Any = False,
         resume_confirmation_ref: Any = None,
     ) -> dict[str, Any]:
@@ -583,6 +636,16 @@ class ContentLoop:
             task_id=task_id, channel_profile_id=channel_profile_id, binding_proof=binding_proof
         )
         project_id = _safe_identifier(project_id, "projectId")
+        if source_mode in RETIRED_SOURCE_MODES:
+            raise ToolError(
+                "CONTENT_EXTENSION_UNAVAILABLE",
+                "旧拆解、旧仿写方向及其直接改写路线已经移除；请提供并确认新的创作简报或故事大纲。",
+                details={
+                    "route": source_mode,
+                    "reason": "retired-content-skill",
+                    "requiredInterface": "writing-style-contract-v1" if source_mode == "imitation" else "analysis-package-v1",
+                },
+            )
         if source_mode not in SOURCE_MODES:
             raise ToolError("CONTENT_ROUTE_INVALID", "不支持该选题路线。")
         enabled_analysis_route = source_mode in {
@@ -632,8 +695,13 @@ class ContentLoop:
             if not isinstance(provided_outline, str) or len(provided_outline.strip()) < 80:
                 raise ToolError("OUTLINE_REQUIRED", "用户大纲直通需要至少 80 字的可辨认大纲。")
             outline_hash = hashlib.sha256(provided_outline.encode("utf-8")).hexdigest()
+        elif source_mode == "task-prompt-guided":
+            if provided_outline is not None:
+                if not isinstance(provided_outline, str) or len(provided_outline.strip()) < 80:
+                    raise ToolError("OUTLINE_REQUIRED", "临时提示词路线中的已确认大纲至少需要 80 字。")
+                outline_hash = hashlib.sha256(provided_outline.encode("utf-8")).hexdigest()
         elif provided_outline is not None:
-            raise ToolError("OUTLINE_ROUTE_MISMATCH", "只有用户大纲直通路线可以冻结 providedOutline。")
+            raise ToolError("OUTLINE_ROUTE_MISMATCH", "只有大纲直通或当前任务临时提示词路线可以冻结 providedOutline。")
 
         channel_summary = self.store.get_channel(channel_profile_id)
         channel = channel_summary.get("channelProfile")
@@ -770,6 +838,44 @@ class ContentLoop:
                 raise ToolError("ANALYSIS_REFERENCE_INVALID", "分析引用必须包含 distillationId 或 deconstructionId。")
             if contract.get("targetChannelProfileId") != channel_profile_id:
                 raise ToolError("ANALYSIS_CHANNEL_MISMATCH", "分析包不属于当前目标频道。")
+            direction_lock: dict[str, Any] = {}
+            if contract.get("analysisKind") == "content-deconstruction":
+                direction_package = contract.get("directionPackage")
+                if not isinstance(direction_package, dict):
+                    raise ToolError("DIRECTION_PACKAGE_REQUIRED", "文案仿写必须绑定冻结迁移方向包。")
+                selected_direction_id = requested.get("selectedDirectionId")
+                requested_intent_mode = requested.get("intentMode")
+                requested_active_version = requested.get("activeVersionId")
+                confirmation_ref = requested.get("directionConfirmationRef")
+                if (
+                    not isinstance(selected_direction_id, str)
+                    or not selected_direction_id
+                    or requested_intent_mode != direction_package.get("intentMode")
+                    or requested_active_version != direction_package.get("activeVersionId")
+                    or not isinstance(confirmation_ref, str)
+                    or not confirmation_ref.strip()
+                ):
+                    raise ToolError(
+                        "DIRECTION_CONFIRMATION_REQUIRED",
+                        "进入仿写前必须明确绑定当前意图、活动版本、用户确认方向和确认记录。",
+                    )
+                direction_ids = {
+                    item.get("directionId")
+                    for item in direction_package.get("directions", [])
+                    if isinstance(item, dict)
+                }
+                if selected_direction_id not in direction_ids:
+                    raise ToolError("DIRECTION_SELECTION_INVALID", "用户确认方向不属于当前活动版本。")
+                if requested_intent_mode in {"scope_locked_migration", "delta_revision"}:
+                    proposed_id = direction_package.get("selection", {}).get("proposedDirectionId")
+                    if selected_direction_id != proposed_id:
+                        raise ToolError("DIRECTION_SELECTION_INVALID", "单卡模式只能确认当前 S1／D1 活动方案。")
+                direction_lock = {
+                    "intentMode": requested_intent_mode,
+                    "activeVersionId": requested_active_version,
+                    "selectedDirectionId": selected_direction_id,
+                    "directionConfirmationRef": confirmation_ref.strip(),
+                }
             analysis_locks.append(
                 {
                     identifier_key: identifier,
@@ -777,6 +883,7 @@ class ContentLoop:
                     "analysisKind": contract["analysisKind"],
                     "mode": contract.get("mode"),
                     "consumers": ["topic-center", "manuscript-center"],
+                    **direction_lock,
                 }
             )
         if source_mode == "channel-library" and not locks and not analysis_locks:
@@ -798,6 +905,50 @@ class ContentLoop:
             if analysis_locks[0].get("mode") not in expected_modes:
                 raise ToolError("CONTENT_DECONSTRUCTION_MODE_MISMATCH", "拆解模式与单源／融合仿写模式不一致。")
 
+        task_prompt_contracts: list[dict[str, Any]] = []
+        task_prompt_set: dict[str, Any] | None = None
+        if source_mode == "task-prompt-guided":
+            if self.task_prompt_registry is None:
+                raise ToolError("TASK_PROMPT_REGISTRY_UNAVAILABLE", "当前安装缺少任务级临时提示词合同能力。")
+            task_prompt_contracts = self.task_prompt_registry.get_many(
+                task_id=task_id,
+                channel_profile_id=channel_profile_id,
+                project_id=project_id,
+                prompt_ids=task_prompt_contract_ids,
+            )
+            if not task_prompt_contracts:
+                raise ToolError(
+                    "TASK_PROMPT_CONTRACT_REQUIRED",
+                    "临时提示词路线必须先登记至少一份当前任务提示词；提示词不会安装为 Skill。",
+                )
+            prompt_refs = [_contract_ref(item) for item in task_prompt_contracts]
+            task_prompt_set = with_hash(
+                {
+                    "schemaVersion": "1.0.0",
+                    "contractType": "task-prompt-set",
+                    "id": f"task_prompt_set_{project_id}",
+                    "version": "1.0.0",
+                    "createdAt": task_prompt_contracts[0]["createdAt"],
+                    "hashAlgorithm": "SHA-256",
+                    "hashRule": "canonical-json-v1",
+                    "upstream": prompt_refs,
+                    "taskId": task_id,
+                    "projectId": project_id,
+                    "scope": "current_task_only",
+                    "orderedPromptIds": [item["promptId"] for item in task_prompt_contracts],
+                    "stages": {item["promptId"]: item["stage"] for item in task_prompt_contracts},
+                    "fieldMappings": {
+                        item["promptId"]: item.get("fieldMappings", {}) for item in task_prompt_contracts
+                    },
+                    "promptBodiesInstalledAsSkills": False,
+                }
+            )
+        elif task_prompt_contract_ids not in (None, []):
+            raise ToolError(
+                "TASK_PROMPT_ROUTE_MISMATCH",
+                "临时提示词合同只能用于 task-prompt-guided 路线。",
+            )
+
         brief = {
             "schemaVersion": CONTENT_LOOP_VERSION,
             "projectId": project_id,
@@ -813,6 +964,7 @@ class ContentLoop:
             "sourceLocks": locks,
             "analysisLocks": analysis_locks,
             "styleLocks": style_locks,
+            "taskPromptSet": task_prompt_set,
             "providedOutlineHash": outline_hash,
             "learningSnapshot": learning_snapshot,
             "oneTimeModifications": one_time_modifications,
@@ -862,6 +1014,7 @@ class ContentLoop:
             "sourceLocks": locks,
             "analysisLocks": analysis_locks,
             "styleLocks": style_locks,
+            "taskPromptSet": task_prompt_set,
             "topicCheckpoint": {"version": "1.0.0", "completedUnits": 0, "candidateIds": [], "items": []},
             "activePackages": {"topic": None, "manuscript": None, "publishing": None},
             "invalidations": [],
@@ -885,7 +1038,7 @@ class ContentLoop:
                 copy_review_documents(
                     analysis_review_roots[0],
                     root,
-                    ("source-summary", "deconstruction-report", "transfer-directions"),
+                    ("deconstruction-report", "transfer-directions"),
                     updated_at=created,
                 )
             except ValueError as exc:
@@ -1077,6 +1230,23 @@ class ContentLoop:
                 actual_source_ids.append(entry["sourcePackageId"])
             if len(actual_source_ids) != len(set(actual_source_ids)) or set(actual_source_ids) != expected_source_ids:
                 raise ToolError("SOURCE_TRANSFORMATION_MAP_INCOMPLETE", "来源迁移表必须与全部冻结来源一一对应。")
+            direction_lock = state["analysisLocks"][0]
+            execution = candidate.get("directionExecutionContract")
+            expected_execution = {
+                "intentMode": direction_lock["intentMode"],
+                "activeVersionId": direction_lock["activeVersionId"],
+                "selectedDirectionId": direction_lock["selectedDirectionId"],
+                "requestedChangesApplied": True,
+                "explicitPreservesUntouched": True,
+                "unchangedStoryFunctionsPreserved": True,
+                "noUnsolicitedExpansion": True,
+                "inactiveContentExcluded": True,
+            }
+            if execution != expected_execution:
+                raise ToolError(
+                    "DIRECTION_EXECUTION_CONTRACT_FAILED",
+                    "仿写候选必须只消费已确认活动版本，完整应用范围并排除未激活或已否决内容。",
+                )
         return json.loads(json.dumps(candidate, ensure_ascii=False))
 
     def checkpoint_topic(
@@ -1088,15 +1258,43 @@ class ContentLoop:
         project_id: Any,
         candidate_number: Any,
         candidate: Any,
+        planning_confirmation: Any = None,
     ) -> dict[str, Any]:
         self.store.assert_binding(task_id=task_id, channel_profile_id=channel_profile_id, binding_proof=binding_proof)
         project_id = _safe_identifier(project_id, "projectId")
         state = self._load_state(channel_profile_id, project_id)
+        if state["sourceMode"] == "task-prompt-guided":
+            planning_check = validate_review_documents(
+                self._project_root(channel_profile_id, project_id),
+                ("creative-plan",),
+            )
+            if planning_check["status"] != "PASS":
+                raise ToolError(
+                    "TASK_PROMPT_CREATIVE_PLAN_REQUIRED",
+                    "临时提示词执行结果必须先整理成可查看的 02 创作方案与大纲并完成当前确认门。",
+                )
+            if candidate_number == 1 and state.get("planningConfirmation") is None:
+                if not isinstance(planning_confirmation, dict) or planning_confirmation.get("confirmed") is not True:
+                    raise ToolError(
+                        "TASK_PROMPT_CREATIVE_PLAN_CONFIRMATION_REQUIRED",
+                        "02 创作方案必须先展示给用户，并由当前任务明确确认后才能生成正式候选。",
+                    )
+                state["planningConfirmation"] = _approval(
+                    "D3_CREATIVE_PLAN",
+                    planning_confirmation,
+                    utc_now(),
+                    task_id=task_id,
+                )
+            elif planning_confirmation not in (None, {}):
+                raise ToolError(
+                    "TASK_PROMPT_CREATIVE_PLAN_ALREADY_CONFIRMED",
+                    "创作方案已确认，后续候选检查点不得覆盖本次确认记录。",
+                )
         checkpoint = state["topicCheckpoint"]
         expected = checkpoint["completedUnits"] + 1
         if candidate_number != expected:
             raise ToolError("TOPIC_CHECKPOINT_SEQUENCE", "每次只能追加下一个缺失候选，completedUnits 只能增加 1。", details={"expected": expected})
-        single_candidate_modes = {"provided-outline", "imitation", "direct-rewrite", "synthesis-rewrite"}
+        single_candidate_modes = {"provided-outline", "task-prompt-guided", "imitation", "direct-rewrite", "synthesis-rewrite"}
         maximum = 10 if state["sourceMode"] == "channel-library" else 1 if state["sourceMode"] in single_candidate_modes else 6
         if candidate_number > maximum:
             raise ToolError("TOPIC_CANDIDATE_LIMIT", "候选数量超过当前路线允许上限。")
@@ -1164,7 +1362,7 @@ class ContentLoop:
         project_id = _safe_identifier(project_id, "projectId")
         state = self._load_state(channel_profile_id, project_id)
         candidates = self._load_candidates(state)
-        single_candidate_modes = {"provided-outline", "imitation", "direct-rewrite", "synthesis-rewrite"}
+        single_candidate_modes = {"provided-outline", "task-prompt-guided", "imitation", "direct-rewrite", "synthesis-rewrite"}
         required = 10 if state["sourceMode"] == "channel-library" else 1 if state["sourceMode"] in single_candidate_modes else None
         if required is not None and len(candidates) != required:
             raise ToolError("TOPIC_CANDIDATES_INCOMPLETE", "当前路线的完整候选尚未全部落盘。", details={"required": required, "actual": len(candidates)})
@@ -1185,7 +1383,9 @@ class ContentLoop:
         channel_summary = self.store.get_channel(channel_profile_id)
         channel = channel_summary["channelProfile"]
         production = channel_summary["productionProfile"]
-        version = _next_version((state["activePackages"]["topic"] or {}).get("version"))
+        revision_previous = (state.get("reviewRevision") or {}).get("previousActivePackages", {})
+        version_source = state["activePackages"]["topic"] or revision_previous.get("topic") or {}
+        version = _next_version(version_source.get("version"))
         topic_id = f"topic_{project_id}_v{version.replace('.', '_')}"
         evidence_by_id: dict[str, dict[str, Any]] = {}
         for candidate in candidates:
@@ -1207,6 +1407,8 @@ class ContentLoop:
             for item in state["sourceLocks"]
         )
         upstream.extend(item["writingStyleContract"] for item in state.get("styleLocks", []))
+        if isinstance(state.get("taskPromptSet"), dict):
+            upstream.append(_contract_ref(state["taskPromptSet"]))
         created = utc_now()
         contract_candidates = [
             {
@@ -1225,6 +1427,11 @@ class ContentLoop:
                 **(
                     {"sourceTransformationMap": item["sourceTransformationMap"]}
                     if "sourceTransformationMap" in item
+                    else {}
+                ),
+                **(
+                    {"directionExecutionContract": item["directionExecutionContract"]}
+                    if "directionExecutionContract" in item
                     else {}
                 ),
             }
@@ -1267,6 +1474,7 @@ class ContentLoop:
         route = {
             "channel-library": "channel-profile-anchored",
             "provided-outline": "provided-outline",
+            "task-prompt-guided": "task-prompt-guided",
             "market-original": "original",
             "single-reference": "extension",
             "multi-reference": "extension",
@@ -1313,6 +1521,7 @@ class ContentLoop:
                     "backupCandidateIds": backup_ids,
                     "policy": (
                         "provided-outline-only" if state["sourceMode"] == "provided-outline"
+                        else "task-prompt-confirmed-plan" if state["sourceMode"] == "task-prompt-guided"
                         else "confirmed-imitation-direction" if state["sourceMode"] == "imitation"
                         else "direct-rewrite-request" if state["sourceMode"] == "direct-rewrite"
                         else "synthesis-rewrite-request" if state["sourceMode"] == "synthesis-rewrite"
@@ -1357,7 +1566,14 @@ class ContentLoop:
         self._save_state(state)
         return {"package": contract, "packagePath": str(root), "confirmationCard": {"gate": "G3", "confirmed": True}}
 
-    def _validate_lines(self, lines: Any, episode_count: int, *, field: str) -> list[dict[str, Any]]:
+    def _validate_lines(
+        self,
+        lines: Any,
+        episode_count: int,
+        *,
+        field: str,
+        sound_effects_enabled: bool | None = None,
+    ) -> list[dict[str, Any]]:
         if not isinstance(lines, list) or not lines:
             raise ToolError("SCRIPT_LINES_INVALID", f"{field} 必须是非空行数组。")
         seen: set[str] = set()
@@ -1365,7 +1581,7 @@ class ContentLoop:
         per_episode: dict[int, int] = {index: 1 for index in range(1, episode_count + 1)}
         normalized: list[dict[str, Any]] = []
         for line in lines:
-            if not isinstance(line, dict) or "lineId" not in line or "emotion" not in line or "text" not in line:
+            if not isinstance(line, dict) or "lineId" not in line or "text" not in line:
                 raise ToolError("SCRIPT_LINES_INVALID", f"{field} 行字段不完整。")
             line_id = _safe_identifier(line["lineId"], "lineId")
             episode = line.get("episodeNumber", line.get("episode"))
@@ -1376,27 +1592,258 @@ class ContentLoop:
                 raise ToolError("SCRIPT_LINES_INVALID", f"{field} 行 ID 重复或集号无效。")
             if sequence != per_episode[episode] or line.get("globalOrder", expected_global) != expected_global:
                 raise ToolError("SCRIPT_ORDER_INVALID", f"{field} 的集内或全局顺序不连续。")
-            if line_type not in {"narration", "dialogue"} or not isinstance(speaker_id, str) or not speaker_id or not all(
-                isinstance(line[key], str) and line[key].strip() for key in ("emotion", "text")
-            ):
+            if line_type not in {"narration", "dialogue", "sound_effect"} or not isinstance(speaker_id, str) or not speaker_id or not isinstance(line["text"], str) or not line["text"].strip():
                 raise ToolError("SCRIPT_LINES_INVALID", f"{field} 的说话人、类型、情绪或文本无效。")
+            normalized_line: dict[str, Any] = {
+                "lineId": line_id,
+                "episodeNumber": episode,
+                "sequence": sequence,
+                "speakerId": speaker_id,
+                "lineType": line_type,
+                "emotion": line.get("emotion", "sound_effect"),
+                "text": line["text"].strip(),
+            }
+            if line_type == "sound_effect":
+                marker = SOUND_EFFECT_LINE_PATTERN.fullmatch(line["text"].strip())
+                if speaker_id != "sfx" or marker is None:
+                    raise ToolError(
+                        "SCRIPT_SOUND_EFFECT_INVALID",
+                        f"{field} 的纯音效必须独占一行并严格写成【sound：具体描述；时长1.2秒】，speakerId 必须为 sfx。",
+                    )
+                sound_prompt = marker.group(1).strip()
+                duration_seconds = float(marker.group(2))
+                if not sound_prompt or not 0 < duration_seconds <= SOUND_EFFECT_MAX_DURATION_SECONDS:
+                    raise ToolError("SCRIPT_SOUND_EFFECT_INVALID", f"{field} 的纯音效时长必须大于0且不超过5秒。")
+                duration_seconds = _normalized_sound_effect_duration(sound_prompt, duration_seconds)
+                normalized_line["text"] = f"【sound：{sound_prompt}；时长{duration_seconds:g}秒】"
+                normalized_line.update(
+                    {
+                        "emotion": "sound_effect",
+                        "soundPrompt": sound_prompt,
+                        "durationSeconds": duration_seconds,
+                        "audioEngine": "seed_audio",
+                        "visualGenerationAllowed": False,
+                    }
+                )
+            elif not isinstance(line.get("emotion"), str) or not line["emotion"].strip():
+                raise ToolError("SCRIPT_LINES_INVALID", f"{field} 的旁白或对白必须提供有效情绪。")
             seen.add(line_id)
             per_episode[episode] += 1
             expected_global += 1
-            normalized.append(
-                {
-                    "lineId": line_id,
-                    "episodeNumber": episode,
-                    "sequence": sequence,
-                    "speakerId": speaker_id,
-                    "lineType": line_type,
-                    "emotion": line["emotion"],
-                    "text": line["text"],
-                }
+            normalized.append(normalized_line)
+        contains_sound_effects = any(line["lineType"] == "sound_effect" for line in normalized)
+        if sound_effects_enabled is False and contains_sound_effects:
+            raise ToolError(
+                "SCRIPT_SOUND_EFFECT_DISABLED",
+                f"{field} 已由用户关闭纯音效，正式稿不能包含 sound_effect 行。",
             )
+        effective_sound_effects_enabled = contains_sound_effects if sound_effects_enabled is None else sound_effects_enabled
         if set(line["episodeNumber"] for line in normalized) != set(range(1, episode_count + 1)):
             raise ToolError("SCRIPT_EPISODE_MISSING", f"{field} 没有覆盖全部分集。")
+        for episode in range(1, episode_count + 1):
+            episode_lines = [line for line in normalized if line["episodeNumber"] == episode]
+            if not any(line["lineType"] in {"narration", "dialogue"} for line in episode_lines):
+                raise ToolError("SCRIPT_EPISODE_SPEECH_MISSING", f"{field} 第 {episode} 集不能只有纯音效。")
+            if effective_sound_effects_enabled and episode_lines[0]["lineType"] != "sound_effect":
+                raise ToolError(
+                    "SCRIPT_EPISODE_OPENING_SOUND_EFFECT_REQUIRED",
+                    f"{field} 已开启纯音效，第 {episode} 集必须以一条符合开场剧情的纯音效开始。",
+                )
+            for position, line in enumerate(episode_lines):
+                if line["lineType"] != "sound_effect" or position == 0:
+                    continue
+                previous = episode_lines[position - 1]
+                if previous["lineType"] not in {"narration", "dialogue"}:
+                    raise ToolError(
+                        "SCRIPT_SOUND_EFFECT_PLACEMENT_INVALID",
+                        f"{field} 的非开场音效必须紧跟在完整旁白或对白之后，不能提前、连放或打断人声。",
+                        details={"episodeNumber": episode, "lineId": line["lineId"]},
+                    )
         return normalized
+
+    def save_planning_document(
+        self,
+        *,
+        task_id: Any,
+        channel_profile_id: Any,
+        binding_proof: Any,
+        project_id: Any,
+        document_type: Any,
+        content: Any,
+    ) -> dict[str, Any]:
+        self.store.assert_binding(
+            task_id=task_id,
+            channel_profile_id=channel_profile_id,
+            binding_proof=binding_proof,
+        )
+        project_id = _safe_identifier(project_id, "projectId")
+        state = self._load_state(channel_profile_id, project_id)
+        if document_type not in {"source-analysis", "creative-plan"}:
+            raise ToolError("CONTENT_PLANNING_DOCUMENT_TYPE_INVALID", "只允许保存内容分析或创作方案文档。")
+        if state["activePackages"].get("topic"):
+            raise ToolError("CONTENT_PLANNING_DOCUMENTS_FROZEN", "选题方案已经冻结，不能回写前置分析或创作大纲。")
+        if state["createdByTaskId"] != task_id:
+            raise ToolError("TASK_PROMPT_SCOPE_MISMATCH", "前置规划只能由创建当前项目的任务写入。")
+        project_root = self._project_root(channel_profile_id, project_id)
+        present = {item["documentId"] for item in review_documents_view(project_root)["documents"]}
+        if document_type == "creative-plan" and state.get("sourceMode") == "task-prompt-guided":
+            stages = (state.get("taskPromptSet") or {}).get("stages", {})
+            if "analysis" in set(stages.values()) and "source-analysis" not in present:
+                raise ToolError(
+                    "TASK_PROMPT_ANALYSIS_DOCUMENT_REQUIRED",
+                    "执行顺序中包含分析提示词，必须先保存内容分析结果，再保存创作方案。",
+                )
+        source_contract = state.get("taskPromptSet")
+        if not isinstance(source_contract, dict):
+            source_contract = {
+                "contractType": "content-brief",
+                "id": f"brief_{project_id}",
+                "contentHash": state["requestHash"],
+            }
+        try:
+            document = save_review_document(
+                project_root,
+                document_id=document_type,
+                content=content,
+                language="zh-CN",
+                updated_at=utc_now(),
+                minimum_characters=80,
+                source_binding={
+                    "contractType": source_contract["contractType"],
+                    "contractId": source_contract["id"],
+                    "contentHash": source_contract["contentHash"],
+                },
+            )
+        except ValueError as exc:
+            raise ToolError("CONTENT_REVIEW_DOCUMENT_INVALID", str(exc)) from exc
+        state["userReviewDocuments"] = review_documents_view(project_root)
+        state["state"] = "PLANNING_READY" if document_type == "creative-plan" else "ANALYSIS_READY"
+        state["confirmationCard"] = {
+            "gate": "D3_TOPIC" if document_type == "creative-plan" else "D2_ANALYSIS",
+            "documentId": document_type,
+            "next": "等待用户确认唯一创作方案" if document_type == "creative-plan" else "继续按任务级提示词生成创作方案",
+        }
+        self._save_state(state)
+        return {
+            "document": document,
+            "userReviewDocuments": state["userReviewDocuments"],
+            "confirmationCard": state["confirmationCard"],
+            "skillInstalled": False,
+        }
+
+    def begin_revision(
+        self,
+        *,
+        task_id: Any,
+        channel_profile_id: Any,
+        binding_proof: Any,
+        project_id: Any,
+        scope: Any,
+        reason: Any,
+        requested_changes: Any,
+        confirmation: Any,
+    ) -> dict[str, Any]:
+        self.store.assert_binding(
+            task_id=task_id,
+            channel_profile_id=channel_profile_id,
+            binding_proof=binding_proof,
+        )
+        project_id = _safe_identifier(project_id, "projectId")
+        state = self._load_state(channel_profile_id, project_id)
+        if scope not in {"creative-plan", "topic", "manuscript", "publishing"}:
+            raise ToolError("CONTENT_REVISION_SCOPE_INVALID", "修订范围只能是创作方案、选题、正式稿或发布素材。")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ToolError("CONTENT_REVISION_REASON_REQUIRED", "开始修订前必须记录本次修改原因。")
+        if (
+            not isinstance(requested_changes, list)
+            or not requested_changes
+            or any(not isinstance(item, str) or not item.strip() for item in requested_changes)
+        ):
+            raise ToolError("CONTENT_REVISION_CHANGES_REQUIRED", "必须列出至少一项本次用户要求的修改。")
+        expected_ref = f"task:{task_id}:revise:{project_id}:{scope}"
+        if (
+            not isinstance(confirmation, dict)
+            or confirmation.get("confirmed") is not True
+            or confirmation.get("confirmationRef") != expected_ref
+        ):
+            raise ToolError(
+                "CONTENT_REVISION_CONFIRMATION_REQUIRED",
+                "上游内容不能由下游阶段静默反改；必须取得当前任务针对本项目和范围的明确修订确认。",
+                details={"expectedConfirmationRef": expected_ref},
+            )
+        active_task = state.get("createdByTaskId") == task_id or state.get("lastResume", {}).get("taskId") == task_id
+        if not active_task:
+            raise ToolError("EXPLICIT_PROJECT_RESUME_REQUIRED", "新任务必须先明确恢复该项目，才能发起修订。")
+
+        project_root = self._project_root(channel_profile_id, project_id)
+        review_versions = {
+            item["documentId"]: item["version"]
+            for item in review_documents_view(project_root)["documents"]
+        }
+        cycle = int(state.get("revisionCycle", 0)) + 1
+        invalidated_names = {
+            "creative-plan": ["topic", "manuscript", "publishing"],
+            "topic": ["topic", "manuscript", "publishing"],
+            "manuscript": ["manuscript", "publishing"],
+            "publishing": ["publishing"],
+        }[scope]
+        previous_refs = {
+            name: deepcopy(state["activePackages"].get(name))
+            for name in invalidated_names
+            if state["activePackages"].get(name)
+        }
+        for name in invalidated_names:
+            state["activePackages"][name] = None
+        if scope in {"creative-plan", "topic"}:
+            topic_root = project_root / "topic"
+            candidate_root = topic_root / "candidates"
+            if candidate_root.is_dir():
+                archive_root = topic_root / "archive" / f"revision-cycle-{cycle:03d}"
+                archive_root.mkdir(parents=True, exist_ok=False)
+                shutil.move(str(candidate_root), str(archive_root / "candidates"))
+                partial = topic_root / "topic-candidates-v001.partial.json"
+                if partial.is_file():
+                    shutil.move(str(partial), str(archive_root / partial.name))
+            state["topicCheckpoint"] = {
+                "completedUnits": 0,
+                "candidateIds": [],
+                "lastCandidateHash": None,
+                "updatedAt": utc_now(),
+                "items": [],
+            }
+            state.pop("planningConfirmation", None)
+        state["revisionCycle"] = cycle
+        state["reviewRevision"] = {
+            "cycle": cycle,
+            "scope": scope,
+            "taskId": task_id,
+            "confirmationRef": expected_ref,
+            "reason": reason.strip(),
+            "requestedChanges": [item.strip() for item in requested_changes],
+            "baselineDocumentVersions": review_versions,
+            "previousActivePackages": previous_refs,
+            "startedAt": utc_now(),
+        }
+        state["invalidations"].append(
+            {
+                "at": utc_now(),
+                "reason": "explicit-upstream-revision",
+                "scope": scope,
+                "requestedChanges": state["reviewRevision"]["requestedChanges"],
+                "confirmationRef": expected_ref,
+                "previousActivePackages": previous_refs,
+                "invalidated": invalidated_names,
+            }
+        )
+        state["state"] = f"{scope.upper().replace('-', '_')}_REVISION_AUTHORIZED"
+        self._save_state(state)
+        return {
+            "state": state,
+            "revision": state["reviewRevision"],
+            "invalidatedPackages": invalidated_names,
+            "previousActivePackages": previous_refs,
+            "next": "只修改已确认范围并重新经过受影响阶段的文档与质量门。",
+        }
 
     def save_review_document(
         self,
@@ -1413,33 +1860,64 @@ class ContentLoop:
         state = self._load_state(channel_profile_id, project_id)
         allowed = {
             "rewrite-draft-target": ("target", 40),
+            "rewrite-draft-zh": ("zh-CN", 40),
             "editorial-review": ("zh-CN", 80),
             "revision-log": ("zh-CN", 80),
         }
         if document_type not in allowed:
             raise ToolError("CONTENT_REVIEW_DOCUMENT_TYPE_INVALID", "该文档类型不允许由创作阶段直接写入。")
-        if not state["activePackages"].get("topic"):
+        topic_ref = state["activePackages"].get("topic")
+        if not topic_ref:
             raise ToolError("TOPIC_PACKAGE_REQUIRED", "必须先冻结 Topic Package 才能保存仿写或审核文档。")
+        topic = _read_contract(Path(topic_ref["path"]), "topic-package")
+        review_source_binding = {
+            "contractType": topic["contractType"],
+            "contractId": topic["id"],
+            "contentHash": topic["contentHash"],
+        }
         if state["activePackages"].get("manuscript"):
             raise ToolError("CONTENT_REVIEW_DOCUMENTS_FROZEN", "正式稿已冻结；不能回写早期初稿或审核文档。")
         existing_document_ids = {
             item["documentId"]
             for item in review_documents_view(self._project_root(channel_profile_id, project_id))["documents"]
         }
-        if document_type == "rewrite-draft-target" and existing_document_ids.intersection(
-            {"editorial-review", "revision-log"}
+        review_revision = state.get("reviewRevision") if isinstance(state.get("reviewRevision"), dict) else None
+        baseline_versions = review_revision.get("baselineDocumentVersions", {}) if review_revision else {}
+        current_versions = {
+            item["documentId"]: item["version"]
+            for item in review_documents_view(self._project_root(channel_profile_id, project_id))["documents"]
+        }
+        updated_this_cycle = {
+            document_id
+            for document_id, version in current_versions.items()
+            if version > int(baseline_versions.get(document_id, 0))
+        }
+        review_started_this_cycle = bool(updated_this_cycle.intersection({"editorial-review", "revision-log"}))
+        if document_type in {"rewrite-draft-target", "rewrite-draft-zh"} and (
+            review_started_this_cycle
+            if review_revision
+            else bool(existing_document_ids.intersection({"editorial-review", "revision-log"}))
         ):
             raise ToolError("REWRITE_DRAFT_REVIEW_ALREADY_STARTED", "审核已经开始；不能再替换其来源初稿。")
-        if document_type == "editorial-review" and "revision-log" in existing_document_ids:
+        if document_type == "editorial-review" and (
+            "revision-log" in updated_this_cycle if review_revision else "revision-log" in existing_document_ids
+        ):
             raise ToolError("EDITORIAL_REVIEW_REVISION_ALREADY_RECORDED", "修改对照已经生成；不能再替换其审核来源。")
         if document_type in {"editorial-review", "revision-log"}:
+            required_drafts = ["rewrite-draft-target"]
+            if not state["targetLanguage"].lower().startswith("zh"):
+                required_drafts.append("rewrite-draft-zh")
+            if review_revision and not set(required_drafts).issubset(updated_this_cycle):
+                raise ToolError("REWRITE_DRAFT_DOCUMENT_REQUIRED", "本轮修订必须先重新保存完整目标语言初稿和中文审核初稿。")
             draft_check = validate_review_documents(
                 self._project_root(channel_profile_id, project_id),
-                ("rewrite-draft-target",),
+                required_drafts,
             )
             if draft_check["status"] != "PASS":
                 raise ToolError("REWRITE_DRAFT_DOCUMENT_REQUIRED", "必须先保存完整仿写初稿，再记录审核或修改对照。")
         if document_type == "revision-log":
+            if review_revision and "editorial-review" not in updated_this_cycle:
+                raise ToolError("EDITORIAL_REVIEW_DOCUMENT_REQUIRED", "本轮修订必须先重新生成编辑审核报告。")
             editorial_check = validate_review_documents(
                 self._project_root(channel_profile_id, project_id),
                 ("editorial-review",),
@@ -1456,11 +1934,12 @@ class ContentLoop:
                 language=language,
                 updated_at=utc_now(),
                 minimum_characters=minimum,
+                source_binding=review_source_binding,
             )
         except ValueError as exc:
             raise ToolError("CONTENT_REVIEW_DOCUMENT_INVALID", str(exc)) from exc
         state["userReviewDocuments"] = review_documents_view(self._project_root(channel_profile_id, project_id))
-        if document_type == "rewrite-draft-target":
+        if document_type in {"rewrite-draft-target", "rewrite-draft-zh"}:
             state["state"] = "REWRITE_DRAFT_READY"
         elif {item["documentId"] for item in state["userReviewDocuments"]["documents"]}.issuperset(
             {"editorial-review", "revision-log"}
@@ -1470,7 +1949,7 @@ class ContentLoop:
         return {
             "document": document,
             "userReviewDocuments": state["userReviewDocuments"],
-            "next": "content-review-edit" if document_type == "rewrite-draft-target" else "content_manuscript_finalize",
+            "next": "content-review-edit" if document_type in {"rewrite-draft-target", "rewrite-draft-zh"} else "content_manuscript_finalize",
         }
 
     def get_review_documents(self, *, channel_profile_id: Any, project_id: Any) -> dict[str, Any]:
@@ -1496,6 +1975,7 @@ class ContentLoop:
         foreign_language_quality_gate: Any,
         confirmation: Any,
         authoring_mode: Any = "target-language-native",
+        sound_effects: Any = None,
     ) -> dict[str, Any]:
         self.store.assert_binding(task_id=task_id, channel_profile_id=channel_profile_id, binding_proof=binding_proof)
         project_id = _safe_identifier(project_id, "projectId")
@@ -1506,10 +1986,33 @@ class ContentLoop:
         topic = _read_contract(Path(topic_ref["path"]), "topic-package")
         project_root = self._project_root(channel_profile_id, project_id)
         required_pre_manuscript_documents = ["rewrite-draft-target", "editorial-review", "revision-log"]
+        if not state["targetLanguage"].lower().startswith("zh"):
+            required_pre_manuscript_documents.insert(1, "rewrite-draft-zh")
+        if state["sourceMode"] == "task-prompt-guided":
+            required_pre_manuscript_documents = ["creative-plan", *required_pre_manuscript_documents]
+            prompt_stages = set((state.get("taskPromptSet") or {}).get("stages", {}).values())
+            if "analysis" in prompt_stages:
+                required_pre_manuscript_documents.insert(0, "source-analysis")
         if state["sourceMode"] in {"direct-rewrite", "synthesis-rewrite"}:
             required_pre_manuscript_documents = [
-                "source-summary", "deconstruction-report", "transfer-directions", *required_pre_manuscript_documents
+                "deconstruction-report", "transfer-directions", *required_pre_manuscript_documents
             ]
+        review_revision = state.get("reviewRevision") if isinstance(state.get("reviewRevision"), dict) else None
+        if review_revision and review_revision.get("scope") in {"creative-plan", "topic", "manuscript"}:
+            current_versions = {
+                item["documentId"]: item["version"]
+                for item in review_documents_view(project_root)["documents"]
+            }
+            baseline_versions = review_revision.get("baselineDocumentVersions", {})
+            if any(
+                current_versions.get(document_id, 0) <= int(baseline_versions.get(document_id, 0))
+                for document_id in required_pre_manuscript_documents
+                if document_id in {"rewrite-draft-target", "rewrite-draft-zh", "editorial-review", "revision-log"}
+            ):
+                raise ToolError(
+                    "CONTENT_REVISION_DOCUMENTS_STALE",
+                    "本轮上游修订后必须重新生成初稿、审核和修改对照，不能复用旧文档通过质量门。",
+                )
         pre_manuscript_documents = validate_review_documents(project_root, required_pre_manuscript_documents)
         if pre_manuscript_documents["status"] != "PASS":
             raise ToolError(
@@ -1559,8 +2062,39 @@ class ContentLoop:
                     "catalogHash": voice["catalogHash"],
                 }
             )
+        if sound_effects is None:
+            inferred_enabled = bool(
+                isinstance(target_script, list)
+                and any(isinstance(line, dict) and line.get("lineType", line.get("type")) == "sound_effect" for line in target_script)
+            )
+            sound_effect_selection = {
+                "enabled": inferred_enabled,
+                "selectionSource": "legacy_script_inference",
+                "confirmed": True,
+            }
+        elif (
+            not isinstance(sound_effects, dict)
+            or not isinstance(sound_effects.get("enabled"), bool)
+            or sound_effects.get("selectionSource") != "user"
+            or sound_effects.get("confirmed") is not True
+        ):
+            raise ToolError(
+                "MANUSCRIPT_SOUND_EFFECT_SELECTION_REQUIRED",
+                "进入制作的正式稿必须记录用户本次是否启用纯音效；不得从频道预设或旧项目继承。",
+            )
+        else:
+            sound_effect_selection = {
+                "enabled": sound_effects["enabled"],
+                "selectionSource": "user",
+                "confirmed": True,
+            }
         episode_count = topic["productionRecommendation"]["episodeCount"]
-        target_lines = self._validate_lines(target_script, episode_count, field="targetScript")
+        target_lines = self._validate_lines(
+            target_script,
+            episode_count,
+            field="targetScript",
+            sound_effects_enabled=sound_effect_selection["enabled"],
+        )
         target_language = topic["audience"]["targetLanguage"]
         if target_language.startswith("zh"):
             if chinese_audit_script not in (None, target_script) and chinese_audit_script != target_script:
@@ -1568,13 +2102,23 @@ class ContentLoop:
             audit_lines = target_lines
             audit_mode = "TARGET_IS_CHINESE"
         else:
-            audit_lines = self._validate_lines(chinese_audit_script, episode_count, field="chineseAuditScript")
+            audit_lines = self._validate_lines(
+                chinese_audit_script,
+                episode_count,
+                field="chineseAuditScript",
+                sound_effects_enabled=sound_effect_selection["enabled"],
+            )
             if len(audit_lines) != len(target_lines):
                 raise ToolError("SCRIPT_MAPPING_MISMATCH", "中文回译与目标语言母稿行数不一致。")
             mapping_keys = ("lineId", "episodeNumber", "sequence", "speakerId", "lineType", "emotion")
             for target, audit in zip(target_lines, audit_lines, strict=True):
                 if any(target[key] != audit[key] for key in mapping_keys):
                     raise ToolError("SCRIPT_MAPPING_MISMATCH", "行 ID、集、顺序、说话人、类型或情绪映射错误。", details={"lineId": target["lineId"]})
+                if target["lineType"] == "sound_effect" and any(
+                    target[key] != audit[key]
+                    for key in ("durationSeconds", "audioEngine", "visualGenerationAllowed")
+                ):
+                    raise ToolError("SCRIPT_MAPPING_MISMATCH", "纯音效行的时长、生成引擎或画面禁用映射错误。", details={"lineId": target["lineId"]})
             audit_mode = "LINE_BY_LINE_BACKTRANSLATION"
         target_script_hash = _json_hash(target_lines)
         foreign_quality_contract = _foreign_language_quality_contract(
@@ -1594,7 +2138,7 @@ class ContentLoop:
                 raise ToolError("MANUSCRIPT_QUALITY_GATE_INVALID", "分集质量门顺序或状态无效。")
             if set(checks) != QUALITY_CHECKS or not all(checks.values()) or not 0 <= gate.get("revisionCount", 0) <= 3:
                 raise ToolError("MANUSCRIPT_QUALITY_GATE_INVALID", "质量门硬项不完整、未通过或定向优化超过三轮。")
-        actual_characters = sum(len(line["text"]) for line in target_lines)
+        actual_characters = sum(len(line["text"]) for line in target_lines if line["lineType"] != "sound_effect")
         target_characters = topic["productionRecommendation"]["targetCharacters"]
         tolerance = max(1, round(target_characters * 0.05))
         if abs(actual_characters - target_characters) > tolerance:
@@ -1608,7 +2152,9 @@ class ContentLoop:
             self._save_state(state)
             raise ToolError("MANUSCRIPT_CONFIRMATION_REQUIRED", "G4 未联合确认，不能冻结 Manuscript Package v1。")
 
-        version = _next_version((state["activePackages"]["manuscript"] or {}).get("version"))
+        revision_previous = (state.get("reviewRevision") or {}).get("previousActivePackages", {})
+        version_source = state["activePackages"]["manuscript"] or revision_previous.get("manuscript") or {}
+        version = _next_version(version_source.get("version"))
         manuscript_id = f"manuscript_{project_id}_v{version.replace('.', '_')}"
         root = self._project_root(channel_profile_id, project_id) / "manuscript-package" / f"v{version}"
         story_core = {key: story_bible[key] for key in story_fields}
@@ -1621,8 +2167,8 @@ class ContentLoop:
         _atomic_json(root / "story-bible.json", story_contract)
         _atomic_json(root / "narrative-character-pack.json", {"characters": contract_characters, "voices": voices})
         _atomic_json(root / "target-script.json", {"language": target_language, "lines": target_lines})
-        target_txt = "\n".join(f"[{line['lineId']}] {line['speakerId']}: {line['text']}" for line in target_lines) + "\n"
-        audit_txt = "\n".join(f"[{line['lineId']}] {line['speakerId']}: {line['text']}" for line in audit_lines) + "\n"
+        target_txt = render_script_text(target_lines)
+        audit_txt = render_script_text(audit_lines)
         _atomic_bytes(root / "target-script.txt", target_txt.encode("utf-8"))
         if not target_language.startswith("zh"):
             _atomic_json(root / "chinese-audit-script.json", {"language": "zh-CN", "lines": audit_lines})
@@ -1730,6 +2276,7 @@ class ContentLoop:
                 "targetLanguage": target_language,
                 "episodeCount": episode_count,
                 "lineCount": len(target_lines),
+                "soundEffects": sound_effect_selection,
                 "storyBible": story_contract,
                 "characters": contract_characters,
                 "voices": voices,
@@ -1752,12 +2299,18 @@ class ContentLoop:
         _atomic_json(root / "manifest.json", contract)
         _atomic_json(root / "source-lock.json", {"topicPackage": _contract_ref(topic), "storyFactsHash": topic["storyFactsHash"]})
         try:
+            manuscript_review_binding = {
+                "contractType": contract["contractType"],
+                "contractId": contract["id"],
+                "contentHash": contract["contentHash"],
+            }
             save_review_document(
                 project_root,
                 document_id="final-script-target",
                 content=target_txt,
                 language=target_language,
                 updated_at=created,
+                source_binding=manuscript_review_binding,
             )
             save_review_document(
                 project_root,
@@ -1765,6 +2318,7 @@ class ContentLoop:
                 content=audit_txt,
                 language="zh-CN",
                 updated_at=created,
+                source_binding=manuscript_review_binding,
             )
         except ValueError as exc:
             raise ToolError("CONTENT_REVIEW_DOCUMENT_INVALID", str(exc)) from exc
@@ -1773,6 +2327,10 @@ class ContentLoop:
             state["invalidations"].append({"at": created, "reason": "new-manuscript-version", "invalidated": ["publishing"]})
             state["activePackages"]["publishing"] = None
         state["activePackages"]["manuscript"] = {"id": manuscript_id, "version": version, "hash": contract["contentHash"], "path": str(root / "manifest.json")}
+        if isinstance(state.get("reviewRevision"), dict) and state["reviewRevision"].get("scope") in {
+            "creative-plan", "topic", "manuscript"
+        }:
+            state["completedRevision"] = state.pop("reviewRevision")
         state["userReviewDocuments"] = review_documents_view(project_root)
         state["state"] = "SCRIPT_READY"
         self._save_state(state)
@@ -1825,6 +2383,7 @@ class ContentLoop:
         project_id: Any,
         title: Any,
         title_chinese: Any,
+        title_source: Any = None,
         title_candidates: Any,
         description_body: Any,
         description_chinese: Any,
@@ -1858,16 +2417,41 @@ class ContentLoop:
             or manuscript.get("foreignLanguageQualityGateHash") != foreign_quality.get("contentHash")
         ):
             raise ToolError("FOREIGN_LANGUAGE_QUALITY_GATE_REQUIRED", "正式稿缺少有效且绑定当前母稿的外语质量保险门。")
-        for field, value, maximum in (("title", title, 100), ("descriptionBody", description_body, 5000)):
-            if not isinstance(value, str) or not value.strip() or len(value) > maximum:
-                raise ToolError("PUBLISHING_TEXT_INVALID", f"{field} 为空或超过长度限制。")
+        if not isinstance(title, str) or not title.strip() or len(title) > 100:
+            raise ToolError("PUBLISHING_TEXT_INVALID", "title 为空或超过长度限制。")
         if not isinstance(title_chinese, str) or not title_chinese.strip():
             raise ToolError("PUBLISHING_TEXT_INVALID", "标题必须附中文翻译供审核。")
+        if title_source is None:
+            title_source = "confirmed_narration" if title_candidates in (None, []) else "generated_candidates" if isinstance(title_candidates, list) and len(title_candidates) == 6 else "user_confirmed"
+        if title_source not in {"confirmed_narration", "user_confirmed", "generated_candidates"}:
+            raise ToolError("TITLE_SOURCE_INVALID", "标题来源必须是已确认口播稿、用户明确标题或主动生成候选。")
+        if title_source in {"confirmed_narration", "user_confirmed"} and title_candidates in (None, []):
+            selected_id = "narration-title" if title_source == "confirmed_narration" else "user-confirmed-title"
+            basis = (
+                "正式标题直接继承已确认口播稿标题，未执行额外标题生成。"
+                if title_source == "confirmed_narration"
+                else "正式标题由用户明确提供并确认，未执行额外标题生成。"
+            )
+            title_candidates = [
+                {
+                    "titleId": selected_id,
+                    "text": title.strip(),
+                    "zhTranslation": title_chinese.strip(),
+                    "audienceFit": 10,
+                    "factBasis": basis,
+                    "promiseFulfilled": True,
+                    "sampleWordingCopied": False,
+                }
+            ]
         title_candidate_fields = {
             "titleId", "text", "zhTranslation", "audienceFit", "factBasis", "promiseFulfilled", "sampleWordingCopied"
         }
-        if not isinstance(title_candidates, list) or len(title_candidates) != 6:
-            raise ToolError("TITLE_CANDIDATES_REQUIRED", "必须保存六个目标语言标题候选及其中文翻译。")
+        if not isinstance(title_candidates, list) or not 1 <= len(title_candidates) <= 6:
+            raise ToolError("TITLE_CANDIDATES_REQUIRED", "标题记录必须包含 1–6 个带中文对照的有效标题。")
+        if title_source == "generated_candidates" and len(title_candidates) != 6:
+            raise ToolError("TITLE_CANDIDATES_REQUIRED", "只有用户明确要求优化标题时才进入六候选模式；该模式必须保存六个候选。")
+        if title_source != "generated_candidates" and len(title_candidates) != 1:
+            raise ToolError("TITLE_CANDIDATES_REQUIRED", "直接使用口播稿标题或用户标题时只能保存一个正式标题，不得额外生成候选。")
         clean_title_candidates: list[dict[str, Any]] = []
         title_ids: set[str] = set()
         for item in title_candidates:
@@ -1891,18 +2475,32 @@ class ContentLoop:
             None,
         )
         if selected_title is None:
-            raise ToolError("TITLE_SELECTION_INVALID", "唯一正式标题及中文翻译必须来自六个已审核候选。")
+            raise ToolError("TITLE_SELECTION_INVALID", "唯一正式标题及中文翻译必须与当前标题记录一致。")
         selected_title_id = selected_title["titleId"]
-        if not isinstance(description_chinese, str) or not description_chinese.strip() or len(description_chinese) > 5000:
-            raise ToolError("PUBLISHING_TEXT_INVALID", "YouTube 简介必须附完整中文翻译供审核。")
+        if description_body is None:
+            description_body = ""
+        if not isinstance(description_body, str) or len(description_body) > 5000:
+            raise ToolError("PUBLISHING_TEXT_INVALID", "descriptionBody 必须是最多 5000 字符的文本。")
+        if description_chinese is None:
+            description_chinese = ""
+        if not isinstance(description_chinese, str) or len(description_chinese) > 5000:
+            raise ToolError("PUBLISHING_TEXT_INVALID", "descriptionChinese 必须是最多 5000 字符的文本。")
+        if description_body.strip() and not description_chinese.strip():
+            raise ToolError("PUBLISHING_TEXT_INVALID", "用户提供或明确生成了 YouTube 简介时，必须附完整中文翻译供审核。")
+        if not description_body.strip() and description_chinese.strip():
+            raise ToolError("PUBLISHING_TEXT_INVALID", "没有正式 YouTube 简介时不得单独保存简介翻译。")
         if not isinstance(story_summary_chinese, str) or len(story_summary_chinese.strip()) < 20 or len(story_summary_chinese) > 5000:
             raise ToolError("STORY_SUMMARY_CHINESE_REQUIRED", "上传前中文验收卡必须包含完整、可理解的中文故事摘要。")
-        if not isinstance(hashtags, list) or not 8 <= len(hashtags) <= 12 or len(set(hashtags)) != len(hashtags):
-            raise ToolError("HASHTAG_COUNT_INVALID", "Hashtags 必须是 8–12 个互不重复的目标语言标签。")
+        if hashtags is None:
+            hashtags = []
+        if not isinstance(hashtags, list) or (len(hashtags) != 0 and not 8 <= len(hashtags) <= 12) or len(set(hashtags)) != len(hashtags):
+            raise ToolError("HASHTAG_COUNT_INVALID", "Hashtags 可以不提供；一旦提供，必须是 8–12 个互不重复的目标语言标签。")
         if any(not isinstance(item, str) or not re.fullmatch(r"#[^#\s]{1,99}", item) for item in hashtags):
             raise ToolError("HASHTAG_FORMAT_INVALID", "Hashtag 必须以 # 开头且不包含空白。")
+        if hashtag_translations is None:
+            hashtag_translations = []
         if not isinstance(hashtag_translations, list) or len(hashtag_translations) != len(hashtags):
-            raise ToolError("HASHTAG_TRANSLATIONS_REQUIRED", "每个正式 Hashtag 都必须有中文含义供审核。")
+            raise ToolError("HASHTAG_TRANSLATIONS_REQUIRED", "用户提供 Hashtags 时，每个正式标签都必须有中文含义供审核。")
         clean_hashtag_translations: list[dict[str, str]] = []
         for expected_hashtag, item in zip(hashtags, hashtag_translations, strict=True):
             if (
@@ -1912,32 +2510,52 @@ class ContentLoop:
             ):
                 raise ToolError("HASHTAG_TRANSLATIONS_INVALID", "Hashtags 中文对照必须与正式标签逐项同序对应。")
             clean_hashtag_translations.append({"hashtag": expected_hashtag, "chinese": item["chinese"].strip()})
-        if not isinstance(thumbnail_provider, dict) or not thumbnail_provider:
-            raise ToolError("THUMBNAIL_PROVIDER_REQUIRED", "必须冻结图片供应商接口状态与版本。")
-        if not isinstance(thumbnail_strategy, dict) or not thumbnail_strategy:
-            raise ToolError("THUMBNAIL_STRATEGY_REQUIRED", "必须先冻结 16:9 封面策略。")
-        if not isinstance(thumbnail_text_chinese, str) or not thumbnail_text_chinese.strip():
-            raise ToolError("THUMBNAIL_TEXT_TRANSLATION_REQUIRED", "封面目标语言短文案必须附中文含义供审核。")
-        if not isinstance(thumbnail_candidates, list) or len(thumbnail_candidates) != 5:
-            raise ToolError("THUMBNAIL_CANDIDATES_REQUIRED", "必须保留恰好 5 个构图实质不同的封面候选与内部评分。")
-        candidate_ids = [item.get("candidateId") for item in thumbnail_candidates if isinstance(item, dict)]
-        if len(candidate_ids) != len(thumbnail_candidates) or len(set(candidate_ids)) != len(candidate_ids) or selected_thumbnail_id not in candidate_ids:
-            raise ToolError("THUMBNAIL_SELECTION_INVALID", "封面候选 ID 或唯一正式选择无效。")
-        if not isinstance(ctr_review, dict) or ctr_review.get("status") != "PASSED" or ctr_review.get("factsConsistent") is not True:
-            raise ToolError("CTR_REVIEW_FAILED", "唯一标题与封面未通过事实一致性和 CTR 联评。")
+        if thumbnail is None:
+            thumbnail = {"mode": "youtube_auto"}
+        if not isinstance(thumbnail, dict) or thumbnail.get("mode") not in {"real", "prompt_only", "youtube_auto"}:
+            raise ToolError("THUMBNAIL_INVALID", "封面模式必须是 real、prompt_only 或 youtube_auto。")
+        thumbnail_mode = thumbnail["mode"]
+        if thumbnail_mode == "youtube_auto":
+            thumbnail_provider = None
+            thumbnail_strategy = None
+            thumbnail_candidates = []
+            selected_thumbnail_id = None
+            thumbnail_text_chinese = ""
+            ctr_review = {
+                "status": "NOT_APPLICABLE",
+                "conclusion": "用户未要求生成自定义封面；上传时不调用 thumbnails.set，由 YouTube 使用自动缩略图。",
+            }
+        else:
+            if not isinstance(thumbnail_provider, dict) or not thumbnail_provider:
+                raise ToolError("THUMBNAIL_PROVIDER_REQUIRED", "用户明确要求自定义封面后，必须冻结图片供应商接口状态与版本。")
+            if not isinstance(thumbnail_strategy, dict) or not thumbnail_strategy:
+                raise ToolError("THUMBNAIL_STRATEGY_REQUIRED", "用户明确要求自定义封面后，必须先冻结 16:9 封面策略。")
+            if not isinstance(thumbnail_text_chinese, str) or not thumbnail_text_chinese.strip():
+                raise ToolError("THUMBNAIL_TEXT_TRANSLATION_REQUIRED", "封面目标语言短文案必须附中文含义供审核。")
+            if not isinstance(thumbnail_candidates, list) or len(thumbnail_candidates) != 5:
+                raise ToolError("THUMBNAIL_CANDIDATES_REQUIRED", "自定义封面流程必须保留恰好 5 个构图实质不同的候选与内部评分。")
+            candidate_ids = [item.get("candidateId") for item in thumbnail_candidates if isinstance(item, dict)]
+            if len(candidate_ids) != len(thumbnail_candidates) or len(set(candidate_ids)) != len(candidate_ids) or selected_thumbnail_id not in candidate_ids:
+                raise ToolError("THUMBNAIL_SELECTION_INVALID", "封面候选 ID 或唯一正式选择无效。")
+            if not isinstance(ctr_review, dict) or ctr_review.get("status") != "PASSED" or ctr_review.get("factsConsistent") is not True:
+                raise ToolError("CTR_REVIEW_FAILED", "用户明确要求的唯一标题与封面未通过事实一致性和 CTR 联评。")
         if not isinstance(confirmation, dict) or confirmation.get("confirmed") is not True:
             state["state"] = "AWAITING_PUBLISHING_CONFIRMATION"
             self._save_state(state)
             raise ToolError("PUBLISHING_CONFIRMATION_REQUIRED", "G5 未联合确认，不能冻结 Publishing Asset Package v1。")
-        if not isinstance(thumbnail, dict) or thumbnail.get("mode") not in {"real", "prompt_only"}:
-            raise ToolError("THUMBNAIL_INVALID", "封面必须明确标记 real 或 prompt_only。")
-
         project_root = self._project_root(channel_profile_id, project_id)
         required_review_documents = [
             "rewrite-draft-target", "editorial-review", "revision-log", "final-script-target", "final-script-zh"
         ]
+        if not state["targetLanguage"].lower().startswith("zh"):
+            required_review_documents.insert(1, "rewrite-draft-zh")
+        if state["sourceMode"] == "task-prompt-guided":
+            required_review_documents = ["creative-plan", *required_review_documents]
+            prompt_stages = set((state.get("taskPromptSet") or {}).get("stages", {}).values())
+            if "analysis" in prompt_stages:
+                required_review_documents.insert(0, "source-analysis")
         if state["sourceMode"] in {"direct-rewrite", "synthesis-rewrite"}:
-            required_review_documents = ["source-summary", "deconstruction-report", "transfer-directions", *required_review_documents]
+            required_review_documents = ["deconstruction-report", "transfer-directions", *required_review_documents]
         review_check = validate_review_documents(project_root, required_review_documents)
         if review_check["status"] != "PASS":
             raise ToolError(
@@ -1946,7 +2564,9 @@ class ContentLoop:
                 details={"errors": review_check["errors"]},
             )
 
-        version = _next_version((state["activePackages"]["publishing"] or {}).get("version"))
+        revision_previous = (state.get("reviewRevision") or {}).get("previousActivePackages", {})
+        version_source = state["activePackages"]["publishing"] or revision_previous.get("publishing") or {}
+        version = _next_version(version_source.get("version"))
         publishing_id = f"publishing_{project_id}_v{version.replace('.', '_')}"
         root = self._project_root(channel_profile_id, project_id) / "publishing-asset-package" / f"v{version}"
         root.mkdir(parents=True, exist_ok=True)
@@ -1968,14 +2588,14 @@ class ContentLoop:
             shutil.copyfile(source, destination)
             dimensions = {"width": width, "height": height, "aspectRatio": "16:9"}
             thumbnail_asset = _asset(destination, root, "confirmed-thumbnail", "image/png")
-        else:
+        elif thumbnail_mode == "prompt_only":
             thumbnail_prompt = thumbnail.get("prompt")
             if not isinstance(thumbnail_prompt, str) or not thumbnail_prompt.strip():
                 raise ToolError("THUMBNAIL_PROMPT_REQUIRED", "prompt_only 必须保存清楚的图片提示词。")
         channel = self.store.get_channel(channel_profile_id)["channelProfile"]
         production = self.store.get_channel(channel_profile_id)["productionProfile"]
         created = utc_now()
-        status = "PUBLISHING_ASSETS_READY" if thumbnail_mode == "real" else "AWAITING_THUMBNAIL"
+        status = "PUBLISHING_ASSETS_READY" if thumbnail_mode in {"real", "youtube_auto"} else "AWAITING_THUMBNAIL"
         if thumbnail_mode == "real":
             thumbnail_contract = {
                 "mode": "real_file",
@@ -1986,11 +2606,16 @@ class ContentLoop:
                 "fileReadable": True,
                 "hashVerified": True,
             }
-        else:
+        elif thumbnail_mode == "prompt_only":
             thumbnail_contract = {
                 "mode": "prompt_only",
                 "prompt": thumbnail_prompt,
                 "providerStatus": thumbnail.get("providerStatus", "not_requested"),
+            }
+        else:
+            thumbnail_contract = {
+                "mode": "youtube_auto",
+                "reason": "user-did-not-request-custom-thumbnail",
             }
         contract_thumbnail_candidates = json.loads(json.dumps(thumbnail_candidates, ensure_ascii=False))
         if thumbnail_asset:
@@ -1999,9 +2624,9 @@ class ContentLoop:
                     item["asset"] = thumbnail_asset
                     item["renderStatus"] = "GENERATED"
         production_handoff = {
-            "eligible": thumbnail_mode == "real",
+            "eligible": thumbnail_mode in {"real", "youtube_auto"},
             "assessedAt": created,
-            "blockers": [] if thumbnail_mode == "real" else ["real-thumbnail-required"],
+            "blockers": [] if thumbnail_mode in {"real", "youtube_auto"} else ["requested-custom-thumbnail-not-ready"],
         }
         characters_by_id = {item["characterId"]: item for item in manuscript.get("characters", [])}
         voice_summary = [
@@ -2060,10 +2685,14 @@ class ContentLoop:
                 "thumbnailProvider": thumbnail_provider,
                 "thumbnailStrategy": thumbnail_strategy,
                 "thumbnailCandidates": contract_thumbnail_candidates,
-                "thumbnailSelection": {
-                    "selectedCandidateId": selected_thumbnail_id,
-                    "reason": ctr_review.get("conclusion", "综合评分最高且事实一致。"),
-                },
+                "thumbnailSelection": (
+                    {
+                        "selectedCandidateId": selected_thumbnail_id,
+                        "reason": ctr_review.get("conclusion", "综合评分最高且事实一致。"),
+                    }
+                    if thumbnail_mode != "youtube_auto"
+                    else None
+                ),
                 "thumbnail": thumbnail_contract,
                 "ctrReview": ctr_review,
                 "targetChannel": {
@@ -2090,12 +2719,21 @@ class ContentLoop:
             "uploadPolicy": contract["uploadPolicy"],
             "privacyStatus": contract["privacyStatus"],
         })
-        _atomic_json(root / "thumbnail-strategy.json", thumbnail_strategy)
-        _atomic_json(root / "thumbnail-selection.json", {"candidates": contract_thumbnail_candidates, "selectedThumbnailId": selected_thumbnail_id})
-        _atomic_json(root / "ctr-review.json", ctr_review)
-        _atomic_bytes(root / "description-hashtags.txt", (description_body.rstrip() + "\n\n" + " ".join(hashtags) + "\n").encode("utf-8"))
+        if thumbnail_mode != "youtube_auto":
+            _atomic_json(root / "thumbnail-strategy.json", thumbnail_strategy)
+            _atomic_json(root / "thumbnail-selection.json", {"candidates": contract_thumbnail_candidates, "selectedThumbnailId": selected_thumbnail_id})
+            _atomic_json(root / "ctr-review.json", ctr_review)
+        public_description = description_body.rstrip()
+        if hashtags:
+            public_description = (public_description + "\n\n" if public_description else "") + " ".join(hashtags)
+        _atomic_bytes(root / "description-hashtags.txt", (public_description + ("\n" if public_description else "")).encode("utf-8"))
         _atomic_json(root / "source-lock.json", {"manuscriptPackage": _contract_ref(manuscript)})
         try:
+            publishing_review_binding = {
+                "contractType": contract["contractType"],
+                "contractId": contract["id"],
+                "contentHash": contract["contentHash"],
+            }
             save_review_document(
                 project_root,
                 document_id="packaging-bilingual",
@@ -2109,24 +2747,29 @@ class ContentLoop:
                 language="zh-CN",
                 updated_at=created,
                 minimum_characters=80,
+                source_binding=publishing_review_binding,
             )
-            save_review_document(
-                project_root,
-                document_id="thumbnail-review",
-                content=_thumbnail_review_markdown(
-                    strategy=thumbnail_strategy,
-                    candidates=contract_thumbnail_candidates,
-                    selected_thumbnail_id=selected_thumbnail_id,
-                    thumbnail_text_chinese=thumbnail_text_chinese,
-                    ctr_review=ctr_review,
-                ),
-                language="zh-CN",
-                updated_at=created,
-                minimum_characters=80,
-            )
+            if thumbnail_mode != "youtube_auto":
+                save_review_document(
+                    project_root,
+                    document_id="thumbnail-review",
+                    content=_thumbnail_review_markdown(
+                        strategy=thumbnail_strategy,
+                        candidates=contract_thumbnail_candidates,
+                        selected_thumbnail_id=selected_thumbnail_id,
+                        thumbnail_text_chinese=thumbnail_text_chinese,
+                        ctr_review=ctr_review,
+                    ),
+                    language="zh-CN",
+                    updated_at=created,
+                    minimum_characters=80,
+                    source_binding=publishing_review_binding,
+                )
         except ValueError as exc:
             raise ToolError("CONTENT_REVIEW_DOCUMENT_INVALID", str(exc)) from exc
         state["activePackages"]["publishing"] = {"id": publishing_id, "version": version, "hash": contract["contentHash"], "path": str(root / "manifest.json")}
+        if isinstance(state.get("reviewRevision"), dict) and state["reviewRevision"].get("scope") == "publishing":
+            state["completedRevision"] = state.pop("reviewRevision")
         state["userReviewDocuments"] = review_documents_view(project_root)
         state["state"] = status
         self._save_state(state)
@@ -2139,21 +2782,21 @@ class ContentLoop:
                 chinese_primary={
                     "storySummaryZh": chinese_review["storySummaryZh"],
                     "titleZh": chinese_review["titleZh"],
-                    "descriptionZh": chinese_review["descriptionZh"],
-                    "hashtagsZh": [item["chinese"] for item in clean_hashtag_translations],
-                    "thumbnailTextZh": chinese_review["thumbnailTextZh"],
+                    "descriptionZh": chinese_review["descriptionZh"] or "未提供（用户未要求生成简介）",
+                    "hashtagsZh": [item["chinese"] for item in clean_hashtag_translations] or ["未提供（用户未要求生成 Hashtags）"],
+                    "thumbnailTextZh": chinese_review["thumbnailTextZh"] or "未提供（用户未要求生成自定义封面）",
                     "decisionRequiredZh": "发布素材已确认；制作完成后仍须查看上传前最终中文验收卡。",
                 },
                 target_language_comparison={
                     "title": title,
                     "description": description_body,
                     "hashtags": hashtags,
-                    "thumbnailText": thumbnail_strategy["targetLanguageText"],
+                    "thumbnailText": thumbnail_strategy["targetLanguageText"] if thumbnail_strategy else "",
                 },
                 confirmed=True,
                 technical={"thumbnailMode": thumbnail_mode, "selectedThumbnailId": selected_thumbnail_id},
             ),
-            "productionHandoffEligible": thumbnail_mode == "real",
+            "productionHandoffEligible": thumbnail_mode in {"real", "youtube_auto"},
             "userReviewDocuments": state["userReviewDocuments"],
         }
 
@@ -2230,30 +2873,154 @@ class ContentLoop:
                         errors.append({"package": "publishing", "issue": "thumbnail-aspect-ratio"})
                 except ToolError as exc:
                     errors.append({"package": "publishing", "issue": exc.code})
-        required_review_documents: list[str] = []
+        project_root = self._project_root(channel_profile_id, project_id)
+        review_view = review_documents_view(project_root)
+        present_review_documents = {item["documentId"] for item in review_view["documents"]}
+        workflow_state = review_view.get("workflowState")
+        expected_workflow_state = {
+            "state": state.get("state"),
+            "activePackageHashes": {
+                key: value.get("hash") if isinstance(value, dict) else None
+                for key, value in state.get("activePackages", {}).items()
+            },
+            "invalidationCount": len(state.get("invalidations", [])),
+            "updatedAt": state.get("updatedAt"),
+        }
+        canonical_project = review_view.get("canonicalProject")
+        if workflow_state != expected_workflow_state:
+            errors.append({"package": "user-review-documents", "issue": "workflow-state-stale"})
+        if (
+            not isinstance(canonical_project, dict)
+            or canonical_project.get("projectId") != project_id
+            or canonical_project.get("channelProfileId") != channel_profile_id
+            or Path(str(canonical_project.get("projectRoot") or "")).resolve() != project_root.resolve()
+            or canonical_project.get("parallelWritableProjectRootsAllowed") is not False
+        ):
+            errors.append({"package": "user-review-documents", "issue": "canonical-project-binding"})
+        required_review_documents: list[str] = list(present_review_documents)
         if state.get("sourceMode") in {"direct-rewrite", "synthesis-rewrite"} and state["activePackages"].get("topic"):
-            required_review_documents.extend(("source-summary", "deconstruction-report", "transfer-directions"))
+            required_review_documents.extend(("deconstruction-report", "transfer-directions"))
+        if state.get("state") in {"REWRITE_DRAFT_READY", "EDIT_REVIEW_READY"}:
+            required_review_documents.append("rewrite-draft-target")
+            if not state["targetLanguage"].lower().startswith("zh"):
+                required_review_documents.append("rewrite-draft-zh")
+        if state.get("state") == "EDIT_REVIEW_READY":
+            required_review_documents.extend(("editorial-review", "revision-log"))
         if state["activePackages"].get("manuscript"):
             required_review_documents.extend(
                 ("rewrite-draft-target", "editorial-review", "revision-log", "final-script-target", "final-script-zh")
             )
+            if not state["targetLanguage"].lower().startswith("zh"):
+                required_review_documents.append("rewrite-draft-zh")
+        if state.get("sourceMode") == "task-prompt-guided" and state["activePackages"].get("topic"):
+            required_review_documents.append("creative-plan")
+            prompt_stages = set((state.get("taskPromptSet") or {}).get("stages", {}).values())
+            if "analysis" in prompt_stages:
+                required_review_documents.append("source-analysis")
         if state["activePackages"].get("publishing"):
-            required_review_documents.extend(("packaging-bilingual", "thumbnail-review"))
+            required_review_documents.append("packaging-bilingual")
+            active_publishing = contracts.get("publishing")
+            if active_publishing and active_publishing.get("thumbnail", {}).get("mode") != "youtube_auto":
+                required_review_documents.append("thumbnail-review")
         review_check = None
+        review_binding_check = None
         if required_review_documents:
+            required_review_documents = list(dict.fromkeys(required_review_documents))
             review_check = validate_review_documents(
-                self._project_root(channel_profile_id, project_id),
+                project_root,
                 required_review_documents,
             )
             errors.extend(
                 {"package": "user-review-documents", "issue": item.get("issue"), "documentId": item.get("documentId")}
                 for item in review_check["errors"]
             )
+        if review_check and review_check["status"] == "PASS":
+            binding_expectations: dict[str, dict[str, Any]] = {}
+            prompt_set = state.get("taskPromptSet")
+            if isinstance(prompt_set, dict):
+                for document_id in ("source-analysis", "creative-plan"):
+                    if document_id in present_review_documents:
+                        binding_expectations[document_id] = {
+                            "sourceContractType": prompt_set["contractType"],
+                            "sourceContractId": prompt_set["id"],
+                            "sourceContentHash": prompt_set["contentHash"],
+                        }
+            if state.get("sourceMode") in {"direct-rewrite", "synthesis-rewrite"} and state.get("analysisLocks"):
+                analysis_ref = state["analysisLocks"][0]["analysisPackage"]
+                for document_id in ("deconstruction-report", "transfer-directions"):
+                    if document_id in present_review_documents:
+                        binding_expectations[document_id] = {
+                            "sourceContractType": analysis_ref["targetContractType"],
+                            "sourceContractId": analysis_ref["targetId"],
+                            "sourceContentHash": analysis_ref["targetHash"],
+                        }
+            if "topic" in contracts:
+                topic = contracts["topic"]
+                for document_id in ("rewrite-draft-target", "rewrite-draft-zh", "editorial-review", "revision-log"):
+                    if document_id in present_review_documents:
+                        binding_expectations[document_id] = {
+                            "sourceContractType": topic["contractType"],
+                            "sourceContractId": topic["id"],
+                            "sourceContentHash": topic["contentHash"],
+                        }
+            if "manuscript" in contracts:
+                manuscript = contracts["manuscript"]
+                target_lines = manuscript.get("targetScript", {}).get("lines", [])
+                audit_lines = (
+                    target_lines
+                    if manuscript.get("targetLanguage", "").lower().startswith("zh")
+                    else manuscript.get("auditScript", {}).get("lines", [])
+                )
+                try:
+                    expected_target_text = render_script_text(target_lines)
+                    expected_audit_text = render_script_text(audit_lines)
+                except ValueError:
+                    errors.append({"package": "manuscript", "issue": "script-text-render"})
+                else:
+                    binding_expectations["final-script-target"] = {
+                        "content": expected_target_text,
+                        "language": manuscript["targetLanguage"],
+                        "productionUseAllowed": True,
+                        "sourceContractType": manuscript["contractType"],
+                        "sourceContractId": manuscript["id"],
+                        "sourceContentHash": manuscript["contentHash"],
+                    }
+                    binding_expectations["final-script-zh"] = {
+                        "content": expected_audit_text,
+                        "language": "zh-CN",
+                        "productionUseAllowed": False,
+                        "sourceContractType": manuscript["contractType"],
+                        "sourceContractId": manuscript["id"],
+                        "sourceContentHash": manuscript["contentHash"],
+                    }
+            if "publishing" in contracts:
+                publishing = contracts["publishing"]
+                publishing_review_ids = ["packaging-bilingual"]
+                if publishing.get("thumbnail", {}).get("mode") != "youtube_auto":
+                    publishing_review_ids.append("thumbnail-review")
+                for document_id in publishing_review_ids:
+                    if document_id in present_review_documents:
+                        binding_expectations[document_id] = {
+                            "sourceContractType": publishing["contractType"],
+                            "sourceContractId": publishing["id"],
+                            "sourceContentHash": publishing["contentHash"],
+                        }
+            if binding_expectations:
+                review_binding_check = validate_review_document_bindings(project_root, binding_expectations)
+                errors.extend(
+                    {
+                        "package": "user-review-documents",
+                        "issue": item.get("issue"),
+                        "documentId": item.get("documentId"),
+                    }
+                    for item in review_binding_check["errors"]
+                )
         return {
             "status": "PASS" if not errors else "FAIL",
             "projectId": project_id,
             "checkedPackages": sorted(contracts),
             "userReviewDocuments": review_check,
+            "userReviewDocumentBindings": review_binding_check,
             "errors": errors,
             "boundaries": self.capabilities()["boundaries"],
         }
@@ -2266,10 +3033,14 @@ class ContentLoop:
         if missing:
             raise ToolError("CONTENT_CONFIRMATION_CHAIN_INCOMPLETE", "未确认的内容链不得移交制作。", details={"missing": missing})
         publishing = _read_contract(Path(state["activePackages"]["publishing"]["path"]), "publishing-asset-package")
-        if integrity["status"] != "PASS" or publishing.get("status") != "PUBLISHING_ASSETS_READY" or publishing.get("thumbnail", {}).get("mode") != "real_file":
+        if (
+            integrity["status"] != "PASS"
+            or publishing.get("status") != "PUBLISHING_ASSETS_READY"
+            or publishing.get("thumbnail", {}).get("mode") not in {"real_file", "youtube_auto"}
+        ):
             raise ToolError(
                 "CONTENT_HANDOFF_BLOCKED",
-                "内容包完整性、联合确认或真实 16:9 封面未满足；不会进入制作中心。",
+                "内容包完整性或联合确认未满足；用户明确要求的自定义封面尚未完成时也不会进入制作中心。",
                 details={"integrity": integrity["status"], "publishingStatus": publishing.get("status")},
             )
         return {

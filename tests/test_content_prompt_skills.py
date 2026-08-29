@@ -2,15 +2,37 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 import unittest
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "plugins" / "ai-video-channel-production"
+sys.path.insert(0, str(PLUGIN / "mcp"))
+
+from aivcp_tools.review_documents import DOCUMENT_SPECS  # noqa: E402
 
 
 class ContentPromptSkillTests(unittest.TestCase):
+    def test_source_summary_is_not_a_document_or_downstream_gate(self) -> None:
+        self.assertNotIn("source-summary", DOCUMENT_SPECS)
+
+        content = (PLUGIN / "mcp" / "aivcp_tools" / "content.py").read_text(encoding="utf-8")
+        deconstruction = (PLUGIN / "mcp" / "aivcp_tools" / "video_deconstruction.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn('document_id="source-summary"', deconstruction)
+        self.assertNotIn('("source-summary", "deconstruction-report", "transfer-directions")', content)
+        self.assertNotIn('("source-summary", "deconstruction-report", "transfer-directions")', deconstruction)
+
+        router = (PLUGIN / "skills" / "channel-production" / "SKILL.md").read_text(encoding="utf-8")
+        review_rules = (
+            PLUGIN / "skills" / "channel-production" / "references" / "user-review-documents.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("不得为素材另建、确认或下游引用", router)
+        self.assertIn("不得新建、确认、复制或要求", review_rules)
+
     def test_active_prompt_bundles_are_exact(self) -> None:
         manifest = json.loads(
             (PLUGIN / "assets" / "content-prompt-bundles.json").read_text(encoding="utf-8")

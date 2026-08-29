@@ -178,6 +178,11 @@ def create_service(root: Path, language: str, *, plugin_root: Path, local_tool_s
                 "voice": {"engineId": "fixture-tts", "voiceId": f"fixture-{market['key']}-001"},
                 "manuscript": {"mode": "auto_by_topic", "preferredCharacters": 200, "minCharacters": 20, "maxCharacters": 1000},
                 "episodes": {"mode": "auto_by_topic", "preferredCount": 2, "minCount": 1, "maxCount": 4},
+                "imageStyle": {
+                    "presetId": "visual_01",
+                    "prompt": "现代商业电视动画风格，干净线稿，稳定赛璐璐上色。",
+                },
+                "storyImageTextPolicy": "forbid_visible_text",
                 "deliveryMode": "auto_render",
                 "videoGeneration": {"enabled": False, "selectionMode": "none", "fallbackPolicy": "pause"},
                 "uploadPolicy": "REQUIRE_REVIEW",
@@ -343,27 +348,48 @@ def finalize_topic(ctx: PipelineContext, *, confirmed: bool = True) -> dict[str,
     )
 
 
-def manuscript_payload(ctx: PipelineContext) -> dict[str, Any]:
+def manuscript_payload(ctx: PipelineContext, *, sound_effects_enabled: bool = True) -> dict[str, Any]:
     state = ctx.service.call("content_project_get", {"channelProfileId": ctx.channel_id, "projectId": ctx.project_id})["state"]
     topic = json.loads(Path(state["activePackages"]["topic"]["path"]).read_text(encoding="utf-8"))
     language = topic["audience"]["targetLanguage"]
     target_lines = []
+    if sound_effects_enabled:
+        for episode in (1, 2):
+            target_lines.append(
+                {
+                    "lineId": f"E{episode:02d}-SFX001",
+                    "episodeNumber": episode,
+                    "sequence": 1,
+                    "speakerId": "sfx",
+                    "lineType": "sound_effect",
+                    "emotion": "sound_effect",
+                    "text": "【sound：远处人群声与门锁轻响；时长2秒】",
+                }
+            )
     for index, text in enumerate(ctx.market["target"], 1):
         episode = 1 if index <= 2 else 2
         target_lines.append(
             {
                 "lineId": f"E{episode:02d}-L{(index - 1) % 2 + 1:03d}",
                 "episodeNumber": episode,
-                "sequence": (index - 1) % 2 + 1,
+                "sequence": (index - 1) % 2 + (2 if sound_effects_enabled else 1),
                 "speakerId": "narrator" if index % 2 else "protagonist",
                 "lineType": "narration" if index % 2 else "dialogue",
                 "emotion": "calm" if index < 4 else "hopeful",
                 "text": text,
             }
         )
+    target_lines.sort(key=lambda line: (line["episodeNumber"], line["sequence"]))
     audit_lines = None
     if not language.startswith("zh"):
-        audit_lines = [{**line, "text": ctx.market["audit"][index]} for index, line in enumerate(target_lines)]
+        audit_index = 0
+        audit_lines = []
+        for line in target_lines:
+            if line["lineType"] == "sound_effect":
+                audit_lines.append(dict(line))
+                continue
+            audit_lines.append({**line, "text": ctx.market["audit"][audit_index]})
+            audit_index += 1
     checks = {
         "locked-facts": True,
         "story-progress": True,
@@ -411,6 +437,11 @@ def manuscript_payload(ctx: PipelineContext) -> dict[str, Any]:
         "characters": characters,
         "targetScript": target_lines,
         "chineseAuditScript": audit_lines,
+        "soundEffects": {
+            "enabled": sound_effects_enabled,
+            "selectionSource": "user",
+            "confirmed": True,
+        },
         "qualityGate": {
             "passed": True,
             "episodes": [
@@ -453,6 +484,11 @@ def manuscript_payload(ctx: PipelineContext) -> dict[str, Any]:
             }
         ),
         "rewriteDraftText": "\n".join(f"初稿 {line['lineId']} {line['speakerId']}：{line['text']}" for line in target_lines),
+        "rewriteDraftZhText": (
+            "\n".join(f"初稿 {line['lineId']} {line['speakerId']}：{line['text']}" for line in audit_lines)
+            if audit_lines is not None
+            else None
+        ),
         "editorialReviewMarkdown": (
             "# 编辑审核报告\n\n本合成稿已逐集检查事实、结构、人物、因果、情绪、节奏、语言和目标市场适配。"
             "未发现 P0 阻断项；P1 项为补强证据取得过程和结尾回报，已在正式稿中完成定向修复并复查通过。"
@@ -465,13 +501,23 @@ def manuscript_payload(ctx: PipelineContext) -> dict[str, Any]:
     }
 
 
-def finalize_manuscript(ctx: PipelineContext, *, mutate_audit: bool = False) -> dict[str, Any]:
-    payload = manuscript_payload(ctx)
-    for document_type, payload_key in (
-        ("rewrite-draft-target", "rewriteDraftText"),
-        ("editorial-review", "editorialReviewMarkdown"),
-        ("revision-log", "revisionLogMarkdown"),
-    ):
+def finalize_manuscript(
+    ctx: PipelineContext,
+    *,
+    mutate_audit: bool = False,
+    sound_effects_enabled: bool = True,
+) -> dict[str, Any]:
+    payload = manuscript_payload(ctx, sound_effects_enabled=sound_effects_enabled)
+    documents = [("rewrite-draft-target", "rewriteDraftText")]
+    if payload.get("rewriteDraftZhText") is not None:
+        documents.append(("rewrite-draft-zh", "rewriteDraftZhText"))
+    documents.extend(
+        [
+            ("editorial-review", "editorialReviewMarkdown"),
+            ("revision-log", "revisionLogMarkdown"),
+        ]
+    )
+    for document_type, payload_key in documents:
         ctx.service.call(
             "content_review_document_save",
             {
@@ -484,7 +530,10 @@ def finalize_manuscript(ctx: PipelineContext, *, mutate_audit: bool = False) -> 
             },
         )
     if mutate_audit and payload["chineseAuditScript"]:
-        payload["chineseAuditScript"][0]["speakerId"] = "wrong-speaker"
+        first_spoken_line = next(
+            line for line in payload["chineseAuditScript"] if line["lineType"] in {"narration", "dialogue"}
+        )
+        first_spoken_line["speakerId"] = "wrong-speaker"
     return ctx.service.call(
         "content_manuscript_finalize",
         {
@@ -528,6 +577,7 @@ def publishing_payload(ctx: PipelineContext, thumbnail_path: Path, *, hashtags: 
     return {
         "title": ctx.market["title"],
         "titleChinese": ctx.market["titleZh"],
+        "titleSource": "generated_candidates",
         "titleCandidates": title_candidates,
         "descriptionBody": ctx.market["description"],
         "descriptionChinese": ctx.market["description"] if ctx.market["key"] == "cn" else "这是对应目标语言简介的完整中文审核翻译，仅供用户检查，不进入发布字段。故事围绕期限、证据与社区重新开始展开。",
@@ -579,9 +629,14 @@ def finalize_publishing(ctx: PipelineContext, thumbnail_path: Path, **overrides:
     )
 
 
-def build_complete_pipeline(ctx: PipelineContext, thumbnail_path: Path) -> dict[str, Any]:
+def build_complete_pipeline(
+    ctx: PipelineContext,
+    thumbnail_path: Path,
+    *,
+    sound_effects_enabled: bool = True,
+) -> dict[str, Any]:
     topic = finalize_topic(ctx)
-    manuscript = finalize_manuscript(ctx)
+    manuscript = finalize_manuscript(ctx, sound_effects_enabled=sound_effects_enabled)
     publishing = finalize_publishing(ctx, thumbnail_path)
     integrity = ctx.service.call("content_integrity_check", {"channelProfileId": ctx.channel_id, "projectId": ctx.project_id})
     handoff = ctx.service.call("content_handoff_check", {"channelProfileId": ctx.channel_id, "projectId": ctx.project_id})

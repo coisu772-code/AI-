@@ -5,24 +5,25 @@ description: 用户明确说开始制作后，把无频道自由创作工作区�
 
 # 制作中心
 
-先读取 [逐阶段确认契约](../channel-production/references/manual-stage-confirmations.md) 和 [三种生产模式合同](references/production-modes.md)。只有用户本次选择 `director` 精品导演模式时才读取 [Codex 视觉方案合同](references/codex-visual-plan.md)。只生成媒体资产并完成技术验收。保持目标语言正式母稿、角色音色和发布素材只读；任何内容修改都返回对应上游中心建立新版本。
+先读取 [逐阶段确认契约](../channel-production/references/manual-stage-confirmations.md) 和 [三种生产模式合同](references/production-modes.md)。只有用户本次选择 `director` 精品导演模式时才读取 [Codex 视觉方案合同](references/codex-visual-plan.md)。只生成媒体资产并完成技术验收。保持目标语言正式母稿、与正式稿同批冻结的角色识别／形象锚点、角色音色和发布素材只读；任何内容修改都返回对应上游中心建立新版本。若正式稿角色包只有旁白或缺少持续出镜主要角色的形象锚点，必须返回正文阶段补齐，不能在工坊配音前临时猜角色。
 
 ## 开始制作
 
 1. 调用 `content_workspace_get`。确认当前工作区属于本任务，列出已确认文稿与包装素材；不得读取旧频道项目填充。
 2. 只有用户明确说“开始制作／进入工坊／移交制作”后，先按 [三种生产模式合同](references/production-modes.md) 显示 `A 极速自动／B 平衡（推荐）／C 精品导演` 选择卡并等待本次选择，再查询频道列表。让用户选择目标发布频道，绝不能把模式、参考频道或旧项目频道当作默认值。即使本任务已有自动完成授权，也不能跳过本次模式选择。
-3. 调用 `production_capabilities`，读取频道预设、预扫描音色目录和 [36 个图片风格预设](../../assets/image-style-presets.json)，显示与所选模式相符的中文优先制作设置卡：唯一正式文稿、模式、频道、地区、语言、集数、人物配音引擎／模型／音色、纯音效固定开启、章节标题是否朗读、宫格与画幅、画风、制作方式和能力状态。`fast_auto` 与 `balanced` 的制作方式固定为自动静态成片，不再重复询问图片／视频提示词或镜头视频；只有 `director` 显示视频提示词、实际镜头视频范围、视频输入模式（仅首帧／首尾帧）和失败策略。宫格可以设置一个全局预设，也可以按集覆盖；分集覆盖写入 `gridBatch.episodeTemplates`，未覆盖的集继承 `gridBatch.template`。图片生产并发允许 1–20；当前任务已明确选择 20 时必须保留配置值 20，运行期自适应降速只能记录有效并发，不得回写覆盖配置值。人物引擎只按 `voiceSelection.humanVoiceEngines` 中 `humanVoiceSelectable=true` 的项目展示；`externalServiceProbeExecuted=false` 时，工坊旧 `available=false` 表示“未探测”而不是“不可用”，不得因此把已配置的 VOICEVOX 或 Kokoro 隐藏。本地引擎的实时健康检查和按需自动启动在制作启动时执行。用户先选择人物配音引擎，再只从该引擎的真实目录为旁白和角色推荐音色；Seed Audio 在本合同中只用于纯音效，不得锁成人物语音引擎。每集必须配置一条匹配开场环境或动作的开场音效。
+3. 调用 `production_capabilities`，读取频道预设、预扫描音色目录和 [36 个图片风格预设](../../assets/image-style-presets.json)，显示中文优先制作设置卡：唯一正式文稿、模式、频道、地区、语言、集数、人物配音引擎／模型／音色、是否启用纯音效、章节标题是否朗读、宫格与画幅、画风、制作方式、图片／视频提示词、实际镜头视频范围、视频输入模式（仅首帧／首尾帧）、失败策略、图片覆盖节奏和能力状态。三种模式都完整显示这些选择；模式只给推荐默认值和提示词作者，不能隐藏或禁止选项。宫格可以设置一个全局预设，也可以按集覆盖；分集覆盖写入 `gridBatch.episodeTemplates`，未覆盖的集继承 `gridBatch.template`。图片生产并发允许 1–20；当前任务已明确选择 20 时必须保留配置值 20，运行期自适应降速只能记录有效并发，不得回写覆盖配置值。人物引擎只按 `voiceSelection.humanVoiceEngines` 中 `humanVoiceSelectable=true` 的项目展示；`externalServiceProbeExecuted=false` 时，工坊旧 `available=false` 表示“未探测”而不是“不可用”，不得因此把已配置的 VOICEVOX 或 Kokoro 隐藏。本地引擎的实时健康检查和按需自动启动在制作启动时执行。用户先选择人物配音引擎，再只从该引擎的真实目录为旁白和角色推荐音色；Seed Audio 在本合同中只用于用户本次明确开启的纯音效，不得锁成人物语音引擎。关闭音效时不插入音效行、不加载 Seed Audio，首行可直接是旁白或对白；开启音效时每集必须配置一条匹配开场环境或动作的开场音效。
 4. 故事图片画风使用独立 `S` 编号组，分组但完整列出 `visual_01`–`visual_36` 全部预设的编号和名称，并提供自定义入口；可以标注一个有理由的推荐项，但不得只显示推荐项。频道预设和旧项目只作为预选，不能代替当前项目确认。审核模式停在 `G5B_PRODUCTION` 等待确认；即使当前任务已授权自动完成，如果自动授权语句没有逐项给出本卡设置，也必须等待本次确认。
-5. 只有 `director` 模式把“视频提示词”和“实际生成镜头视频”显示为两个独立的是／否或范围项。未明确要求视频提示词时固定关闭；未明确要求实际视频及具体镜头范围时固定 `enabled=false`、`selectionMode=none`、`count=0`。仅确认视频提示词不得开启实际视频生成。`director` 的图片与视频提示词作者固定为 Codex；`balanced` 的图片提示词作者固定为工坊；`fast_auto` 不主动增加提示词分析步骤。
+5. 三种模式都把“视频提示词”和“实际生成镜头视频”显示为两个独立的是／否或范围项。未明确要求视频提示词时固定关闭；未明确要求实际视频及具体镜头范围时固定 `enabled=false`、`selectionMode=none`、`count=0`。仅确认视频提示词不得开启实际视频生成。`director` 的图片与视频提示词作者固定为 Codex；`balanced` 与 `fast_auto` 按用户开关由工坊生成。
    视频输入模式默认 `first_frame`。只有用户在本次制作卡明确选择首尾帧时才使用 `first_last_frame`，且不能借此自动开启上述两个独立开关。首尾帧模式为已选分镜独立生成同镜头尾帧，并提交首帧、尾帧和该分镜的明确视频提示词；缺少任一输入或模型不支持时暂停，不得静默退回仅首帧。
-6. 用户确认制作设置后，把本次选择写入 `productionMode.id + selectionSource=user + confirmed=true`，先调用 `content_workspace_bind_production`，再调用 `content_workspace_narration_prepare`，提交并冻结正式口播稿标题、中文标题对照和正式配音稿。整理稿必须保持原剧情、人物关系、关键事件、因果顺序、人物动机与结局不变；把流水账、概括交代和无意义重复改为可听见、可表演的场景、动作、自然对话、停顿、视线和情绪反应，不得凭空增加反转、人物或设定。标题只作为发布元数据，不进入配音文本；正文默认不朗读“第一章／Chapter 1”等结构标题。旁白和对白按自然语义拆行，不设置 2–8 秒建议值或 12 秒硬上限；一句出现多个可见动作、视线变化、情绪转折或因果结果时，在不删字、不改顺序的前提下拆成多个自然语义行。配音行继续独立用于 TTS 与字幕，但不得直接继承为一行一图。每集第一行必须是一条匹配开场剧情的纯音效；其余纯音效必须紧跟在触发它的完整旁白或对白之后，等整句说完再播放，不能抢句、重叠人声或连续堆放。纯音效必须独占一行，严格使用 `【sound：具体、简短、可直接生成的声音描述；时长1.2秒】`；同一时刻多种声音合并为一条，时长必须大于 0 且不超过 5 秒，标记内不得含对白，不朗读标记，不生成字幕，不生成独立画面，不把背景音乐当音效。然后调用 `$publishing-assets`。只有 `director` 模式在全部就绪后按 [视觉方案合同](references/codex-visual-plan.md) 生成完整逐镜方案；`fast_auto` 与 `balanced` 不读取该合同、不生成 `codexVisualPlan`。生产配置必须明确：
+6. 用户确认制作设置后，把本次选择写入 `productionMode.id + selectionSource=user + confirmed=true`，先调用 `content_workspace_bind_production`，再调用 `content_workspace_narration_prepare`，提交并冻结正式口播稿标题、中文标题对照和正式配音稿。整理稿必须保持原剧情、人物关系、关键事件、因果顺序、人物动机与结局不变；把流水账、概括交代和无意义重复改为可听见、可表演的场景、动作、自然对话、停顿、视线和情绪反应，不得凭空增加反转、人物或设定。标题只作为发布元数据，不进入配音文本；正文默认不朗读“第一章／Chapter 1”等结构标题。旁白和对白按自然语义拆行，不设置 2–8 秒建议值或 12 秒硬上限；一句出现多个可见动作、视线变化、情绪转折或因果结果时，在不删字、不改顺序的前提下拆成多个自然语义行。配音行继续独立用于 TTS 与字幕，但不得直接继承为一行一图。纯音效必须以本次设置卡中用户明确选择为准：关闭时不插入任何音效行、不加载 Seed Audio，首行可直接是旁白或对白；开启时每集第一行才使用匹配开场剧情的纯音效，其余纯音效紧跟触发它的完整旁白或对白之后，等整句说完再播放，不能抢句、重叠人声或连续堆放。开启后的纯音效必须独占一行，严格使用 `【sound：具体、简短、可直接生成的声音描述；时长1.2秒】`；同一时刻多种声音合并为一条，时长必须大于 0 且不超过 5 秒，标记内不得含对白，不朗读标记，不生成字幕，不生成独立画面，不把背景音乐当音效。然后调用 `$publishing-assets`。只有 `director` 模式在全部就绪后按 [视觉方案合同](references/codex-visual-plan.md) 生成完整逐镜方案；`fast_auto` 与 `balanced` 不读取该合同、不生成 `codexVisualPlan`。生产配置必须明确：
    - `imageStyle.presetId` 与 `imageStyle.prompt`：每个新任务都由用户从当前 `visual_01`–`visual_36` 预设或自定义画风中选择或确认，提示词不得为空；已退役预设不得进入新包；
    - `storyImageTextPolicy=forbid_visible_text`：只约束角色图、分镜图和宫格图；只有用户明确要求并确认自定义封面时，才存在独立封面资产；
    - `voiceTtsProfile`：`selectionSource=user`，保存用户本次选择的非 Seed Audio 人物配音引擎；`recommendVoicesFromSelectedEngineOnly=true`，同一 `speaker_id` 在当前项目内持续绑定同一音色，禁止中途换引擎或音色；
-   - `soundEffects`：纯音效固定开启并使用 `engineId=seed_audio`，要求每集开场音效、其余音效位于完整触发人声之后、显式时长、`maxDurationSeconds=5`、`standaloneStoryboard=false`、`mixWithAdjacentSpeech=true`、不生成字幕、`backgroundMusicEnabled=false`；时长按声音类别生成并规范化：短促动作声 0.8–1.6 秒、鼓钟回响 1.8–3.2 秒、欢呼人群 2.5–4.2 秒、风雨环境声和短旋律 3.0–4.8 秒、转场声 1.6–3.0 秒。生成后必须检查有效声音主体、完整起音与自然尾音，禁止用一秒声音加静音填满；不完整音效自动重试一次；这里的 adjacent 只表示共用分镜，不允许覆盖或打断上一条人声；
+   - `soundEffects`：必须保存 `enabled`、`selectionSource=user`、`confirmed=true`。关闭时不接受任何 `sound_effect` 行，`engineId/modelId` 可为空，不加载 Seed Audio，`backgroundMusicEnabled=false`。开启时使用 `engineId=seed_audio`，要求每集开场音效、其余音效位于完整触发人声之后、显式时长、`maxDurationSeconds=5`、`standaloneStoryboard=false`、`mixWithAdjacentSpeech=true`、不生成字幕、`backgroundMusicEnabled=false`；时长按声音类别生成并规范化：短促动作声 0.8–1.6 秒、鼓钟回响 1.8–3.2 秒、欢呼人群 2.5–4.2 秒、风雨环境声和短旋律 3.0–4.8 秒、转场声 1.6–3.0 秒。生成后必须检查有效声音主体、完整起音与自然尾音，禁止用一秒声音加静音填满；不完整音效自动重试一次；这里的 adjacent 只表示共用分镜，不允许覆盖或打断上一条人声；
    - `codexVisualPlan`：仅 `director` 必填并接受 schema 1.5；`fast_auto` 与 `balanced` 禁止携带。完整字段与质量门只读取视觉方案合同；
    - `workshopPromptGeneration.image=true`：仅 `balanced` 由生产中心写入，用于显式调用工坊已有图片提示词分析步骤；它不是用户需要重复确认的开关；
    - `deliveryMode`：`auto_render` 或 `jianying_refine`；
+   - `sceneImageCadence`：用户选择 `semantic_auto`、`seconds_range`、`line_level` 或 `custom`；八至十五秒只能作为可选推荐范围，不能成为硬编码；
    - `videoGeneration.selectionMode`：`none`、`project_first_n_storyboards`、`episode_first_n_storyboards` 或 `all_storyboards`；
    - `videoGeneration.frameInputMode`：`first_frame` 或 `first_last_frame`；后者必须同时使用 `endFrameSource=dedicated_generated`；
    - 用户没有在当前任务明确指定视频镜头范围时，必须固定 `enabled=false`、`selectionMode=none`，不得采用频道默认值或旧项目设置；
@@ -32,6 +33,8 @@ description: 用户明确说开始制作后，把无频道自由创作工作区�
 7. 调用 `production_package_assemble` 组装时，工具必须验证 `content_workspace_narration_prepare` 的来源正式稿版本／哈希与 `script_lines.json` 一致，并确认中文版禁止生产。随后生成完整生产资料总览，列出唯一配音稿、中文审核稿、各自路径与 SHA-256，以及角色、音色、制作方式、视频范围和标题；简介、Hashtags、自定义封面仅在存在时列出，否则记录为空／YouTube 自动缩略图。
 8. `Production Package v2.1` 仍是机器读取包：生产正文只包含目标语言正式稿，并保留角色、音色、视觉锚点、制作配置和既有工坊界面所需的 `titleZhTranslation`；中文版长稿、中文简介／标签审核译文、拆解报告和审稿报告不得混入机器输入。
 9. 只有组装工具返回完整、无敏感字段的标准包后，调用 `production_task_start`。相同项目与包版本已经有活动任务时，继续原任务，不新建第二个活动任务。
+
+`production_task_start` 对新任务同时完成持久入队并唤醒本机常驻事件调度器。无需再次调用 `production_task_run` 才能接棒；兼容调用只负责唤醒。工坊文件状态变化会触发立即调度，六十秒看门狗只用于崩溃恢复。不得创建 Codex 定时任务来驱动生产队列。
 
 ## 已有项目局部重做与资产范围锁
 

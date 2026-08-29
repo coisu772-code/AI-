@@ -21,9 +21,9 @@ class CreativeWorkspaceFlowTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="aivcp-creative-workspace-")
         self.store = ChannelStore(Path(self.temp.name) / "data")
         self.workspace = CreativeWorkspace(self.store)
-        started = self.workspace.start(task_id="task-free-001", project_id="project-free-001")
-        self.workspace_id = started["workspace"]["workspaceId"]
-        self.proof = started["workspaceBindingProof"]
+        self.started = self.workspace.start(task_id="task-free-001", project_id="project-free-001")
+        self.workspace_id = self.started["workspace"]["workspaceId"]
+        self.proof = self.started["workspaceBindingProof"]
 
     def tearDown(self) -> None:
         self.temp.cleanup()
@@ -128,10 +128,29 @@ class CreativeWorkspaceFlowTests(unittest.TestCase):
             channel_binding_proof=channel_binding["bindingProof"],
             production_source_document_id="formal-manuscript",
             production_config={
+                "settingsContractVersion": "2.0",
                 "productionMode": {
                     "id": "balanced",
                     "selectionSource": "user",
                     "confirmed": True,
+                },
+                "deliveryMode": "auto_render",
+                "deliveryModeSelectionSource": "user",
+                "promptGeneration": {"image": False, "video": False, "selectionSource": "user", "confirmed": True},
+                "videoGeneration": {
+                    "enabled": False,
+                    "selectionMode": "none",
+                    "count": 0,
+                    "fallbackPolicy": "pause",
+                    "selectionSource": "user",
+                    "confirmed": True,
+                },
+                "sceneImageCadence": {"mode": "semantic_auto", "selectionSource": "user", "confirmed": True},
+                "soundEffects": {
+                    "enabled": False,
+                    "selectionSource": "user",
+                    "confirmed": True,
+                    "userExplicitlyDisabled": True,
                 },
                 "voice": "voice-01",
                 "imageStyle": "visual_01",
@@ -141,6 +160,7 @@ class CreativeWorkspaceFlowTests(unittest.TestCase):
             confirmation={"confirmed": True, "confirmationRef": gate_ref, "channelSerial": "01"},
         )
         self.assertEqual("BOUND_FOR_PRODUCTION", result["productionHandoff"]["status"])
+        self.assertFalse(result["productionHandoff"]["productionConfig"]["soundEffects"]["enabled"])
         self.assertFalse(result["autoUploadReconfirmationRequired"])
         self.workspace.assert_legacy_project_start_allowed(
             task_id="task-free-001",
@@ -199,6 +219,42 @@ class CreativeWorkspaceFlowTests(unittest.TestCase):
         narration_schema = definitions["content_workspace_narration_prepare"]["inputSchema"]
         self.assertIn("narrationTitle", narration_schema["required"])
         self.assertNotIn("narrationTitleChinese", narration_schema["required"])
+
+    def test_new_workspace_uses_one_formal_manuscript_confirmation_by_default(self) -> None:
+        policy = self.started["workspace"]["manuscriptReviewPolicy"]
+        self.assertFalse(policy["reviewRawDraft"])
+        self.assertEqual("D5_FINAL_MANUSCRIPT", policy["defaultExternalGate"])
+        draft = self.workspace.save_document(
+            task_id="task-free-001",
+            workspace_id=self.workspace_id,
+            binding_proof=self.proof,
+            document_id="raw-draft",
+            title="初稿",
+            stage="drafting",
+            purpose="内部审校来源",
+            language="ja-JP",
+            content="これは確認前の内部初稿である。",
+            confirmation_required=False,
+        )["document"]
+        self.assertEqual("INFORMATIONAL_NOT_REQUIRED", draft["confirmation"]["status"])
+        with self.assertRaises(ToolError) as caught:
+            self.workspace.confirm_document(
+                task_id="task-free-001",
+                workspace_id=self.workspace_id,
+                binding_proof=self.proof,
+                document_id="raw-draft",
+                confirmation={"confirmed": True},
+            )
+        self.assertEqual("CONTENT_WORKSPACE_DUPLICATE_CONFIRMATION_FORBIDDEN", caught.exception.code)
+
+    def test_raw_draft_confirmation_is_explicit_opt_in(self) -> None:
+        started = self.workspace.start(
+            task_id="task-free-raw-review",
+            project_id="project-free-raw-review",
+            review_raw_draft=True,
+        )
+        self.assertTrue(started["workspace"]["manuscriptReviewPolicy"]["reviewRawDraft"])
+        self.assertEqual("D4_REWRITE_DRAFT", started["workspace"]["manuscriptReviewPolicy"]["defaultExternalGate"])
 
 
 if __name__ == "__main__":

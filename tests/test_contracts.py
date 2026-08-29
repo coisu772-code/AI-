@@ -169,7 +169,33 @@ class ContractValidationTests(unittest.TestCase):
             document["hashtags"] = document["hashtags"][:7]
 
         errors = self._validate_fixture_mutation("publishing-asset-package.json", mutate)
-        self.assertTrue(any("hashtags" in error and "too short" in error for error in errors), errors)
+        self.assertTrue(any("publishing-asset-package.json:hashtags" in error for error in errors), errors)
+
+    def test_description_hashtags_and_custom_thumbnail_may_all_be_omitted(self) -> None:
+        def mutate(document: dict) -> None:
+            document["descriptionBody"] = ""
+            document["hashtags"] = []
+            document["thumbnailProvider"] = None
+            document["thumbnailStrategy"] = None
+            document["thumbnailCandidates"] = []
+            document["thumbnailSelection"] = None
+            document["thumbnail"] = {
+                "mode": "youtube_auto",
+                "reason": "user-did-not-request-custom-thumbnail",
+            }
+            document["ctrReview"] = {
+                "status": "NOT_APPLICABLE",
+                "conclusion": "No custom thumbnail was requested.",
+            }
+            document["productionHandoff"] = {
+                "eligible": True,
+                "assessedAt": "2026-08-03T15:05:00Z",
+                "blockers": [],
+            }
+
+        errors = self._validate_fixture_mutation("publishing-asset-package.json", mutate)
+        publishing_errors = [error for error in errors if error.startswith("publishing-asset-package.json:")]
+        self.assertEqual([], publishing_errors)
 
     def test_thumbnail_aspect_ratio_declaration_is_enforced(self) -> None:
         def mutate(document: dict) -> None:

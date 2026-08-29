@@ -1,7 +1,7 @@
 interface:
   display_name: "AI 视频频道生产系统"
-  short_description: "默认逐阶段确认频道蒸馏、内容生产、工坊制作与视频发布流程"
-  default_prompt: "使用 $channel-production 启动系统，并按默认逐阶段确认流程显示当前下一步。"
+  short_description: "自由创作后确认制作设置，由Codex规划画面并完成制作发布"
+  default_prompt: "使用 $channel-production 启动系统；进入制作后由 Codex 规划故事画面、情绪镜头、连续性和预算内图片／视频提示词。"
 
 policy:
   allow_implicit_invocation: true

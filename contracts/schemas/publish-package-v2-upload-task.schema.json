@@ -24,11 +24,12 @@
     "authorization": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["workspace", "channel", "intent"],
+      "required": ["workspace", "channel", "intent", "project"],
       "properties": {
         "workspace": {"$ref": "#/$defs/grant"},
         "channel": {"$ref": "#/$defs/grant"},
-        "intent": {"$ref": "#/$defs/grant"}
+        "intent": {"$ref": "#/$defs/grant"},
+        "project": {"$ref": "#/$defs/projectGrant"}
       }
     },
     "limits": {
@@ -54,6 +55,24 @@
         "granted": {"type": "boolean"},
         "version": {"type": "string"},
         "confirmed_at": {"type": "string"}
+      }
+    },
+    "projectGrant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["granted", "version", "confirmed_at"],
+      "properties": {
+        "granted": {"type": "boolean"},
+        "version": {"type": "string"},
+        "confirmed_at": {"type": "string"},
+        "source": {"type": "string"},
+        "scope": {"type": "string"},
+        "project_id": {"type": "string"},
+        "upload_policy": {"type": "string"},
+        "channel_serial": {"type": "string"},
+        "privacy_status": {"type": "string"},
+        "confirmation_ref": {"type": "string"},
+        "revoked": {"type": "boolean"}
       }
     }
   }

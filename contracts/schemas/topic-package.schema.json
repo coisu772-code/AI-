@@ -85,6 +85,29 @@
       "if": {
         "properties": {
           "sourceMode": {
+            "const": "task-prompt-guided"
+          }
+        },
+        "required": [
+          "sourceMode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "route": {
+            "const": "task-prompt-guided"
+          },
+          "candidates": {
+            "minItems": 1,
+            "maxItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "sourceMode": {
             "enum": [
               "market-original",
               "single-reference",
@@ -237,6 +260,33 @@
     "contractType": {
       "const": "topic-package"
     },
+    "id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128
+    },
+    "version": {
+      "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/semver"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "hashAlgorithm": {
+      "const": "SHA-256"
+    },
+    "hashRule": {
+      "const": "canonical-json-v1"
+    },
+    "contentHash": {
+      "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+    },
+    "upstream": {
+      "type": "array",
+      "items": {
+        "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/contractReference"
+      }
+    },
     "topicPackageId": {
       "type": "string",
       "minLength": 3,
@@ -268,6 +318,7 @@
         "original",
         "channel-profile-anchored",
         "provided-outline",
+        "task-prompt-guided",
         "extension"
       ]
     },
@@ -281,6 +332,7 @@
         "direct-rewrite",
         "synthesis-rewrite",
         "provided-outline",
+        "task-prompt-guided",
         "imitation"
       ]
     },
@@ -892,6 +944,32 @@
               }
             }
           }
+        },
+        "directionExecutionContract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "intentMode",
+            "activeVersionId",
+            "selectedDirectionId",
+            "requestedChangesApplied",
+            "explicitPreservesUntouched",
+            "unchangedStoryFunctionsPreserved",
+            "noUnsolicitedExpansion",
+            "inactiveContentExcluded"
+          ],
+          "properties": {
+            "intentMode": {
+              "enum": ["exploratory_recommendation", "scope_locked_migration", "delta_revision"]
+            },
+            "activeVersionId": { "type": "string", "minLength": 3, "maxLength": 128 },
+            "selectedDirectionId": { "type": "string", "minLength": 2, "maxLength": 16 },
+            "requestedChangesApplied": { "const": true },
+            "explicitPreservesUntouched": { "const": true },
+            "unchangedStoryFunctionsPreserved": { "const": true },
+            "noUnsolicitedExpansion": { "const": true },
+            "inactiveContentExcluded": { "const": true }
+          }
         }
       }
     },
@@ -965,6 +1043,7 @@
             "user-choice",
             "auto-best",
             "provided-outline-only",
+            "task-prompt-confirmed-plan",
             "confirmed-imitation-direction",
             "direct-rewrite-request",
             "synthesis-rewrite-request"

@@ -257,7 +257,13 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
     $pluginManifestPath = Join-Path $pluginFull ".codex-plugin\plugin.json"
     if (-not (Test-Path -LiteralPath $pluginManifestPath -PathType Leaf)) { throw "Cannot bind MCP runtime because plugin.json is missing." }
     $pluginManifest = Get-Content -LiteralPath $pluginManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ([string]$pluginManifest.name -ne $script:AivcpProductId -or [string]$pluginManifest.version -ne $ProductVersion) {
+    $pluginVersion = [string]$pluginManifest.version
+    $cachebusterPrefix = $ProductVersion + "+codex."
+    $pluginVersionMatches = $pluginVersion -eq $ProductVersion -or (
+        $pluginVersion.StartsWith($cachebusterPrefix, [System.StringComparison]::Ordinal) -and
+        $pluginVersion.Substring($cachebusterPrefix.Length) -match '^[a-z0-9-]+$'
+    )
+    if ([string]$pluginManifest.name -ne $script:AivcpProductId -or -not $pluginVersionMatches) {
         throw "Cannot bind MCP runtime because the plugin identity or version differs from the installation."
     }
     $voiceCatalogVerificationPath = Join-Path $pluginFull "assets\voice-catalog.json"
@@ -293,6 +299,8 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
         ffprobe = "apps\workshop\tools\ffmpeg\bin\ffprobe.exe"
         publisherChannelList = "apps\publisher\channel-list.exe"
         publisherV2 = "apps\publisher\publish-package-v2.exe"
+        publisherDesktop = "apps\publisher\youtube-publisher-center.exe"
+        deno = "runtime\python\tools\deno.exe"
     }
     foreach ($managed in $managedFiles.GetEnumerator()) {
         $verificationPath = Join-Path $verificationRoot ([string]$managed.Value)
@@ -306,6 +314,17 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
     $ffprobePath = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.ffprobe)
     $publisherChannelListPath = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.publisherChannelList)
     $publisherV2Path = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.publisherV2)
+    $publisherDesktopPath = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.publisherDesktop)
+    $denoPath = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.deno)
+    $ytDlpCommandJson = ConvertTo-Json -Compress -InputObject @(
+        $pythonPath,
+        "-m",
+        "yt_dlp",
+        "--js-runtimes",
+        ("deno:" + $denoPath),
+        "--ffmpeg-location",
+        (Split-Path -Parent $ffmpegPath)
+    )
     $voiceCatalogPath = Resolve-AivcpFullPath (Join-Path $activeRoot "plugins\$($script:AivcpProductId)\assets\voice-catalog.json")
     $workshopIsolationRoot = Resolve-AivcpFullPath (Join-Path $dataFull "workshop-isolation")
     if (-not (Test-Path -LiteralPath $workshopIsolationRoot -PathType Container)) {
@@ -334,10 +353,12 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
                         AIVCP_FFPROBE_PATH = $ffprobePath
                         AIVCP_PUBLISHER_CHANNEL_LIST_EXE = $publisherChannelListPath
                         AIVCP_PUBLISHER_V2_CLI = $publisherV2Path
+                        AIVCP_PUBLISHER_DESKTOP_EXE = $publisherDesktopPath
                         AIVCP_VOICE_CATALOG = $voiceCatalogPath
                         AIVCP_PUBLISHER_TIMEOUT_SECONDS = "8"
                         AIVCP_NETWORK_EXECUTION = "false"
                         AIVCP_PUBLISHER_NETWORK_EXECUTION = "false"
+                        AIVCP_YT_DLP_COMMAND_JSON = $ytDlpCommandJson
                         PYTHONUTF8 = "1"
                         PYTHONDONTWRITEBYTECODE = "1"
                     }
@@ -370,10 +391,12 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
         [string]$server.env.AIVCP_FFPROBE_PATH -ne $ffprobePath -or
         [string]$server.env.AIVCP_PUBLISHER_CHANNEL_LIST_EXE -ne $publisherChannelListPath -or
         [string]$server.env.AIVCP_PUBLISHER_V2_CLI -ne $publisherV2Path -or
+        [string]$server.env.AIVCP_PUBLISHER_DESKTOP_EXE -ne $publisherDesktopPath -or
         [string]$server.env.AIVCP_VOICE_CATALOG -ne $voiceCatalogPath -or
         [string]$server.env.AIVCP_PUBLISHER_TIMEOUT_SECONDS -ne "8" -or
         [string]$server.env.AIVCP_NETWORK_EXECUTION -ne "false" -or
-        [string]$server.env.AIVCP_PUBLISHER_NETWORK_EXECUTION -ne "false"
+        [string]$server.env.AIVCP_PUBLISHER_NETWORK_EXECUTION -ne "false" -or
+        [string]$server.env.AIVCP_YT_DLP_COMMAND_JSON -ne $ytDlpCommandJson
     ) {
         throw "Runtime-bound MCP descriptor verification failed."
     }

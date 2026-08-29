@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 import uuid
 from collections import Counter
 from copy import deepcopy
@@ -25,10 +26,18 @@ from .review_documents import (
 from .security import contains_sensitive_material
 
 
-PRODUCTION_CENTER_VERSION = "1.1.0"
+PRODUCTION_CENTER_VERSION = "1.2.0"
 PRODUCTION_PACKAGE_SCHEMA_VERSION = "2.1"
 PRODUCTION_TASK_SCHEMA_VERSION = "1.0.0"
 PRODUCTION_RESULT_SCHEMA_VERSION = "1.0.0"
+PRODUCTION_TASK_RECENT_HISTORY_LIMIT = 100
+PRODUCTION_TASK_DEFAULT_HISTORY_LIMIT = 50
+PRODUCTION_TASK_MAX_HISTORY_PAGE = 1000
+COALESCED_WORKSHOP_EVENTS = {
+    "WORKSHOP_QUEUED",
+    "WORKSHOP_STATUS_OBSERVED",
+    "WORKSHOP_START_CONFIRMATION_PENDING",
+}
 PRODUCTION_PACKAGE_REQUIRED_FILES = {
     "project.json",
     "characters.json",
@@ -86,9 +95,12 @@ PRODUCTION_MODE_LABELS = {
     "balanced": "平衡模式",
     "director": "精品导演模式",
 }
+SCENE_IMAGE_CADENCE_MODES = {"semantic_auto", "seconds_range", "line_level", "custom"}
+QUEUE_SCHEMA_VERSION = "2.0"
 
 MAX_PRODUCTION_CONCURRENCY = 20
 WORKSHOP_MISSING_TASK_GRACE_OBSERVATIONS = 2
+WORKSHOP_MISSING_TASK_GRACE_SECONDS = 60.0
 
 CODEX_VISUAL_PLAN_SCHEMA_VERSION = "1.5"
 CODEX_VISUAL_PLAN_AUTHOR = "codex"
@@ -166,6 +178,12 @@ def _classify_workshop_error(message: Any) -> dict[str, Any]:
     recoverable = False
     action = "inspect_workshop_logs"
     patterns = (
+        ("prompt_retry_exhausted", False, "repair_listed_storyboards", (
+            "prompt_retry_exhausted", "提示词已达到", "提示词修复批次已达到", "有限重试上限",
+        )),
+        ("partial_prompt_generation", True, "retry_missing_prompt_items", (
+            "仍缺少", "只补齐缺失", "只补齐剩余", "缺少图片提示词", "缺少视频提示词",
+        )),
         ("provider_task_pending", True, "resume_original_provider_task", (
             "尚未完成", "待取回", "仍在处理", "polling pending", "task pending", "processing",
         )),
@@ -197,6 +215,18 @@ def _classify_workshop_error(message: Any) -> dict[str, Any]:
         "recommendedAction": action,
         "message": text,
     }
+
+
+def _coalesced_event_signature(event: str, details: dict[str, Any]) -> str:
+    stable_keys = (
+        "status",
+        "taskPresent",
+        "requestId",
+        "ownerProjectId",
+        "ownerRequestId",
+    )
+    stable = {key: details.get(key) for key in stable_keys if key in details}
+    return canonical_hash({"event": event, "details": stable})
 
 
 def _character_reference_prompt_risk(prompt: str) -> str | None:
@@ -1665,7 +1695,14 @@ def _read_json(path: Path, code: str = "PRODUCTION_JSON_INVALID") -> dict[str, A
 def _write_copy(source: Path, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
-    shutil.copyfile(source, temporary)
+    try:
+        # Production, result and publish staging folders normally live on the
+        # same NTFS volume.  A hard link keeps the package contract while the
+        # video bytes remain stored only once.  Cross-volume and unsupported
+        # filesystems safely fall back to a real copy.
+        os.link(source, temporary)
+    except OSError:
+        shutil.copyfile(source, temporary)
     os.replace(temporary, destination)
 
 
@@ -1894,12 +1931,17 @@ def _production_overview_markdown(
         f"- 生产模式：`{production_config['productionMode']['id']}`（{PRODUCTION_MODE_LABELS.get(production_config['productionMode']['id'], '兼容模式')}）",
         f"- 制作方式：`{production_config['deliveryMode']}`",
         f"- 人物配音引擎：`{production_config['voiceTtsProfile']['engineId']}`（只从该引擎推荐并锁定当前项目音色）",
-        f"- 纯音效：`{'开启' if production_config['soundEffects']['enabled'] else '关闭'}`；固定 `seed_audio`；每条显式时长且不超过 {production_config['soundEffects']['maxDurationSeconds']:.0f} 秒",
+        (
+            f"- 纯音效：`开启`；固定 `seed_audio`；每条显式时长且不超过 {production_config['soundEffects']['maxDurationSeconds']:.0f} 秒"
+            if production_config["soundEffects"]["enabled"]
+            else "- 纯音效：`关闭`（用户本次选择）；不加载 Seed Audio，正式稿不含 sound_effect 行。"
+        ),
         f"- 图片风格预设：`{production_config['imageStyle']['presetId']}`",
         f"- 图片风格提示词：{production_config['imageStyle']['prompt']}",
         f"- 剧情图片文字策略：`{production_config['storyImageTextPolicy']}`（角色图、分镜图和宫格图禁止可读文字；正式封面不受此项限制）",
         f"- 视频生成范围：`{video['selectionMode']}`",
         f"- 视频失败策略：`{video['fallbackPolicy']}`",
+        f"- 图片覆盖节奏：`{production_config['sceneImageCadence']['mode']}`（本次用户选择并冻结）",
         f"- Production Package：`{package_path}`",
         f"- Package SHA-256：`{package_hash}`",
         "",
@@ -1942,7 +1984,11 @@ def _production_overview_markdown(
             "- `episodes.json`：分集与正式文稿行映射。",
             "- `production_config.json`：画幅、分辨率、并发、视频范围和失败策略。",
             "- 人物语音不设固定行时长上限，也不会因配音时长自动拆分分镜；同一视觉时刻的多行可共用一幅画面。",
-            "- 纯音效不生成独立画面，使用 Seed Audio 后与相邻旁白或对白混合；背景音乐不属于音效。",
+            (
+                "- 纯音效已开启：不生成独立画面，使用 Seed Audio 后与相邻旁白或对白混合；背景音乐不属于音效。"
+                if production_config["soundEffects"]["enabled"]
+                else "- 纯音效已关闭：只处理旁白与对白，不创建或混合音效资产。"
+            ),
             "- `publishing.json`：目标语言标题、简介、Hashtags、频道和上传策略。",
             (
                 "- `confirmed_thumbnail.png`：用户明确要求并确认的 16:9 自定义封面。"
@@ -2134,20 +2180,26 @@ class ProductionCenter:
                 "selectionRequiredEveryNewProduction": True,
                 "inheritedDefault": None,
                 "recommended": "balanced",
+                "modeOnlySelectsPromptAuthorAndRecommendedDefaults": True,
+                "deliveryModeAlwaysUserSelectable": True,
+                "shotVideoAlwaysUserSelectable": True,
+                "sceneImageCadenceAlwaysUserSelectable": True,
                 "items": [
                     {
                         "id": "fast_auto",
                         "displayNameZh": PRODUCTION_MODE_LABELS["fast_auto"],
                         "codexVisualPlan": False,
                         "workshopImagePromptAnalysis": False,
-                        "shotVideo": False,
+                        "shotVideo": "explicit_scope_only",
+                        "deliveryModes": ["auto_render", "jianying_refine"],
                     },
                     {
                         "id": "balanced",
                         "displayNameZh": PRODUCTION_MODE_LABELS["balanced"],
                         "codexVisualPlan": False,
                         "workshopImagePromptAnalysis": True,
-                        "shotVideo": False,
+                        "shotVideo": "explicit_scope_only",
+                        "deliveryModes": ["auto_render", "jianying_refine"],
                     },
                     {
                         "id": "director",
@@ -2155,10 +2207,12 @@ class ProductionCenter:
                         "codexVisualPlan": True,
                         "workshopImagePromptAnalysis": False,
                         "shotVideo": "explicit_scope_only",
+                        "deliveryModes": ["auto_render", "jianying_refine"],
                     },
                 ],
             },
             "videoSelectionModes": sorted(VIDEO_SELECTION_MODES),
+            "sceneImageCadenceModes": sorted(SCENE_IMAGE_CADENCE_MODES),
             "productionConcurrency": {"minimum": 1, "maximum": MAX_PRODUCTION_CONCURRENCY, "recommendedImage": 20},
             "gridBatch": {"globalTemplate": True, "episodeTemplateOverrides": True},
             "workshopScheduling": {
@@ -2168,10 +2222,24 @@ class ProductionCenter:
                 "busyBehavior": "queued_waiting_workshop",
                 "sameRequestJoin": True,
             },
+            "localProductionQueue": {
+                "schemaVersion": QUEUE_SCHEMA_VERSION,
+                "appliesTo": "new_non_synthetic_tasks_only",
+                "dispatchMode": "persistent_local_event",
+                "wakeSources": ["task_enqueued", "task_resumed", "task_retry_requested", "workshop_filesystem_change"],
+                "crashRecoveryWatchdogSeconds": 60,
+                "codexHeartbeatDrivesProduction": False,
+                "scheduledRetryDrivesProduction": False,
+                "oldTasksMigrated": False,
+            },
             "audioRouting": {
                 "humanVoiceEngineSelectedByUser": True,
                 "recommendVoicesFromSelectedEngineOnly": True,
                 "speakerBindingScope": "current_project",
+                "soundEffectsSelectedByUserEveryProduction": True,
+                "soundEffectsMayBeDisabled": True,
+                "soundEffectEngineLoadedOnlyWhenEnabled": True,
+                "pureSpeechFirstLineAllowedWhenDisabled": True,
                 "soundEffectEngine": "seed_audio",
                 "soundEffectExplicitDurationRequired": True,
                 "soundEffectMaxDurationSeconds": SOUND_EFFECT_MAX_DURATION_SECONDS,
@@ -2498,6 +2566,18 @@ class ProductionCenter:
         sound_effect_lines = [line for line in target_lines if line.get("lineType") == "sound_effect"]
         if sound_effect_lines and not config["soundEffects"]["enabled"]:
             raise ToolError("PRODUCTION_SOUND_EFFECT_DISABLED", "正式配音稿含纯音效行，但本次制作设置没有开启音效生成。")
+        if config["soundEffects"]["enabled"] and not sound_effect_lines:
+            raise ToolError("PRODUCTION_SOUND_EFFECT_LINES_REQUIRED", "本次制作设置已开启纯音效，但正式配音稿没有任何纯音效行。")
+        manuscript_sound_effects = manuscript.get("soundEffects")
+        if (
+            isinstance(manuscript_sound_effects, dict)
+            and isinstance(manuscript_sound_effects.get("enabled"), bool)
+            and manuscript_sound_effects["enabled"] != config["soundEffects"]["enabled"]
+        ):
+            raise ToolError(
+                "PRODUCTION_SOUND_EFFECT_SELECTION_MISMATCH",
+                "正式配音稿与本次制作设置的纯音效选择不一致，必须按用户本次选择重新冻结正式稿。",
+            )
         for line in sound_effect_lines:
             if (
                 line.get("speakerId") != "sfx"
@@ -2536,6 +2616,18 @@ class ProductionCenter:
         )
         if config["codexVisualPlan"] is None:
             config.pop("codexVisualPlan")
+        visual_characters = [
+            character
+            for character in manuscript.get("characters", [])
+            if isinstance(character, dict)
+            and character.get("visualConsistencyRequired") is True
+            and str(character.get("characterId") or "").strip().lower() not in {"narrator", "sfx"}
+        ]
+        if not visual_characters:
+            raise ToolError(
+                "PRODUCTION_CHARACTER_VISUAL_PACK_REQUIRED",
+                "叙事类正式稿必须在正文阶段同时冻结主要角色识别和中文单人形象锚点，不能用只有旁白的角色表启动工坊。",
+            )
         self._validate_environment(config)
         project_id = _safe_identifier(manuscript["projectId"], "projectId")
         identity = {
@@ -2782,6 +2874,7 @@ class ProductionCenter:
     def _validate_production_config(self, config: Any) -> dict[str, Any]:
         if not isinstance(config, dict):
             raise ToolError("PRODUCTION_CONFIG_INVALID", "生产配置必须是对象。")
+        settings_contract_version = str(config.get("settingsContractVersion") or "legacy").strip()
         delivery_mode = config.get("deliveryMode")
         if delivery_mode not in {"auto_render", "jianying_refine"}:
             raise ToolError("PRODUCTION_CONFIG_INVALID", "制作方式不受支持。")
@@ -2831,19 +2924,52 @@ class ProductionCenter:
         sound_effects = deepcopy(config.get("soundEffects"))
         if not isinstance(sound_effects, dict) or not isinstance(sound_effects.get("enabled"), bool):
             raise ToolError("PRODUCTION_SOUND_EFFECT_CONFIG_REQUIRED", "必须明确确认本项目是否生成纯音效。")
-        if (
-            sound_effects.get("engineId") != "seed_audio"
-            or not str(sound_effects.get("modelId") or "").strip()
-            or sound_effects.get("requireExplicitDuration") is not True
-            or sound_effects.get("maxDurationSeconds") != SOUND_EFFECT_MAX_DURATION_SECONDS
-            or sound_effects.get("standaloneStoryboard") is not False
-            or sound_effects.get("mixWithAdjacentSpeech") is not True
-            or sound_effects.get("backgroundMusicEnabled") is not False
+        if settings_contract_version == "2.0" and (
+            sound_effects.get("selectionSource") != "user" or sound_effects.get("confirmed") is not True
         ):
             raise ToolError(
-                "PRODUCTION_SOUND_EFFECT_CONFIG_INVALID",
-                "纯音效必须独立使用 Seed Audio、显式短时长（最长5秒）、贴邻人声混合且不得单独生成画面或充当背景音乐。",
+                "PRODUCTION_SOUND_EFFECT_SELECTION_REQUIRED",
+                "新任务必须由用户本次明确选择是否启用纯音效；不得从频道预设、旧项目或历史学习继承。",
             )
+        if sound_effects["enabled"]:
+            if (
+                sound_effects.get("engineId") != "seed_audio"
+                or not str(sound_effects.get("modelId") or "").strip()
+                or sound_effects.get("requireExplicitDuration") is not True
+                or sound_effects.get("maxDurationSeconds") != SOUND_EFFECT_MAX_DURATION_SECONDS
+                or sound_effects.get("standaloneStoryboard") is not False
+                or sound_effects.get("mixWithAdjacentSpeech") is not True
+                or sound_effects.get("backgroundMusicEnabled") is not False
+            ):
+                raise ToolError(
+                    "PRODUCTION_SOUND_EFFECT_CONFIG_INVALID",
+                    "开启纯音效时必须独立使用 Seed Audio、显式短时长（最长5秒）、贴邻人声混合且不得单独生成画面或充当背景音乐。",
+                )
+            normalized_sound_effects = {
+                "enabled": True,
+                "engineId": "seed_audio",
+                "modelId": str(sound_effects["modelId"]).strip(),
+                "requireExplicitDuration": True,
+                "maxDurationSeconds": SOUND_EFFECT_MAX_DURATION_SECONDS,
+                "standaloneStoryboard": False,
+                "mixWithAdjacentSpeech": True,
+                "backgroundMusicEnabled": False,
+            }
+        else:
+            if sound_effects.get("backgroundMusicEnabled", False) is not False:
+                raise ToolError("PRODUCTION_SOUND_EFFECT_CONFIG_INVALID", "关闭纯音效不能借此开启背景音乐。")
+            normalized_sound_effects = {
+                "enabled": False,
+                "engineId": None,
+                "modelId": None,
+                "requireExplicitDuration": False,
+                "maxDurationSeconds": 0.0,
+                "standaloneStoryboard": False,
+                "mixWithAdjacentSpeech": False,
+                "backgroundMusicEnabled": False,
+            }
+        if settings_contract_version == "2.0":
+            normalized_sound_effects.update({"selectionSource": "user", "confirmed": True})
         prompt_generation = deepcopy(config.get("promptGeneration", {"image": False, "video": False}))
         if (
             not isinstance(prompt_generation, dict)
@@ -2949,49 +3075,83 @@ class ProductionCenter:
         video["frameInputMode"] = frame_input_mode
         video["endFrameSource"] = end_frame_source
         video["selectedStoryboardIds"] = []
+        scene_image_cadence = deepcopy(
+            config.get(
+                "sceneImageCadence",
+                {
+                    "mode": "semantic_auto",
+                    "selectionSource": "legacy",
+                    "confirmed": True,
+                },
+            )
+        )
+        if not isinstance(scene_image_cadence, dict):
+            raise ToolError("PRODUCTION_SCENE_CADENCE_INVALID", "图片覆盖节奏必须是对象。")
+        cadence_mode = str(scene_image_cadence.get("mode") or "").strip()
+        if cadence_mode not in SCENE_IMAGE_CADENCE_MODES:
+            raise ToolError("PRODUCTION_SCENE_CADENCE_INVALID", "图片覆盖节奏模式无效。")
+        normalized_cadence: dict[str, Any] = {
+            "mode": cadence_mode,
+            "selectionSource": str(scene_image_cadence.get("selectionSource") or "legacy").strip(),
+            "confirmed": scene_image_cadence.get("confirmed") is True,
+        }
+        if cadence_mode == "seconds_range":
+            minimum_seconds = scene_image_cadence.get("minimumSeconds")
+            maximum_seconds = scene_image_cadence.get("maximumSeconds")
+            if (
+                not isinstance(minimum_seconds, (int, float))
+                or isinstance(minimum_seconds, bool)
+                or not isinstance(maximum_seconds, (int, float))
+                or isinstance(maximum_seconds, bool)
+                or minimum_seconds <= 0
+                or maximum_seconds < minimum_seconds
+                or maximum_seconds > 120
+            ):
+                raise ToolError("PRODUCTION_SCENE_CADENCE_INVALID", "按秒覆盖图片时必须提供有效的最短和最长秒数。")
+            normalized_cadence["minimumSeconds"] = float(minimum_seconds)
+            normalized_cadence["maximumSeconds"] = float(maximum_seconds)
+        if cadence_mode == "custom":
+            instructions = str(scene_image_cadence.get("instructions") or "").strip()
+            if not instructions or len(instructions) > 1000:
+                raise ToolError("PRODUCTION_SCENE_CADENCE_INVALID", "自定义图片覆盖节奏必须提供有效说明。")
+            normalized_cadence["instructions"] = instructions
+        if settings_contract_version == "2.0":
+            if (
+                normalized_cadence["selectionSource"] != "user"
+                or normalized_cadence["confirmed"] is not True
+                or str(config.get("deliveryModeSelectionSource") or "") != "user"
+                or video.get("selectionSource") != "user"
+                or video.get("confirmed") is not True
+                or prompt_generation.get("selectionSource") != "user"
+                or prompt_generation.get("confirmed") is not True
+            ):
+                raise ToolError(
+                    "PRODUCTION_USER_SETTINGS_NOT_FROZEN",
+                    "新任务的成片方式、提示词、镜头视频和图片覆盖节奏必须来自本次用户选择并冻结。",
+                )
         workshop_prompt_generation = {"image": False, "video": False}
         if production_mode_explicit:
             production_mode_id = production_mode["id"]
             if production_mode_id in {"fast_auto", "balanced"}:
-                if delivery_mode != "auto_render":
-                    raise ToolError(
-                        "PRODUCTION_MODE_DELIVERY_CONFLICT",
-                        "极速自动模式和平衡模式必须使用工坊自动成片。",
-                        details={"productionMode": production_mode_id, "deliveryMode": delivery_mode},
-                    )
-                if prompt_generation != {"image": False, "video": False}:
-                    raise ToolError(
-                        "PRODUCTION_MODE_PROMPT_CONFLICT",
-                        "极速自动模式和平衡模式不生成完整 Codex 图片／视频提示词。",
-                        details={"productionMode": production_mode_id, "promptGeneration": prompt_generation},
-                    )
                 if codex_visual_plan is not None:
                     raise ToolError(
                         "PRODUCTION_MODE_VISUAL_PLAN_CONFLICT",
                         "极速自动模式和平衡模式不得携带 codexVisualPlan。",
                         details={"productionMode": production_mode_id},
                     )
-                if video["enabled"] or video["selectionMode"] != "none":
-                    raise ToolError(
-                        "PRODUCTION_MODE_VIDEO_CONFLICT",
-                        "极速自动模式和平衡模式只制作静态分镜成片；需要镜头视频时请选择精品导演模式。",
-                        details={"productionMode": production_mode_id},
-                    )
-                if production_mode_id == "balanced":
-                    # 保持正式生产包提示词开关关闭，避免工坊把它误判为必须接收
-                    # Codex 视觉方案；生产中心通过显式 image_prompts 步骤调用工坊现有分析能力。
-                    workshop_prompt_generation["image"] = True
+                workshop_prompt_generation["image"] = production_mode_id == "balanced" or bool(prompt_generation["image"])
+                workshop_prompt_generation["video"] = bool(prompt_generation["video"])
             elif production_mode_id == "director":
                 if prompt_generation["image"] is not True:
                     raise ToolError(
                         "PRODUCTION_MODE_PROMPT_CONFLICT",
                         "精品导演模式必须开启 Codex 图片提示词与完整逐镜视觉方案。",
                     )
-                if video["enabled"] and prompt_generation["video"] is not True:
-                    raise ToolError(
-                        "PRODUCTION_MODE_VIDEO_PROMPT_REQUIRED",
-                        "精品导演模式开启镜头视频时必须同时开启 Codex 视频提示词。",
-                    )
+        if production_mode_explicit and video["enabled"] and prompt_generation["video"] is not True:
+            raise ToolError(
+                "PRODUCTION_MODE_VIDEO_PROMPT_REQUIRED",
+                "开启镜头视频时必须同时开启视频提示词；提示词作者由生产模式决定。",
+            )
         concurrency = deepcopy(config.get("concurrency", {"image": 20, "video": 1, "tts": 1}))
         if not isinstance(concurrency, dict) or any(
             not isinstance(value, int) or isinstance(value, bool) or value < 1 or value > MAX_PRODUCTION_CONCURRENCY
@@ -3002,8 +3162,10 @@ class ProductionCenter:
         if not isinstance(retry_limit, int) or isinstance(retry_limit, bool) or not 0 <= retry_limit <= 10:
             raise ToolError("PRODUCTION_CONFIG_INVALID", "重试次数无效。")
         normalized_config = {
+            "settingsContractVersion": settings_contract_version,
             "productionMode": production_mode,
             "deliveryMode": delivery_mode,
+            "deliveryModeSelectionSource": str(config.get("deliveryModeSelectionSource") or "legacy").strip(),
             "aspectRatio": aspect_ratio,
             "width": width,
             "height": height,
@@ -3016,19 +3178,18 @@ class ProductionCenter:
                 "recommendVoicesFromSelectedEngineOnly": True,
                 "lockScope": "current_project",
             },
-            "soundEffects": {
-                "enabled": sound_effects["enabled"],
-                "engineId": "seed_audio",
-                "modelId": str(sound_effects["modelId"]).strip(),
-                "requireExplicitDuration": True,
-                "maxDurationSeconds": SOUND_EFFECT_MAX_DURATION_SECONDS,
-                "standaloneStoryboard": False,
-                "mixWithAdjacentSpeech": True,
-                "backgroundMusicEnabled": False,
-            },
+            "soundEffects": normalized_sound_effects,
             "promptGeneration": {
                 "image": prompt_generation["image"],
                 "video": prompt_generation["video"],
+                **(
+                    {
+                        "selectionSource": str(prompt_generation.get("selectionSource") or "").strip(),
+                        "confirmed": prompt_generation.get("confirmed") is True,
+                    }
+                    if settings_contract_version == "2.0"
+                    else {}
+                ),
             },
             "workshopPromptGeneration": workshop_prompt_generation,
             "gridBatch": {
@@ -3037,6 +3198,7 @@ class ProductionCenter:
                 "episodeTemplates": normalized_episode_templates,
             },
             "videoGeneration": video,
+            "sceneImageCadence": normalized_cadence,
             "concurrency": concurrency,
             "retryLimit": retry_limit,
             "syntheticFixtureRunner": bool(config.get("syntheticFixtureRunner", False)),
@@ -3160,18 +3322,159 @@ class ProductionCenter:
             raise ToolError("PRODUCTION_TASK_NOT_FOUND", "没有找到指定制作任务。")
         return _read_json(path, "PRODUCTION_TASK_INVALID")
 
+    def _archive_task_history(self, task: dict[str, Any]) -> None:
+        history = task.get("history") if isinstance(task.get("history"), list) else []
+        if len(history) <= PRODUCTION_TASK_RECENT_HISTORY_LIMIT:
+            return
+        archive_path = self._task_root(str(task["productionTaskId"])) / "history.ndjson"
+        archived: dict[int, dict[str, Any]] = {}
+        if archive_path.is_file():
+            try:
+                for line in archive_path.read_text(encoding="utf-8-sig").splitlines():
+                    item = json.loads(line)
+                    if isinstance(item, dict) and isinstance(item.get("revision"), int):
+                        archived[item["revision"]] = item
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                archived = {}
+        for item in history[:-PRODUCTION_TASK_RECENT_HISTORY_LIMIT]:
+            if isinstance(item, dict) and isinstance(item.get("revision"), int):
+                archived[item["revision"]] = item
+        ordered = [archived[key] for key in sorted(archived)]
+        payload = "".join(json.dumps(item, ensure_ascii=False, separators=(",", ":")) + "\n" for item in ordered)
+        _atomic_bytes(archive_path, payload.encode("utf-8"))
+        task["history"] = history[-PRODUCTION_TASK_RECENT_HISTORY_LIMIT:]
+        task["historyArchive"] = {
+            "relativePath": archive_path.name,
+            "eventCount": len(ordered),
+            "throughRevision": max(archived) if archived else 0,
+        }
+
+    def _history_page(self, task: dict[str, Any], *, limit: int, cursor_revision: int | None) -> dict[str, Any]:
+        events: dict[int, dict[str, Any]] = {}
+        archive_path = self._task_root(str(task["productionTaskId"])) / "history.ndjson"
+        if archive_path.is_file():
+            try:
+                for line in archive_path.read_text(encoding="utf-8-sig").splitlines():
+                    item = json.loads(line)
+                    if isinstance(item, dict) and isinstance(item.get("revision"), int):
+                        events[item["revision"]] = item
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                pass
+        for item in task.get("history") or []:
+            if isinstance(item, dict) and isinstance(item.get("revision"), int):
+                events[item["revision"]] = item
+        revisions = sorted(
+            (revision for revision in events if cursor_revision is None or revision < cursor_revision),
+            reverse=True,
+        )
+        selected_revisions = revisions[:limit]
+        selected = [events[revision] for revision in reversed(selected_revisions)]
+        next_cursor = min(selected_revisions) if len(revisions) > len(selected_revisions) and selected_revisions else None
+        return {
+            "events": selected,
+            "limit": limit,
+            "nextCursorRevision": next_cursor,
+            "hasMore": next_cursor is not None,
+            "totalAvailable": len(events),
+        }
+
     def _save_task(self, task: dict[str, Any], *, event: str | None = None, details: dict[str, Any] | None = None) -> None:
-        task["revision"] = int(task.get("revision", 0)) + 1
-        task["updatedAt"] = utc_now()
-        if event:
-            task.setdefault("history", []).append(
-                {"revision": task["revision"], "at": task["updatedAt"], "event": event, "details": details or {}}
+        queue = task.get("queue") if isinstance(task.get("queue"), dict) else None
+        if queue and queue.get("schemaVersion") == QUEUE_SCHEMA_VERSION:
+            state = str(task.get("state") or "")
+            queue["status"] = (
+                "COMPLETED" if state == "VIDEO_READY"
+                else "WAITING_WORKSHOP" if state == "QUEUED_WAITING_WORKSHOP"
+                else "RUNNING" if state == "RUNNING"
+                else "AWAITING_MANUAL_EXPORT" if state == "AWAITING_JIANYING_EXPORT"
+                else "PAUSED" if state in {"PAUSED", "NEEDS_CONFIGURATION", "NEEDS_REPAIR"}
+                else "FAILED" if state in {"FAILED", "CANCELLED", "ARCHIVED"}
+                else "QUEUED"
             )
+        now = utc_now()
+        details = details or {}
+        suppress_event = False
+        if event in COALESCED_WORKSHOP_EVENTS:
+            signature = _coalesced_event_signature(event, details)
+            coalescing = task.setdefault("eventCoalescing", {})
+            previous = coalescing.get(event) if isinstance(coalescing.get(event), dict) else {}
+            if previous.get("signature") == signature:
+                suppress_event = True
+                previous["occurrences"] = int(previous.get("occurrences", 1)) + 1
+                previous["lastSeenAt"] = now
+                summary = task.setdefault("historySummary", {})
+                suppressed = summary.setdefault("suppressedDuplicateEvents", {})
+                suppressed[event] = int(suppressed.get(event, 0)) + 1
+            else:
+                coalescing[event] = {
+                    "signature": signature,
+                    "occurrences": 1,
+                    "firstSeenAt": now,
+                    "lastSeenAt": now,
+                }
+        if not suppress_event:
+            task["revision"] = int(task.get("revision", 0)) + 1
+        task["updatedAt"] = now
+        if event and not suppress_event:
+            task.setdefault("history", []).append(
+                {"revision": task["revision"], "at": task["updatedAt"], "event": event, "details": details}
+            )
+            summary = task.setdefault("historySummary", {})
+            counts = summary.setdefault("eventCounts", {})
+            counts[event] = int(counts.get(event, 0)) + 1
+            summary["lastEvent"] = event
+            summary["lastEventAt"] = now
+        self._archive_task_history(task)
         _atomic_json(self._task_path(task["productionTaskId"]), task)
 
-    def get_task(self, task_id: Any) -> dict[str, Any]:
-        task = self._load_task(task_id)
-        return {"task": task, "progressReadOnly": True}
+    def _queue_dispatcher_settings(self) -> dict[str, Path] | None:
+        if self.workshop_bridge is None or self.plugin_root is None:
+            return None
+        executable = getattr(self.workshop_bridge, "executable", None)
+        isolation_root = getattr(self.workshop_bridge, "isolation_root", None)
+        if not isinstance(executable, Path) or not isinstance(isolation_root, Path):
+            return None
+        return {
+            "data_root": self.data_root,
+            "plugin_root": self.plugin_root,
+            "workshop_executable": executable,
+            "workshop_isolation_root": isolation_root,
+        }
+
+    def _wake_queue_dispatcher(self, *, start_if_missing: bool = True) -> dict[str, Any] | None:
+        settings = self._queue_dispatcher_settings()
+        if settings is None:
+            return None
+        from .production_queue_worker import ensure_dispatcher, signal_dispatcher
+
+        if start_if_missing:
+            return ensure_dispatcher(**settings)
+        signal_dispatcher(self.data_root)
+        return {"started": False, "signaled": True}
+
+    def get_task(
+        self,
+        task_id: Any,
+        *,
+        include_history: bool = False,
+        history_limit: int = PRODUCTION_TASK_DEFAULT_HISTORY_LIMIT,
+        history_cursor_revision: int | None = None,
+    ) -> dict[str, Any]:
+        stored_task = self._load_task(task_id)
+        task = deepcopy(stored_task)
+        limit = min(PRODUCTION_TASK_MAX_HISTORY_PAGE, max(1, int(history_limit or PRODUCTION_TASK_DEFAULT_HISTORY_LIMIT)))
+        history_page = self._history_page(stored_task, limit=limit, cursor_revision=history_cursor_revision) if include_history else None
+        task.pop("history", None)
+        task["historyAvailable"] = int((stored_task.get("historyArchive") or {}).get("eventCount") or 0) + len(stored_task.get("history") or [])
+        result = {"task": task, "progressReadOnly": True, "historyIncluded": include_history}
+        if history_page is not None:
+            result["historyPage"] = history_page
+        queue = task.get("queue") if isinstance(task.get("queue"), dict) else {}
+        if queue.get("schemaVersion") == QUEUE_SCHEMA_VERSION:
+            from .production_queue_worker import queue_position
+
+            result["queue"] = queue_position(self.data_root, str(task["productionTaskId"]))
+        return result
 
     def _find_active_task(self, project_id: str, package_version: str) -> dict[str, Any] | None:
         tasks_root = self.root / "tasks"
@@ -3279,7 +3582,8 @@ class ProductionCenter:
                 existing.get("packageHash") == manifest["packageHash"]
                 and existing.get("projectId") == manifest["projectId"]
             ):
-                return {"task": existing, "idempotent": True}
+                dispatcher = self._wake_queue_dispatcher() if existing.get("queue") else None
+                return {"task": existing, "idempotent": True, "dispatcher": dispatcher}
             raise ToolError("PRODUCTION_TASK_ID_CONFLICT", "制作任务 ID 已绑定其他生产包。")
         active = self._find_active_task(manifest["projectId"], manifest["packageVersion"])
         if active:
@@ -3323,6 +3627,8 @@ class ProductionCenter:
             "deliveryMode": config["deliveryMode"],
             "synthetic": bool(manifest["synthetic"] or config.get("syntheticFixtureRunner")),
             "videoGeneration": deepcopy(config["videoGeneration"]),
+            "sceneImageCadence": deepcopy(config.get("sceneImageCadence", {})),
+            "settingsContractVersion": config.get("settingsContractVersion", "legacy"),
             "selectedStoryboardIds": [],
             "steps": [
                 {
@@ -3351,8 +3657,18 @@ class ProductionCenter:
                 "longTermLearningWrite": False,
             },
         }
+        if config.get("settingsContractVersion") == "2.0" and not task["synthetic"]:
+            task["queue"] = {
+                "schemaVersion": QUEUE_SCHEMA_VERSION,
+                "status": "QUEUED",
+                "dispatchMode": "persistent_local_event",
+                "enqueuedAt": now,
+                "idempotencyKey": f"{task_id}:{manifest['packageHash']}",
+                "codexHeartbeatDrivesProduction": False,
+            }
         self._save_task(task, event="TASK_CREATED", details={"importAdapter": import_result.get("adapter")})
-        return {"task": task, "idempotent": False}
+        dispatcher = self._wake_queue_dispatcher() if task.get("queue") else None
+        return {"task": task, "idempotent": False, "dispatcher": dispatcher}
 
     def request_pause(self, task_id: Any) -> dict[str, Any]:
         task = self._load_task(task_id)
@@ -3388,6 +3704,8 @@ class ProductionCenter:
                         task["state"] = "RUNNING"
                         task["runId"] = request_id
                         self._save_task(task, event="TASK_RESUMED", details=details)
+                        if task.get("queue"):
+                            self._wake_queue_dispatcher()
                         return task
                 previous_request_id = str(workshop.get("requestId") or "").strip()
                 if previous_request_id:
@@ -3397,12 +3715,16 @@ class ProductionCenter:
             task["state"] = "READY_TO_PRODUCE"
             task["runId"] = None
             self._save_task(task, event="TASK_RESUMED", details=details)
+            if task.get("queue"):
+                self._wake_queue_dispatcher()
             return task
         if task["state"] not in {"PAUSED", "NEEDS_REPAIR", "RETRYING"}:
             raise ToolError("PRODUCTION_TASK_NOT_RESUMABLE", "当前制作状态不能恢复。")
         task["state"] = "READY_TO_PRODUCE"
         task["runId"] = None
         self._save_task(task, event="TASK_RESUMED")
+        if task.get("queue"):
+            self._wake_queue_dispatcher()
         return task
 
     def retry_failed(self, task_id: Any) -> dict[str, Any]:
@@ -3421,6 +3743,8 @@ class ProductionCenter:
                 event="WORKSHOP_RETRY_SCHEDULED",
                 details={"previousRequestId": previous_request_id, "skipCompleted": True},
             )
+            if task.get("queue"):
+                self._wake_queue_dispatcher()
             return task
         failed_assets = [asset for asset in task["assets"] if asset.get("status") == "FAILED"]
         if not failed_assets:
@@ -3435,6 +3759,8 @@ class ProductionCenter:
         task["state"] = "RETRYING"
         self._update_progress(task)
         self._save_task(task, event="FAILED_ASSETS_RETRY_SCHEDULED", details={"assetIds": [item["assetId"] for item in failed_assets]})
+        if task.get("queue"):
+            self._wake_queue_dispatcher()
         return task
 
     def invalidate(self, task_id: Any, *, changes: list[str]) -> dict[str, Any]:
@@ -4576,6 +4902,7 @@ class ProductionCenter:
                 "startConfirmed": bool(start.get("startConfirmed")),
                 "launchCount": int(workshop.get("launchCount", 0)) + (0 if start.get("joinedExisting") else 1),
                 "provenance": "workshop",
+                "startupConfirmationStartedAtEpoch": time.time(),
             }
             if selective_scope is not None:
                 task["workshop"]["selectiveReworkScope"] = {
@@ -4616,8 +4943,12 @@ class ProductionCenter:
         if normalized_status in {"paused", "failed", "cancelled"}:
             error_message = status.get("error") or status.get("message") or normalized_status
             error_detail = _classify_workshop_error(error_message)
-            if normalized_status == "paused" or error_detail["recoverable"]:
-                task["state"] = "NEEDS_CONFIGURATION" if error_detail["category"] == "authentication" else "PAUSED"
+            if error_detail["category"] == "authentication":
+                task["state"] = "NEEDS_CONFIGURATION"
+            elif error_detail["category"] == "prompt_retry_exhausted":
+                task["state"] = "NEEDS_REPAIR"
+            elif normalized_status == "paused" or error_detail["recoverable"]:
+                task["state"] = "PAUSED"
             else:
                 task["state"] = "FAILED"
             workshop["lastError"] = error_detail["message"]
@@ -4637,13 +4968,24 @@ class ProductionCenter:
         if not task_present:
             missing_count = int(workshop.get("missingTaskObservations", 0)) + 1
             workshop["missingTaskObservations"] = missing_count
+            startup_started_at = workshop.get("startupConfirmationStartedAtEpoch")
+            try:
+                startup_started_at_epoch = float(startup_started_at)
+            except (TypeError, ValueError):
+                startup_started_at_epoch = time.time()
+                workshop["startupConfirmationStartedAtEpoch"] = startup_started_at_epoch
+            startup_elapsed_seconds = max(0.0, time.time() - startup_started_at_epoch)
             details = {
                 "status": normalized_status or "NOT_STARTED",
                 "taskPresent": False,
                 "requestId": request_id,
                 "missingTaskObservations": missing_count,
+                "startupElapsedSeconds": round(startup_elapsed_seconds, 3),
             }
-            if missing_count <= WORKSHOP_MISSING_TASK_GRACE_OBSERVATIONS:
+            if (
+                missing_count <= WORKSHOP_MISSING_TASK_GRACE_OBSERVATIONS
+                or startup_elapsed_seconds < WORKSHOP_MISSING_TASK_GRACE_SECONDS
+            ):
                 task["state"] = "RUNNING"
                 workshop["startupPendingConfirmation"] = True
                 self._save_task(task, event="WORKSHOP_START_CONFIRMATION_PENDING", details=details)
@@ -4732,6 +5074,7 @@ class ProductionCenter:
             "projectId": task["projectId"],
             "status": "VIDEO_READY",
             "deliveryMode": task["deliveryMode"],
+            "sceneImageCadence": task.get("sceneImageCadence"),
             "selectedStoryboardIds": task["selectedStoryboardIds"],
             "fallbacks": task["fallbacks"],
             "synthetic": task["synthetic"],
@@ -4891,6 +5234,15 @@ class ProductionCenter:
         fail_storyboard_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         task = self._load_task(task_id)
+        queue = task.get("queue") if isinstance(task.get("queue"), dict) else {}
+        if queue.get("schemaVersion") == QUEUE_SCHEMA_VERSION and os.environ.get("AIVCP_QUEUE_WORKER") != "1":
+            dispatcher = self._wake_queue_dispatcher()
+            return {
+                "task": task,
+                "queuedByDispatcher": True,
+                "dispatcher": dispatcher,
+                "productionTaskRunRequiredAgain": False,
+            }
         if task["state"] == "VIDEO_READY":
             return {"task": task, "idempotent": True}
         runnable_states = {"READY_TO_PRODUCE", "RETRYING", "RUNNING", "QUEUED_WAITING_WORKSHOP"}

@@ -6,21 +6,21 @@
   "createdAt": "2026-08-03T15:07:00Z",
   "hashAlgorithm": "SHA-256",
   "hashRule": "canonical-json-v1",
-  "contentHash": "7837756f76edd8ed8b3623d203caa2926078b5a9571d5627515f07006d3f6277",
+  "contentHash": "86d3fbc15fca72cadbfe8c28f155c606ef02f7c02c060cd17b8c16458c535a37",
   "upstream": [
     {
       "targetContractType": "production-result-package",
       "targetId": "production_result_package_example_001",
       "targetVersion": "1.0.0",
       "targetSchemaVersion": "1.0.0",
-      "targetHash": "eccbe9c850d68955c5d0e1f7a9721ac41874081025dd82bbc2468c46dca08673"
+      "targetHash": "db30b514096129f66a1e89bf2b02394a0ccfc1671dada63db65577222fedbf79"
     },
     {
       "targetContractType": "publishing-asset-package",
       "targetId": "publishing_asset_package_example_001",
       "targetVersion": "1.0.0",
       "targetSchemaVersion": "1.0.0",
-      "targetHash": "f57f3a0157b5981c21166b0ad444ff12b37937846e8573335934c786a70e02e7"
+      "targetHash": "c5805f1f7a66e53dcb06868cccfe818eed7e66d9952d77fa5ada339d2eb08335"
     }
   ],
   "publishIntentId": "publish_intent_example_001",
@@ -37,14 +37,14 @@
     "targetId": "production_result_package_example_001",
     "targetVersion": "1.0.0",
     "targetSchemaVersion": "1.0.0",
-    "targetHash": "eccbe9c850d68955c5d0e1f7a9721ac41874081025dd82bbc2468c46dca08673"
+    "targetHash": "db30b514096129f66a1e89bf2b02394a0ccfc1671dada63db65577222fedbf79"
   },
   "publishingAssetRef": {
     "targetContractType": "publishing-asset-package",
     "targetId": "publishing_asset_package_example_001",
     "targetVersion": "1.0.0",
     "targetSchemaVersion": "1.0.0",
-    "targetHash": "f57f3a0157b5981c21166b0ad444ff12b37937846e8573335934c786a70e02e7"
+    "targetHash": "c5805f1f7a66e53dcb06868cccfe818eed7e66d9952d77fa5ada339d2eb08335"
   },
   "uploadPolicy": "REQUIRE_REVIEW",
   "privacyStatus": "private",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -32,6 +33,13 @@ _FORBIDDEN_COMMAND_FRAGMENTS = (
 _FORBIDDEN_STEP_FRAGMENTS = ("publish", "upload", "oauth", "receipt", "analytics", "learning")
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9_.:-]{1,160}$")
 _SAFE_STEP = re.compile(r"^[a-z][a-z0-9_]{0,79}$")
+_SAFE_GRID_TEMPLATE = re.compile(r"^(?:wide_16_9|wide_4_3|portrait_9_16|square_1_1)_(?:1|4|9|16)$")
+_WORKSHOP_START_LEASE_SECONDS = 300
+_WORKSHOP_PAUSED_OWNER_STALE_SECONDS = 900
+_WORKSHOP_OWNER_GUARD_STALE_SECONDS = 30
+_ACTIVE_WORKSHOP_TASK_STATES = frozenset({"running"})
+_WORKSHOP_OWNER_HELD_STATES = frozenset({"running", "idle", "paused"})
+_WORKSHOP_OWNER_TERMINAL_STATES = frozenset({"completed", "failed", "cancelled"})
 
 
 def _is_within(path: Path, root: Path) -> bool:
@@ -174,6 +182,9 @@ class WorkshopBridge:
             "ffmpegAvailable": bool(result.get("ffmpegAvailable")),
             "ffmpegPathSet": bool(str(result.get("ffmpegPath") or "").strip()),
             "ffprobePathSet": bool(str(result.get("ffprobePath") or "").strip()),
+            "imageMotionContract": str(result.get("imageMotionContract") or ""),
+            "appearanceStageContract": str(result.get("appearanceStageContract") or ""),
+            "soundEffectContract": str(result.get("soundEffectContract") or ""),
             "boundary": "read_only_no_external_services",
         }
 
@@ -181,12 +192,20 @@ class WorkshopBridge:
         result = self._run_json("get-production-capabilities", ["--no-probe"])
         return {
             "success": True,
+            "soundEffectsUserSelectable": bool(result.get("soundEffectsUserSelectable")),
+            "soundEffectsMayBeDisabled": bool(result.get("soundEffectsMayBeDisabled")),
+            "pureSpeechOpeningSupported": bool(result.get("pureSpeechOpeningSupported")),
             "defaultVoiceEngine": str(result.get("defaultVoiceEngine") or ""),
             "productionLanguage": str(result.get("productionLanguage") or ""),
             "voiceEngines": result.get("voiceEngines") if isinstance(result.get("voiceEngines"), list) else [],
             "supportedPackageVersions": (
                 result.get("supportedPackageVersions")
                 if isinstance(result.get("supportedPackageVersions"), list)
+                else []
+            ),
+            "supportedCodexVisualPlanSchemas": (
+                result.get("supportedCodexVisualPlanSchemas")
+                if isinstance(result.get("supportedCodexVisualPlanSchemas"), list)
                 else []
             ),
             "externalServiceProbeExecuted": False,
@@ -330,6 +349,232 @@ class WorkshopBridge:
             )
         return project
 
+    def _start_lease_path(self, _project_path: Path) -> Path:
+        lease_root = self.isolation_root / ".workshop-bridge-launches"
+        lease_root.mkdir(parents=True, exist_ok=True)
+        # The installed Workshop is a singleton.  A per-project lease allowed
+        # two different Codex conversations to launch project A and project B
+        # concurrently and forward both requests into that one process.  Keep
+        # exactly one machine/data-root owner instead.
+        return lease_root / "global-workshop-owner.json"
+
+    @staticmethod
+    def _read_start_lease(lease_path: Path) -> dict[str, Any] | None:
+        try:
+            value = json.loads(lease_path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        return value if isinstance(value, dict) else None
+
+    @staticmethod
+    def _same_lease_project(lease: dict[str, Any], project_path: Path) -> bool:
+        value = str(lease.get("projectPath") or "").strip()
+        if not value:
+            return False
+        try:
+            return str(Path(value).resolve()).casefold() == str(project_path.resolve()).casefold()
+        except OSError:
+            return os.path.normcase(os.path.abspath(value)) == os.path.normcase(os.path.abspath(str(project_path)))
+
+    @staticmethod
+    def _process_is_alive(process_id: Any) -> bool:
+        try:
+            pid = int(process_id or 0)
+        except (TypeError, ValueError):
+            return False
+        if pid <= 0:
+            return False
+        if os.name == "nt":
+            try:
+                import ctypes
+
+                process_query_limited_information = 0x1000
+                still_active = 259
+                kernel32 = ctypes.windll.kernel32
+                handle = kernel32.OpenProcess(process_query_limited_information, False, pid)
+                if not handle:
+                    # Access denied still proves that a process with this PID
+                    # exists; an invalid PID normally returns ERROR_INVALID_PARAMETER.
+                    return int(kernel32.GetLastError()) == 5
+                try:
+                    exit_code = ctypes.c_ulong()
+                    if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                        return True
+                    return int(exit_code.value) == still_active
+                finally:
+                    kernel32.CloseHandle(handle)
+            except (AttributeError, OSError, ValueError):
+                return False
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        except OSError:
+            return False
+        return True
+
+    @staticmethod
+    def _lease_age_seconds(lease: dict[str, Any]) -> float:
+        try:
+            created_at = float(lease.get("updatedAtEpoch") or lease.get("createdAtEpoch") or 0)
+        except (TypeError, ValueError):
+            created_at = 0
+        return max(0.0, time.time() - created_at) if created_at > 0 else float("inf")
+
+    def _lease_is_active(self, lease: dict[str, Any]) -> bool:
+        age_seconds = self._lease_age_seconds(lease)
+        process_alive = self._process_is_alive(lease.get("processId"))
+        project_path_text = str(lease.get("projectPath") or "").strip()
+        owner_request_id = str(lease.get("requestId") or "").strip()
+        if project_path_text:
+            try:
+                project = json.loads(Path(project_path_text).read_text(encoding="utf-8-sig"))
+            except (OSError, json.JSONDecodeError):
+                project = None
+            if isinstance(project, dict):
+                task = project.get("autoProductionTask")
+                if isinstance(task, dict):
+                    status = str(task.get("status") or "").strip().lower()
+                    actual_request_id = str(task.get("externalRequestId") or "").strip()
+                    if owner_request_id and actual_request_id == owner_request_id:
+                        if status in _WORKSHOP_OWNER_TERMINAL_STATES:
+                            return False
+                        if status in {"running", "idle"}:
+                            return process_alive or age_seconds < _WORKSHOP_START_LEASE_SECONDS
+                        if status == "paused":
+                            return process_alive or age_seconds < _WORKSHOP_PAUSED_OWNER_STALE_SECONDS
+                    elif status in {"running", "idle"}:
+                        # A live Workshop process remains the authoritative
+                        # singleton owner.  A dead process plus an old lease
+                        # must not leave every later production task blocked
+                        # forever by a stale "running" project snapshot.
+                        return process_alive or age_seconds < _WORKSHOP_START_LEASE_SECONDS
+        return process_alive or age_seconds < _WORKSHOP_START_LEASE_SECONDS
+
+    @staticmethod
+    def _write_start_lease(lease_path: Path, lease: dict[str, Any]) -> None:
+        lease["updatedAtEpoch"] = time.time()
+        temporary = lease_path.with_name(f"{lease_path.name}.{uuid.uuid4().hex}.tmp")
+        temporary.write_text(json.dumps(lease, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(temporary, lease_path)
+
+    def _release_start_lease(self, lease_path: Path, lease: dict[str, Any]) -> None:
+        current = self._read_start_lease(lease_path)
+        if not isinstance(current, dict):
+            return
+        if (
+            str(current.get("requestId") or "") == str(lease.get("requestId") or "")
+            and str(current.get("projectPath") or "").casefold()
+            == str(lease.get("projectPath") or "").casefold()
+        ):
+            lease_path.unlink(missing_ok=True)
+
+    @staticmethod
+    def _acquire_start_lease_guard(lease_path: Path) -> Path:
+        guard_path = lease_path.with_name(f"{lease_path.name}.guard")
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            try:
+                guard_path.mkdir()
+                return guard_path
+            except FileExistsError:
+                try:
+                    age_seconds = max(0.0, time.time() - guard_path.stat().st_mtime)
+                except OSError:
+                    age_seconds = 0
+                if age_seconds >= _WORKSHOP_OWNER_GUARD_STALE_SECONDS:
+                    try:
+                        guard_path.rmdir()
+                    except OSError:
+                        pass
+                    continue
+                time.sleep(0.02)
+        raise ToolError(
+            "WORKSHOP_BUSY",
+            "工坊全局所有权正在由另一个生产请求登记；当前项目已进入等待队列。",
+            retryable=True,
+            details={"ownerState": "claim_in_progress"},
+        )
+
+    @staticmethod
+    def _start_response_from_lease(lease: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "success": True,
+            "requestId": str(lease.get("requestId") or ""),
+            "processId": int(lease.get("processId") or 0),
+            "forwarded": bool(lease.get("forwarded")),
+            "status": str(lease.get("status") or "start_pending"),
+            "selectedStepIds": [str(item) for item in lease.get("selectedStepIds", [])],
+            "selectedEpisodeIds": [str(item) for item in lease.get("selectedEpisodeIds", [])],
+            "skipCompleted": bool(lease.get("skipCompleted", True)),
+            "joinedExisting": True,
+            "startConfirmed": bool(lease.get("startConfirmed")),
+            "boundary": "isolated_production_only",
+            "publishingTriggered": False,
+        }
+
+    def _claim_start_lease(
+        self,
+        lease_path: Path,
+        lease: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        guard_path = self._acquire_start_lease_guard(lease_path)
+        try:
+            for _attempt in range(3):
+                try:
+                    descriptor = os.open(lease_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                except FileExistsError:
+                    existing = self._read_start_lease(lease_path)
+                    if existing is None:
+                        try:
+                            age_seconds = max(0.0, time.time() - lease_path.stat().st_mtime)
+                        except OSError:
+                            age_seconds = 0
+                        if age_seconds < _WORKSHOP_START_LEASE_SECONDS:
+                            raise ToolError(
+                                "WORKSHOP_BUSY",
+                                "工坊全局所有权正在登记中；当前项目已进入等待队列。",
+                                retryable=True,
+                                details={"ownerState": "registering"},
+                            )
+                        lease_path.unlink(missing_ok=True)
+                        continue
+                    if self._lease_is_active(existing):
+                        if self._same_lease_project(existing, Path(str(lease.get("projectPath") or ""))):
+                            return existing
+                        raise ToolError(
+                            "WORKSHOP_BUSY",
+                            "工坊正在处理另一个项目；当前项目已进入等待队列。",
+                            retryable=True,
+                            details={
+                                "ownerProjectId": str(existing.get("projectId") or ""),
+                                "ownerRequestId": str(existing.get("requestId") or ""),
+                                "ownerState": str(existing.get("status") or existing.get("phase") or "active"),
+                            },
+                        )
+                    lease_path.unlink(missing_ok=True)
+                    continue
+                with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                    json.dump(lease, handle, ensure_ascii=False, sort_keys=True)
+                    handle.write("\n")
+                return None
+            existing = self._read_start_lease(lease_path)
+            if existing and self._same_lease_project(existing, Path(str(lease.get("projectPath") or ""))):
+                return existing
+            raise ToolError(
+                "WORKSHOP_BUSY",
+                "工坊全局所有权竞争未完成；当前项目已进入等待队列。",
+                retryable=True,
+                details={"ownerState": "contended"},
+            )
+        finally:
+            try:
+                guard_path.rmdir()
+            except OSError:
+                pass
+
     def start_production(
         self,
         project_path: Path,
@@ -355,7 +600,17 @@ class WorkshopBridge:
                 "只能启动位于本次隔离根目录中的工坊项目。",
                 details={"projectPath": str(project_path)},
             )
-        self._load_official_project(project_path, expected_project_id)
+        project = self._load_official_project(project_path, expected_project_id)
+        import_meta = project.get("importMeta") if isinstance(project.get("importMeta"), dict) else {}
+        production_contract = import_meta.get("productionContract") if isinstance(import_meta.get("productionContract"), dict) else {}
+        grid_batch = production_contract.get("gridBatch") if isinstance(production_contract.get("gridBatch"), dict) else {}
+        grid_template = str(grid_batch.get("template") or "").strip()
+        if grid_template and _SAFE_GRID_TEMPLATE.fullmatch(grid_template) is None:
+            raise ToolError(
+                "WORKSHOP_GRID_TEMPLATE_INVALID",
+                "生产包锁定的宫格模板无效，未启动工坊。",
+                details={"gridTemplate": grid_template},
+            )
         steps = [str(item).strip() for item in selected_step_ids]
         episodes = [str(item).strip() for item in selected_episode_ids]
         if not steps or any(_SAFE_STEP.fullmatch(item) is None for item in steps):
@@ -375,6 +630,53 @@ class WorkshopBridge:
         if _SAFE_IDENTIFIER.fullmatch(request_id) is None:
             raise ToolError("WORKSHOP_REQUEST_ID_INVALID", "工坊请求 ID 无效。")
 
+        task = project.get("autoProductionTask")
+        if isinstance(task, dict) and str(task.get("status") or "").strip().lower() in _ACTIVE_WORKSHOP_TASK_STATES:
+            active_request_id = str(task.get("externalRequestId") or request_id).strip()
+            lease_path = self._start_lease_path(project_path)
+            adopted_lease = {
+                "requestId": active_request_id,
+                "projectId": str(project.get("id") or expected_project_id or ""),
+                "projectPath": str(project_path),
+                "processId": 0,
+                "createdAtEpoch": time.time(),
+                "updatedAtEpoch": time.time(),
+                "selectedStepIds": [str(item) for item in task.get("selectedStepIds", steps)],
+                "selectedEpisodeIds": [str(item) for item in task.get("selectedEpisodeIds", episodes)],
+                "skipCompleted": bool(skip_completed),
+                "gridTemplate": grid_template,
+                "phase": "active",
+                "status": "already_running",
+                "startConfirmed": True,
+                "forwarded": True,
+            }
+            existing_lease = self._claim_start_lease(lease_path, adopted_lease)
+            if existing_lease is not None and not self._same_lease_project(existing_lease, project_path):
+                raise ToolError(
+                    "WORKSHOP_BUSY",
+                    "工坊正在处理另一个项目；当前项目已进入等待队列。",
+                    retryable=True,
+                )
+            if existing_lease is not None and str(existing_lease.get("requestId") or "") != active_request_id:
+                # The project snapshot is the authoritative same-project run;
+                # repair an older same-project owner record instead of leaving
+                # a stale request ID to block the next project after completion.
+                self._write_start_lease(lease_path, adopted_lease)
+            return {
+                "success": True,
+                "requestId": active_request_id,
+                "processId": 0,
+                "forwarded": True,
+                "status": "already_running",
+                "selectedStepIds": [str(item) for item in task.get("selectedStepIds", steps)],
+                "selectedEpisodeIds": [str(item) for item in task.get("selectedEpisodeIds", episodes)],
+                "skipCompleted": bool(skip_completed),
+                "joinedExisting": True,
+                "startConfirmed": True,
+                "boundary": "isolated_production_only",
+                "publishingTriggered": False,
+            }
+
         arguments = [
             str(project_path),
             "--request-id",
@@ -385,6 +687,8 @@ class WorkshopBridge:
         ]
         if episodes:
             arguments.extend(["--episodes", ",".join(episodes)])
+        if grid_template:
+            arguments.extend(["--grid-template", grid_template])
         if not skip_completed:
             arguments.append("--no-skip-completed")
         self._validate_command("run-production", arguments)
@@ -392,6 +696,26 @@ class WorkshopBridge:
         result_root = self.isolation_root / ".workshop-bridge-results"
         result_root.mkdir(parents=True, exist_ok=True)
         result_path = result_root / f"run-production-{uuid.uuid4().hex}.json"
+        lease_path = self._start_lease_path(project_path)
+        lease = {
+            "requestId": request_id,
+            "projectId": str(project.get("id") or expected_project_id or ""),
+            "projectPath": str(project_path),
+            "processId": 0,
+            "resultPath": str(result_path),
+            "createdAtEpoch": time.time(),
+            "selectedStepIds": steps,
+            "selectedEpisodeIds": episodes,
+            "skipCompleted": bool(skip_completed),
+            "gridTemplate": grid_template,
+            "phase": "launching",
+            "status": "start_pending",
+            "startConfirmed": False,
+            "forwarded": False,
+        }
+        existing_lease = self._claim_start_lease(lease_path, lease)
+        if existing_lease is not None:
+            return self._start_response_from_lease(existing_lease)
         argv = [
             str(self.executable),
             "run-production",
@@ -411,12 +735,17 @@ class WorkshopBridge:
                 creationflags=creation_flags,
             )
         except OSError as exc:
+            self._release_start_lease(lease_path, lease)
+            result_path.unlink(missing_ok=True)
             raise ToolError(
                 "WORKSHOP_COMMAND_START_FAILED",
                 "无法启动新漫剧工坊生产命令。",
                 retryable=True,
                 details={"command": "run-production", "error": str(exc)},
             ) from exc
+
+        lease["processId"] = process.pid
+        self._write_start_lease(lease_path, lease)
 
         deadline = time.monotonic() + max(1, int(startup_timeout_seconds))
         payload: dict[str, Any] | None = None
@@ -431,6 +760,7 @@ class WorkshopBridge:
                     pass
             return_code = process.poll()
             if return_code is not None:
+                self._release_start_lease(lease_path, lease)
                 result_path.unlink(missing_ok=True)
                 raise ToolError(
                     "WORKSHOP_COMMAND_START_FAILED",
@@ -439,31 +769,49 @@ class WorkshopBridge:
                     details={"command": "run-production", "exitCode": return_code},
                 )
             time.sleep(0.1)
-        result_path.unlink(missing_ok=True)
         if payload is None:
-            raise ToolError(
-                "WORKSHOP_START_TIMEOUT",
-                "工坊进程已启动，但在限定时间内没有返回任务登记结果。",
-                retryable=True,
-                details={"requestId": request_id},
-            )
+            return self._start_response_from_lease(lease)
+        result_path.unlink(missing_ok=True)
         if payload.get("success") is not True:
+            self._release_start_lease(lease_path, lease)
             safe_payload = redact(payload)
+            payload_status = str(safe_payload.get("status") or "").strip().lower()
+            payload_error = str(safe_payload.get("error") or "")
+            if payload_status == "busy" or "WORKSHOP_BUSY" in payload_error:
+                raise ToolError(
+                    "WORKSHOP_BUSY",
+                    "工坊正在处理另一个项目；当前项目已进入等待队列。",
+                    retryable=True,
+                    details={"requestId": request_id, "workshopStatus": payload_status or "busy"},
+                )
             raise ToolError(
                 "WORKSHOP_START_REJECTED",
-                str(safe_payload.get("error") or "工坊拒绝启动生产任务。"),
+                payload_error or "工坊拒绝启动生产任务。",
                 retryable=False,
                 details={"requestId": request_id},
             )
+        payload_status = str(payload.get("status") or "accepted")
+        lease.update(
+            {
+                "processId": int(payload.get("processId") or process.pid),
+                "phase": "active",
+                "status": payload_status,
+                "startConfirmed": True,
+                "forwarded": bool(payload.get("forwarded")),
+            }
+        )
+        self._write_start_lease(lease_path, lease)
         return {
             "success": True,
             "requestId": request_id,
             "processId": int(payload.get("processId") or process.pid),
             "forwarded": bool(payload.get("forwarded")),
-            "status": str(payload.get("status") or "accepted"),
+            "status": payload_status,
             "selectedStepIds": steps,
             "selectedEpisodeIds": episodes,
             "skipCompleted": bool(skip_completed),
+            "joinedExisting": payload_status in {"duplicate", "already_running"},
+            "startConfirmed": True,
             "boundary": "isolated_production_only",
             "publishingTriggered": False,
         }
@@ -519,6 +867,163 @@ class WorkshopBridge:
             "startedAt": task.get("startedAt"),
             "finishedAt": task.get("finishedAt"),
             "readOnly": True,
+        }
+
+    def production_artifacts(
+        self,
+        project_path: Path,
+        *,
+        expected_project_id: str,
+        expected_request_id: str,
+    ) -> dict[str, Any]:
+        """Return real completed Workshop artifacts without mutating the project.
+
+        Only paths below the isolated Workshop root are accepted.  This keeps
+        the production center from accidentally harvesting an unrelated old
+        project, desktop export, or user-selected file outside the task root.
+        """
+
+        project_path = project_path.resolve()
+        if not project_path.is_file() or not _is_within(project_path, self.isolation_root):
+            raise ToolError("WORKSHOP_PROJECT_NOT_ISOLATED", "只能回收隔离工坊项目的正式产物。")
+        project = self._load_official_project(project_path, expected_project_id)
+        task = project.get("autoProductionTask")
+        if not isinstance(task, dict) or str(task.get("status") or "").strip().lower() != "completed":
+            raise ToolError("WORKSHOP_PRODUCTION_NOT_COMPLETED", "工坊任务尚未完成，不能回收成片。")
+        if str(task.get("externalRequestId") or "") != expected_request_id:
+            raise ToolError("WORKSHOP_STATUS_TASK_MISMATCH", "完成的工坊任务不属于当前 Production Task。")
+
+        def resolve_artifact(value: Any, field: str, *, required: bool = True) -> Path | None:
+            text = str(value or "").strip()
+            if not text:
+                if required:
+                    raise ToolError("WORKSHOP_ARTIFACT_MISSING", f"工坊完成结果缺少 {field}。")
+                return None
+            candidate = Path(text)
+            if not candidate.is_absolute():
+                candidate = project_path.parent / candidate
+            candidate = candidate.resolve()
+            if not _is_within(candidate, self.isolation_root):
+                raise ToolError(
+                    "WORKSHOP_ARTIFACT_OUTSIDE_ISOLATION",
+                    f"工坊 {field} 超出当前隔离目录。",
+                    details={"field": field},
+                )
+            if required and not candidate.is_file():
+                raise ToolError("WORKSHOP_ARTIFACT_MISSING", f"工坊 {field} 文件不存在。")
+            return candidate
+
+        final_video = resolve_artifact(
+            project.get("lastFinalVideoPath")
+            or (project.get("publishing") or {}).get("finalVideoPath"),
+            "finalVideoPath",
+        )
+        upload_package_text = str(
+            project.get("lastUploadPackagePath")
+            or (project.get("publishing") or {}).get("uploadPackagePath")
+            or ""
+        ).strip()
+        upload_package = None
+        if upload_package_text:
+            upload_package = Path(upload_package_text)
+            if not upload_package.is_absolute():
+                upload_package = project_path.parent / upload_package
+            upload_package = upload_package.resolve()
+            if not upload_package.is_dir() or not _is_within(upload_package, self.isolation_root):
+                raise ToolError("WORKSHOP_ARTIFACT_OUTSIDE_ISOLATION", "工坊成片资料包不在当前隔离目录中。")
+        if upload_package is None:
+            raise ToolError("WORKSHOP_UPLOAD_PACKAGE_MISSING", "工坊完成状态缺少成片资料包。")
+        reports = sorted(upload_package.rglob("upload_package_report.json"))
+        if len(reports) != 1:
+            raise ToolError("WORKSHOP_UPLOAD_REPORT_INVALID", "工坊成片资料包必须且只能包含一份验收报告。")
+        try:
+            report = json.loads(reports[0].read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ToolError("WORKSHOP_UPLOAD_REPORT_INVALID", "工坊成片验收报告不可读。") from exc
+        if not isinstance(report, dict) or str(report.get("status") or "").lower() != "completed":
+            raise ToolError("WORKSHOP_UPLOAD_REPORT_INVALID", "工坊成片验收报告没有完成。")
+        export_settings = project.get("exportSettings") if isinstance(project.get("exportSettings"), dict) else {}
+        subtitle_mode = str(report.get("subtitleMode") or "").strip().lower()
+        try:
+            subtitle_count = int(report.get("subtitleCount") or 0)
+        except (TypeError, ValueError):
+            subtitle_count = -1
+        subtitles_explicitly_disabled = (
+            export_settings.get("includeSubtitles") is False
+            and subtitle_mode == "none"
+            and subtitle_count == 0
+        )
+        subtitle = resolve_artifact(
+            report.get("subtitlePath"),
+            "subtitlePath",
+            required=not subtitles_explicitly_disabled,
+        )
+        report_video = resolve_artifact(report.get("videoPath"), "report.videoPath")
+        if report_video != final_video:
+            raise ToolError("WORKSHOP_FINAL_VIDEO_MISMATCH", "工坊项目与验收报告指向了不同成片。")
+
+        scene_values: list[dict[str, Any]] = []
+        for item in project.get("scenes", []):
+            if isinstance(item, dict):
+                scene_values.append(item)
+        twelve_grid = project.get("twelveGrid")
+        if isinstance(twelve_grid, dict):
+            scene_values.extend(item for item in twelve_grid.get("scenes", []) if isinstance(item, dict))
+        by_episode = project.get("twelveGridByEpisodeId")
+        if isinstance(by_episode, dict):
+            for grid in by_episode.values():
+                if isinstance(grid, dict):
+                    scene_values.extend(item for item in grid.get("scenes", []) if isinstance(item, dict))
+        images: list[dict[str, Any]] = []
+        seen_scene_keys: set[tuple[str, str]] = set()
+        for index, scene in enumerate(scene_values, 1):
+            image_value = scene.get("splitImagePath") or scene.get("imagePath")
+            if not str(image_value or "").strip():
+                continue
+            image = resolve_artifact(image_value, f"sceneImage[{index}]")
+            scene_id = str(scene.get("id") or scene.get("sceneIndex") or index)
+            key = (scene_id, str(image))
+            if key in seen_scene_keys:
+                continue
+            seen_scene_keys.add(key)
+            assert image is not None
+            images.append(
+                {
+                    "sceneId": scene_id,
+                    "path": str(image),
+                    "sizeBytes": image.stat().st_size,
+                    "sha256": hashlib.sha256(image.read_bytes()).hexdigest(),
+                }
+            )
+        if not images:
+            raise ToolError("WORKSHOP_STORYBOARD_IMAGES_MISSING", "正式工坊结果没有任何分镜图片。")
+
+        script_lines = []
+        for item in project.get("scriptLines", []):
+            if not isinstance(item, dict):
+                continue
+            script_lines.append(
+                {
+                    "lineId": str(item.get("id") or ""),
+                    "durationSeconds": float(item.get("durationSec") or item.get("estimatedDurationSec") or 0),
+                    "audioPath": str(item.get("audioPath") or ""),
+                }
+            )
+        return {
+            "success": True,
+            "projectId": expected_project_id,
+            "requestId": expected_request_id,
+            "projectPath": str(project_path),
+            "finalVideoPath": str(final_video),
+            "subtitlePath": str(subtitle) if subtitle is not None else "",
+            "uploadPackagePath": str(upload_package),
+            "uploadReportPath": str(reports[0].resolve()),
+            "uploadReport": redact(report),
+            "storyboardImages": images,
+            "scriptLines": script_lines,
+            "provenance": "workshop",
+            "readOnly": True,
+            "publishingTriggered": False,
         }
 
 

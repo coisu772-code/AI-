@@ -113,6 +113,7 @@ def generate(stage5_root: Path, output_root: Path) -> dict:
             channel_profile=channel,
             constraints_catalog_path=CATALOG,
             created_at="2026-08-04T06:00:00Z",
+            allow_synthetic_fixture=True,
         )
         package_path = Path(assembled["package_path"])
         markets[language] = {

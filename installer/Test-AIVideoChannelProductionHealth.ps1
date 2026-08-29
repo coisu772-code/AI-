@@ -15,7 +15,6 @@ $requiredSkills = @(
     "channel-production",
     "channel-onboarding",
     "content-source",
-    "content-deconstruct",
     "content-rewrite",
     "content-review-edit",
     "content-title-description",
@@ -33,23 +32,17 @@ $requiredContentTools = @(
     "source_job_resume"
     "source_integrity_check"
     "content_capabilities",
+    "content_workspace_start",
+    "content_workspace_prompt_register",
+    "content_workspace_document_save",
+    "content_workspace_document_confirm",
+    "content_workspace_auto_upload_authorize",
+    "content_workspace_bind_production",
+    "content_workspace_narration_prepare",
+    "content_workspace_get",
     "content_project_start",
     "content_topic_checkpoint",
     "content_topic_finalize",
-    "content_review_document_save",
-    "content_review_documents_get",
-    "content_manuscript_finalize",
-    "content_publishing_finalize",
-    "content_project_get",
-    "content_integrity_check",
-    "content_handoff_check"
-    "content_deconstruction_capabilities"
-    "content_deconstruction_prepare"
-    "content_deconstruction_read_source"
-    "content_deconstruction_checkpoint"
-    "content_deconstruction_finalize"
-    "content_deconstruction_get"
-    "content_deconstruction_integrity_check"
     "production_capabilities"
     "production_package_assemble"
     "production_task_start"
@@ -104,7 +97,14 @@ if ([string]$manifest.name -ne "ai-video-channel-production") {
     throw "Installation health check failed: unexpected plugin identity."
 }
 if ($null -ne $installState -and [string]$installState.productVersion -ne [string]$manifest.version) {
-    throw "Installation health check failed: install state and plugin versions differ."
+    $cachebusterPrefix = [string]$installState.productVersion + "+codex."
+    $pluginVersion = [string]$manifest.version
+    if (
+        -not $pluginVersion.StartsWith($cachebusterPrefix, [System.StringComparison]::Ordinal) -or
+        $pluginVersion.Substring($cachebusterPrefix.Length) -notmatch '^[a-z0-9-]+$'
+    ) {
+        throw "Installation health check failed: install state and plugin versions differ."
+    }
 }
 $voiceCatalogPath = Join-Path $pluginFull "assets\voice-catalog.json"
 if (-not (Test-Path -LiteralPath $voiceCatalogPath -PathType Leaf)) {
@@ -147,7 +147,6 @@ foreach ($skill in $requiredSkills) {
 
 $routerText = Get-Content -LiteralPath (Join-Path $skillsRoot "channel-production\SKILL.md") -Raw -Encoding UTF8
 $sourceText = Get-Content -LiteralPath (Join-Path $skillsRoot "content-source\SKILL.md") -Raw -Encoding UTF8
-$deconstructionText = Get-Content -LiteralPath (Join-Path $skillsRoot "content-deconstruct\SKILL.md") -Raw -Encoding UTF8
 $rewriteText = Get-Content -LiteralPath (Join-Path $skillsRoot "content-rewrite\SKILL.md") -Raw -Encoding UTF8
 $reviewEditText = Get-Content -LiteralPath (Join-Path $skillsRoot "content-review-edit\SKILL.md") -Raw -Encoding UTF8
 $titleDescriptionText = Get-Content -LiteralPath (Join-Path $skillsRoot "content-title-description\SKILL.md") -Raw -Encoding UTF8
@@ -160,7 +159,7 @@ $dataCenterHealthScript = Join-Path $skillsRoot "data-center\scripts\check_data_
 if (-not (Test-Path -LiteralPath $dataCenterHealthScript -PathType Leaf)) {
     throw "Installation health check failed: data-center health script is missing."
 }
-$declaredToolText = $routerText + "`n" + $sourceText + "`n" + $deconstructionText + "`n" + $rewriteText + "`n" + $reviewEditText + "`n" + $titleDescriptionText + "`n" + $publishingAssetsText + "`n" + $productionSkillText + "`n" + $publishSkillText + "`n" + $dataCenterSkillText + "`n" + $dataCenterProtocolText
+$declaredToolText = $routerText + "`n" + $sourceText + "`n" + $rewriteText + "`n" + $reviewEditText + "`n" + $titleDescriptionText + "`n" + $publishingAssetsText + "`n" + $productionSkillText + "`n" + $publishSkillText + "`n" + $dataCenterSkillText + "`n" + $dataCenterProtocolText
 foreach ($toolName in $requiredContentTools) {
     if (-not $declaredToolText.Contains($toolName)) {
         throw "Installation health check failed: Skills do not declare $toolName."
@@ -299,6 +298,11 @@ raise SystemExit(completed.returncode)
     foreach ($toolName in $requiredContentTools) {
         if ($toolNames -notcontains $toolName) {
             throw "Installation health check failed: local tool is missing: $toolName"
+        }
+    }
+    foreach ($retiredPrefix in @("video_deconstruction_", "content_deconstruction_", "original_imitation_")) {
+        if (@($toolNames | Where-Object { $_.StartsWith($retiredPrefix) }).Count -ne 0) {
+            throw "Installation health check failed: retired content tools are still exposed: $retiredPrefix"
         }
     }
     $capabilityRequest = '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"content_capabilities","arguments":{}}}'

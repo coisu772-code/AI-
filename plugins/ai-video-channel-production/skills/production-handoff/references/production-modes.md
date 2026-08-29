@@ -4,8 +4,8 @@
 
 每个新制作任务进入 `G5B_PRODUCTION` 时，先显示以下中文选择卡并等待用户选择。模式只绑定当前 `task_id + project_id`，不得从频道预设、旧项目、其他任务或“自动上传”授权继承；用户选择模式后，本项目后续恢复、重试和局部补做继续使用该模式，除非用户明确要求改变模式并重新组装生产包。
 
-- `A 极速自动模式`（`fast_auto`）：以最快形成可用静态分镜成片为目标。Codex 只整理正式配音稿、角色与制作设置，不生成完整逐镜视觉方案；工坊按现有基础静态图片路线自动制作；不生成视频提示词或镜头视频。
-- `B 平衡模式`（`balanced`，推荐）：兼顾速度、画面相关性和 Codex 用量。Codex 不生成完整逐镜视觉方案，由工坊现有图片提示词分析步骤根据正式稿、角色和已选画风生成图片提示词，再静态自动成片；不生成视频提示词或镜头视频。
+- `A 极速自动模式`（`fast_auto`）：以最快形成可用成片为目标。Codex 只整理正式配音稿、角色与制作设置，不生成完整逐镜视觉方案；图片和视频提示词按用户开关由工坊生成。成片方式、镜头视频范围和图片覆盖节奏仍由用户选择。
+- `B 平衡模式`（`balanced`，推荐）：兼顾速度、画面相关性和 Codex 用量。Codex 不生成完整逐镜视觉方案，由工坊现有提示词分析步骤根据正式稿、角色和已选画风工作。成片方式、镜头视频范围和图片覆盖节奏仍由用户选择。
 - `C 精品导演模式`（`director`）：Codex 读取完整正式稿并生成 schema 1.5 逐镜视觉方案、图片提示词与连续性合同；只有用户另外明确开启视频提示词及实际镜头视频范围时才生成镜头视频。
 
 模式选择不等于“剩余流程全部自动完成”，也不等于自动上传授权。阶段确认、发布范围与 OAuth 继续使用各自独立合同。
@@ -24,15 +24,17 @@
 }
 ```
 
-模式确定后不得再询问与该模式已经锁死的重复开关：
+模式只决定提示词作者和推荐默认值，不锁死生产选项：
 
 | 模式 | `promptGeneration` | `codexVisualPlan` | 工坊图片提示词步骤 | `deliveryMode` | 镜头视频 |
 |---|---|---|---|---|---|
-| 极速自动 | `image=false, video=false` | 禁止 | 不主动增加 | `auto_render` | 固定关闭 |
-| 平衡 | 生产包保持 `image=false, video=false` | 禁止 | 生产中心显式选择 `image_prompts`，由工坊生成 | `auto_render` | 固定关闭 |
+| 极速自动 | 按用户选择 | 禁止 | 按用户开关由工坊生成 | 用户选择 | 只有明确范围才开启 |
+| 平衡 | 按用户选择 | 禁止 | 图片默认推荐开启，视频按用户开关 | 用户选择 | 只有明确范围才开启 |
 | 精品导演 | `image=true`；视频提示词按用户明确选择 | 必填，schema 1.5 | 执行锁定的 Codex 提示词 | 用户选择 | 只有明确范围才开启 |
 
-平衡模式把 `workshopPromptGeneration.image=true` 保存为生产中心运行字段，但正式包的 `promptGeneration.image` 继续为 `false`，避免工坊把它误判为必须接收 Codex 视觉方案。三种模式均不得改变用户明确选择的配音、音色、章节朗读、画风、宫格、画幅、发布频道和上传策略。
+极速与平衡把用户选择的提示词开关映射到 `workshopPromptGeneration`；精品导演把开关映射到 Codex 视觉方案。三种模式均不得改变用户明确选择的配音、音色、章节朗读、画风、宫格、画幅、成片方式、镜头视频、图片覆盖节奏、发布频道和上传策略。
+
+所有新任务写入 `settingsContractVersion=2.0`。`deliveryModeSelectionSource`、`promptGeneration.selectionSource`、`videoGeneration.selectionSource` 和 `sceneImageCadence.selectionSource` 必须都是 `user`，相应 `confirmed=true`。`sceneImageCadence.mode` 支持 `semantic_auto`、`seconds_range`、`line_level` 和 `custom`；系统可以推荐“每张图八至十五秒”，但不得替用户强制选择。
 
 ## 通用故障恢复与 Codex 接管
 

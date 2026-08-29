@@ -909,12 +909,18 @@ class LocalToolService:
                 "channelListLookupAllowed": False,
                 "productionBindingTrigger": "explicit-user-start-production",
                 "draftingRoutes": ["direct-draft", "provided-outline"],
+                "manuscriptReviewPolicy": {
+                    "defaultExternalGate": "D5_FINAL_MANUSCRIPT",
+                    "rawDraftGate": "explicit-user-opt-in-only",
+                    "informationalDocumentsNeedConfirmation": False,
+                },
             }
         elif name == "content_workspace_start":
             result = self.creative_workspace.start(
                 task_id=args.get("taskId"),
                 project_id=args.get("projectId"),
                 workspace_id=args.get("workspaceId"),
+                review_raw_draft=args.get("reviewRawDraft", False),
             )
         elif name == "content_workspace_prompt_register":
             result = self.creative_workspace.register_prompt(
@@ -942,6 +948,7 @@ class LocalToolService:
                 content=args.get("content"),
                 media_type=args.get("mediaType", "text/markdown"),
                 source_refs=args.get("sourceRefs"),
+                confirmation_required=args.get("confirmationRequired", True),
             )
         elif name == "content_workspace_document_confirm":
             result = self.creative_workspace.confirm_document(
@@ -1116,6 +1123,7 @@ class LocalToolService:
                 foreign_language_quality_gate=args.get("foreignLanguageQualityGate"),
                 confirmation=args.get("confirmation"),
                 authoring_mode=args.get("authoringMode", "target-language-native"),
+                sound_effects=args.get("soundEffects"),
             )
         elif name == "content_publishing_finalize":
             result = self.content.finalize_publishing(
@@ -1209,7 +1217,12 @@ class LocalToolService:
                 package_root=Path(args.get("productionPackagePath", "")),
             )
         elif name == "production_task_get":
-            result = self.production.get_task(args.get("productionTaskId"))
+            result = self.production.get_task(
+                args.get("productionTaskId"),
+                include_history=bool(args.get("includeHistory", False)),
+                history_limit=args.get("historyLimit", 50),
+                history_cursor_revision=args.get("historyCursorRevision"),
+            )
         elif name in {
             "production_task_run",
             "production_task_pause",
@@ -1849,6 +1862,7 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "taskId": {"type": "string", "minLength": 1, "maxLength": 160},
                 "projectId": {"type": "string", "minLength": 1, "maxLength": 160},
                 "workspaceId": {"type": "string", "minLength": 3, "maxLength": 160},
+                "reviewRawDraft": {"type": "boolean", "default": False},
             },
             ["taskId", "projectId"],
         ),
@@ -1880,6 +1894,7 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "content": {"type": "string", "minLength": 1},
                 "mediaType": {"type": "string", "enum": ["text/plain", "text/markdown", "application/json"]},
                 "sourceRefs": {"type": "array", "items": {"type": "string"}},
+                "confirmationRequired": {"type": "boolean", "default": True},
             },
             ["taskId", "workspaceId", "workspaceBindingProof", "documentId", "title", "stage", "purpose", "language", "content"],
         ),
@@ -1924,7 +1939,7 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "content_workspace_narration_prepare",
-            "制作绑定完成后，把用户确认的正式稿整理为可直接配音的版本，并冻结一个默认直接用于发布的口播稿标题；不自动生成另一套标题。每集必须以匹配开场剧情的纯音效起播；其余音效必须放在触发它的完整旁白或对白之后，不能抢句或打断人声。章节标题是否朗读必须使用本次制作设置，不能从旧项目继承。",
+            "制作绑定完成后，把用户确认的正式稿整理为可直接配音的版本，并冻结一个默认直接用于发布的口播稿标题；不自动生成另一套标题。纯音效由用户本次选择：关闭时使用纯人声稿且不插入 sound_effect 行；开启时每集以匹配开场剧情的纯音效起播，其余音效必须放在触发它的完整旁白或对白之后，不能抢句或打断人声。章节标题是否朗读必须使用本次制作设置，不能从旧项目继承。",
             {
                 **workspace_binding_properties,
                 "sourceDocumentId": {"type": "string", "minLength": 1, "maxLength": 128},
@@ -2022,8 +2037,8 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "content_manuscript_finalize",
-            "校验目标语言正式配音稿、逐行中文审核映射、角色音色、合并质量门和独立外语质量保险门后冻结 Manuscript Package v1，并生成绑定该包的 07 正式口播稿与 08 中文审核稿。旁白与对白不设固定时长硬上限；每集第一行必须是匹配开场的纯音效，其余纯音效必须紧跟触发它的完整人声，独占一行并严格写成【sound：具体描述；时长1.2秒】，最长5秒、speakerId=sfx、固定 Seed Audio、禁止独立画面且禁止生成字幕。",
-            {**binding_properties, "projectId": {"type": "string"}, "storyBible": {"type": "object"}, "characters": {"type": "array"}, "targetScript": {"type": "array"}, "chineseAuditScript": {"type": ["array", "null"]}, "qualityGate": {"type": "object"}, "foreignLanguageQualityGate": {"type": "object"}, "confirmation": {"type": "object"}, "authoringMode": {"type": "string"}},
+            "校验目标语言正式配音稿、逐行中文审核映射、角色音色、合并质量门和独立外语质量保险门后冻结 Manuscript Package v1，并生成绑定该包的 07 正式口播稿与 08 中文审核稿。旁白与对白不设固定时长硬上限；soundEffects 记录用户本次是否启用纯音效。关闭时正式稿不得含 sound_effect 行，首行可直接是旁白或对白；开启时每集第一行必须是匹配开场的纯音效，其余纯音效必须紧跟触发它的完整人声，独占一行并严格写成【sound：具体描述；时长1.2秒】，最长5秒、speakerId=sfx、固定 Seed Audio、禁止独立画面且禁止生成字幕。",
+            {**binding_properties, "projectId": {"type": "string"}, "storyBible": {"type": "object"}, "characters": {"type": "array"}, "targetScript": {"type": "array"}, "chineseAuditScript": {"type": ["array", "null"]}, "qualityGate": {"type": "object"}, "foreignLanguageQualityGate": {"type": "object"}, "confirmation": {"type": "object"}, "authoringMode": {"type": "string"}, "soundEffects": {"type": "object", "properties": {"enabled": {"type": "boolean"}, "selectionSource": {"const": "user"}, "confirmed": {"const": True}}, "required": ["enabled", "selectionSource", "confirmed"], "additionalProperties": True}},
             ["taskId", "channelProfileId", "bindingProof", "projectId", "storyBible", "characters", "targetScript", "qualityGate", "foreignLanguageQualityGate", "confirmation"],
         ),
         (
@@ -2058,7 +2073,7 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "production_package_assemble",
-            "从已确认的 Manuscript 与 Publishing Asset 组装 Production Package v2.1。productionConfig 必须保存用户本次确认的 productionMode：fast_auto 不生成完整视觉方案并静态自动成片；balanced 由工坊现有分析步骤生成图片提示词并静态自动成片；director 才使用 codexVisualPlan schema 1.5，并可按用户明确范围生成镜头视频。人物配音引擎须来自本次选择，角色音色只能从该引擎推荐并在当前项目锁定；每集开场必须有 Seed Audio，其他音效只能在触发人声结束后播放、与触发句共用分镜、不得生成字幕或独立画面。",
+            "从已确认的 Manuscript 与 Publishing Asset 组装 Production Package v2.1。productionConfig 必须保存用户本次确认的 productionMode 和 soundEffects：fast_auto 不生成完整视觉方案并静态自动成片；balanced 由工坊现有分析步骤生成图片提示词并静态自动成片；director 才使用 codexVisualPlan schema 1.5，并可按用户明确范围生成镜头视频。人物配音引擎须来自本次选择，角色音色只能从该引擎推荐并在当前项目锁定；关闭音效时不得含纯音效行且不加载 Seed Audio，开启时每集开场必须有 Seed Audio，其他音效只能在触发人声结束后播放、与触发句共用分镜、不得生成字幕或独立画面。",
             {
                 **binding_properties,
                 "projectId": {"type": "string"},
@@ -2072,7 +2087,7 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "production_task_start",
-            "严格导入 Production Package v2.1，并创建唯一权威 Production Task v1。",
+            "严格导入 Production Package v2.1，并创建唯一权威 Production Task v1。新任务自动进入本机常驻事件队列；不需要 Codex 定时重试。",
             {
                 **binding_properties,
                 "productionTaskId": {"type": "string"},
@@ -2082,13 +2097,18 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         (
             "production_task_get",
-            "只读查看权威制作任务的步骤、资产、失败和 VIDEO_READY 状态，不修改任务。",
-            {"productionTaskId": {"type": "string"}},
+            "只读查看权威制作任务、实时队列位置、步骤、资产、失败和 VIDEO_READY 状态，不修改任务。默认不返回完整历史；需要时使用分页参数。",
+            {
+                "productionTaskId": {"type": "string"},
+                "includeHistory": {"type": "boolean"},
+                "historyLimit": {"type": "integer", "minimum": 1, "maximum": 1000},
+                "historyCursorRevision": {"type": "integer", "minimum": 1},
+            },
             ["productionTaskId"],
         ),
         (
             "production_task_run",
-            "按 P0–P11 依赖运行或恢复任务；合成验收必须显式 synthetic 标记。",
+            "兼容入口：新任务只唤醒本机常驻事件队列，旧任务仍按 P0–P11 运行；无需反复调用。",
             {
                 **binding_properties,
                 "productionTaskId": {"type": "string"},

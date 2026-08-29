@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from aivcp_tools.errors import ToolError  # noqa: E402
 from aivcp_tools.content import _approval  # noqa: E402
+from aivcp_tools.review_documents import render_script_text, save_review_document  # noqa: E402
 from aivcp_tools.service import LocalToolService, ServiceConfig, tool_definitions  # noqa: E402
 from stage4_support import (  # noqa: E402
     MARKETS,
@@ -90,9 +91,13 @@ class Stage4ContentLoopTests(unittest.TestCase):
         names = {item["name"] for item in tool_definitions()}
         expected = {
             "content_capabilities",
+            "content_task_prompt_register",
+            "content_task_prompts_get",
             "content_project_start",
+            "content_planning_document_save",
             "content_topic_checkpoint",
             "content_topic_finalize",
+            "content_revision_begin",
             "content_review_document_save",
             "content_review_documents_get",
             "content_manuscript_finalize",
@@ -109,12 +114,34 @@ class Stage4ContentLoopTests(unittest.TestCase):
         )
         self.assertIn("foreignLanguageQualityGate", definitions["content_manuscript_finalize"]["inputSchema"]["required"])
         self.assertIn("storySummaryChinese", definitions["content_publishing_finalize"]["inputSchema"]["required"])
+        publishing_schema = definitions["content_publishing_finalize"]["inputSchema"]
+        self.assertNotIn("titleCandidates", publishing_schema["required"])
+        for optional_field in (
+            "descriptionBody",
+            "descriptionChinese",
+            "hashtags",
+            "hashtagTranslations",
+            "thumbnailProvider",
+            "thumbnailStrategy",
+            "thumbnailCandidates",
+            "selectedThumbnailId",
+            "thumbnail",
+            "thumbnailTextChinese",
+            "ctrReview",
+        ):
+            self.assertNotIn(optional_field, publishing_schema["required"])
+        self.assertEqual(1, publishing_schema["properties"]["titleCandidates"]["minItems"])
+        self.assertEqual(6, publishing_schema["properties"]["titleCandidates"]["maxItems"])
+        self.assertEqual(
+            ["confirmed_narration", "user_confirmed", "generated_candidates"],
+            publishing_schema["properties"]["titleSource"]["enum"],
+        )
         service, _, _, _ = create_service(
             self.root / "surface", "en-US", plugin_root=PLUGIN_ROOT,
             local_tool_service=LocalToolService, service_config=ServiceConfig,
         )
         capabilities = service.call("content_capabilities")
-        self.assertEqual("available", capabilities["extensionInterfaces"]["analysis-package-v1"]["status"])
+        self.assertEqual("retired-for-content-writing", capabilities["extensionInterfaces"]["analysis-package-v1"]["status"])
         extensions = {item["capability"]: item for item in capabilities["extensions"]}
         self.assertEqual("available", extensions["title-generation"]["status"])
         self.assertEqual("content-title-description", extensions["title-generation"]["skillId"])
@@ -125,7 +152,7 @@ class Stage4ContentLoopTests(unittest.TestCase):
         self.assertEqual("content-title-description", extensions["thumbnail-generation"]["skillId"])
         self.assertEqual(["manuscript-package"], extensions["thumbnail-generation"]["inputContractTypes"])
         self.assertTrue(capabilities["userReviewDocuments"]["available"])
-        self.assertEqual(11, len(capabilities["userReviewDocuments"]["documentIds"]))
+        self.assertEqual(14, len(capabilities["userReviewDocuments"]["documentIds"]))
         system = service.call("system_capabilities")
         self.assertTrue(Path(system["storage"]["userDataRoot"]).samefile(self.root / "surface" / "data"))
         self.assertTrue(system["storage"]["largeAssetsStoredUnderUserDataRoot"])
@@ -133,6 +160,236 @@ class Stage4ContentLoopTests(unittest.TestCase):
         self.assertFalse(capabilities["boundaries"]["workshop"])
         self.assertFalse(capabilities["boundaries"]["upload"])
         self.assertFalse(capabilities["boundaries"]["longTermLearningWrite"])
+
+    def test_upstream_revision_requires_scoped_current_task_confirmation_and_rebuilds_documents(self) -> None:
+        ctx = self.context("zh-CN")
+        finalize_topic(ctx)
+        first = finalize_manuscript(ctx)
+        previous_manuscript = first["package"]["id"]
+        args = {
+            "taskId": ctx.task_id,
+            "channelProfileId": ctx.channel_id,
+            "bindingProof": ctx.proof,
+            "projectId": ctx.project_id,
+            "scope": "manuscript",
+            "reason": "用户要求只调整主角说话语气。",
+            "requestedChanges": ["主角台词更自然，故事事实和结局保持不变"],
+        }
+        self.assert_tool_error(
+            "CONTENT_REVISION_CONFIRMATION_REQUIRED",
+            lambda: ctx.service.call(
+                "content_revision_begin",
+                {**args, "confirmation": {"confirmed": True, "confirmationRef": "wrong-task-or-scope"}},
+            ),
+        )
+        started = ctx.service.call(
+            "content_revision_begin",
+            {
+                **args,
+                "confirmation": {
+                    "confirmed": True,
+                    "confirmationRef": f"task:{ctx.task_id}:revise:{ctx.project_id}:manuscript",
+                },
+            },
+        )
+        self.assertEqual(previous_manuscript, started["previousActivePackages"]["manuscript"]["id"])
+        self.assertIsNone(started["state"]["activePackages"]["manuscript"])
+        payload = manuscript_payload(ctx)
+        for document_type, payload_key in (
+            ("rewrite-draft-target", "rewriteDraftText"),
+            ("editorial-review", "editorialReviewMarkdown"),
+            ("revision-log", "revisionLogMarkdown"),
+        ):
+            ctx.service.call(
+                "content_review_document_save",
+                {
+                    "taskId": ctx.task_id,
+                    "channelProfileId": ctx.channel_id,
+                    "bindingProof": ctx.proof,
+                    "projectId": ctx.project_id,
+                    "documentType": document_type,
+                    "content": payload.pop(payload_key) + "\n本轮只按确认范围增量调整。",
+                },
+            )
+        revised = ctx.service.call(
+            "content_manuscript_finalize",
+            {
+                "taskId": ctx.task_id,
+                "channelProfileId": ctx.channel_id,
+                "bindingProof": ctx.proof,
+                "projectId": ctx.project_id,
+                **payload,
+                "authoringMode": "target-language-native",
+            },
+        )
+        self.assertNotEqual(previous_manuscript, revised["package"]["id"])
+        state = ctx.service.call(
+            "content_project_get",
+            {"channelProfileId": ctx.channel_id, "projectId": ctx.project_id},
+        )["state"]
+        self.assertNotIn("reviewRevision", state)
+        self.assertEqual("manuscript", state["completedRevision"]["scope"])
+
+    def test_task_prompt_route_is_flexible_scoped_and_requires_plan_confirmation(self) -> None:
+        ctx = self.context("zh-CN")
+        project_id = "task-prompt-flexible-project"
+        prompt_root = self.root / "user-owned-prompts"
+        prompt_root.mkdir(parents=True)
+        analysis_path = prompt_root / "analysis.txt"
+        drafting_path = prompt_root / "drafting.txt"
+        analysis_body = "只分析用户提供素材的事实、因果、受众回报与未知项，不生成正文。"
+        drafting_body = "根据确认方案写完整故事；书名字段在本任务映射为 YouTube 标题。"
+        analysis_path.write_text(analysis_body, encoding="utf-8")
+        drafting_path.write_text(drafting_body, encoding="utf-8")
+
+        drafting = ctx.service.call(
+            "content_task_prompt_register",
+            {
+                "taskId": ctx.task_id,
+                "channelProfileId": ctx.channel_id,
+                "bindingProof": ctx.proof,
+                "projectId": project_id,
+                "promptId": "drafting",
+                "promptPath": str(drafting_path),
+                "stage": "drafting",
+                "purpose": "生成完整正文",
+                "executionOrder": 20,
+                "fieldMappings": {"书名": "youtubeTitle"},
+                "inputBindings": ["creative-plan"],
+            },
+        )
+        analysis = ctx.service.call(
+            "content_task_prompt_register",
+            {
+                "taskId": ctx.task_id,
+                "channelProfileId": ctx.channel_id,
+                "bindingProof": ctx.proof,
+                "projectId": project_id,
+                "promptId": "analysis",
+                "promptPath": str(analysis_path),
+                "stage": "analysis",
+                "purpose": "分析来源素材",
+                "executionOrder": 10,
+            },
+        )
+        contracts = ctx.service.call(
+            "content_task_prompts_get",
+            {
+                "taskId": ctx.task_id,
+                "channelProfileId": ctx.channel_id,
+                "bindingProof": ctx.proof,
+                "projectId": project_id,
+                "promptIds": [drafting["contract"]["id"], analysis["contract"]["id"]],
+            },
+        )["contracts"]
+        self.assertEqual(["analysis", "drafting"], [item["promptId"] for item in contracts])
+        self.assertEqual("youtubeTitle", contracts[1]["fieldMappings"]["书名"])
+        self.assertFalse(contracts[0]["promptFile"]["bodyCopiedIntoSkill"])
+        serialized = json.dumps(contracts, ensure_ascii=False)
+        self.assertNotIn(analysis_body, serialized)
+        self.assertNotIn(drafting_body, serialized)
+
+        ctx.service.call(
+            "content_project_start",
+            {
+                "taskId": ctx.task_id,
+                "channelProfileId": ctx.channel_id,
+                "bindingProof": ctx.proof,
+                "projectId": project_id,
+                "sourceMode": "task-prompt-guided",
+                "sourcePackages": [{"sourcePackageId": ctx.source["source_package_id"]}],
+                "taskPromptContractIds": [analysis["contract"]["id"], drafting["contract"]["id"]],
+            },
+        )
+        ctx.project_id = project_id
+        self.assert_tool_error(
+            "TASK_PROMPT_ANALYSIS_DOCUMENT_REQUIRED",
+            lambda: ctx.service.call(
+                "content_planning_document_save",
+                {
+                    "taskId": ctx.task_id,
+                    "channelProfileId": ctx.channel_id,
+                    "bindingProof": ctx.proof,
+                    "projectId": project_id,
+                    "documentType": "creative-plan",
+                    "content": "这是尚未完成来源分析就试图保存的创作方案。" * 10,
+                },
+            ),
+        )
+        ctx.service.call(
+            "content_planning_document_save",
+            {
+                "taskId": ctx.task_id,
+                "channelProfileId": ctx.channel_id,
+                "bindingProof": ctx.proof,
+                "projectId": project_id,
+                "documentType": "source-analysis",
+                "content": "# 内容分析\n\n来源事实、主要因果、受众回报和未知项已经逐项记录，并明确未把提示词正文复制进系统。" * 4,
+            },
+        )
+        plan = ctx.service.call(
+            "content_planning_document_save",
+            {
+                "taskId": ctx.task_id,
+                "channelProfileId": ctx.channel_id,
+                "bindingProof": ctx.proof,
+                "projectId": project_id,
+                "documentType": "creative-plan",
+                "content": "# 创作方案\n\n主角、目标、因果推进、人物功能、高潮与结局边界已经整理成唯一可执行方案。" * 5,
+            },
+        )
+        self.assertTrue(Path(plan["document"]["absolutePath"]).is_file())
+        project_candidate = candidate(ctx, 1)
+        self.assert_tool_error(
+            "TASK_PROMPT_CREATIVE_PLAN_CONFIRMATION_REQUIRED",
+            lambda: ctx.service.call(
+                "content_topic_checkpoint",
+                {
+                    "taskId": ctx.task_id,
+                    "channelProfileId": ctx.channel_id,
+                    "bindingProof": ctx.proof,
+                    "projectId": project_id,
+                    "candidateNumber": 1,
+                    "candidate": project_candidate,
+                },
+            ),
+        )
+        checkpoint = ctx.service.call(
+            "content_topic_checkpoint",
+            {
+                "taskId": ctx.task_id,
+                "channelProfileId": ctx.channel_id,
+                "bindingProof": ctx.proof,
+                "projectId": project_id,
+                "candidateNumber": 1,
+                "candidate": project_candidate,
+                "planningConfirmation": {
+                    "confirmed": True,
+                    "mode": "review",
+                    "confirmedBy": "synthetic-fixture-user",
+                },
+            },
+        )
+        self.assertEqual(1, checkpoint["checkpoint"]["completedUnits"])
+        index = json.loads(
+            (Path(plan["document"]["absolutePath"]).parent / "index.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(str(Path(plan["document"]["absolutePath"]).parents[1].resolve()), index["canonicalProject"]["projectRoot"])
+        self.assertFalse(index["canonicalProject"]["parallelWritableProjectRootsAllowed"])
+
+        analysis_path.write_text(analysis_body + "\n本次文件已更新。", encoding="utf-8")
+        self.assert_tool_error(
+            "TASK_PROMPT_FILE_CHANGED",
+            lambda: ctx.service.call(
+                "content_task_prompts_get",
+                {
+                    "taskId": ctx.task_id,
+                    "channelProfileId": ctx.channel_id,
+                    "bindingProof": ctx.proof,
+                    "projectId": project_id,
+                },
+            ),
+        )
 
     def test_learning_snapshot_requires_current_task_confirmation(self) -> None:
         context = self.context()
@@ -284,6 +541,8 @@ class Stage4ContentLoopTests(unittest.TestCase):
                     "09_标题简介标签_双语审核.md",
                     "10_封面候选与选择结果.md",
                 }
+                if not language.startswith("zh"):
+                    expected_review_files.add("04B_仿写初稿_中文版.txt")
                 self.assertTrue(expected_review_files.issubset({item.name for item in review_root.iterdir()}))
                 packaging_review = (review_root / "09_标题简介标签_双语审核.md").read_text(encoding="utf-8")
                 self.assertIn(result["publishing"]["package"]["title"], packaging_review)
@@ -293,8 +552,29 @@ class Stage4ContentLoopTests(unittest.TestCase):
                     {"channelProfileId": ctx.channel_id, "projectId": ctx.project_id},
                 )
                 self.assertTrue(listed["progressReadOnly"])
-                self.assertEqual(7, len(listed["documents"]))
+                self.assertEqual(7 if language.startswith("zh") else 8, len(listed["documents"]))
+                self.assertTrue(listed["displayRequired"])
+                self.assertIn("自动模式", listed["displayInstructionZh"])
+                for document in listed["documents"]:
+                    self.assertTrue(document["displayRequired"])
+                    self.assertTrue(Path(document["absolutePath"]).is_file())
+                    self.assertTrue(Path(document["versionAbsolutePath"]).is_file())
+                production_documents = [
+                    document["documentId"]
+                    for document in listed["documents"]
+                    if document["productionUseAllowed"]
+                ]
+                self.assertEqual(["final-script-target"], production_documents)
                 manuscript_root = Path(result["manuscript"]["packagePath"])
+                manuscript_package = result["manuscript"]["package"]
+                expected_target_text = render_script_text(manuscript_package["targetScript"]["lines"])
+                expected_audit_text = render_script_text(
+                    manuscript_package["targetScript"]["lines"]
+                    if language.startswith("zh")
+                    else manuscript_package["auditScript"]["lines"]
+                )
+                self.assertEqual(expected_target_text, (review_root / "07_正式稿_目标语言.txt").read_text(encoding="utf-8"))
+                self.assertEqual(expected_audit_text, (review_root / "08_正式稿_中文版.txt").read_text(encoding="utf-8"))
                 if language.startswith("zh"):
                     self.assertEqual("same-as-target", result["manuscript"]["package"]["auditScript"]["mode"])
                     self.assertFalse((manuscript_root / "chinese-audit-script.json").exists())
@@ -314,6 +594,7 @@ class Stage4ContentLoopTests(unittest.TestCase):
         payload = manuscript_payload(ctx)
         for document_type, payload_key in (
             ("rewrite-draft-target", "rewriteDraftText"),
+            ("rewrite-draft-zh", "rewriteDraftZhText"),
             ("editorial-review", "editorialReviewMarkdown"),
             ("revision-log", "revisionLogMarkdown"),
         ):
@@ -365,6 +646,83 @@ class Stage4ContentLoopTests(unittest.TestCase):
                 {"channelProfileId": ctx.channel_id, "projectId": ctx.project_id},
             ),
         )
+
+    def test_self_consistent_review_replacement_cannot_diverge_from_production_master(self) -> None:
+        ctx = self.context("en-US")
+        result = build_complete_pipeline(ctx, SYNTHETIC_THUMBNAIL)
+        project_root = Path(result["publishing"]["userReviewDocuments"]["contextRoot"])
+        save_review_document(
+            project_root,
+            document_id="final-script-target",
+            content="[E01-L001] narrator: This replacement is internally hashed but is not the production master.",
+            language="en-US",
+            updated_at="2026-08-08T08:00:00Z",
+        )
+        integrity = ctx.service.call(
+            "content_integrity_check",
+            {"channelProfileId": ctx.channel_id, "projectId": ctx.project_id},
+        )
+        self.assertEqual("FAIL", integrity["status"])
+        self.assertEqual("FAIL", integrity["userReviewDocumentBindings"]["status"])
+        self.assertTrue(
+            any(
+                item.get("documentId") == "final-script-target" and item.get("issue") == "content-binding"
+                for item in integrity["errors"]
+            )
+        )
+        self.assert_tool_error(
+            "CONTENT_HANDOFF_BLOCKED",
+            lambda: ctx.service.call(
+                "content_handoff_check",
+                {"channelProfileId": ctx.channel_id, "projectId": ctx.project_id},
+            ),
+        )
+
+    def test_auto_manuscript_flow_still_exposes_draft_and_bilingual_formal_documents(self) -> None:
+        ctx = self.context("ja-JP")
+        finalize_topic(ctx)
+        payload = manuscript_payload(ctx)
+        for document_type, payload_key in (
+            ("rewrite-draft-target", "rewriteDraftText"),
+            ("rewrite-draft-zh", "rewriteDraftZhText"),
+            ("editorial-review", "editorialReviewMarkdown"),
+            ("revision-log", "revisionLogMarkdown"),
+        ):
+            saved = ctx.service.call(
+                "content_review_document_save",
+                {
+                    "taskId": ctx.task_id,
+                    "channelProfileId": ctx.channel_id,
+                    "bindingProof": ctx.proof,
+                    "projectId": ctx.project_id,
+                    "documentType": document_type,
+                    "content": payload.pop(payload_key),
+                },
+            )
+            self.assertTrue(saved["userReviewDocuments"]["displayRequired"])
+            self.assertTrue(Path(saved["document"]["relativePath"]).is_absolute() is False)
+        payload["confirmation"] = {
+            "confirmed": True,
+            "mode": "auto",
+            "authorizationRef": f"task:{ctx.task_id}:auto-remaining-workflow",
+        }
+        finalized = ctx.service.call(
+            "content_manuscript_finalize",
+            {
+                "taskId": ctx.task_id,
+                "channelProfileId": ctx.channel_id,
+                "bindingProof": ctx.proof,
+                "projectId": ctx.project_id,
+                **payload,
+                "authoringMode": "target-language-native",
+            },
+        )
+        documents = {item["documentId"]: item for item in finalized["userReviewDocuments"]["documents"]}
+        self.assertTrue(finalized["userReviewDocuments"]["displayRequired"])
+        for document_id in ("rewrite-draft-target", "final-script-target", "final-script-zh"):
+            self.assertTrue(Path(documents[document_id]["absolutePath"]).is_file())
+        self.assertEqual("target-language-production-master", documents["final-script-target"]["usageRole"])
+        self.assertEqual("user-review-only", documents["final-script-zh"]["usageRole"])
 
     def test_committed_three_market_package_chains_remain_valid(self) -> None:
         self.assertEqual([], validate_stage4_packages())
@@ -565,6 +923,76 @@ class Stage4ContentLoopTests(unittest.TestCase):
         square = self.root / "square-synthetic.png"
         write_png(square, 100, 100)
         self.assert_tool_error("THUMBNAIL_ASPECT_RATIO_INVALID", lambda: finalize_publishing(ctx, square))
+
+    def test_confirmed_narration_title_freezes_without_generated_candidates(self) -> None:
+        ctx = self.context("ja-JP")
+        finalize_topic(ctx)
+        finalize_manuscript(ctx)
+        payload = publishing_payload(ctx, SYNTHETIC_THUMBNAIL)
+        payload.pop("titleCandidates")
+        payload["titleSource"] = "confirmed_narration"
+        result = ctx.service.call(
+            "content_publishing_finalize",
+            {
+                "taskId": ctx.task_id,
+                "channelProfileId": ctx.channel_id,
+                "bindingProof": ctx.proof,
+                "projectId": ctx.project_id,
+                **payload,
+            },
+        )
+        manifest = json.loads((Path(result["packagePath"]) / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(ctx.market["title"], manifest["title"])
+        self.assertEqual("narration-title", manifest["titleSelection"]["selectedTitleId"])
+        self.assertEqual(1, len(manifest["titleSelection"]["candidates"]))
+        review_entry = next(
+            item
+            for item in result["userReviewDocuments"]["documents"]
+            if item["documentId"] == "packaging-bilingual"
+        )
+        review_path = Path(review_entry["absolutePath"])
+        self.assertIn("未执行额外标题生成", review_path.read_text(encoding="utf-8"))
+
+    def test_description_hashtags_and_custom_thumbnail_are_not_generated_by_default(self) -> None:
+        ctx = self.context("ja-JP")
+        finalize_topic(ctx)
+        finalize_manuscript(ctx)
+        result = ctx.service.call(
+            "content_publishing_finalize",
+            {
+                "taskId": ctx.task_id,
+                "channelProfileId": ctx.channel_id,
+                "bindingProof": ctx.proof,
+                "projectId": ctx.project_id,
+                "title": ctx.market["title"],
+                "titleChinese": ctx.market["titleZh"],
+                "titleSource": "confirmed_narration",
+                "storySummaryChinese": "社区共同空间面临关闭，主角寻找记录并联合居民核验证据，最终让场所重新开放。",
+                "confirmation": {
+                    "confirmed": True,
+                    "mode": "review",
+                    "confirmedBy": "synthetic-fixture-user",
+                    "confirmedAt": "2026-08-04T03:00:00Z",
+                },
+            },
+        )
+        package_root = Path(result["packagePath"])
+        manifest = json.loads((package_root / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual("", manifest["descriptionBody"])
+        self.assertEqual([], manifest["hashtags"])
+        self.assertEqual("youtube_auto", manifest["thumbnail"]["mode"])
+        self.assertTrue(manifest["productionHandoff"]["eligible"])
+        self.assertEqual(b"", (package_root / "description-hashtags.txt").read_bytes())
+        self.assertFalse((package_root / "confirmed-thumbnail.png").exists())
+        review_ids = {item["documentId"] for item in result["userReviewDocuments"]["documents"]}
+        self.assertIn("packaging-bilingual", review_ids)
+        self.assertNotIn("thumbnail-review", review_ids)
+        handoff = ctx.service.call(
+            "content_handoff_check",
+            {"channelProfileId": ctx.channel_id, "projectId": ctx.project_id},
+        )
+        self.assertTrue(handoff["eligible"])
+        self.assertEqual("production", handoff["nextCenter"])
 
 
 if __name__ == "__main__":

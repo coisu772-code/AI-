@@ -47,6 +47,7 @@
             "account-runtime-validation-v1",
             "video-deconstruction-analysis-v1",
             "writing-style-contract-v1"
+            ,"task-prompt-set"
           ]
         },
         "targetId": {
