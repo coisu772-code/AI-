@@ -81,6 +81,7 @@ def main() -> int:
         "AIVCP_FFPROBE_PATH",
         "AIVCP_PUBLISHER_CHANNEL_LIST_EXE",
         "AIVCP_PUBLISHER_V2_CLI",
+        "AIVCP_PUBLISHER_DESKTOP_EXE",
         "AIVCP_VOICE_CATALOG",
         "AIVCP_YT_DLP_COMMAND_JSON",
     )

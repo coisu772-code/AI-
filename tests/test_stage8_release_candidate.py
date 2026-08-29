@@ -313,6 +313,7 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
         self.assertIn('AIVCP_FFPROBE_PATH = $ffprobePath', common)
         self.assertIn('AIVCP_PUBLISHER_CHANNEL_LIST_EXE = $publisherChannelListPath', common)
         self.assertIn('AIVCP_PUBLISHER_V2_CLI = $publisherV2Path', common)
+        self.assertIn('AIVCP_PUBLISHER_DESKTOP_EXE = $publisherDesktopPath', common)
         self.assertIn('AIVCP_YT_DLP_COMMAND_JSON = $youtubeCollectorCommandJson', common)
         self.assertIn('$workshopExecutables.Count -ne 1', common)
         self.assertIn('$workshopRelativePath = Join-Path "apps\\workshop"', common)

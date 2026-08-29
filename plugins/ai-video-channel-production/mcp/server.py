@@ -45,6 +45,7 @@ def _validate_runtime_binding() -> None:
         "AIVCP_FFPROBE_PATH",
         "AIVCP_PUBLISHER_CHANNEL_LIST_EXE",
         "AIVCP_PUBLISHER_V2_CLI",
+        "AIVCP_PUBLISHER_DESKTOP_EXE",
         "AIVCP_VOICE_CATALOG",
     )
     values = {name: os.environ.get(name, "").strip() for name in binding_names}
@@ -174,6 +175,7 @@ def _validate_runtime_binding() -> None:
         "AIVCP_FFPROBE_PATH": install_root / "current" / "apps" / "workshop" / "tools" / "ffmpeg" / "bin" / "ffprobe.exe",
         "AIVCP_PUBLISHER_CHANNEL_LIST_EXE": install_root / "current" / "apps" / "publisher" / "channel-list.exe",
         "AIVCP_PUBLISHER_V2_CLI": install_root / "current" / "apps" / "publisher" / "publish-package-v2.exe",
+        "AIVCP_PUBLISHER_DESKTOP_EXE": install_root / "current" / "apps" / "publisher" / "youtube-publisher-center.exe",
     }
     expected_isolation = data_root / "workshop-isolation"
     component_paths_match = all(

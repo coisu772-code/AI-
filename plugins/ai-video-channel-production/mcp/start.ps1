@@ -130,9 +130,10 @@ if (-not [string]::IsNullOrWhiteSpace($boundPython)) {
     $boundWorkshop = Join-Path $boundActiveRoot "apps\workshop\Z 漫剧工坊.exe"
     $boundPublisherChannelList = Join-Path $boundActiveRoot "apps\publisher\channel-list.exe"
     $boundPublisherV2 = Join-Path $boundActiveRoot "apps\publisher\publish-package-v2.exe"
+    $boundPublisherDesktop = Join-Path $boundActiveRoot "apps\publisher\youtube-publisher-center.exe"
     $boundVoiceCatalog = Join-Path $boundActiveRoot "plugins\ai-video-channel-production\assets\voice-catalog.json"
     $boundWorkshopIsolationRoot = Join-Path $boundDataRoot "workshop-isolation"
-    $requiredFiles = @($boundDeno, $boundFFmpeg, $boundFFprobe, $boundWorkshop, $boundPublisherChannelList, $boundPublisherV2, $boundVoiceCatalog)
+    $requiredFiles = @($boundDeno, $boundFFmpeg, $boundFFprobe, $boundWorkshop, $boundPublisherChannelList, $boundPublisherV2, $boundPublisherDesktop, $boundVoiceCatalog)
     if (
         [string]::IsNullOrWhiteSpace($boundInstallRoot) -or
         [string]::IsNullOrWhiteSpace($boundProductVersion) -or
@@ -151,6 +152,7 @@ if (-not [string]::IsNullOrWhiteSpace($boundPython)) {
     $env:AIVCP_FFPROBE_PATH = [System.IO.Path]::GetFullPath($boundFFprobe)
     $env:AIVCP_PUBLISHER_CHANNEL_LIST_EXE = [System.IO.Path]::GetFullPath($boundPublisherChannelList)
     $env:AIVCP_PUBLISHER_V2_CLI = [System.IO.Path]::GetFullPath($boundPublisherV2)
+    $env:AIVCP_PUBLISHER_DESKTOP_EXE = [System.IO.Path]::GetFullPath($boundPublisherDesktop)
     $env:AIVCP_VOICE_CATALOG = [System.IO.Path]::GetFullPath($boundVoiceCatalog)
     $env:AIVCP_NETWORK_EXECUTION = "false"
     $env:AIVCP_PUBLISHER_NETWORK_EXECUTION = "false"

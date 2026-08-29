@@ -316,6 +316,7 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
         ffprobe = "apps\workshop\tools\ffmpeg\bin\ffprobe.exe"
         publisherChannelList = "apps\publisher\channel-list.exe"
         publisherV2 = "apps\publisher\publish-package-v2.exe"
+        publisherDesktop = "apps\publisher\youtube-publisher-center.exe"
     }
     if ($null -ne $youtubeRuntimeContract) {
         $managedFiles.youtubeCollectorModule = ([string]$youtubeRuntimeContract.collector.moduleRelativePath).Replace("/", "\")
@@ -334,6 +335,7 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
     $ffprobePath = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.ffprobe)
     $publisherChannelListPath = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.publisherChannelList)
     $publisherV2Path = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.publisherV2)
+    $publisherDesktopPath = Resolve-AivcpFullPath (Join-Path $activeRoot $managedFiles.publisherDesktop)
     $voiceCatalogPath = Resolve-AivcpFullPath (Join-Path $activeRoot "plugins\$($script:AivcpProductId)\assets\voice-catalog.json")
     $youtubeCollectorCommandJson = $null
     if ($null -ne $youtubeRuntimeContract) {
@@ -369,6 +371,7 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
             AIVCP_FFPROBE_PATH = $ffprobePath
             AIVCP_PUBLISHER_CHANNEL_LIST_EXE = $publisherChannelListPath
             AIVCP_PUBLISHER_V2_CLI = $publisherV2Path
+            AIVCP_PUBLISHER_DESKTOP_EXE = $publisherDesktopPath
             AIVCP_VOICE_CATALOG = $voiceCatalogPath
             AIVCP_PUBLISHER_TIMEOUT_SECONDS = "8"
             AIVCP_NETWORK_EXECUTION = "false"
@@ -417,6 +420,7 @@ function Write-AivcpRuntimeBoundMcpDescriptor {
         [string]$server.env.AIVCP_FFPROBE_PATH -ne $ffprobePath -or
         [string]$server.env.AIVCP_PUBLISHER_CHANNEL_LIST_EXE -ne $publisherChannelListPath -or
         [string]$server.env.AIVCP_PUBLISHER_V2_CLI -ne $publisherV2Path -or
+        [string]$server.env.AIVCP_PUBLISHER_DESKTOP_EXE -ne $publisherDesktopPath -or
         [string]$server.env.AIVCP_VOICE_CATALOG -ne $voiceCatalogPath -or
         [string]$server.env.AIVCP_PUBLISHER_TIMEOUT_SECONDS -ne "8" -or
         [string]$server.env.AIVCP_NETWORK_EXECUTION -ne "false" -or
