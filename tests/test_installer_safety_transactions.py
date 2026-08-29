@@ -54,6 +54,7 @@ class InstallerSafetyTransactionTests(unittest.TestCase):
                 current / "apps/workshop/tools/ffmpeg/bin/ffprobe.exe",
                 current / "apps/publisher/channel-list.exe",
                 current / "apps/publisher/publish-package-v2.exe",
+                current / "apps/publisher/youtube-publisher-center.exe",
             )
             for path in required:
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -84,6 +85,11 @@ Write-AivcpRuntimeBoundMcpDescriptor -PluginRoot "{plugin}" -InstallRoot "{insta
             self.assertTrue((current / "runtime/python/tools/deno.exe").samefile(command[4].removeprefix("deno:")))
             self.assertEqual("--ffmpeg-location", command[5])
             self.assertTrue((current / "apps/workshop/tools/ffmpeg/bin").samefile(command[6]))
+            self.assertTrue(
+                (current / "apps/publisher/youtube-publisher-center.exe").samefile(
+                    descriptor["mcpServers"]["ai-video-channel-tools"]["env"]["AIVCP_PUBLISHER_DESKTOP_EXE"]
+                )
+            )
 
             (current / "runtime/python/tools/deno.exe").unlink()
             missing = subprocess.run(
