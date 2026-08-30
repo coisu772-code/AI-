@@ -29,11 +29,12 @@ description: 用户明确开始制作或要求汇总发布素材后，默认继�
 
 1. 展示唯一标题，以及用户实际提供的简介、Hashtags 和自定义封面；未提供项明确显示“未要求／将留空／使用 YouTube 自动缩略图”，不启动生成器。
 2. 展示“已复用项／本次补齐项／仍缺失项”。用户已经分别确认的内容不得再次重选；只有新增或改变的项需要确认。
-3. 调用 `content_publishing_finalize`。默认提交 `titleSource=confirmed_narration`、口播稿标题与中文对照，并省略 `titleCandidates`；用户明确生成／优化过标题时才提交 `titleSource=generated_candidates` 和六个候选。简介、Hashtags、自定义封面及其中文对照只在用户实际要求并确认后提交；否则省略这些参数，由工具冻结为空简介、空 Hashtags 和 `youtube_auto`。
-4. 生成一份当前项目发布素材汇总文档，显示正式稿、标题和实际存在的可选发布素材来源；未生成的简介、Hashtags 与自定义封面只记录省略状态，不伪造路径、版本或 SHA-256。
-5. `publishing.json` 和正式发布包仍只包含目标语言发布字段，中文审核译文不得进入 YouTube 上传字段。
-6. 调用 `content_integrity_check`；只有包和审核文档完整时才称为 `PUBLISHING_ASSETS_READY`。
-7. 调用只读 `content_handoff_check` 检查是否具备制作条件；不在本 Skill 启动工坊。
+3. 确认 `content_workspace_production_materialize` 已把当前已确认正式稿与 narration 逐字绑定为内部 Manuscript Package；若尚未执行，先调用该工具完成自动桥接。不得要求用户手工补齐旧 Topic、Manuscript 或 Publishing 审核包，也不得重新生成选题或正文。
+4. 调用 `content_publishing_finalize`。默认提交 `titleSource=confirmed_narration`、口播稿标题与中文对照，并省略 `titleCandidates`；用户明确生成／优化过标题时才提交 `titleSource=generated_candidates` 和六个候选。简介、Hashtags、自定义封面及其中文对照只在用户实际要求并确认后提交；否则省略这些参数，由工具冻结为空简介、空 Hashtags 和 `youtube_auto`。
+5. 生成一份当前项目发布素材汇总文档，显示正式稿、标题和实际存在的可选发布素材来源；未生成的简介、Hashtags 与自定义封面只记录省略状态，不伪造路径、版本或 SHA-256。
+6. `publishing.json` 和正式发布包仍只包含目标语言发布字段，中文审核译文不得进入 YouTube 上传字段。
+7. 调用 `content_integrity_check`；只有包和审核文档完整时才称为 `PUBLISHING_ASSETS_READY`。
+8. 调用只读 `content_handoff_check` 检查是否具备制作条件；不在本 Skill 启动工坊。
 
 G5 联合确认卡必须按中文故事、中文标题在前；简介、标签含义和封面文案仅在实际存在时展示，未提供则用清晰的省略状态代替。目标语言正式字段随后展示；频道、隐私状态与上传策略仍留待成片后的 G6 最终中文验收卡集中确认。
 

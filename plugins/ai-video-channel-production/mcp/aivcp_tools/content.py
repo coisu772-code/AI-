@@ -1960,6 +1960,422 @@ class ContentLoop:
             "progressReadOnly": True,
         }
 
+    def materialize_workspace_manuscript(
+        self,
+        *,
+        task_id: Any,
+        channel_profile_id: Any,
+        binding_proof: Any,
+        workspace_context: Any,
+        story_bible: Any,
+        characters: Any,
+        target_script: Any,
+        chinese_audit_script: Any,
+        quality_gate: Any,
+        foreign_language_quality_gate: Any,
+        authoring_mode: Any = "target-language-native",
+        sound_effects: Any = None,
+    ) -> dict[str, Any]:
+        """Materialize current machine contracts from a verified free workspace.
+
+        Topic Package remains an internal compatibility contract for downstream
+        readers.  It is generated from the already-confirmed formal manuscript;
+        it is not a new topic proposal and must never introduce another user
+        confirmation gate.
+        """
+        self.store.assert_binding(task_id=task_id, channel_profile_id=channel_profile_id, binding_proof=binding_proof)
+        if not isinstance(workspace_context, dict):
+            raise ToolError("CONTENT_WORKSPACE_CONTEXT_INVALID", "自由创作工作区制作上下文无效。")
+        project_id = _safe_identifier(workspace_context.get("projectId"), "projectId")
+        if (
+            workspace_context.get("taskId") != task_id
+            or workspace_context.get("channelProfileId") != channel_profile_id
+            or not isinstance(workspace_context.get("workspaceId"), str)
+        ):
+            raise ToolError("CONTENT_WORKSPACE_CONTEXT_MISMATCH", "自由创作工作区与当前任务、项目或频道不一致。")
+        narration = workspace_context.get("narration")
+        source_document = workspace_context.get("sourceDocument")
+        if not isinstance(narration, dict) or not isinstance(source_document, dict):
+            raise ToolError("CONTENT_WORKSPACE_CONTEXT_INVALID", "制作上下文缺少已确认正式稿或正式配音稿。")
+        channel_summary = self.store.get_channel(channel_profile_id)
+        channel = channel_summary.get("channelProfile")
+        production = channel_summary.get("productionProfile")
+        if not isinstance(channel, dict) or not isinstance(production, dict):
+            raise ToolError("CHANNEL_CONTEXT_NOT_READY", "目标频道或生产预设尚未冻结。")
+        target_language = str(narration.get("language") or "").strip()
+        if not target_language or target_language != channel.get("outputLanguage"):
+            raise ToolError("CONTENT_WORKSPACE_LANGUAGE_MISMATCH", "正式配音稿语言与目标频道输出语言不一致。")
+        if not re.fullmatch(r"[a-z]{2,3}-[A-Z]{2}", target_language):
+            raise ToolError("CONTENT_WORKSPACE_LANGUAGE_INVALID", "进入工坊的目标语言必须使用完整语言与地区代码。")
+        if (
+            not isinstance(sound_effects, dict)
+            or not isinstance(sound_effects.get("enabled"), bool)
+            or sound_effects.get("selectionSource") != "user"
+            or sound_effects.get("confirmed") is not True
+        ):
+            raise ToolError("MANUSCRIPT_SOUND_EFFECT_SELECTION_REQUIRED", "制作桥接必须使用本次用户确认的纯音效开关。")
+        handoff_sound_effects = (workspace_context.get("productionConfig") or {}).get("soundEffects")
+        if not isinstance(handoff_sound_effects, dict) or handoff_sound_effects.get("enabled") != sound_effects["enabled"]:
+            raise ToolError("MANUSCRIPT_SOUND_EFFECT_SELECTION_MISMATCH", "结构化配音稿与制作设置中的纯音效选择不一致。")
+        if not isinstance(target_script, list) or not target_script:
+            raise ToolError("SCRIPT_LINES_INVALID", "制作桥接必须提交结构化正式配音行。")
+        episode_numbers = [
+            item.get("episodeNumber", item.get("episode"))
+            for item in target_script
+            if isinstance(item, dict)
+        ]
+        if not episode_numbers or any(not isinstance(value, int) or isinstance(value, bool) or value < 1 for value in episode_numbers):
+            raise ToolError("SCRIPT_LINES_INVALID", "结构化正式配音行缺少有效集号。")
+        episode_count = max(episode_numbers)
+        if set(episode_numbers) != set(range(1, episode_count + 1)):
+            raise ToolError("SCRIPT_LINES_INVALID", "结构化正式配音稿的集号必须从 1 连续排列。")
+        normalized_target = self._validate_lines(
+            target_script,
+            episode_count,
+            field="targetScript",
+            sound_effects_enabled=sound_effects["enabled"],
+        )
+        if target_language.lower().startswith("zh"):
+            normalized_audit = normalized_target
+        else:
+            normalized_audit = self._validate_lines(
+                chinese_audit_script,
+                episode_count,
+                field="chineseAuditScript",
+                sound_effects_enabled=sound_effects["enabled"],
+            )
+        narration_content = str(workspace_context.get("narrationContent") or "").strip()
+        rendered_target = render_script_text(normalized_target).strip()
+        spoken_target = "\n".join(item["text"] for item in normalized_target).strip()
+        if narration_content not in {rendered_target, spoken_target}:
+            raise ToolError(
+                "NARRATION_STRUCTURED_LINES_MISMATCH",
+                "结构化正式配音行没有逐字覆盖已冻结的 narration 文件；禁止改写或遗漏正文。",
+            )
+        if not isinstance(story_bible, dict):
+            raise ToolError("STORY_BIBLE_INVALID", "制作桥接必须提交已确认正文对应的 Story Bible。")
+        story_fields = ("lockedFacts", "worldRules", "relationships", "timeline", "foreshadowing", "climax", "ending")
+        if any(key not in story_bible for key in story_fields):
+            raise ToolError("STORY_BIBLE_INVALID", "Story Bible 缺少事实、时间线、伏笔、高潮或结局。")
+        list_fields = ("lockedFacts", "worldRules", "relationships", "timeline", "foreshadowing")
+        normalized_story = {}
+        for key in list_fields:
+            value = story_bible.get(key)
+            if not isinstance(value, list) or not value:
+                raise ToolError("STORY_BIBLE_INVALID", f"Story Bible 的 {key} 必须是非空数组。")
+            normalized_values = []
+            for item in value:
+                text = item.get("statement") if isinstance(item, dict) else item
+                if not isinstance(text, str) or not text.strip():
+                    raise ToolError("STORY_BIBLE_INVALID", f"Story Bible 的 {key} 包含空值。")
+                normalized_values.append(text.strip())
+            normalized_story[key] = normalized_values
+        for key in ("climax", "ending"):
+            value = story_bible.get(key)
+            if not isinstance(value, str) or not value.strip():
+                raise ToolError("STORY_BIBLE_INVALID", f"Story Bible 的 {key} 不能为空。")
+            normalized_story[key] = value.strip()
+        if not isinstance(characters, list) or not characters:
+            raise ToolError("CHARACTER_PACK_INVALID", "制作桥接必须提交正文阶段冻结的主要角色与音色。")
+        source_content = str(workspace_context.get("sourceContent") or "").strip()
+        if len(source_content) < 80:
+            raise ToolError("CONTENT_WORKSPACE_SOURCE_TOO_SHORT", "进入视频制作的已确认正式稿不能少于 80 字。")
+        started = self.start_project(
+            task_id=task_id,
+            channel_profile_id=channel_profile_id,
+            binding_proof=binding_proof,
+            project_id=project_id,
+            source_mode="provided-outline",
+            provided_outline=source_content,
+        )
+        state = self._load_state(channel_profile_id, project_id)
+        existing_bridge = state.get("workspaceBridge")
+        if existing_bridge is not None and (
+            not isinstance(existing_bridge, dict)
+            or existing_bridge.get("workspaceId") != workspace_context["workspaceId"]
+        ):
+            raise ToolError("CONTENT_WORKSPACE_PROJECT_CONFLICT", "该项目已绑定另一个自由创作工作区，禁止覆盖。")
+        if existing_bridge is None and any(state.get("activePackages", {}).values()):
+            raise ToolError("CONTENT_WORKSPACE_PROJECT_CONFLICT", "该项目已经存在其他内容流程冻结包，禁止自动覆盖。")
+        target_script_hash = _json_hash(normalized_target)
+        manuscript_ref = state.get("activePackages", {}).get("manuscript")
+        if isinstance(existing_bridge, dict) and manuscript_ref and existing_bridge.get("narrationSha256") == narration.get("sha256"):
+            manuscript = _read_contract(Path(manuscript_ref["path"]), "manuscript-package")
+            if manuscript.get("targetScript", {}).get("contentHash") == target_script_hash:
+                return {
+                    "package": manuscript,
+                    "packagePath": str(Path(manuscript_ref["path"]).parent),
+                    "idempotent": True,
+                    "workspaceBridge": existing_bridge,
+                    "userReviewDocuments": review_documents_view(self._project_root(channel_profile_id, project_id)),
+                }
+        locked_fact_records = [
+            {"factId": f"workspace_fact_{index:03d}", "statement": text, "evidenceClaimIds": ["workspace_source_unknown"]}
+            for index, text in enumerate(normalized_story["lockedFacts"], 1)
+        ]
+        story_facts = {
+            "lockedFacts": locked_fact_records,
+            "worldRules": normalized_story["worldRules"],
+            "relationships": normalized_story["relationships"],
+            "climax": normalized_story["climax"],
+            "ending": normalized_story["ending"],
+        }
+        story_facts_hash = _json_hash(story_facts)
+        actual_characters = sum(len(line["text"]) for line in normalized_target if line["lineType"] != "sound_effect")
+        recommendation = {
+            "targetCharacters": actual_characters,
+            "estimatedDurationSeconds": max(1, round(actual_characters / 5)),
+            "episodeCount": episode_count,
+            "reason": "按用户已确认正式配音稿的实际篇幅和连续集号生成内部制作兼容记录。",
+        }
+        candidate_characters = []
+        for item in characters:
+            if not isinstance(item, dict):
+                raise ToolError("CHARACTER_PACK_INVALID", "角色包包含非对象值。")
+            candidate_characters.append(
+                {
+                    "characterId": _safe_identifier(item.get("characterId"), "characterId"),
+                    "name": str(item.get("targetLanguageName") or "").strip(),
+                    "role": str(item.get("role") or "").strip(),
+                    "goal": str(item.get("goal") or "").strip(),
+                    "relationshipFunction": str(item.get("relationship") or "").strip(),
+                }
+            )
+        if any(not all(value for key, value in item.items() if key != "characterId") for item in candidate_characters):
+            raise ToolError("CHARACTER_PACK_INVALID", "角色缺少姓名、角色功能、目标或关系功能。")
+        timeline = normalized_story["timeline"]
+        episode_plots = []
+        for number in range(1, episode_count + 1):
+            episode_lines = [line for line in normalized_target if line["episodeNumber"] == number]
+            episode_plots.append(
+                {
+                    "episodeNumber": number,
+                    "startState": episode_lines[0]["text"],
+                    "progress": f"第 {number} 集严格按已确认正式配音行的连续顺序推进。",
+                    "audienceReward": normalized_story["climax"] if number == episode_count else episode_lines[-1]["text"],
+                    "endState": episode_lines[-1]["text"],
+                }
+            )
+        candidate_id = "workspace_confirmed_manuscript"
+        score = {key: 10 for key in SCORE_KEYS}
+        candidate = {
+            "candidateId": candidate_id,
+            "storyDriver": normalized_story["lockedFacts"][0],
+            "coreSellingPoints": [normalized_story["climax"], normalized_story["ending"]],
+            "worldRules": normalized_story["worldRules"],
+            "characters": candidate_characters,
+            "completeOutline": {
+                "opening": timeline[0],
+                "development": "；".join(timeline[1:-1] or normalized_story["lockedFacts"]),
+                "climax": normalized_story["climax"],
+                "ending": normalized_story["ending"],
+            },
+            "episodePlots": episode_plots,
+            "productionRecommendation": recommendation,
+            "scores": score,
+            "strengths": ["正式稿已由当前任务用户确认，桥接过程不改写正文。"],
+            "risks": [],
+            "evidenceClaimIds": ["workspace_source_unknown"],
+        }
+        created = utc_now()
+        current_topic = state.get("activePackages", {}).get("topic") or {}
+        topic_version = _next_version(current_topic.get("version"))
+        topic_id = f"topic_{project_id}_v{topic_version.replace('.', '_')}"
+        topic = with_hash(
+            {
+                "schemaVersion": PACKAGE_SCHEMA_VERSION,
+                "contractType": "topic-package",
+                "id": topic_id,
+                "version": topic_version,
+                "createdAt": created,
+                "hashAlgorithm": "SHA-256",
+                "hashRule": "canonical-json-v1",
+                "upstream": [_contract_ref(channel), _contract_ref(production)],
+                "topicPackageId": topic_id,
+                "projectId": project_id,
+                "channelProfileId": channel_profile_id,
+                "status": "TOPIC_SELECTED",
+                "route": "provided-outline",
+                "sourceMode": "provided-outline",
+                "audience": {
+                    "region": str(channel.get("targetRegion") or "unknown"),
+                    "targetLanguage": target_language,
+                    "locale": target_language,
+                    "commercialOrientation": str(channel.get("commercialOrientation") or "general"),
+                },
+                "sourceInputs": [],
+                "evidence": [
+                    {
+                        "claimId": "workspace_source_unknown",
+                        "classification": "unknown",
+                        "statement": "本兼容合同只绑定当前任务已确认正式稿，不把外部来源或旧选题结论重新解释为事实。",
+                        "sources": [],
+                    }
+                ],
+                "extensionCapabilities": _extension_capabilities(),
+                "learningContext": {
+                    "accessMode": "read-only-snapshot",
+                    "snapshot": None,
+                    "currentProjectChanges": [],
+                    "longTermWriteAllowed": False,
+                },
+                "candidates": [candidate],
+                "ranking": [
+                    {
+                        "rank": 1,
+                        "candidateId": candidate_id,
+                        "overallScore": 10,
+                        "decision": "selected",
+                        "reason": "内部兼容记录只接受当前任务已确认的唯一正式稿，不重新生成备选方向。",
+                    }
+                ],
+                "selection": {"primaryCandidateId": candidate_id, "backupCandidateIds": [], "policy": "provided-outline-only"},
+                "selectedCandidateId": candidate_id,
+                "selectionConfirmation": {
+                    "gate": "G3_TOPIC",
+                    "status": "APPROVED",
+                    "mode": "review",
+                    "source": "creative-workspace-confirmed-manuscript",
+                    "confirmedAt": source_document.get("confirmation", {}).get("confirmedAt") or created,
+                },
+                "checkpoints": {
+                    "applicable": False,
+                    "totalUnits": 1,
+                    "completedUnits": 1,
+                    "items": [
+                        {
+                            "unitNumber": 1,
+                            "candidateId": candidate_id,
+                            "status": "COMPLETED",
+                            "contentHash": _json_hash(candidate),
+                            "completedAt": created,
+                        }
+                    ],
+                },
+                "storyFacts": story_facts,
+                "storyFactsHash": story_facts_hash,
+                "productionRecommendation": recommendation,
+                "packagingBrief": {
+                    "titleInformationDirection": str(narration.get("title") or "已确认正式口播稿标题"),
+                    "thumbnailVisualTask": "仅在用户明确要求自定义封面时使用当前正式稿事实生成。",
+                    "videoPresentationDirection": "按当前制作设置与正式配音行进入工坊，不重新规划正文。",
+                },
+            }
+        )
+        self._validate_contract_schema(topic, "topic-package.schema.json")
+        project_root = self._project_root(channel_profile_id, project_id)
+        topic_root = project_root / "topic-package" / f"v{topic_version}"
+        _atomic_json(topic_root / "manifest.json", topic)
+        bridge_lock = {
+            "workspaceId": workspace_context["workspaceId"],
+            "productionHandoffPath": workspace_context["productionHandoffPath"],
+            "productionHandoffSha256": workspace_context["productionHandoffSha256"],
+            "sourceDocumentId": source_document["documentId"],
+            "sourceDocumentVersion": source_document["version"],
+            "sourceDocumentPath": source_document["absolutePath"],
+            "sourceDocumentSha256": source_document["sha256"],
+            "narrationVersion": narration["version"],
+            "narrationPath": narration["absolutePath"],
+            "narrationSha256": narration["sha256"],
+            "narrationTitle": narration["title"],
+            "narrationTitleChinese": narration["titleZhTranslation"],
+            "narrationBindingMode": "rendered-lines" if narration_content == rendered_target else "spoken-lines",
+        }
+        _atomic_json(topic_root / "source-lock.json", {"creativeWorkspace": bridge_lock})
+        _atomic_json(topic_root / "topic-selection-card.json", {"adapterOnly": True, "selectedCandidateId": candidate_id})
+        if current_topic:
+            state["invalidations"].append(
+                {"at": created, "reason": "new-workspace-narration-version", "invalidated": ["manuscript", "publishing"]}
+            )
+            state["activePackages"]["manuscript"] = None
+            state["activePackages"]["publishing"] = None
+        state["activePackages"]["topic"] = {
+            "id": topic_id,
+            "version": topic_version,
+            "hash": topic["contentHash"],
+            "path": str(topic_root / "manifest.json"),
+        }
+        state["workspaceBridge"] = bridge_lock
+        state["state"] = "TOPIC_SELECTED"
+        self._save_state(state)
+        topic_binding = {"contractType": topic["contractType"], "contractId": topic["id"], "contentHash": topic["contentHash"]}
+        audit_text = render_script_text(normalized_audit)
+        try:
+            save_review_document(
+                project_root,
+                document_id="rewrite-draft-target",
+                content=render_script_text(normalized_target),
+                language=target_language,
+                updated_at=created,
+                source_binding=topic_binding,
+            )
+            if not target_language.lower().startswith("zh"):
+                save_review_document(
+                    project_root,
+                    document_id="rewrite-draft-zh",
+                    content=audit_text,
+                    language="zh-CN",
+                    updated_at=created,
+                    source_binding=topic_binding,
+                )
+            save_review_document(
+                project_root,
+                document_id="editorial-review",
+                content=(
+                    "# 自由创作工作区制作桥接核对\n\n"
+                    "当前目标语言正式稿已经由本任务用户确认。本步骤只验证结构化行、角色、音色、中文审核映射与质量门，"
+                    "没有新增、删除、改写或重新排序任何正式配音文本。"
+                ),
+                language="zh-CN",
+                updated_at=created,
+                source_binding=topic_binding,
+            )
+            save_review_document(
+                project_root,
+                document_id="revision-log",
+                content=(
+                    "# 制作桥接修改记录\n\n"
+                    "正文修改：无。仅把已冻结 narration 文件映射为带 lineId、集号、说话人、类型和情绪的机器读取行；"
+                    "映射前后可朗读文本逐字一致。"
+                ),
+                language="zh-CN",
+                updated_at=created,
+                source_binding=topic_binding,
+            )
+        except ValueError as exc:
+            raise ToolError("CONTENT_REVIEW_DOCUMENT_INVALID", str(exc)) from exc
+        bound_story_bible = {**normalized_story, "sourceStoryFactsHash": story_facts_hash}
+        result = self.finalize_manuscript(
+            task_id=task_id,
+            channel_profile_id=channel_profile_id,
+            binding_proof=binding_proof,
+            project_id=project_id,
+            story_bible=bound_story_bible,
+            characters=characters,
+            target_script=normalized_target,
+            chinese_audit_script=normalized_audit,
+            quality_gate=quality_gate,
+            foreign_language_quality_gate=foreign_language_quality_gate,
+            confirmation={
+                "confirmed": True,
+                "mode": "review",
+                "confirmedBy": "creative-workspace-confirmed-manuscript",
+                "confirmedAt": source_document.get("confirmation", {}).get("confirmedAt") or created,
+            },
+            authoring_mode=authoring_mode,
+            sound_effects=sound_effects,
+            workspace_handoff_binding=bridge_lock,
+        )
+        manuscript_root = Path(result["packagePath"])
+        _atomic_json(
+            manuscript_root / "source-lock.json",
+            {"topicPackage": _contract_ref(topic), "storyFactsHash": story_facts_hash, "creativeWorkspace": bridge_lock},
+        )
+        current_state = self._load_state(channel_profile_id, project_id)
+        current_state["workspaceBridge"] = {**bridge_lock, "manuscriptContentHash": result["package"]["contentHash"]}
+        self._save_state(current_state)
+        return {**result, "idempotent": False, "workspaceBridge": current_state["workspaceBridge"]}
+
     def finalize_manuscript(
         self,
         *,
@@ -1976,6 +2392,7 @@ class ContentLoop:
         confirmation: Any,
         authoring_mode: Any = "target-language-native",
         sound_effects: Any = None,
+        workspace_handoff_binding: Any = None,
     ) -> dict[str, Any]:
         self.store.assert_binding(task_id=task_id, channel_profile_id=channel_profile_id, binding_proof=binding_proof)
         project_id = _safe_identifier(project_id, "projectId")
@@ -2088,6 +2505,8 @@ class ContentLoop:
                 "selectionSource": "user",
                 "confirmed": True,
             }
+        if workspace_handoff_binding is not None and not isinstance(workspace_handoff_binding, dict):
+            raise ToolError("CONTENT_WORKSPACE_HANDOFF_INVALID", "自由创作工作区制作绑定必须是对象。")
         episode_count = topic["productionRecommendation"]["episodeCount"]
         target_lines = self._validate_lines(
             target_script,
@@ -2287,6 +2706,11 @@ class ContentLoop:
                 "qualityGateHash": quality_contract["contentHash"],
                 "foreignLanguageQualityGate": foreign_quality_contract,
                 "foreignLanguageQualityGateHash": foreign_quality_contract["contentHash"],
+                **(
+                    {"workspaceHandoffBinding": json.loads(json.dumps(workspace_handoff_binding, ensure_ascii=False))}
+                    if workspace_handoff_binding is not None
+                    else {}
+                ),
                 "selectiveInvalidation": {
                     "policy": "affected-episodes-only",
                     "invalidatedEpisodeNumbers": [],
@@ -2425,6 +2849,15 @@ class ContentLoop:
             title_source = "confirmed_narration" if title_candidates in (None, []) else "generated_candidates" if isinstance(title_candidates, list) and len(title_candidates) == 6 else "user_confirmed"
         if title_source not in {"confirmed_narration", "user_confirmed", "generated_candidates"}:
             raise ToolError("TITLE_SOURCE_INVALID", "标题来源必须是已确认口播稿、用户明确标题或主动生成候选。")
+        workspace_bridge = state.get("workspaceBridge")
+        if title_source == "confirmed_narration" and isinstance(workspace_bridge, dict):
+            expected_title = str(workspace_bridge.get("narrationTitle") or "").strip()
+            expected_title_chinese = str(workspace_bridge.get("narrationTitleChinese") or "").strip()
+            if expected_title and (title.strip() != expected_title or title_chinese.strip() != expected_title_chinese):
+                raise ToolError(
+                    "TITLE_NARRATION_MISMATCH",
+                    "正式标题声明继承配音稿，但标题或中文对照与已冻结 narration 记录不一致。",
+                )
         if title_source in {"confirmed_narration", "user_confirmed"} and title_candidates in (None, []):
             selected_id = "narration-title" if title_source == "confirmed_narration" else "user-confirmed-title"
             basis = (

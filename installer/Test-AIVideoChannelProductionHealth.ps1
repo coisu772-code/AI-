@@ -40,6 +40,7 @@ $requiredContentTools = @(
     "content_workspace_auto_upload_authorize",
     "content_workspace_bind_production",
     "content_workspace_narration_prepare",
+    "content_workspace_production_materialize",
     "content_workspace_get",
     "content_project_start",
     "content_topic_checkpoint",

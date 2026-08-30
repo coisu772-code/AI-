@@ -350,6 +350,7 @@ class Stage8UnifiedReleaseTests(unittest.TestCase):
         self.assertIn("actualCodexCliTimeoutSeconds", lifecycle)
         self.assertIn("staleCachedPluginVersionRejectedBeforeService", lifecycle)
         self.assertIn("validate_runtime_binding_tamper.py", lifecycle)
+        self.assertIn('"AIVCP_PUBLISHER_DESKTOP_EXE"', lifecycle)
         self.assertIn("installedWorkshopReadOnlyHealthAndCapabilities", lifecycle)
         self.assertIn("installedPublisherReadOnlyAndV2Bridges", lifecycle)
         server = (ROOT / "plugins/ai-video-channel-production/mcp/server.py").read_text(encoding="utf-8")

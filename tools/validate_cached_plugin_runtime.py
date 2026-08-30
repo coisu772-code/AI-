@@ -14,6 +14,7 @@ REQUIRED_TOOLS = (
     "content_capabilities",
     "content_workspace_start",
     "content_workspace_narration_prepare",
+    "content_workspace_production_materialize",
     "production_capabilities",
     "data_center_capabilities",
 )
@@ -184,6 +185,18 @@ def main() -> int:
     narration_required = narration_schema.get("required", [])
     if "narrationTitle" not in narration_required or "narrationTitleChinese" in narration_required:
         raise SystemExit("Cached plugin narration title schema is not using the conditional Chinese-review contract.")
+    materialize_schema = tool_definitions["content_workspace_production_materialize"].get("inputSchema", {})
+    materialize_required = set(materialize_schema.get("required", []))
+    if not {
+        "productionHandoffPath",
+        "storyBible",
+        "characters",
+        "targetScript",
+        "qualityGate",
+        "foreignLanguageQualityGate",
+        "soundEffects",
+    }.issubset(materialize_required):
+        raise SystemExit("Cached plugin workspace production bridge schema is incomplete.")
     publishing_tool = tool_definitions.get("content_publishing_finalize")
     if publishing_tool is None:
         raise SystemExit("Cached plugin MCP tools/list is missing content_publishing_finalize.")
@@ -205,6 +218,7 @@ def main() -> int:
     component_integration["narrationTitleRequired"] = True
     component_integration["narrationTitleChineseConditional"] = True
     component_integration["generatedTitleCandidatesOptional"] = True
+    component_integration["workspaceProductionBridgeAvailable"] = True
     for request_id, tool_name in enumerate(CAPABILITY_TOOLS, start=2):
         response = invoke_cached_plugin(
             command,

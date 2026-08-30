@@ -2527,6 +2527,48 @@ class ProductionCenter:
         target_text_path = _validate_descriptor(manuscript_root, target_text_asset, code="PRODUCTION_TARGET_SCRIPT_ASSET_INVALID")
         if target_text_path.read_text(encoding="utf-8-sig") != expected_target_text:
             raise ToolError("PRODUCTION_TARGET_SCRIPT_ASSET_INVALID", "目标语言机器文本与结构化正式稿不一致。")
+        workspace_handoff_binding = manuscript.get("workspaceHandoffBinding")
+        if workspace_handoff_binding is not None:
+            if not isinstance(workspace_handoff_binding, dict):
+                raise ToolError("PRODUCTION_WORKSPACE_HANDOFF_INVALID", "自由创作工作区制作绑定无效。")
+            source_document_path = Path(str(workspace_handoff_binding.get("sourceDocumentPath") or "")).resolve()
+            narration_path = Path(str(workspace_handoff_binding.get("narrationPath") or "")).resolve()
+            production_handoff_path = Path(str(workspace_handoff_binding.get("productionHandoffPath") or "")).resolve()
+            for path, expected_hash, label in (
+                (source_document_path, workspace_handoff_binding.get("sourceDocumentSha256"), "正式稿"),
+                (narration_path, workspace_handoff_binding.get("narrationSha256"), "配音稿"),
+                (production_handoff_path, workspace_handoff_binding.get("productionHandoffSha256"), "制作交接文件"),
+            ):
+                if not path.is_file() or _sha256_file(path) != expected_hash:
+                    raise ToolError(
+                        "PRODUCTION_WORKSPACE_HANDOFF_HASH_MISMATCH",
+                        f"自由创作工作区的{label}缺失或 SHA-256 已变化。",
+                    )
+            try:
+                workspace_handoff = _read_json(production_handoff_path)
+            except ToolError as exc:
+                raise ToolError("PRODUCTION_WORKSPACE_HANDOFF_INVALID", "自由创作工作区制作交接文件不可读。") from exc
+            if (
+                workspace_handoff.get("workspaceId") != workspace_handoff_binding.get("workspaceId")
+                or workspace_handoff.get("projectId") != manuscript.get("projectId")
+                or workspace_handoff.get("channelProfileId") != manuscript.get("channelProfileId")
+                or workspace_handoff.get("narration", {}).get("sha256") != workspace_handoff_binding.get("narrationSha256")
+            ):
+                raise ToolError("PRODUCTION_WORKSPACE_HANDOFF_INVALID", "制作交接文件没有绑定当前项目、频道或配音稿。")
+            narration_content = narration_path.read_text(encoding="utf-8-sig").strip()
+            narration_binding_mode = workspace_handoff_binding.get("narrationBindingMode")
+            expected_narration = (
+                expected_target_text.strip()
+                if narration_binding_mode == "rendered-lines"
+                else "\n".join(line["text"] for line in target_lines).strip()
+                if narration_binding_mode == "spoken-lines"
+                else None
+            )
+            if expected_narration is None or narration_content != expected_narration:
+                raise ToolError(
+                    "PRODUCTION_WORKSPACE_NARRATION_MISMATCH",
+                    "Production Package 的结构化配音行与已冻结 narration 文件不一致。",
+                )
         if not manuscript.get("targetLanguage", "").lower().startswith("zh"):
             audit_script = manuscript.get("auditScript", {})
             audit_text_asset = audit_script.get("textAsset")
@@ -2779,6 +2821,16 @@ class ProductionCenter:
                     "productionFile": "script_lines.json",
                 },
             }
+            if isinstance(workspace_handoff_binding, dict):
+                source_lock["workspaceHandoffBinding"] = {
+                    "workspaceId": workspace_handoff_binding["workspaceId"],
+                    "sourceDocumentId": workspace_handoff_binding["sourceDocumentId"],
+                    "sourceDocumentVersion": workspace_handoff_binding["sourceDocumentVersion"],
+                    "sourceDocumentSha256": workspace_handoff_binding["sourceDocumentSha256"],
+                    "narrationVersion": workspace_handoff_binding["narrationVersion"],
+                    "narrationSha256": workspace_handoff_binding["narrationSha256"],
+                    "narrationBindingMode": workspace_handoff_binding["narrationBindingMode"],
+                }
             for name, document in (
                 ("project.json", project),
                 ("characters.json", package_characters),

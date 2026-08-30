@@ -241,6 +241,46 @@
     "foreignLanguageQualityGateHash": {
       "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
     },
+    "workspaceHandoffBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspaceId",
+        "productionHandoffPath",
+        "productionHandoffSha256",
+        "sourceDocumentId",
+        "sourceDocumentVersion",
+        "sourceDocumentPath",
+        "sourceDocumentSha256",
+        "narrationVersion",
+        "narrationPath",
+        "narrationSha256",
+        "narrationTitle",
+        "narrationTitleChinese",
+        "narrationBindingMode"
+      ],
+      "properties": {
+        "workspaceId": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "productionHandoffPath": { "type": "string", "minLength": 1 },
+        "productionHandoffSha256": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+        },
+        "sourceDocumentId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "sourceDocumentVersion": { "type": "integer", "minimum": 1 },
+        "sourceDocumentPath": { "type": "string", "minLength": 1 },
+        "sourceDocumentSha256": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+        },
+        "narrationVersion": { "type": "integer", "minimum": 1 },
+        "narrationPath": { "type": "string", "minLength": 1 },
+        "narrationSha256": {
+          "$ref": "https://github.com/coisu772-code/AI-/contracts/schemas/common.schema.json#/$defs/sha256"
+        },
+        "narrationTitle": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "narrationTitleChinese": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "narrationBindingMode": { "enum": ["rendered-lines", "spoken-lines"] }
+      }
+    },
     "selectiveInvalidation": {
       "type": "object",
       "additionalProperties": false,

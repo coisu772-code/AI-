@@ -15,7 +15,7 @@ PLUGIN_NAME = "ai-video-channel-production"
 MARKETPLACE_NAME = "novel-manga-production"
 PLUGIN_ROOT = ROOT / "plugins" / PLUGIN_NAME
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-CURRENT_PRODUCT_VERSION = "0.16.0-rc.1"
+CURRENT_PRODUCT_VERSION = "0.16.0-rc.2"
 
 EXPECTED_SKILLS = {
     "channel-production",
@@ -47,6 +47,7 @@ EXPECTED_CONTENT_TOOLS = {
     "content_workspace_auto_upload_authorize",
     "content_workspace_bind_production",
     "content_workspace_narration_prepare",
+    "content_workspace_production_materialize",
     "content_workspace_get",
     "content_project_start",
     "content_topic_checkpoint",
@@ -367,6 +368,7 @@ def validate_plugin() -> list[str]:
         "Production Package v2.1",
         "content_workspace_bind_production",
         "content_workspace_narration_prepare",
+        "content_workspace_production_materialize",
         "P0–P11",
         "production_package_assemble",
         "完整生产资料总览",
@@ -408,8 +410,8 @@ def validate_plugin() -> list[str]:
     ):
         if marker not in data_text:
             errors.append(f"data-center is missing required marker: {marker}")
-    if len(EXPECTED_CONTENT_TOOLS | EXPECTED_PRODUCTION_TOOLS | EXPECTED_PUBLISH_TOOLS | EXPECTED_DATA_TOOLS) != 42:
-        errors.append("health tool subset must contain exactly 42 tools")
+    if len(EXPECTED_CONTENT_TOOLS | EXPECTED_PRODUCTION_TOOLS | EXPECTED_PUBLISH_TOOLS | EXPECTED_DATA_TOOLS) != 43:
+        errors.append("health tool subset must contain exactly 43 tools")
     service_text = (PLUGIN_ROOT / "mcp" / "aivcp_tools" / "service.py").read_text(encoding="utf-8")
     missing_tools = sorted(
         tool
@@ -437,4 +439,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

@@ -997,6 +997,27 @@ class LocalToolService:
                 spoken_section_headings=args.get("spokenSectionHeadings", False),
                 cleanup_report=args.get("cleanupReport"),
             )
+        elif name == "content_workspace_production_materialize":
+            workspace_context = self.creative_workspace.production_materialization_context(
+                task_id=args.get("taskId"),
+                workspace_id=args.get("workspaceId"),
+                binding_proof=args.get("workspaceBindingProof"),
+                production_handoff_path=args.get("productionHandoffPath"),
+            )
+            result = self.content.materialize_workspace_manuscript(
+                task_id=args.get("taskId"),
+                channel_profile_id=args.get("channelProfileId"),
+                binding_proof=args.get("bindingProof"),
+                workspace_context=workspace_context,
+                story_bible=args.get("storyBible"),
+                characters=args.get("characters"),
+                target_script=args.get("targetScript"),
+                chinese_audit_script=args.get("chineseAuditScript"),
+                quality_gate=args.get("qualityGate"),
+                foreign_language_quality_gate=args.get("foreignLanguageQualityGate"),
+                authoring_mode=args.get("authoringMode", "target-language-native"),
+                sound_effects=args.get("soundEffects"),
+            )
         elif name == "content_workspace_get":
             result = self.creative_workspace.get(workspace_id=args.get("workspaceId"))
         elif name == "content_task_prompt_register":
@@ -1951,6 +1972,47 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "cleanupReport": {"type": "object"},
             },
             ["taskId", "workspaceId", "workspaceBindingProof", "sourceDocumentId", "language", "narrationTitle", "narrationContent"],
+        ),
+        (
+            "content_workspace_production_materialize",
+            "把当前任务已确认的自由创作正式稿与 narration 文件逐字绑定为工坊所需的内部 Manuscript Package；Topic 仅作为自动生成的机器兼容记录，不新增选题、方向或用户确认门。结构化配音行必须与 narration 逐字一致，角色、音色、中文逐行审核、合并质量门及独立外语质量保险门必须齐全。",
+            {
+                **binding_properties,
+                "workspaceId": {"type": "string", "minLength": 3, "maxLength": 160},
+                "workspaceBindingProof": {"type": "string", "minLength": 20, "maxLength": 256},
+                "productionHandoffPath": {"type": "string", "minLength": 1},
+                "storyBible": {"type": "object"},
+                "characters": {"type": "array", "minItems": 1},
+                "targetScript": {"type": "array", "minItems": 1},
+                "chineseAuditScript": {"type": ["array", "null"]},
+                "qualityGate": {"type": "object"},
+                "foreignLanguageQualityGate": {"type": "object"},
+                "authoringMode": {"type": "string"},
+                "soundEffects": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {"type": "boolean"},
+                        "selectionSource": {"const": "user"},
+                        "confirmed": {"const": True},
+                    },
+                    "required": ["enabled", "selectionSource", "confirmed"],
+                    "additionalProperties": True,
+                },
+            },
+            [
+                "taskId",
+                "channelProfileId",
+                "bindingProof",
+                "workspaceId",
+                "workspaceBindingProof",
+                "productionHandoffPath",
+                "storyBible",
+                "characters",
+                "targetScript",
+                "qualityGate",
+                "foreignLanguageQualityGate",
+                "soundEffects",
+            ],
         ),
         (
             "content_workspace_get",

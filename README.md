@@ -1,6 +1,6 @@
 # AI 视频频道生产系统 RC
 
-当前预发布候选版本是 `v0.16.0-rc.1`。本版新增持久化生产历史、工坊安全队列接力、失败提示词分类和同盘资产复用；配套新漫剧工坊 `2.9.0-rc.1` 增强项目持久化、字幕／剪映导出、可选音效、提示词断点恢复及图片／视频 API 失败切换。YouTube 发布中心升级为 `0.10.0-rc.1`，增加网络诊断、安全元数据更新和桌面单实例保护，并保持 Publish Package `2.1.0` 兼容。统一安装器与全部组件锁定到本版本，系统不会代替用户执行 Google／YouTube OAuth。
+当前预发布候选版本是 `v0.16.0-rc.2`。本版修复自由创作工作区已确认正式稿无法直接进入工坊的问题：系统现在自动生成下游需要的内部兼容合同，并逐字校验正式配音稿、中文审核稿、频道、项目和制作交接哈希，不再要求用户手工补旧 Topic／Manuscript／Publishing 流程。新漫剧工坊保持 `2.9.0-rc.1`，YouTube 发布中心保持 `0.10.0-rc.1`，Publish Package 保持 `2.1.0` 兼容。统一安装器与全部组件锁定到本版本，系统不会代替用户执行 Google／YouTube OAuth。
 
 ## 当前内容主流程
 
@@ -12,9 +12,9 @@
 
 ## Windows 一键安装
 
-[下载 Windows 统一安装器（v0.16.0-rc.1）](https://github.com/coisu772-code/AI-/releases/download/v0.16.0-rc.1/AI-Video-Channel-Production-Unified-Installer-v0.16.0-rc.1.zip)
+[下载 Windows 统一安装器（v0.16.0-rc.2）](https://github.com/coisu772-code/AI-/releases/download/v0.16.0-rc.2/AI-Video-Channel-Production-Unified-Installer-v0.16.0-rc.2.zip)
 
-普通联网用户只需下载这一个 ZIP，解压并双击 `install.cmd`。入口只从锁定的 `v0.16.0-rc.1` Release URL 获取总清单，不使用 `latest`；随后逐项校验大小和 SHA-256，再事务式安装全部组件。新漫剧工坊需要 Kokoro 时，会按 CPU、NVIDIA 或 NVIDIA Blackwell 选择对应的公开分卷运行包，先校验清单、大小和 SHA-256，再在工坊程序目录内安装；本次继续复用 `v0.10.0-rc.1` 中内容未变化且已校验的公开 Kokoro 运行包，不重复上传相同大资产，也不会写入频道、项目、凭据或运行数据目录。
+普通联网用户只需下载这一个 ZIP，解压并双击 `install.cmd`。入口只从锁定的 `v0.16.0-rc.2` Release URL 获取总清单，不使用 `latest`；随后逐项校验大小和 SHA-256，再事务式安装全部组件。新漫剧工坊需要 Kokoro 时，会按 CPU、NVIDIA 或 NVIDIA Blackwell 选择对应的公开分卷运行包，先校验清单、大小和 SHA-256，再在工坊程序目录内安装；本次继续复用 `v0.10.0-rc.1` 中内容未变化且已校验的公开 Kokoro 运行包，不重复上传相同大资产，也不会写入频道、项目、凭据或运行数据目录。
 
 先决条件：Windows 10/11 x64、PowerShell 5.1 或更高版本、统一系统约 1 GB 可用空间，以及 Codex 桌面版或支持 `plugin` 命令的 Codex CLI。无需预装 Python、uv 或 FFmpeg。Kokoro 是可选本地语音运行时，按所选硬件还需要约 2–6 GB 额外空间。
 

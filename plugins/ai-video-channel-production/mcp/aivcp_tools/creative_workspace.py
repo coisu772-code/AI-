@@ -723,5 +723,96 @@ class CreativeWorkspace:
             "next": "正式发布标题默认直接使用本口播稿标题；只补齐尚未确认的简介、Hashtags 和封面，再移交工坊。",
         }
 
+    def production_materialization_context(
+        self,
+        *,
+        task_id: Any,
+        workspace_id: Any,
+        binding_proof: Any,
+        production_handoff_path: Any,
+    ) -> dict[str, Any]:
+        """Return a verified, read-only bridge context for machine package materialization.
+
+        The free workspace and the legacy content-package store intentionally have
+        separate roots.  This method is the single fail-closed boundary between
+        them: it proves that the selected manuscript, prepared narration, channel,
+        project, and handoff file all still belong to the current task before the
+        content center is allowed to create its internal compatibility contracts.
+        """
+        state = self._assert(task_id=task_id, workspace_id=workspace_id, binding_proof=binding_proof)
+        binding = state.get("productionBinding")
+        if not isinstance(binding, dict) or binding.get("status") != "BOUND_FOR_PRODUCTION":
+            raise ToolError("PRODUCTION_BINDING_REQUIRED", "自由创作工作区尚未完成当前任务的制作绑定。")
+        handoff_path = Path(str(production_handoff_path or "")).resolve()
+        expected_handoff_path = Path(str(binding.get("handoffPath") or "")).resolve()
+        workspace_root = self._workspace_root(workspace_id).resolve()
+        try:
+            handoff_path.relative_to(workspace_root)
+        except ValueError as exc:
+            raise ToolError("CONTENT_WORKSPACE_HANDOFF_PATH_INVALID", "制作交接文件不在当前自由创作工作区内。") from exc
+        if handoff_path != expected_handoff_path or not handoff_path.is_file():
+            raise ToolError(
+                "CONTENT_WORKSPACE_PRODUCTION_HANDOFF_REQUIRED",
+                "必须使用当前工作区制作绑定返回的精确交接文件。",
+                details={"requiredHandoffPath": str(expected_handoff_path)},
+            )
+        try:
+            handoff = json.loads(handoff_path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ToolError("CONTENT_WORKSPACE_HANDOFF_INVALID", "制作交接文件不可读或已损坏。") from exc
+        if any(
+            (
+                handoff.get("taskId") != state["taskId"],
+                handoff.get("workspaceId") != state["workspaceId"],
+                handoff.get("projectId") != state["projectId"],
+                handoff.get("channelProfileId") != binding.get("channelProfileId"),
+                handoff.get("confirmationRef") != binding.get("confirmationRef"),
+            )
+        ):
+            raise ToolError("CONTENT_WORKSPACE_HANDOFF_INVALID", "制作交接文件的任务、项目、频道或确认记录不一致。")
+        source_id = binding.get("sourceDocumentId")
+        source = state.get("documents", {}).get(source_id)
+        if not isinstance(source, dict) or source.get("confirmation", {}).get("confirmed") is not True:
+            raise ToolError("PRODUCTION_SOURCE_NOT_CONFIRMED", "制作来源正式稿不再是当前已确认版本。")
+        source_path = Path(str(source.get("absolutePath") or "")).resolve()
+        try:
+            source_path.relative_to(workspace_root)
+        except ValueError as exc:
+            raise ToolError("CONTENT_WORKSPACE_SOURCE_PATH_INVALID", "制作来源正式稿不在当前工作区内。") from exc
+        if not source_path.is_file() or _sha256_file(source_path) != source.get("sha256"):
+            raise ToolError("CONTENT_WORKSPACE_SOURCE_HASH_MISMATCH", "制作来源正式稿缺失或 SHA-256 已变化。")
+        narration = binding.get("narration")
+        if not isinstance(narration, dict) or narration.get("productionUseAllowed") is not True:
+            raise ToolError("NARRATION_PREPARATION_REQUIRED", "尚未生成并冻结可供制作使用的正式配音稿。")
+        if (
+            narration.get("sourceDocumentId") != source_id
+            or narration.get("sourceDocumentVersion") != source.get("version")
+            or narration.get("sourceDocumentSha256") != source.get("sha256")
+        ):
+            raise ToolError("NARRATION_SOURCE_MISMATCH", "配音稿没有绑定当前已确认正式稿版本与 SHA-256。")
+        narration_path = Path(str(narration.get("absolutePath") or "")).resolve()
+        try:
+            narration_path.relative_to(workspace_root)
+        except ValueError as exc:
+            raise ToolError("NARRATION_PATH_INVALID", "正式配音稿不在当前工作区内。") from exc
+        if not narration_path.is_file() or _sha256_file(narration_path) != narration.get("sha256"):
+            raise ToolError("NARRATION_HASH_MISMATCH", "正式配音稿缺失或 SHA-256 已变化。")
+        handoff_narration = handoff.get("narration")
+        if not isinstance(handoff_narration, dict) or handoff_narration.get("sha256") != narration.get("sha256"):
+            raise ToolError("CONTENT_WORKSPACE_HANDOFF_INVALID", "制作交接文件没有绑定当前正式配音稿。")
+        return {
+            "taskId": state["taskId"],
+            "workspaceId": state["workspaceId"],
+            "projectId": state["projectId"],
+            "channelProfileId": binding["channelProfileId"],
+            "productionHandoffPath": str(handoff_path),
+            "productionHandoffSha256": _sha256_file(handoff_path),
+            "productionConfig": handoff.get("productionConfig"),
+            "sourceDocument": json.loads(json.dumps(source, ensure_ascii=False)),
+            "sourceContent": source_path.read_text(encoding="utf-8-sig"),
+            "narration": json.loads(json.dumps(narration, ensure_ascii=False)),
+            "narrationContent": narration_path.read_text(encoding="utf-8-sig"),
+        }
+
     def get(self, *, workspace_id: Any) -> dict[str, Any]:
         return {"workspace": self._public(self._load(workspace_id))}
